@@ -1,7 +1,8 @@
 # 101st Floor — reglas para Claude
 
 Producto visible: **101st Floor**. Proyecto Unreal y módulo C++: `Floor101`. Namespace propio: `floor101`/`f101`.
-Detalle y decisiones en `docs/` (build: `docs/build.md`, render: `docs/rendering-rtx.md`, ADRs: `docs/adr/`).
+Antes de una feature importante leer `docs/architecture.md` (módulos, dependencias, flujo) y los ADRs en `docs/adr/`.
+Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-mcp.md`.
 
 ## Arquitectura (no romper sin ADR)
 - Fuente de verdad: el modelo de 101st Floor (CAD Core). Unreal solo representa; Twinmotion solo presenta.

@@ -19,6 +19,7 @@ Visual Studio 2026 con MSVC 14.50 y Windows SDK 10.0.26100. Detalle: [docs/build
 ```
 
 ## Documentación
+- [docs/architecture.md](docs/architecture.md) — módulos, dependencias, unidades, flujo de datos, tests ([ADRs](docs/adr/README.md))
 - [docs/build.md](docs/build.md) — toolchain, compilación y localización del motor
 - [docs/rendering-rtx.md](docs/rendering-rtx.md) — configuración de render y cómo se verifica
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización
