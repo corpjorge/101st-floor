@@ -18,6 +18,15 @@ param(
 $engine = Find-UnrealEngine
 $targetName = if ($Target -eq 'Editor') { "${ProjectName}Editor" } else { $ProjectName }
 
+# UBT refuses to build while an editor with Live Coding is running.
+$editor = Get-CimInstance Win32_Process -Filter "Name='UnrealEditor.exe'" |
+    Where-Object { $_.CommandLine -like "*$ProjectName.uproject*" } | Select-Object -First 1
+if ($editor) {
+    Write-Host ("Unreal Editor for $ProjectName is running (PID $($editor.ProcessId)). Close it, or compile from the " +
+        "running editor with Live Coding (MCP: LiveCodingToolset.CompileLiveCoding).") -ForegroundColor Yellow
+    exit 1
+}
+
 Write-Step "Unreal Engine $($engine.Version) (CL $($engine.Changelist)) from $($engine.Source): $($engine.Root)"
 Write-Step "Building $targetName Win64 $Configuration"
 

@@ -40,7 +40,8 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 .\Scripts\CheckRendering.ps1                          # validación de render (ver rendering-rtx.md)
 ```
 `Build.ps1` llama a `Engine/Build/BatchFiles/Build.bat` (UnrealBuildTool). Log completo de UBT:
-`%LOCALAPPDATA%\UnrealBuildTool\Log.txt`.
+`%LOCALAPPDATA%\UnrealBuildTool\Log.txt`. Requiere el editor cerrado (UBT no compila con Live Coding activo);
+con el editor abierto, compilar con Live Coding vía MCP (ver `docs/unreal-mcp.md`).
 
 Unreal Build Accelerator se ejecuta en modo local (`-UBADisableRemote -UBAHost=127.0.0.1`): no hay agentes
 remotos y así su servidor no escucha en todas las interfaces de red.

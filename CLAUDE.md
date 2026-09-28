@@ -13,7 +13,10 @@ Detalle y decisiones en `docs/` (build: `docs/build.md`, render: `docs/rendering
 ## Entorno
 - Windows 11 + RTX 5070 Ti + UE 5.8.x (Launcher). Scripts en PowerShell 7: `Scripts/*.ps1`.
 - Nunca invocar `bash` desde `.ps1` (en PowerShell resuelve a WSL). Localizar el motor con `Scripts/Common.ps1`.
-- Compilar: `.\Scripts\Build.ps1`. Validar render real: `.\Scripts\CheckRendering.ps1`.
+- Compilar: `.\Scripts\Build.ps1` (con el editor cerrado; abierto → Live Coding vía MCP). Validar render: `.\Scripts\CheckRendering.ps1`.
+- Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
+- Unreal MCP: descubrir con `list_toolsets`/`describe_toolset`, invocar con `call_tool`, verificar cada resultado.
+  Commit antes de sesiones MCP largas o mutativas.
 - Render: solo DX12/SM6; los formatos D3D11 están eliminados a propósito (un fallback debe fallar, no pasar desapercibido).
 
 ## Forma de trabajo
