@@ -169,6 +169,8 @@ namespace
 					ReportState();
 					if (UWorld* World = GetGameWorld())
 					{
+						// Next frame: Lumen scene card counts (surface cache coverage) and a GPU pass profile.
+						GEngine->Exec(World, TEXT("r.LumenScene.DumpStats 1"));
 						GEngine->Exec(World, TEXT("ProfileGPU"));
 					}
 					Phase = EPhase::Profile;

@@ -50,6 +50,25 @@ Con *tool search* activo (default, `bEnableToolSearch=true`) el servidor expone 
 `list_toolsets`, `describe_toolset` y `call_tool`. Flujo: descubrir el toolset → leer su esquema → invocar con
 `call_tool` → comprobar el resultado.
 
+## Toolset propio: `Floor101Editor.Floor101DocumentToolset`
+CRUD de paredes del documento de 101st Floor en el mundo del editor: `GetWalls`, `AddWall`, `SetWallEnd` y
+`RemoveWall`, con coordenadas y dimensiones en mm enteros. Cada cambio regenera el actor, y el resultado incluye su
+referencia para inspeccionarlo con `ActorTools` (`get_actor_bounds`, `get_actor_transform`, `get_components`) o
+`SceneTools.find_actors` por la etiqueta `f101.node:<wallId>/body`. Es una capa fina sobre la API del documento: no
+contiene lógica de producto.
+
+## Particularidades observadas (UE 5.8.3)
+- **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;
+  `ProgrammaticToolset` es un sandbox que orquesta herramientas). Por eso existe el toolset propio.
+- **`CaptureViewport`:** exige `captureTransform` y `annotations` aunque su esquema los marca como opcionales. Devuelve
+  la imagen en base64 dentro del JSON (cientos de KB): hay que capturarla con `Scripts/McpClient.ps1` y guardarla en un
+  fichero, en lugar de pasarla por el contexto del agente.
+- **`AutomationTestToolset.RunTestsByFilter`:** si los tests provocan a propósito errores de script de un toolset
+  (tests de errores), la llamada MCP devuelve esos mensajes como error aunque los tests pasen, porque el registro los
+  captura. El resultado real está en `GetTestResults`.
+- **`FocusOnActors`:** en una pared alineada con X deja la cámara mirándola de canto; para capturas se usa una pose
+  explícita en `captureTransform`.
+
 ## Serialización (política del proyecto)
 Las llamadas MCP a Unreal se hacen **siempre en serie**, nunca solapadas, aunque parezcan independientes.
 El servidor atiende cada petición en el game thread, pero las herramientas asíncronas pueden solaparse y el orden de
@@ -107,3 +126,16 @@ Flujo reproducible verificado de principio a fin: `Build.ps1` → `RunEditorMcp.
 | Claude Code | servidor aprobado por el usuario; `mcp__unreal-mcp__call_tool` → `get_current_level` = `/Temp/Untitled_1`, `find_actors` = 15 actores (llamadas en serie). Tras reiniciar el editor, Claude Code se reconecta solo |
 | Plugin Claude Code | v3.1.1, alcance proyecto; hook `SessionStart` ejecutado con Git Bash → contexto `Floor101.uproject` |
 | Render tras el cambio | `CheckRendering.ps1` 14/14 (sin regresión) |
+
+### Validación MVP 0 por MCP (2026-09-28, en serie desde Claude Code)
+| Paso | Herramienta | Resultado |
+|---|---|---|
+| Crear la pared de referencia | `Floor101DocumentToolset.AddWall(0,0,3550,0,120,2400)` | UUID v4 `7a942f96-…`, actor `Floor101SceneNodeActor_0` |
+| Bounds | `ActorTools.get_actor_bounds` | min (0, −6, 0), max (355, 6, 240) cm |
+| Transform | `ActorTools.get_actor_transform` | origen, rotación 0, escala 1 |
+| Componentes | `ActorTools.get_components` | `Mesh` (`UDynamicMeshComponent`) |
+| Identidad | `SceneTools.find_actors(tag=f101.node:<id>/body)` | el mismo actor |
+| 3550 → 4200 mm | `Floor101DocumentToolset.SetWallEnd` | mismo id y actor; bounds máx. (420, 6, 240) cm; escala 1 |
+| Logs | `LogsToolset.GetLogEntries(LogFloor101)` | `scene resync in 0.912 ms (created 1)` → `0.212 ms (updated 1)` |
+| Automation Tests | `AutomationTestToolset.RunTestsByFilter("StartsWith:Floor101.")` + `GetTestResults` | 8/8 pasan |
+| Imagen | `EditorAppToolset.CaptureViewport` (vía `McpClient.ps1`) | pared visible y soleada, con sombra VSM |

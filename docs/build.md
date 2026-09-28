@@ -35,10 +35,25 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 
 ## Comandos
 ```powershell
-.\Scripts\Build.ps1                                   # Floor101Editor Win64 Development
-.\Scripts\Build.ps1 -Target Game -Configuration Shipping
-.\Scripts\CheckRendering.ps1                          # validación de render (ver rendering-rtx.md)
+.\Scripts\Setup.ps1                                   # comprueba el entorno (no instala nada)
+.\Scripts\Build.ps1                                   # Floor101Editor Win64 Development (UBT)
+.\Scripts\Test.ps1                                    # arquitectura + unitarios (CMake, sin Unreal)
+.\Scripts\Test.ps1 -Integration                       # + Unreal Automation en editor headless
+.\Scripts\Run.ps1                                     # app en ventana (-game) con la pared de referencia
+.\Scripts\CheckRendering.ps1 [-Demo]                  # validación de render (ver rendering-rtx.md)
+.\Scripts\RunEditorMcp.ps1 ; .\Scripts\CheckMcp.ps1   # editor + MCP (ver unreal-mcp.md)
+.\Scripts\Clean.ps1 [-IncludeSaved]                   # borra Binaries, Intermediate y DerivedDataCache
 ```
+`Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 0).
+
+### Tests unitarios (CMake)
+`Tests/Unit/CMakeLists.txt` compila los módulos puros como librerías estáticas con los mismos flags de generación de
+código que UBT (sin `/EHsc`, `_HAS_EXCEPTIONS=0`, `/GR-`) y más avisos (`/W4 /WX /permissive-`). doctest en modo sin
+excepciones (`DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS`) y con cabeceras estándar reales
+(`DOCTEST_CONFIG_USE_STD_HEADERS`, que MSVC 14.50 necesita). Build en `Intermediate/UnitTests/<Config>`. El entorno
+MSVC 14.50 se carga con `vcvars64 -vcvars_ver=14.50` solo durante el comando (`Invoke-WithMsvcEnvironment`).
+
+PowerShell parte los argumentos nativos con punto (`-X=127.0.0.1`, `-D...=cl.exe`): en los scripts van entre comillas.
 `Build.ps1` llama a `Engine/Build/BatchFiles/Build.bat` (UnrealBuildTool). Log completo de UBT:
 `%LOCALAPPDATA%\UnrealBuildTool\Log.txt`. Requiere el editor cerrado (UBT no compila con Live Coding activo);
 con el editor abierto, compilar con Live Coding vía MCP (ver `docs/unreal-mcp.md`).
@@ -49,10 +64,16 @@ remotos y así su servidor no escucha en todas las interfaces de red.
 ## Estructura
 ```
 Floor101.uproject
-Source/Floor101.Target.cs, Floor101Editor.Target.cs
-Source/Floor101/            módulo Unreal (runtime). Aún sin CAD Core: llega en MVP 0.
-Config/Default*.ini         configuración versionada (render en DefaultEngine.ini)
-Scripts/                    PowerShell 7
+Source/Floor101CadCore/         C++ puro: modelo CAD (docs/cad-core.md)
+Source/Floor101Geometry/        C++ puro: geometría derivada (docs/geometry.md)
+Source/Floor101SceneModel/      C++ puro: escena neutral (docs/scene-model.md)
+Source/Floor101UnrealAdapter/   escena → actores Unreal (docs/unreal-integration.md)
+Source/Floor101/                aplicación (subsistema de documento, RenderCheck)
+Source/Floor101Editor/          solo editor: toolset MCP
+Tests/Unit/                     tests unitarios CMake + doctest
+ThirdParty/doctest/             doctest 2.5.3 (MIT)
+Config/Default*.ini             configuración versionada (render en DefaultEngine.ini)
+Scripts/                        PowerShell 7
 ```
 `Binaries/`, `Intermediate/`, `Saved/`, `DerivedDataCache/` y los ficheros de solución generados no se versionan.
 

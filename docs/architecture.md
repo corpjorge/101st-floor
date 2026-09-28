@@ -26,8 +26,9 @@ sentido contrario: Unreal no escribe en el modelo, y un nivel de Unreal nunca se
 
 ## Módulos
 
-Cinco módulos de Unreal. Los tres primeros son **C++20 estándar**: no incluyen cabeceras de Unreal, no usan tipos de
-Unreal y compilan igual con UnrealBuildTool y con CMake (tests sin Unreal). Ver ADR-0002.
+Cinco módulos de producto y uno de desarrollo, solo para el editor. Los tres primeros son **C++20 estándar**: no
+incluyen cabeceras de Unreal, no usan tipos de Unreal y compilan igual con UnrealBuildTool y con CMake (tests sin
+Unreal). Ver ADR-0002.
 
 | Módulo | Tipo | Namespace | Depende de | Contenido |
 |---|---|---|---|---|
@@ -35,10 +36,12 @@ Unreal y compilan igual con UnrealBuildTool y con CMake (tests sin Unreal). Ver 
 | `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, `WallGeometryBuilder`; más adelante uniones, huecos, suelos, techos |
 | `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene`, `SceneNode`, `SceneMesh`, `SceneCompiler` (Project → Scene); más adelante materiales portables, luces, cámaras, `SceneDiff` |
 | `Floor101UnrealAdapter` | Unreal | — | SceneModel, Engine, GeometryFramework | reconciliación `Scene` → actores con `UDynamicMeshComponent`; conversión de unidades y ejes; tests de integración |
-| `Floor101` (existente) | Unreal, módulo principal | — | todos | aplicación: posee el `Document`, comandos de consola de desarrollo, `RenderCheck`; UI Slate en MVP 1 |
+| `Floor101` | Unreal, módulo principal | — | CadCore, SceneModel, UnrealAdapter | aplicación: `UFloor101DocumentSubsystem` (posee el `Document` de cada mundo), comandos de consola `f101.Demo.*`, `RenderCheck`; UI Slate en MVP 1 |
+| `Floor101Editor` | Unreal, **solo editor** | — | Floor101, CadCore, ToolsetRegistry | herramientas de desarrollo: toolset MCP `Floor101DocumentToolset` (CRUD de paredes en mm). Nunca entra en el juego |
 
 La dirección de dependencias se hace cumplir en compilación: un módulo solo ve las cabeceras de sus dependencias
-declaradas (UBT y CMake). Los módulos puros declaran únicamente `Core` en su `Build.cs`, y solo para el fichero de
+declaradas (UBT y CMake), y UBT tampoco enlaza dependencias transitivas. Por ejemplo, el adaptador no puede llamar a
+funciones del CAD Core sin declararlo; sus tests construyen el `Project` directamente, como dato. Los módulos puros declaran únicamente `Core` en su `Build.cs`, y solo para el fichero de
 registro del módulo (`IMPLEMENT_MODULE`), que CMake excluye. Una prueba de arquitectura en `Test.ps1` falla si un fichero
 puro incluye una cabecera de Unreal.
 
@@ -57,8 +60,9 @@ Reglas del C++ puro (para compilar idéntico dentro de Unreal, ver ADR-0002):
   modelo (p. ej. un punto de intersección que pasa a ser extremo de pared), se cuantiza a mm en ese punto, de forma
   explícita. `MeshData` y la escena no se cuantizan.
 - **Ejes:** modelo y escena son dextrógiros, X este, Y norte, Z arriba, en mm. El adaptador de Unreal (levógiro, cm)
-  aplica `(x, y, z) mm → (x/10, −y/10, z/10) cm` e invierte el orden de los triángulos. Cada consumidor tiene una única
-  conversión documentada (glTF, en el futuro: `(x, z, −y) / 1000` m).
+  aplica `(x, y, z) mm → (x/10, −y/10, z/10) cm` y conserva el orden de los triángulos: el espejo y la convención
+  levógira de Unreal se compensan (ADR-0003). Cada consumidor tiene una única conversión documentada (glTF, en el
+  futuro: `(x, z, −y) / 1000` m).
 
 ## Identidad
 
@@ -109,9 +113,9 @@ recorre el mismo pipeline como nodo de escena transitorio.
 
 | Nivel | Qué | Herramienta | Se ejecuta con |
 |---|---|---|---|
-| Unitarios (sin Unreal) | CadCore, Geometry, SceneModel | CMake + Ninja (VS Build Tools) + MSVC 14.50 + **doctest** incluido en el repo | `Test.ps1` (segundos) |
-| Arquitectura | módulos puros sin cabeceras ni tipos de Unreal | script + compilación CMake | `Test.ps1` |
-| Integración Unreal | adaptador: actor, componente, bounds 355×12×240 cm, regeneración a 420 cm sin escalar | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
+| Unitarios (sin Unreal) | CadCore, Geometry, SceneModel (`Tests/Unit/`) | CMake + Ninja (VS Build Tools) + MSVC 14.50 + **doctest** 2.5.3 (`ThirdParty/doctest`) | `Test.ps1` (segundos) |
+| Arquitectura | módulos puros sin cabeceras ni tipos de Unreal; `Build.cs` solo con `Core` y módulos puros | script + compilación CMake | `Test.ps1` |
+| Integración Unreal | adaptador (`Floor101.Adapter.*`): actor, componente, bounds 355×12×240 cm, triángulos según `GetTriNormal`, regeneración a 420 cm sin escalar; toolset (`Floor101.Editor.*`) | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
 | Render | DX12/SM6/HWRT/Lumen | `CheckRendering.ps1` | manual o en la validación de cada fase |
 | MCP | handshake, toolsets, lectura | `CheckMcp.ps1` | manual o en la validación de cada fase |
 
@@ -133,6 +137,13 @@ paredes generadas contribuyan a la GI de Lumen (cards por bounding box). Si no b
 `r.Lumen.HardwareRayTracing.LightingMode=2`, que evalúa la iluminación en el impacto del rayo, en las reflexiones.
 Modo Foto (Path Tracer / Lumen máxima calidad) queda fuera del MVP 0. Nanite se reserva para assets densos (Blender); las
 paredes son geometría simple.
+
+## Estado de implementación (MVP 0, 2026-09-28)
+
+Implementado y verificado: los cinco módulos de producto más `Floor101Editor`, la pared de referencia
+3550 → 4200 mm por todo el pipeline, tests unitarios, de arquitectura y de integración, y validación por MCP y de la
+ruta RTX con la pared en escena. Detalle por capa: `docs/cad-core.md`, `docs/geometry.md`, `docs/scene-model.md`,
+`docs/unreal-integration.md`.
 
 ## Fuera del MVP 0 (la arquitectura no lo bloquea)
 

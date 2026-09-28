@@ -1,6 +1,6 @@
 # ADR-0005: Representación en Unreal con `UDynamicMeshComponent`
 
-Estado: aceptado (Fase D, 2026-09-28); se valida en MVP 0.
+Estado: aceptado (Fase D) y verificado en MVP 0 (2026-09-28).
 
 ## Contexto
 Las paredes se generan en ejecución a partir del modelo y se regeneran al editarlas; no son assets creados en el editor.
@@ -28,7 +28,12 @@ huecos o forma en L. Se verifica en MVP 0 con la visualización de Lumen y compa
 `r.Lumen.HardwareRayTracing.LightingMode=2`, que evalúa la iluminación en el impacto en reflexiones (o `1` también en GI,
 más caro), o dividir las paredes complejas en varias piezas con cards propias.
 
-## Verificación
-MVP 0: un test de integración comprueba el actor y el componente, los bounds de 355×12×240 cm y la regeneración a 420 cm
-con escala 1. `CheckRendering.ps1` sobre un mapa con la pared confirma que no hay regresión en los pases HWRT. También se
-inspecciona visualmente la GI (`r.Lumen.Visualize`).
+## Verificación (MVP 0)
+- `Floor101.Adapter.ReferenceWall`: actor transitorio con `UDynamicMeshComponent`, 6 slots de material, bounds de
+  355,000 × 12,000 × 240,000 cm, 12 triángulos y **0 invertidos** según `FDynamicMesh3::GetTriNormal`. A 4200 mm: el
+  mismo actor, 420 × 12 × 240 cm, escala 1.
+- **Cards de Lumen:** `CheckRendering.ps1` registra `r.LumenScene.DumpStats 1`. Sin la pared, 1 mesh card y 6 cards (el
+  suelo); con `-Demo`, **2 mesh cards y 12 cards**: la pared aporta exactamente sus 6 caras a la surface cache.
+- Ruta RTX con la pared: 14/14 checks, 9 pases HWRT, GPU 3,55 ms (3,47 ms sin la pared).
+- Visual (captura del editor por MCP): pared iluminada por el sol en una cara, en sombra en la otra, con sombra VSM
+  proyectada; ninguna cara descartada.

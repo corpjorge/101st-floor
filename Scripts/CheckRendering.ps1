@@ -22,7 +22,9 @@ param(
     # Design mode target is 30-60+ FPS; above this average GPU time the check warns.
     [double]$MaxAvgGpuMs = 33.3,
     # Re-analyze an existing render check log without launching the engine.
-    [string]$AnalyzeLog
+    [string]$AnalyzeLog,
+    # Load the MVP 0 reference wall (-F101Demo) so generated geometry is part of the validated frame.
+    [switch]$Demo
 )
 
 . "$PSScriptRoot\Common.ps1"
@@ -40,6 +42,7 @@ function Invoke-RenderCheckRun {
         '-F101RenderCheck', "-F101RenderCheckWarmupFrames=$WarmupFrames",
         "-F101RenderCheckSampleFrames=$SampleFrames", "-F101RenderCheckTimeout=$TimeoutSeconds"
     )
+    if ($Demo) { $arguments += '-F101Demo' }
 
     Write-Step "Unreal Engine $($engine.Version): $($engine.EditorExe)"
     Write-Step "Running render check on $Map (log: $runLog)"
@@ -134,6 +137,22 @@ Pass-If 'Nanite' ($state['nanite'] -eq '1') "nanite=$($state['nanite'])"
 $critical = @($log | Select-String -Pattern '(LogD3D12RHI|LogRHI|LogShaderCompilers|LogRenderer|LogRendererCore|LogMaterial)\w*: (Error|Fatal)' |
     ForEach-Object { $_.Line.Trim() })
 Pass-If 'No critical RHI/shader errors' ($critical.Count -eq 0) "$($critical.Count) error line(s)"
+
+# Lumen surface cache coverage (r.LumenScene.DumpStats 1): generated walls must bring their own mesh cards (ADR-0005).
+$statsStart = [Array]::FindIndex([string[]]$log, [Predicate[string]] { param($l) $l -match '\*\*\* LumenScene Stats \*\*\*' })
+$lumenCards = 'n/a'
+if ($statsStart -ge 0) {
+    $block = $log[$statsStart..[Math]::Min($log.Count - 1, $statsStart + 8)] -join "`n"
+    $meshCards = if ($block -cmatch 'Mesh cards: (\d+)') { $Matches[1] } else { '?' }
+    $cards = if ($block -cmatch ' Cards: (\d+)') { $Matches[1] } else { '?' }
+    $lumenCards = "mesh cards=$meshCards cards=$cards"
+}
+Add-Check 'Lumen scene cards' ($(if ($statsStart -ge 0) { 'INFO' } else { 'WARN' })) $lumenCards
+
+$wallLine = Get-LogLine 'F101: wall .* -> actor '
+if ($Demo -or $wallLine) {
+    Pass-If 'Reference wall rendered' ([bool]$wallLine) ($(if ($wallLine) { ($wallLine -replace '^.*F101: ', '').Trim() } else { 'no F101 wall in the log' }))
+}
 
 $gpuAvg = if ($state['gpu_time'] -match 'avg=([\d.]+)ms') { [double]$Matches[1] } else { [double]::NaN }
 $perfStatus = if ([double]::IsNaN($gpuAvg)) { 'FAIL' } elseif ($gpuAvg -le $MaxAvgGpuMs) { 'PASS' } else { 'WARN' }

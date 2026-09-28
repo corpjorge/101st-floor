@@ -37,6 +37,7 @@ Los valores replican lo que el asistente de proyectos de UE 5.8.3 escribe para u
 4. ejecuta `ProfileGPU` y sale.
 
 Para re-analizar un log sin relanzar el motor: `.\Scripts\CheckRendering.ps1 -AnalyzeLog <ruta>`.
+Con `-Demo` se carga la pared de referencia (`-F101Demo`), para validar también la geometría generada.
 
 El script cruza esos valores con mensajes propios del motor:
 
@@ -78,6 +79,11 @@ completa tarda ~20–30 s.
 Lumen ejecuta por defecto la GI y la iluminación de escena en *async compute* (`r.Lumen.AsyncCompute=1`,
 `r.Lumen.DiffuseIndirect.AsyncCompute=1`) y las reflexiones en la cola gráfica. ProfileGPU imprime una tabla por
 cola (Compute antes que Graphics); el script las analiza todas.
+
+### Con la pared de referencia (MVP 0, `CheckRendering.ps1 -Demo`)
+14/14 PASS más `Reference wall rendered` (355 × 12 × 240 cm). Cobertura de la surface cache de Lumen
+(`r.LumenScene.DumpStats 1`): sin la pared, 1 mesh card y 6 cards; con la pared, **2 mesh cards y 12 cards**. La pared
+generada con `UDynamicMeshComponent` aporta sus 6 caras a Lumen (ADR-0005). GPU 3,55 ms frente a 3,47 ms sin la pared.
 
 Warnings conocidos no relacionados con render: `LogEditorDataStorageUI` (UI del editor inexistente al ejecutar el
 binario del editor con `-game`).

@@ -3,8 +3,8 @@
 Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
 modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
 
-> Estado: Fases A–C completadas — proyecto `Floor101`, ruta gráfica DX12/SM6/HWRT/Lumen validada (14/14) y
-> Unreal MCP operativo (6/6). Siguiente: Fase D (arquitectura). MVP 0 pendiente.
+> Estado: **MVP 0 implementado** (Fase E). CAD Core, Geometry y Scene Model en C++ puro; pared de referencia
+> de 3550 mm regenerada a 4200 mm en Unreal (Lumen HWRT), validada con tests y por MCP. Siguiente: Fases F–G.
 
 ## Requisitos
 Windows 11 x64, GPU con DXR 1.1 + SM6.6 (referencia: RTX 5070 Ti), Unreal Engine 5.8.x (Epic Games Launcher),
@@ -12,7 +12,11 @@ Visual Studio 2026 con MSVC 14.50 y Windows SDK 10.0.26100. Detalle: [docs/build
 
 ## Uso
 ```powershell
+git clone https://github.com/corpjorge/101st-floor.git; cd 101st-floor
+.\Scripts\Setup.ps1            # comprueba el entorno
 .\Scripts\Build.ps1            # compila Floor101Editor (Win64 Development)
+.\Scripts\Test.ps1             # arquitectura + tests unitarios sin Unreal (-Integration: + Unreal Automation)
+.\Scripts\Run.ps1              # abre 101st Floor con la pared de referencia
 .\Scripts\CheckRendering.ps1   # valida DX12, SM6, GPU, ray tracing, Lumen HWRT, VSM, Nanite desde los logs
 .\Scripts\RunEditorMcp.ps1     # abre Unreal Editor con el servidor MCP (desarrollo con Claude Code)
 .\Scripts\CheckMcp.ps1         # prueba de humo del MCP (handshake, toolsets, operación read-only)
@@ -20,6 +24,7 @@ Visual Studio 2026 con MSVC 14.50 y Windows SDK 10.0.26100. Detalle: [docs/build
 
 ## Documentación
 - [docs/architecture.md](docs/architecture.md) — módulos, dependencias, unidades, flujo de datos, tests ([ADRs](docs/adr/README.md))
+- [docs/cad-core.md](docs/cad-core.md) · [docs/geometry.md](docs/geometry.md) · [docs/scene-model.md](docs/scene-model.md) · [docs/unreal-integration.md](docs/unreal-integration.md) — cada capa
 - [docs/build.md](docs/build.md) — toolchain, compilación y localización del motor
 - [docs/rendering-rtx.md](docs/rendering-rtx.md) — configuración de render y cómo se verifica
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización

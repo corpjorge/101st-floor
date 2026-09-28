@@ -24,16 +24,21 @@ render y exportación que no se convierta accidentalmente en fuente de verdad y 
   reimportar en Twinmotion.
 - **Sistema de coordenadas de la escena:** el del modelo. Dextrógiro, X este, Y norte, Z arriba, en milímetros (`double`
   para la geometría). Cada consumidor aplica una única conversión documentada:
-  - Unreal (levógiro, cm): `(x, y, z) → (x/10, −y/10, z/10)`, con inversión del orden de los triángulos.
+  - Unreal (levógiro, cm): `(x, y, z) → (x/10, −y/10, z/10)`, conservando el orden de los triángulos. El espejo de Y
+    invierte el signo del producto vectorial, y la convención levógira de Unreal lo vuelve a invertir
+    (`VectorUtil::Normal` usa `edge2 × edge1`): ambos efectos se compensan. Corregido en la Fase E tras leer el código
+    de GeometryCore; la primera versión de este ADR decía que había que invertir el orden.
   - glTF (dextrógiro, Y arriba, m), en el futuro: `(x, y, z) → (x, z, −y) / 1000`.
 - Cada nodo guarda los metadatos de origen (tipo e ID de la entidad) para inspección, selección y exportación.
 
 ## Consecuencias
 - Cualquier consumidor nuevo (vista 2D, USD, Datasmith) se escribe contra la escena, no contra el modelo ni Unreal.
 - MVP 0 recompila la escena completa; el diseño admite recompilado incremental más adelante sin cambiar el contrato.
-- El inverso del espejo de ejes es un punto clásico de error: se cubre con tests (normales hacia fuera, orden de los
-  triángulos, bounds con signo).
+- El espejo de ejes es un punto clásico de error: se cubre con tests (normales hacia fuera y orden de los triángulos
+  en la escena; en Unreal, `FDynamicMesh3::GetTriNormal` debe coincidir con la normal convertida).
 
 ## Verificación
 Tests unitarios: compilar un proyecto con una pared da un nodo con el `SceneNodeId` esperado; recompilar tras un cambio
-mantiene el ID; bounds en mm. Test de integración en Unreal: bounds 355×12×240 cm y el mismo actor tras cambiar a 4200 mm.
+mantiene el ID; bounds en mm. Test de integración en Unreal: bounds 355×12×240 cm, el mismo actor tras cambiar a 4200 mm
+y 0 triángulos invertidos según `GetTriNormal`, lo que confirma que no hay que invertir el orden. Resultados de MVP 0:
+todos en verde.
