@@ -19,10 +19,14 @@ namespace f101::cad
 		std::int64_t thicknessMm = 0;
 		std::int64_t heightMm = 0;
 
+		friend bool operator==(const Wall&, const Wall&) = default;
+
 		Segment2D axis() const { return Segment2D{start, end}; }
 		double lengthMm() const { return axis().lengthMm(); }
 	};
 
-	// Invariants every wall in a project satisfies: identity, non-degenerate axis, positive dimensions, model range.
+	// Invariants every wall in a project satisfies: identity plus validateWallGeometry.
 	FLOOR101CADCORE_API Status validateWall(const Wall& wall);
+	// Non-degenerate axis, positive dimensions, model range. Enough to build geometry (e.g. a preview without an id).
+	FLOOR101CADCORE_API Status validateWallGeometry(const Wall& wall);
 }

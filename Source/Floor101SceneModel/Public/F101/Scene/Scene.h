@@ -27,6 +27,17 @@ namespace f101::scene
 	enum class SourceKind
 	{
 		Wall,
+		Marker,
+	};
+
+	// How a consumer presents a node. View state (selection, previews, handles): never saved, ignored by exporters.
+	enum class NodeStyle
+	{
+		Normal,
+		Selected,
+		Preview,
+		Handle,
+		Hidden,
 	};
 
 	struct SceneNode
@@ -36,7 +47,8 @@ namespace f101::scene
 		SourceKind sourceKind = SourceKind::Wall;
 		std::string sourceId;        // UUID text of the source entity
 		geometry::MeshData mesh;     // scene space (mm, right-handed, Z up); node transform is identity for now
-		std::uint64_t contentHash = 0; // changes whenever anything a consumer renders changes
+		std::uint64_t contentHash = 0; // hash of the mesh; changes whenever the geometry changes
+		NodeStyle style = NodeStyle::Normal;
 	};
 
 	struct Scene

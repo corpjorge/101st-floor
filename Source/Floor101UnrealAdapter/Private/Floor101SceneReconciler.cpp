@@ -42,13 +42,13 @@ FFloor101ReconcileStats FFloor101SceneReconciler::Reconcile(const f101::scene::S
 			check(Actor);
 			Actor->ApplyNode(Node);
 			Actors.Add(Key, Actor);
-			ContentHashes.Add(Key, Node.contentHash);
+			AppliedState.Add(Key, FApplied{Node.contentHash, Node.style});
 			++Stats.Created;
 		}
-		else if (ContentHashes.FindRef(Key) != Node.contentHash)
+		else if (const FApplied* Applied = AppliedState.Find(Key); !Applied || Applied->ContentHash != Node.contentHash || Applied->Style != Node.style)
 		{
 			Actor->ApplyNode(Node);
-			ContentHashes.Add(Key, Node.contentHash);
+			AppliedState.Add(Key, FApplied{Node.contentHash, Node.style});
 			++Stats.Updated;
 		}
 		else
@@ -65,7 +65,7 @@ FFloor101ReconcileStats FFloor101SceneReconciler::Reconcile(const f101::scene::S
 			{
 				Actor->Destroy();
 			}
-			ContentHashes.Remove(It.Key());
+			AppliedState.Remove(It.Key());
 			It.RemoveCurrent();
 			++Stats.Removed;
 		}
@@ -83,7 +83,7 @@ void FFloor101SceneReconciler::DestroyAll()
 		}
 	}
 	Actors.Reset();
-	ContentHashes.Reset();
+	AppliedState.Reset();
 }
 
 AFloor101SceneNodeActor* FFloor101SceneReconciler::FindActor(const f101::scene::SceneNodeId& Id) const

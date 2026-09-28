@@ -2,15 +2,25 @@
 
 #include "Engine/World.h"
 #include "F101/Cad/Document.h"
+#include "F101/Cad/EditController.h"
+#include "F101/Cad/ProjectFile.h"
 #include "F101/Cad/Units.h"
 #include "F101/Scene/SceneCompiler.h"
 #include "Floor101.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
+#include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
+
+#include <filesystem>
+#include <string_view>
+
+#define LOCTEXT_NAMESPACE "Floor101Document"
 
 namespace
 {
@@ -28,7 +38,29 @@ namespace
 		return Subsystem;
 	}
 
-	// Development commands for MVP 0; they act on the world of the console that runs them (editor, PIE or game).
+	// UTF-8 in both directions, so non-ASCII paths (e.g. a user name with accents) survive on Windows.
+	std::filesystem::path ToFilesystemPath(const FString& Path)
+	{
+		const FTCHARToUTF8 Utf8(*Path);
+		return std::filesystem::path(std::u8string_view(reinterpret_cast<const char8_t*>(Utf8.Get()), Utf8.Length()));
+	}
+
+	FText ToText(const std::string& Utf8)
+	{
+		return FText::FromString(UTF8_TO_TCHAR(Utf8.c_str()));
+	}
+
+	// The file named on the command line, else the current one, else the default one.
+	FString ResolveProjectPath(const TArray<FString>& Args, const UFloor101DocumentSubsystem& Subsystem)
+	{
+		if (!Args.IsEmpty())
+		{
+			return FPaths::ConvertRelativePathToFull(FString::Join(Args, TEXT(" ")));
+		}
+		return Subsystem.GetProjectPath().IsEmpty() ? UFloor101DocumentSubsystem::GetDefaultProjectPath() : Subsystem.GetProjectPath();
+	}
+
+	// Development commands; they act on the world of the console that runs them (editor, PIE or game).
 	FAutoConsoleCommandWithWorld LoadCommand(
 		TEXT("f101.Demo.Load"),
 		TEXT("Creates the MVP 0 reference wall: (0,0)->(3550,0) mm, 120 mm thick, 2400 mm high."),
@@ -81,6 +113,50 @@ namespace
 				Subsystem->LogStatus();
 			}
 		}));
+
+	FAutoConsoleCommandWithWorldAndArgs SaveCommand(
+		TEXT("f101.Project.Save"),
+		TEXT("Saves the document as project.json: to the given path, else the current file, else Documents/101st Floor/project.json."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UFloor101DocumentSubsystem* Subsystem = FindSubsystem(World))
+			{
+				(void)Subsystem->SaveProject(ResolveProjectPath(Args, *Subsystem));
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs OpenCommand(
+		TEXT("f101.Project.Open"),
+		TEXT("Opens a project.json: the given path, else the current file, else Documents/101st Floor/project.json."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UFloor101DocumentSubsystem* Subsystem = FindSubsystem(World))
+			{
+				(void)Subsystem->OpenProject(ResolveProjectPath(Args, *Subsystem));
+			}
+		}));
+
+	FAutoConsoleCommandWithWorld UndoCommand(
+		TEXT("f101.Undo"),
+		TEXT("Undoes the last change of the document."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			if (UFloor101DocumentSubsystem* Subsystem = FindSubsystem(World))
+			{
+				(void)Subsystem->Edit([](f101::cad::EditController& Editor) { return Editor.undo(); });
+			}
+		}));
+
+	FAutoConsoleCommandWithWorld RedoCommand(
+		TEXT("f101.Redo"),
+		TEXT("Redoes the last undone change of the document."),
+		FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+		{
+			if (UFloor101DocumentSubsystem* Subsystem = FindSubsystem(World))
+			{
+				(void)Subsystem->Edit([](f101::cad::EditController& Editor) { return Editor.redo(); });
+			}
+		}));
 }
 
 UFloor101DocumentSubsystem::UFloor101DocumentSubsystem() = default;
@@ -96,8 +172,13 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 {
 	Super::Initialize(Collection);
 	Document = MakePimpl<f101::cad::Document>(f101::cad::makeRandomUuidSource());
+	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
-	ListenerHandle = Document->subscribe([this](const f101::cad::ChangeSet&) { Resync(); });
+	ListenerHandle = Document->subscribe([this](const f101::cad::ChangeSet&)
+	{
+		++ChangeCount;
+		Resync(true);
+	});
 }
 
 void UFloor101DocumentSubsystem::Deinitialize()
@@ -108,6 +189,7 @@ void UFloor101DocumentSubsystem::Deinitialize()
 	}
 	// Actors die with the world; the reconciler only drops its weak references.
 	Reconciler.Reset();
+	Editor.Reset();
 	Document.Reset();
 	Super::Deinitialize();
 }
@@ -119,6 +201,90 @@ void UFloor101DocumentSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	{
 		LoadReferenceWall();
 	}
+}
+
+f101::Status UFloor101DocumentSubsystem::Edit(TFunctionRef<f101::Status(f101::cad::EditController&)> Action)
+{
+	// Document changes already resynced through the listener, but the view state may have changed after that
+	// (e.g. the selection is cleared once the deletion succeeded), so the view is always refreshed at the end.
+	const f101::Status Result = Action(*Editor);
+	if (Result)
+	{
+		SetStatus(FText::GetEmpty(), false);
+	}
+	else
+	{
+		SetStatus(ToText(Result.error().message), true);
+	}
+	Resync(false);
+	return Result;
+}
+
+void UFloor101DocumentSubsystem::UpdatePointer(const f101::cad::Ray3& Ray)
+{
+	Editor->pointerMoved(Ray);
+	Resync(false);
+}
+
+void UFloor101DocumentSubsystem::SetStatus(const FText& Message, bool bIsError)
+{
+	StatusMessage = Message;
+	bStatusIsError = bIsError;
+	if (bIsError)
+	{
+		UE_LOG(LogFloor101, Warning, TEXT("F101: %s"), *Message.ToString());
+	}
+	else if (!Message.IsEmpty())
+	{
+		UE_LOG(LogFloor101, Display, TEXT("F101: %s"), *Message.ToString());
+	}
+}
+
+FString UFloor101DocumentSubsystem::GetDefaultProjectPath()
+{
+	return FPaths::Combine(FPlatformProcess::UserDir(), TEXT("101st Floor"), TEXT("project.json"));
+}
+
+f101::Status UFloor101DocumentSubsystem::SaveProject(const FString& Path)
+{
+	const FString Directory = FPaths::GetPath(Path);
+	if (!Directory.IsEmpty() && !IFileManager::Get().MakeDirectory(*Directory, true))
+	{
+		const f101::Error Failed{f101::ErrorCode::NotFound, "Cannot create the folder " + std::string(TCHAR_TO_UTF8(*Directory))};
+		SetStatus(ToText(Failed.message), true);
+		return Failed;
+	}
+	const f101::Status Saved = f101::cad::saveProjectFile(ToFilesystemPath(Path), Document->project());
+	if (!Saved)
+	{
+		SetStatus(ToText(Saved.error().message), true);
+		return Saved;
+	}
+	ProjectPath = Path;
+	SavedChangeCount = ChangeCount;
+	SetStatus(FText::Format(LOCTEXT("Saved", "Guardado: {0}"), FText::FromString(Path)), false);
+	return Saved;
+}
+
+f101::Status UFloor101DocumentSubsystem::OpenProject(const FString& Path)
+{
+	f101::Result<f101::cad::Project> Loaded = f101::cad::loadProjectFile(ToFilesystemPath(Path));
+	if (!Loaded)
+	{
+		SetStatus(ToText(Loaded.error().message), true);
+		return Loaded.error();
+	}
+	Editor->reset();
+	const f101::Status Replaced = Document->replaceProject(std::move(Loaded).value());
+	if (!Replaced)
+	{
+		SetStatus(ToText(Replaced.error().message), true);
+		return Replaced;
+	}
+	ProjectPath = Path;
+	SavedChangeCount = ChangeCount;
+	SetStatus(FText::Format(LOCTEXT("Opened", "Abierto: {0}"), FText::FromString(Path)), false);
+	return Replaced;
 }
 
 AActor* UFloor101DocumentSubsystem::FindWallActor(const f101::cad::WallId& Id) const
@@ -165,14 +331,32 @@ void UFloor101DocumentSubsystem::ClearReferenceWall()
 	}
 }
 
-void UFloor101DocumentSubsystem::Resync()
+void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 {
 	const double Start = FPlatformTime::Seconds();
-	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project());
+
+	const f101::cad::EditView View = Editor->view();
+	f101::scene::ViewOverlay Overlay;
+	Overlay.selectedWall = View.selectedWall;
+	Overlay.hiddenWall = View.hiddenWall;
+	Overlay.preview = View.preview;
+	Overlay.markers = View.handles;
+	Overlay.markerSizeMm = Editor->settings().handleSizeMm;
+	Overlay.markerHeightMm = Editor->settings().handleHeightMm;
+
+	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);
-	UE_LOG(LogFloor101, Display, TEXT("F101: scene resync in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
-		(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
-	LogStatus();
+	if (bDocumentChanged)
+	{
+		UE_LOG(LogFloor101, Display, TEXT("F101: scene resync in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
+			(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
+		LogStatus();
+	}
+	else
+	{
+		UE_LOG(LogFloor101, Verbose, TEXT("F101: view refresh in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
+			(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
+	}
 }
 
 void UFloor101DocumentSubsystem::LogStatus() const
@@ -191,3 +375,5 @@ void UFloor101DocumentSubsystem::LogStatus() const
 		UE_LOG(LogFloor101, Display, TEXT("F101: document has no walls"));
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

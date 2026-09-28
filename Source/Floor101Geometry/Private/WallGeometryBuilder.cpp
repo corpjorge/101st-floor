@@ -52,7 +52,7 @@ namespace f101::geometry
 
 	MeshData buildWallMesh(const cad::Wall& wall)
 	{
-		F101_ASSERT(cad::validateWall(wall).ok());
+		F101_ASSERT(cad::validateWallGeometry(wall).ok());
 
 		const double length = wall.lengthMm();
 		const double height = static_cast<double>(wall.heightMm);

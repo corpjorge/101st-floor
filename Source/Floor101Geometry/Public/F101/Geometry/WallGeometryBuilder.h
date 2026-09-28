@@ -18,6 +18,6 @@ namespace f101::geometry
 	}
 
 	// Closed box for a straight wall: centred on its axis, from floor (z = 0) to its height. Flat-shaded, 24 vertices,
-	// 12 triangles, one section per face. Precondition: cad::validateWall(wall) succeeds.
+	// 12 triangles, one section per face. Precondition: cad::validateWallGeometry(wall) succeeds (the id is not used).
 	FLOOR101GEOMETRY_API MeshData buildWallMesh(const cad::Wall& wall);
 }

@@ -104,6 +104,19 @@ TEST_CASE("rejects lengths outside the model range")
 	CHECK(parseErrorCode("1000001 m") == ErrorCode::OutOfRange);
 }
 
+TEST_CASE("formatLength shows millimetre precision in the display unit")
+{
+	CHECK(formatLength(3550.0, LengthUnit::Millimeter) == "3550 mm");
+	CHECK(formatLength(3550.0, LengthUnit::Centimeter) == "355 cm");
+	CHECK(formatLength(3550.0, LengthUnit::Meter) == "3.55 m");
+	CHECK(formatLength(3555.0, LengthUnit::Centimeter) == "355.5 cm");
+	CHECK(formatLength(4200.0, LengthUnit::Meter) == "4.2 m");
+	CHECK(formatLength(5.0, LengthUnit::Meter) == "0.005 m");
+	CHECK(formatLength(1234.4, LengthUnit::Millimeter) == "1234 mm");
+	CHECK(formatLength(-120.0, LengthUnit::Centimeter) == "-12 cm");
+	CHECK(formatLength(0.0, LengthUnit::Meter) == "0 m");
+}
+
 TEST_CASE("quantizeMillimeters: the single re-entry point for computed values")
 {
 	CHECK(quantizeMillimeters(3549.5).value() == 3550);

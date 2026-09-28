@@ -51,11 +51,17 @@ Con *tool search* activo (default, `bEnableToolSearch=true`) el servidor expone 
 `call_tool` → comprobar el resultado.
 
 ## Toolset propio: `Floor101Editor.Floor101DocumentToolset`
-CRUD de paredes del documento de 101st Floor en el mundo del editor: `GetWalls`, `AddWall`, `SetWallEnd` y
-`RemoveWall`, con coordenadas y dimensiones en mm enteros. Cada cambio regenera el actor, y el resultado incluye su
-referencia para inspeccionarlo con `ActorTools` (`get_actor_bounds`, `get_actor_transform`, `get_components`) o
-`SceneTools.find_actors` por la etiqueta `f101.node:<wallId>/body`. Es una capa fina sobre la API del documento: no
-contiene lógica de producto.
+Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetWallLength`, `SetWallThickness`,
+`SetWallHeight`, `RemoveWall`, `Undo`/`Redo` (devuelven la etiqueta, p. ej. `Create wall`) y `SaveProject`/
+`OpenProject` (rutas absolutas), con coordenadas y dimensiones en mm enteros. **Mundo objetivo:** el de la sesión PIE
+mientras exista (lo que el usuario está editando; empieza vacío), si no el del editor. Cada cambio es un paso
+deshacible y regenera el actor; el resultado incluye su referencia para inspeccionarlo con `ActorTools`
+(`get_actor_bounds`, `get_actor_transform`, `get_components`) o `SceneTools.find_actors` por la etiqueta
+`f101.node:<wallId>/body`. Es una capa fina sobre la API del documento: no contiene lógica de producto.
+
+Verificado (MVP 1): pared en el mundo del editor → `EditorAppToolset.StartPIE` → `GetWalls` vacío (documento de PIE)
+→ `AddWall` con actor en `UEDPIE_0_…` → `Undo`/`Redo` (`Create wall`) → `StopPIE` → el documento del editor conserva su
+pared.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

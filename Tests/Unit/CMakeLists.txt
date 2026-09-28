@@ -28,6 +28,7 @@ function(f101_pure_module name)
 endfunction()
 
 f101_pure_module(Floor101CadCore)
+target_include_directories(Floor101CadCore SYSTEM PRIVATE "${F101_ROOT}/ThirdParty") # nlohmann/json
 f101_pure_module(Floor101Geometry)
 target_link_libraries(Floor101Geometry PUBLIC Floor101CadCore)
 f101_pure_module(Floor101SceneModel)
@@ -41,6 +42,12 @@ add_executable(Floor101UnitTests
 	WallTests.cpp
 	WallGeometryTests.cpp
 	SceneTests.cpp
+	CommandTests.cpp
+	ProjectFileTests.cpp
+	SnappingTests.cpp
+	WallToolTests.cpp
+	PickingTests.cpp
+	EditControllerTests.cpp
 )
 target_include_directories(Floor101UnitTests SYSTEM PRIVATE "${F101_ROOT}/ThirdParty/doctest")
 # No exceptions, like Unreal (a failed REQUIRE aborts the run). Real std headers instead of doctest's forward

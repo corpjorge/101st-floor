@@ -1,0 +1,72 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/GameViewportClient.h"
+
+#include "Floor101GameViewportClient.generated.h"
+
+class AFloor101EditingPawn;
+class UFloor101DocumentSubsystem;
+
+namespace f101::cad
+{
+	struct Ray3;
+}
+
+// What a key does while editing (keyboard map, ADR-0008).
+enum class EFloor101KeyCommand : uint8
+{
+	None,
+	Undo,
+	Redo,
+	Save,
+	Open,
+	Backspace,
+	WallTool,
+	SelectTool,
+	Cancel,
+	Confirm,
+	Delete,
+	Frame,
+};
+
+// Translates raw input into editing calls (ADR-0008): the cursor becomes a ray in scene space for the edit controller,
+// keys become commands, typed characters become the wall tool's length. Holds no editing logic of its own.
+// Input it does not use (and all input while the console is open) goes to the engine as usual.
+//
+// Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
+// Keys: W wall tool, V select, Enter, Esc, Backspace, Delete, F frame all, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
+// Ctrl+S save, Ctrl+O open.
+UCLASS()
+class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Tick(float DeltaTime) override;
+	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
+	virtual bool InputAxis(const FInputKeyEventArgs& EventArgs) override;
+	virtual bool InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character) override;
+
+	// Frames every wall of the document (or the origin if there are none).
+	void FrameProject();
+
+	// Keyboard map. Held keys only repeat Backspace, undo and redo; with Ctrl, only the Ctrl shortcuts apply.
+	static EFloor101KeyCommand MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat);
+
+private:
+	// Null while the console is open, input is ignored or the world has no document.
+	UFloor101DocumentSubsystem* GetEditingTarget();
+	AFloor101EditingPawn* GetEditingPawn() const;
+	// Ray under the cursor in scene space; false when the cursor is outside the viewport or there is no camera.
+	bool GetCursorRay(f101::cad::Ray3& OutRay) const;
+	bool HandleKey(UFloor101DocumentSubsystem& Document, const FKey& Key, bool bRepeat);
+
+	FVector2D LastMousePosition = FVector2D(-1.0, -1.0);
+	FVector LastRayOrigin = FVector::ZeroVector;
+	FVector LastRayDirection = FVector::ZeroVector;
+	bool bOrbiting = false;
+	bool bPanning = false;
+	// A right click that barely moved cancels, like Esc (in PIE the editor keeps Esc to stop playing).
+	double RightDragPixels = 0.0;
+};

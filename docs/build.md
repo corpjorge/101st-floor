@@ -44,7 +44,7 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 .\Scripts\RunEditorMcp.ps1 ; .\Scripts\CheckMcp.ps1   # editor + MCP (ver unreal-mcp.md)
 .\Scripts\Clean.ps1 [-IncludeSaved]                   # borra Binaries, Intermediate y DerivedDataCache
 ```
-`Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 0).
+`Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 1).
 
 ### Tests unitarios (CMake)
 `Tests/Unit/CMakeLists.txt` compila los módulos puros como librerías estáticas con los mismos flags de generación de
@@ -68,10 +68,11 @@ Source/Floor101CadCore/         C++ puro: modelo CAD (docs/cad-core.md)
 Source/Floor101Geometry/        C++ puro: geometría derivada (docs/geometry.md)
 Source/Floor101SceneModel/      C++ puro: escena neutral (docs/scene-model.md)
 Source/Floor101UnrealAdapter/   escena → actores Unreal (docs/unreal-integration.md)
-Source/Floor101/                aplicación (subsistema de documento, RenderCheck)
+Source/Floor101/                aplicación: documento y edición, entrada, cámara, UI Slate, RenderCheck
 Source/Floor101Editor/          solo editor: toolset MCP
 Tests/Unit/                     tests unitarios CMake + doctest
 ThirdParty/doctest/             doctest 2.5.3 (MIT)
+ThirdParty/nlohmann/            nlohmann/json 3.12.0 (MIT), solo dentro del CAD Core (project.json)
 Config/Default*.ini             configuración versionada (render en DefaultEngine.ini)
 Scripts/                        PowerShell 7
 ```

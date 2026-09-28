@@ -1,0 +1,41 @@
+# ADR-0007: Formato `project.json` con nlohmann/json
+
+Estado: aceptado (MVP 1, 2026-09-28)
+
+## Contexto
+El nivel de Unreal no es almacenamiento (prompt maestro §24). El proyecto necesita un formato propio, legible y
+versionable (`project.json`) con `schemaVersion`, unidades e ID persistentes. El código vive en el CAD Core puro, que
+compila sin excepciones (ADR-0002), y los milímetros deben leerse de forma exacta (`int64`).
+
+## Alternativas
+| Opción | Ventajas | Riesgos |
+|---|---|---|
+| Json de Unreal (`FJsonObject`) | ya disponible en el motor | prohibido en el núcleo puro |
+| Parser JSON propio | control total | reinventar y probar un parser; riesgo de errores de escape y números |
+| yyjson (C) | rápido, sin excepciones | ficheros C en un módulo de Unreal; menos habitual |
+| **nlohmann/json 3.12.0** (cabecera única, MIT) | estándar de facto; `int64` exacto; objetos con orden de inserción (`ordered_json`) | sin excepciones, `throw` se convierte en `abort()`: solo se usa `parse` sin excepciones y se comprueba el tipo antes de cada lectura |
+
+## Decisión
+- `F101/Cad/ProjectFile.h`: `writeProjectJson`, `readProjectJson`, `saveProjectFile` y `loadProjectFile`. nlohmann
+  solo se incluye en `ProjectFile.cpp`, con los avisos de terceros silenciados. Está en `ThirdParty/nlohmann`.
+- Formato v1:
+  ```json
+  {
+    "format": "101st-floor-project",
+    "schemaVersion": 1,
+    "units": "mm",
+    "walls": [ { "id": "<uuid>", "start": [x, y], "end": [x, y], "thicknessMm": 120, "heightMm": 2400 } ]
+  }
+  ```
+  Salida determinista (orden de claves fijo, sangría de 2, salto de línea final), cómoda para diffs en Git.
+- Lectura estricta: formato y unidades obligatorios; se rechaza un `schemaVersion` mayor (en lugar de leerlo mal);
+  los mm deben ser enteros dentro del rango del modelo; UUID válidos y únicos; cada pared válida. Los campos
+  desconocidos se ignoran.
+- Guardado atómico: se escribe `project.json.tmp` y se renombra, para que un fallo nunca trunque un proyecto.
+  Rutas en UTF-8 (`path::string()` abortaría con caracteres no ANSI).
+- Niveles, habitaciones, huecos y materiales llegarán en versiones de esquema posteriores, con migración desde v1.
+
+## Verificación
+`Tests/Unit/ProjectFileTests.cpp`: salida exacta documentada, ida y vuelta sin pérdida (incluidos ±999.999.999 mm),
+rechazos (JSON inválido, otro formato, versión nueva, decimales, texto, rango, ID duplicados o inválidos, paredes
+degeneradas) y guardado y carga en una ruta con "ñ".

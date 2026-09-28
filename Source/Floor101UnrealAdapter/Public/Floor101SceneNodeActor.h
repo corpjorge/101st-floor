@@ -29,18 +29,30 @@ public:
 	UDynamicMeshComponent* GetMeshComponent() const { return MeshComponent; }
 	const FString& GetSceneNodeId() const { return SceneNodeId; }
 
+	// Material shown by every section: the default one, or a tinted instance for the node's style.
+	UMaterialInterface* GetDisplayMaterial() const;
+
 	// World-space bounds of the generated mesh, in centimetres.
 	FBox GetMeshBounds() const;
 
 	static FName MakeNodeTag(const FString& SceneNodeId);
 
+	// Name of the colour parameter of the default material used to tint selected/preview/handle styles.
+	static const FName ColorParameterName;
+
 private:
+	UMaterialInterface* GetStyleMaterial(uint8 Style);
+
 	UPROPERTY(VisibleAnywhere, Category = "101st Floor")
 	TObjectPtr<UDynamicMeshComponent> MeshComponent;
 
 	// Hard reference so the material is cooked with the game.
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> DefaultMaterial;
+
+	// Tinted instances of DefaultMaterial, created on first use, keyed by f101::scene::NodeStyle.
+	UPROPERTY()
+	TMap<uint8, TObjectPtr<UMaterialInterface>> StyleMaterials;
 
 	UPROPERTY(VisibleAnywhere, Category = "101st Floor")
 	FString SceneNodeId;

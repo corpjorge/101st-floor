@@ -13,6 +13,7 @@
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
 #include "Floor101UnrealConversion.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 namespace
 {
@@ -128,6 +129,61 @@ bool FFloor101ReferenceWallTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("one actor removed"), Removed.Removed, 1);
 	TestTrue(TEXT("actor destroyed"), !IsValid(Actor) || Actor->IsActorBeingDestroyed());
 	TestEqual(TEXT("no actors left"), Reconciler.Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ViewStylesTest, "Floor101.Adapter.ViewStyles", TestFlags)
+bool FFloor101ViewStylesTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	f101::cad::Project Project;
+	const f101::cad::WallId WallId{f101::cad::Uuid{0, 1}};
+	Project.walls.push_back(f101::cad::Wall{WallId, {0, 0}, {3550, 0}, 120, 2400});
+	FFloor101SceneReconciler Reconciler(TestWorld.World);
+	Reconciler.Reconcile(f101::scene::compileScene(Project));
+	AFloor101SceneNodeActor* Wall = Reconciler.FindActor(f101::scene::wallBodyNodeId(WallId));
+	if (!TestNotNull(TEXT("wall actor"), Wall))
+	{
+		return false;
+	}
+	UMaterialInterface* DefaultMaterial = Wall->GetDisplayMaterial();
+	FLinearColor Color;
+	TestTrue(TEXT("the default material has the colour parameter the styles tint"),
+		DefaultMaterial && DefaultMaterial->GetVectorParameterValue(FHashedMaterialParameterInfo(AFloor101SceneNodeActor::ColorParameterName), Color));
+
+	// Selection only changes the style: same geometry hash, but the actor is updated in place.
+	f101::scene::ViewOverlay Overlay;
+	Overlay.selectedWall = WallId;
+	const FFloor101ReconcileStats Selected = Reconciler.Reconcile(f101::scene::compileScene(Project, Overlay));
+	TestEqual(TEXT("style change updates the actor"), Selected.Updated, 1);
+	TestTrue(TEXT("same actor"), Reconciler.FindActor(f101::scene::wallBodyNodeId(WallId)) == Wall);
+	const UMaterialInstanceDynamic* Tinted = Cast<UMaterialInstanceDynamic>(Wall->GetDisplayMaterial());
+	TestNotNull(TEXT("selected wall uses a tinted instance"), Tinted);
+	if (Tinted)
+	{
+		TestTrue(TEXT("tint overrides the colour"),
+			Tinted->GetVectorParameterValue(FHashedMaterialParameterInfo(AFloor101SceneNodeActor::ColorParameterName), Color, true));
+		TestTrue(TEXT("tint is orange"), Color.R > 0.9f && Color.B < 0.2f);
+	}
+
+	Overlay.hiddenWall = WallId;
+	Overlay.preview = f101::cad::Wall{f101::cad::WallId{}, {0, 0}, {4200, 0}, 120, 2400};
+	Overlay.markers = {{0, 0}, {4200, 0}};
+	const FFloor101ReconcileStats Dragging = Reconciler.Reconcile(f101::scene::compileScene(Project, Overlay));
+	TestEqual(TEXT("preview and two handles created"), Dragging.Created, 3);
+	TestTrue(TEXT("dragged wall hidden"), Wall->IsHidden());
+	AFloor101SceneNodeActor* Preview = Reconciler.FindActor(f101::scene::SceneNodeId{"preview/wall"});
+	if (TestNotNull(TEXT("preview actor"), Preview))
+	{
+		TestEqual(TEXT("preview is 420 cm"), MeshBounds(*Preview).GetSize().X, 420.0, Tolerance);
+		TestNotNull(TEXT("preview is tinted"), Cast<UMaterialInstanceDynamic>(Preview->GetDisplayMaterial()));
+	}
+	TestNotNull(TEXT("handle actor"), Reconciler.FindActor(f101::scene::SceneNodeId{"marker/1"}));
+
+	const FFloor101ReconcileStats Plain = Reconciler.Reconcile(f101::scene::compileScene(Project, f101::scene::ViewOverlay{}));
+	TestEqual(TEXT("preview and handles removed"), Plain.Removed, 3);
+	TestFalse(TEXT("wall visible again"), Wall->IsHidden());
+	TestTrue(TEXT("wall back to the default material"), Wall->GetDisplayMaterial() == DefaultMaterial);
 	return true;
 }
 

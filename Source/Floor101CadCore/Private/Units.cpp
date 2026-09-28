@@ -145,6 +145,36 @@ namespace f101::cad
 		return negative ? -millimeters : millimeters;
 	}
 
+	std::string formatLength(double millimeters, LengthUnit unit)
+	{
+		const std::int64_t rounded = std::isfinite(millimeters) ? std::llround(millimeters) : 0;
+		const std::int64_t perUnit = millimetersPerUnit(unit);
+		const std::uint64_t magnitude = static_cast<std::uint64_t>(rounded < 0 ? -rounded : rounded);
+
+		std::string text = rounded < 0 ? "-" : "";
+		text += std::to_string(magnitude / static_cast<std::uint64_t>(perUnit));
+		std::uint64_t remainder = magnitude % static_cast<std::uint64_t>(perUnit);
+		if (remainder != 0)
+		{
+			// Fixed number of decimals for the unit (cm: 1, m: 3), then trailing zeros removed.
+			std::string decimals = std::to_string(remainder);
+			const std::size_t width = perUnit == 10 ? 1 : 3;
+			decimals.insert(0, width - decimals.size(), '0');
+			while (!decimals.empty() && decimals.back() == '0')
+			{
+				decimals.pop_back();
+			}
+			text += "." + decimals;
+		}
+		switch (unit)
+		{
+		case LengthUnit::Millimeter: return text + " mm";
+		case LengthUnit::Centimeter: return text + " cm";
+		case LengthUnit::Meter: return text + " m";
+		}
+		return text;
+	}
+
 	Result<std::int64_t> quantizeMillimeters(double valueMm)
 	{
 		if (!std::isfinite(valueMm))

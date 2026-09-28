@@ -1,3 +1,4 @@
+using System.IO;
 using UnrealBuildTool;
 
 // Pure C++20 module (ADR-0002): only Private/Floor101CadCoreModule.cpp uses Unreal (module registration).
@@ -8,5 +9,8 @@ public class Floor101CadCore : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.NoPCHs;
 		PrivateDependencyModuleNames.Add("Core");
+
+		// Header-only third-party libraries (nlohmann/json for project.json, ADR-0007).
+		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "..", "..", "ThirdParty"));
 	}
 }

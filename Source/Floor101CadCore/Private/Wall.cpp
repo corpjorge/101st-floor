@@ -18,6 +18,11 @@ namespace f101::cad
 		{
 			return Error{ErrorCode::InvalidArgument, "Wall has no identity"};
 		}
+		return validateWallGeometry(wall);
+	}
+
+	Status validateWallGeometry(const Wall& wall)
+	{
 		if (!inModelRange(wall.start.x_mm) || !inModelRange(wall.start.y_mm) || !inModelRange(wall.end.x_mm) ||
 			!inModelRange(wall.end.y_mm))
 		{

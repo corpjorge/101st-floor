@@ -58,6 +58,56 @@ namespace f101::scene
 		return hash;
 	}
 
+	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay)
+	{
+		Scene scene = compileScene(project);
+		for (SceneNode& node : scene.nodes)
+		{
+			if (!overlay.hiddenWall.isNil() && node.id == wallBodyNodeId(overlay.hiddenWall))
+			{
+				node.style = NodeStyle::Hidden;
+			}
+			else if (!overlay.selectedWall.isNil() && node.id == wallBodyNodeId(overlay.selectedWall))
+			{
+				node.style = NodeStyle::Selected;
+			}
+		}
+
+		if (overlay.preview && cad::validateWallGeometry(*overlay.preview).ok())
+		{
+			SceneNode node;
+			node.id = SceneNodeId{"preview/wall"};
+			node.name = "Wall preview";
+			node.sourceKind = SourceKind::Wall;
+			node.mesh = geometry::buildWallMesh(*overlay.preview);
+			node.contentHash = hashMesh(node.mesh);
+			node.style = NodeStyle::Preview;
+			scene.nodes.push_back(std::move(node));
+		}
+
+		for (std::size_t index = 0; index < overlay.markers.size(); ++index)
+		{
+			// A marker is a square post: a short "wall" as long as it is thick, centred on the point.
+			const cad::Point2D& point = overlay.markers[index];
+			const std::int64_t half = overlay.markerSizeMm / 2;
+			const cad::Wall post{cad::WallId{}, {point.x_mm - half, point.y_mm}, {point.x_mm + half, point.y_mm},
+				overlay.markerSizeMm, overlay.markerHeightMm};
+			if (!cad::validateWallGeometry(post).ok())
+			{
+				continue;
+			}
+			SceneNode node;
+			node.id = SceneNodeId{"marker/" + std::to_string(index)};
+			node.name = "Marker " + std::to_string(index);
+			node.sourceKind = SourceKind::Marker;
+			node.mesh = geometry::buildWallMesh(post);
+			node.contentHash = hashMesh(node.mesh);
+			node.style = NodeStyle::Handle;
+			scene.nodes.push_back(std::move(node));
+		}
+		return scene;
+	}
+
 	Scene compileScene(const cad::Project& project)
 	{
 		Scene scene;

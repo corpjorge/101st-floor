@@ -30,7 +30,14 @@ public:
 	int32 Num() const { return Actors.Num(); }
 
 private:
+	// What an actor currently shows: its node's mesh hash and style.
+	struct FApplied
+	{
+		uint64 ContentHash = 0;
+		f101::scene::NodeStyle Style = f101::scene::NodeStyle::Normal;
+	};
+
 	TWeakObjectPtr<UWorld> World;
 	TMap<FString, TWeakObjectPtr<AFloor101SceneNodeActor>> Actors;
-	TMap<FString, uint64> ContentHashes;
+	TMap<FString, FApplied> AppliedState;
 };

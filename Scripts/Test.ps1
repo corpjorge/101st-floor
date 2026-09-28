@@ -36,8 +36,8 @@ function Test-Architecture {
             }
         }
         # Build.cs: only Core (module registration) and other pure modules are allowed.
-        $buildCs = Get-Content (Join-Path $dir "$module.Build.cs") -Raw
-        $deps = [regex]::Matches($buildCs, '"(\w+)"') | ForEach-Object { $_.Groups[1].Value } | Where-Object { $_ -ne $module }
+        $dependencyLines = Get-Content (Join-Path $dir "$module.Build.cs") | Where-Object { $_ -match 'DependencyModuleNames' }
+        $deps = [regex]::Matches(($dependencyLines -join "`n"), '"(\w+)"') | ForEach-Object { $_.Groups[1].Value }
         foreach ($dep in $deps | Where-Object { $_ -ne 'Core' -and $_ -notin $PureModules }) {
             $violations.Add("$module.Build.cs depends on '$dep'")
         }

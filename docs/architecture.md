@@ -1,6 +1,6 @@
 # Arquitectura
 
-Estado: **aprobada (Fase D, 2026-09-28).** Decisiones importantes en `docs/adr/`.
+Estado: **aprobada (Fase D, 2026-09-28); MVP 1 implementado.** Decisiones importantes en `docs/adr/`.
 
 ## Principio
 
@@ -9,7 +9,7 @@ compila una escena neutral, y cada consumidor (Unreal, exportadores, vista 2D) r
 sentido contrario: Unreal no escribe en el modelo, y un nivel de Unreal nunca se guarda como dato del proyecto.
 
 ```
-          UI (Slate, MVP 1) ── comandos ──►  CAD Core  ◄── Asset System (futuro)
+   UI Slate ─► EditController ─ comandos ─►  CAD Core  ◄── Asset System (futuro)
                                                │ cambios
                                                ▼
                                         Geometry Engine        (Wall → MeshData)
@@ -32,12 +32,12 @@ Unreal). Ver ADR-0002.
 
 | Módulo | Tipo | Namespace | Depende de | Contenido |
 |---|---|---|---|---|
-| `Floor101CadCore` | C++ puro | `f101::cad` | — | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (modelo + notificación de cambios); más adelante comandos, undo/redo, snapping, serialización |
+| `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController`, `project.json` |
 | `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, `WallGeometryBuilder`; más adelante uniones, huecos, suelos, techos |
-| `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene`, `SceneNode`, `SceneMesh`, `SceneCompiler` (Project → Scene); más adelante materiales portables, luces, cámaras, `SceneDiff` |
-| `Floor101UnrealAdapter` | Unreal | — | SceneModel, Engine, GeometryFramework | reconciliación `Scene` → actores con `UDynamicMeshComponent`; conversión de unidades y ejes; tests de integración |
-| `Floor101` | Unreal, módulo principal | — | CadCore, SceneModel, UnrealAdapter | aplicación: `UFloor101DocumentSubsystem` (posee el `Document` de cada mundo), comandos de consola `f101.Demo.*`, `RenderCheck`; UI Slate en MVP 1 |
-| `Floor101Editor` | Unreal, **solo editor** | — | Floor101, CadCore, ToolsetRegistry | herramientas de desarrollo: toolset MCP `Floor101DocumentToolset` (CRUD de paredes en mm). Nunca entra en el juego |
+| `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene`, `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → Scene, con `ViewOverlay` opcional); más adelante materiales portables, luces, cámaras, `SceneDiff` |
+| `Floor101UnrealAdapter` | Unreal | — | SceneModel, Engine, GeometryFramework | reconciliación `Scene` → actores con `UDynamicMeshComponent` (hash + estilo); estilos de vista con materiales tintados; conversión de unidades y ejes en ambos sentidos; tests de integración |
+| `Floor101` | Unreal, módulo principal | — | CadCore, SceneModel, UnrealAdapter, Slate | aplicación: `UFloor101DocumentSubsystem` (posee `Document` y `EditController` de cada mundo; guardar/abrir), entrada (`UFloor101GameViewportClient`), cámara orbital, game mode, overlay Slate `SFloor101Overlay`, comandos de consola `f101.*`, `RenderCheck` |
+| `Floor101Editor` | Unreal, **solo editor** | — | Floor101, CadCore, ToolsetRegistry | herramientas de desarrollo: toolset MCP `Floor101DocumentToolset` (paredes en mm, deshacer/rehacer, guardar/abrir; actúa en PIE si está activo). Nunca entra en el juego |
 
 La dirección de dependencias se hace cumplir en compilación: un módulo solo ve las cabeceras de sus dependencias
 declaradas (UBT y CMake), y UBT tampoco enlaza dependencias transitivas. Por ejemplo, el adaptador no puede llamar a
@@ -72,17 +72,21 @@ Reglas del C++ puro (para compilar idéntico dentro de Unreal, ver ADR-0002):
   la escena produce los mismos IDs, y eso permite reconciliar actores de Unreal, calcular un `SceneDiff` y, en el futuro,
   reimportar en Twinmotion sin perder el trabajo artístico.
 
-## Flujo de un cambio (MVP 0)
+## Flujo de un cambio (MVP 1)
 
 ```
-Document::setWallEnd(wallId, {4200, 0})       // API de mutación validada; comandos + undo en MVP 1
-  → notifica WallChanged(wallId)
-  → SceneCompiler::compile(project)            // WallGeometryBuilder regenera MeshData
-  → UnrealAdapter::reconcile(world, scene)     // actualiza el mismo actor (mismo SceneNodeId): la malla se
-                                               // reconstruye; la escala del componente sigue en 1
+clic / tecla / texto en el viewport                     // UFloor101GameViewportClient: rayo en mm, MapKey, caracteres
+  → UFloor101DocumentSubsystem::Edit(acción)            // mensaje de estado para la UI
+  → EditController (CAD Core)                           // modo, selección, WallTool, arrastre de asas, snapping
+  → Document::execute(comando)                          // valida, aplica y registra la transacción (ADR-0006)
+  → notifica ChangeSet → compileScene(project, overlay) // WallGeometryBuilder regenera MeshData; overlay = vista
+  → FFloor101SceneReconciler::Reconcile(scene)          // mismo actor por SceneNodeId; malla regenerada, escala 1;
+                                                        // estilo por materiales tintados
 ```
 
-En MVP 0 se recompila la escena completa (una pared). La reconciliación por ID ya es la base del recompilado incremental.
+Un movimiento del cursor recorre el mismo camino sin `Document::execute`: solo cambia el overlay (vista previa, asas).
+Hoy se recompila la escena completa en cada cambio; la reconciliación por ID y hash evita tocar los actores que no
+cambian y es la base del recompilado incremental.
 
 ## Geometry Engine
 
@@ -102,12 +106,23 @@ y 12 triángulos por pared.
 - La reconciliación crea, actualiza o elimina actores comparando los `SceneNodeId`. La geometría nunca se escala: se
   regenera.
 
-## UI (MVP 1)
+## Interacción y UI (MVP 1, ADR-0008)
 
-Slate en C++, dentro del módulo `Floor101`: `MainWindow` con barra superior, panel de construcción, catálogo, viewport,
-panel de propiedades y barra de estado. La UI solo emite comandos al `Document` y nunca toca actores. La herramienta de
-pared convierte el rayo del cursor al plano CAD, cuantiza a mm y delega el snapping al CAD Core. El preview de la pared
-recorre el mismo pipeline como nodo de escena transitorio.
+- **Lógica en el núcleo:** `EditController` (modos Seleccionar/Muro, selección, arrastre de asas, propiedades,
+  deshacer/rehacer) y `WallTool` (clic, vista previa, longitud escrita, Enter) viven en el CAD Core y se prueban sin
+  Unreal. El snapping (extremos, ángulo cada 15°, rejilla de 50 mm) también.
+- **Unreal traduce:** `UFloor101GameViewportClient` convierte el cursor en rayo de escena, las teclas en comandos
+  (`MapKey`) y los caracteres en texto de la herramienta; `AFloor101EditingPawn` es una cámara orbital (derecho orbita,
+  central desplaza, rueda acerca, F encuadra). `AFloor101GameMode` y el viewport client se configuran en
+  `Config/DefaultEngine.ini` y rigen también en PIE.
+- **UI:** Slate en C++ (`SFloor101Overlay`, textos en español): barra con modos, deshacer/rehacer, encuadrar, ruta de
+  archivo y Guardar/Abrir; panel de propiedades del muro seleccionado (longitud, espesor, altura, eliminar); barra de
+  estado con ayuda contextual y errores; etiqueta junto al cursor con la longitud y lo escrito. La UI solo llama al
+  subsistema; nunca toca actores.
+- **Vista:** selección (naranja), vista previa (azul) y asas (amarillo) son un `ViewOverlay` que se compila con el
+  proyecto y nunca se guarda.
+- **Archivo:** `project.json` (ADR-0007); ruta por defecto `Documentos/101st Floor/project.json`; Ctrl+S / Ctrl+O o
+  `f101.Project.Save|Open [ruta]`.
 
 ## Tests
 
@@ -115,7 +130,7 @@ recorre el mismo pipeline como nodo de escena transitorio.
 |---|---|---|---|
 | Unitarios (sin Unreal) | CadCore, Geometry, SceneModel (`Tests/Unit/`) | CMake + Ninja (VS Build Tools) + MSVC 14.50 + **doctest** 2.5.3 (`ThirdParty/doctest`) | `Test.ps1` (segundos) |
 | Arquitectura | módulos puros sin cabeceras ni tipos de Unreal; `Build.cs` solo con `Core` y módulos puros | script + compilación CMake | `Test.ps1` |
-| Integración Unreal | adaptador (`Floor101.Adapter.*`): actor, componente, bounds 355×12×240 cm, triángulos según `GetTriNormal`, regeneración a 420 cm sin escalar; toolset (`Floor101.Editor.*`) | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
+| Integración Unreal | adaptador (`Floor101.Adapter.*`): actor, componente, bounds 355×12×240 cm, triángulos según `GetTriNormal`, regeneración a 420 cm sin escalar, estilos de vista; interacción (`Floor101.Interaction.*`): mapa de teclas, cámara, flujo completo por el subsistema con `project.json`; toolset (`Floor101.Editor.*`) | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
 | Render | DX12/SM6/HWRT/Lumen | `CheckRendering.ps1` | manual o en la validación de cada fase |
 | MCP | handshake, toolsets, lectura | `CheckMcp.ps1` | manual o en la validación de cada fase |
 
@@ -138,15 +153,16 @@ paredes generadas contribuyan a la GI de Lumen (cards por bounding box). Si no b
 Modo Foto (Path Tracer / Lumen máxima calidad) queda fuera del MVP 0. Nanite se reserva para assets densos (Blender); las
 paredes son geometría simple.
 
-## Estado de implementación (MVP 0, 2026-09-28)
+## Estado de implementación (MVP 1, 2026-09-28)
 
-Implementado y verificado: los cinco módulos de producto más `Floor101Editor`, la pared de referencia
-3550 → 4200 mm por todo el pipeline, tests unitarios, de arquitectura y de integración, y validación por MCP y de la
-ruta RTX con la pared en escena. Detalle por capa: `docs/cad-core.md`, `docs/geometry.md`, `docs/scene-model.md`,
-`docs/unreal-integration.md`.
+MVP 0: los cinco módulos de producto más `Floor101Editor` y la pared de referencia 3550 → 4200 mm por todo el pipeline
+(`docs/mvp0-report.md`). MVP 1: herramienta de muro interactiva con longitud escrita, selección, borrar, longitud,
+espesor y altura, arrastre de extremos, deshacer/rehacer, `project.json`, cámara orbital y UI Slate, verificados con
+tests y con ratón y teclado reales (`docs/mvp1-report.md`). Detalle por capa: `docs/cad-core.md`, `docs/geometry.md`,
+`docs/scene-model.md`, `docs/unreal-integration.md`.
 
-## Fuera del MVP 0 (la arquitectura no lo bloquea)
+## Fuera del MVP 1 (la arquitectura no lo bloquea)
 
-Comandos con undo/redo, serialización `project.json`, uniones y esquinas, huecos (puertas y ventanas), habitaciones,
-materiales arquitectónicos, UI, exportadores, Asset System, snapping. La serialización básica (`project.json`) se hará
-en **MVP 1**, junto con undo/redo (decisión del usuario, 2026-09-28). El esquema se diseñará antes.
+Uniones y esquinas, huecos (puertas y ventanas), habitaciones, suelos y techos, materiales arquitectónicos,
+exportadores, Asset System, vista 2D, diálogos de archivo nativos, traducción de los mensajes del núcleo, reasignación
+de teclas.

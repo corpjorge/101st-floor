@@ -2,6 +2,7 @@
 
 #include "Editor.h"
 #include "F101/Cad/Document.h"
+#include "F101/Cad/EditController.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -12,18 +13,19 @@ namespace
 		UKismetSystemLibrary::RaiseScriptError(FString::Printf(TEXT("Floor101DocumentToolset: %s"), *Message));
 	}
 
-	FString ToFString(const std::string& Text)
+	FString ToFString(std::string_view Text)
 	{
-		return UTF8_TO_TCHAR(Text.c_str());
+		return UTF8_TO_TCHAR(std::string(Text).c_str());
 	}
 
+	// The play session's document while Play-In-Editor runs (what the user is editing), else the editor world's.
 	UFloor101DocumentSubsystem* GetSubsystem()
 	{
-		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		UWorld* World = GEditor ? (GEditor->PlayWorld ? GEditor->PlayWorld.Get() : GEditor->GetEditorWorldContext().World()) : nullptr;
 		UFloor101DocumentSubsystem* Subsystem = World ? World->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
 		if (!Subsystem)
 		{
-			RaiseError(TEXT("the editor world has no 101st Floor document."));
+			RaiseError(TEXT("the target world has no 101st Floor document."));
 		}
 		return Subsystem;
 	}
@@ -54,19 +56,41 @@ namespace
 		Info.Actor = Subsystem.FindWallActor(Wall.id);
 		return Info;
 	}
+
+	TArray<FFloor101WallInfo> AllWalls(const UFloor101DocumentSubsystem& Subsystem)
+	{
+		TArray<FFloor101WallInfo> Walls;
+		for (const f101::cad::Wall& Wall : Subsystem.GetDocument().project().walls)
+		{
+			Walls.Add(ToInfo(Wall, Subsystem));
+		}
+		return Walls;
+	}
+
+	// Applies a command built for the given wall id; raises "cannot <Action> wall <id>: <why>" if it is rejected.
+	FFloor101WallInfo ChangeWall(const FString& WallId, const TCHAR* Action, TFunctionRef<f101::cad::Command(const f101::cad::WallId&)> MakeCommand)
+	{
+		UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+		f101::cad::WallId Id;
+		if (!Subsystem || !ParseWallId(WallId, Id))
+		{
+			return {};
+		}
+		const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(MakeCommand(Id));
+		if (!Applied)
+		{
+			RaiseError(FString::Printf(TEXT("cannot %s wall %s: %s"), Action, *WallId, *ToFString(Applied.error().message)));
+			return {};
+		}
+		const f101::cad::Wall* Changed = Subsystem->GetDocument().project().findWall(Id);
+		return Changed ? ToInfo(*Changed, *Subsystem) : FFloor101WallInfo(); // deleted walls have no info
+	}
 }
 
 TArray<FFloor101WallInfo> UFloor101DocumentToolset::GetWalls()
 {
-	TArray<FFloor101WallInfo> Walls;
-	if (const UFloor101DocumentSubsystem* Subsystem = GetSubsystem())
-	{
-		for (const f101::cad::Wall& Wall : Subsystem->GetDocument().project().walls)
-		{
-			Walls.Add(ToInfo(Wall, *Subsystem));
-		}
-	}
-	return Walls;
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	return Subsystem ? AllWalls(*Subsystem) : TArray<FFloor101WallInfo>();
 }
 
 FFloor101WallInfo UFloor101DocumentToolset::AddWall(int64 StartXMm, int64 StartYMm, int64 EndXMm, int64 EndYMm, int64 ThicknessMm, int64 HeightMm)
@@ -88,32 +112,115 @@ FFloor101WallInfo UFloor101DocumentToolset::AddWall(int64 StartXMm, int64 StartY
 
 FFloor101WallInfo UFloor101DocumentToolset::SetWallEnd(const FString& WallId, int64 EndXMm, int64 EndYMm)
 {
-	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
-	f101::cad::WallId Id;
-	if (!Subsystem || !ParseWallId(WallId, Id))
+	return ChangeWall(WallId, TEXT("move the end of"), [EndXMm, EndYMm](const f101::cad::WallId& Id) -> f101::cad::Command
 	{
-		return {};
-	}
-	const f101::Status Changed = Subsystem->GetMutableDocument().setWallEnd(Id, {EndXMm, EndYMm});
-	if (!Changed)
+		return f101::cad::MoveWallEndpointCommand{Id, f101::cad::WallEndpoint::End, {EndXMm, EndYMm}};
+	});
+}
+
+FFloor101WallInfo UFloor101DocumentToolset::SetWallLength(const FString& WallId, int64 LengthMm)
+{
+	return ChangeWall(WallId, TEXT("change the length of"), [LengthMm](const f101::cad::WallId& Id) -> f101::cad::Command
 	{
-		RaiseError(FString::Printf(TEXT("cannot move the end of wall %s: %s"), *WallId, *ToFString(Changed.error().message)));
-		return {};
-	}
-	return ToInfo(*Subsystem->GetDocument().project().findWall(Id), *Subsystem);
+		return f101::cad::ChangeWallLengthCommand{Id, LengthMm};
+	});
+}
+
+FFloor101WallInfo UFloor101DocumentToolset::SetWallThickness(const FString& WallId, int64 ThicknessMm)
+{
+	return ChangeWall(WallId, TEXT("change the thickness of"), [ThicknessMm](const f101::cad::WallId& Id) -> f101::cad::Command
+	{
+		return f101::cad::ChangeWallThicknessCommand{Id, ThicknessMm};
+	});
+}
+
+FFloor101WallInfo UFloor101DocumentToolset::SetWallHeight(const FString& WallId, int64 HeightMm)
+{
+	return ChangeWall(WallId, TEXT("change the height of"), [HeightMm](const f101::cad::WallId& Id) -> f101::cad::Command
+	{
+		return f101::cad::ChangeWallHeightCommand{Id, HeightMm};
+	});
 }
 
 void UFloor101DocumentToolset::RemoveWall(const FString& WallId)
 {
+	ChangeWall(WallId, TEXT("remove"), [](const f101::cad::WallId& Id) -> f101::cad::Command
+	{
+		return f101::cad::DeleteWallCommand{Id};
+	});
+}
+
+FString UFloor101DocumentToolset::Undo()
+{
 	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
-	f101::cad::WallId Id;
-	if (!Subsystem || !ParseWallId(WallId, Id))
+	if (!Subsystem)
+	{
+		return {};
+	}
+	if (!Subsystem->GetDocument().canUndo())
+	{
+		RaiseError(TEXT("nothing to undo."));
+		return {};
+	}
+	// Through the edit controller, like Ctrl+Z: a wall being drawn or an endpoint being dragged is cancelled first.
+	const FString Label = ToFString(Subsystem->GetDocument().undoLabel());
+	const f101::Status Undone = Subsystem->Edit([](f101::cad::EditController& Editor) { return Editor.undo(); });
+	if (!Undone)
+	{
+		RaiseError(FString::Printf(TEXT("cannot undo: %s"), *ToFString(Undone.error().message)));
+		return {};
+	}
+	return Label;
+}
+
+FString UFloor101DocumentToolset::Redo()
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return {};
+	}
+	if (!Subsystem->GetDocument().canRedo())
+	{
+		RaiseError(TEXT("nothing to redo."));
+		return {};
+	}
+	const FString Label = ToFString(Subsystem->GetDocument().redoLabel());
+	const f101::Status Redone = Subsystem->Edit([](f101::cad::EditController& Editor) { return Editor.redo(); });
+	if (!Redone)
+	{
+		RaiseError(FString::Printf(TEXT("cannot redo: %s"), *ToFString(Redone.error().message)));
+		return {};
+	}
+	return Label;
+}
+
+void UFloor101DocumentToolset::SaveProject(const FString& Path)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
 	{
 		return;
 	}
-	const f101::Status Removed = Subsystem->GetMutableDocument().removeWall(Id);
-	if (!Removed)
+	const f101::Status Saved = Subsystem->SaveProject(Path);
+	if (!Saved)
 	{
-		RaiseError(FString::Printf(TEXT("cannot remove wall %s: %s"), *WallId, *ToFString(Removed.error().message)));
+		RaiseError(FString::Printf(TEXT("cannot save %s: %s"), *Path, *ToFString(Saved.error().message)));
 	}
+}
+
+TArray<FFloor101WallInfo> UFloor101DocumentToolset::OpenProject(const FString& Path)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return {};
+	}
+	const f101::Status Opened = Subsystem->OpenProject(Path);
+	if (!Opened)
+	{
+		RaiseError(FString::Printf(TEXT("cannot open %s: %s"), *Path, *ToFString(Opened.error().message)));
+		return {};
+	}
+	return AllWalls(*Subsystem);
 }

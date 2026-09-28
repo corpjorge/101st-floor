@@ -4,6 +4,7 @@
 #include "F101/Cad/Result.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 // Units policy: docs/adr/ADR-0001-units-mm.md
@@ -38,4 +39,8 @@ namespace f101::cad
 	// Quantizes a computed value in millimetres to the model resolution (nearest mm, half away from zero).
 	// This is the single place where computed geometry re-enters the model.
 	FLOOR101CADCORE_API Result<std::int64_t> quantizeMillimeters(double valueMm);
+
+	// Display text in the given unit at millimetre resolution, without trailing zeros:
+	// 3550 -> "3550 mm", "355 cm", "3.55 m"; 3555 -> "355.5 cm"; 1234.4 -> "1234 mm".
+	FLOOR101CADCORE_API std::string formatLength(double millimeters, LengthUnit unit);
 }

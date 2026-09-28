@@ -4,6 +4,8 @@
 
 #include "Floor101DocumentToolset.h"
 #include "GameFramework/Actor.h"
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 #include "ToolsetRegistry/ToolCallExceptionHandler.h"
 
 BEGIN_DEFINE_SPEC(FFloor101DocumentToolsetSpec, "Floor101.Editor.DocumentToolset",
@@ -63,6 +65,55 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("dimensions", [this]()
+	{
+		It("changes length, thickness and height, each regenerating the same actor", [this]()
+		{
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 3550, 0, 120, 2400);
+			const FFloor101WallInfo Longer = UFloor101DocumentToolset::SetWallLength(Added.Id, 4200);
+			TestEqual(TEXT("end moved along the axis"), Longer.EndXMm, int64(4200));
+			const FFloor101WallInfo Thicker = UFloor101DocumentToolset::SetWallThickness(Added.Id, 150);
+			TestEqual(TEXT("thickness"), Thicker.ThicknessMm, int64(150));
+			const FFloor101WallInfo Taller = UFloor101DocumentToolset::SetWallHeight(Added.Id, 2700);
+			TestEqual(TEXT("height"), Taller.HeightMm, int64(2700));
+			if (TestNotNull(TEXT("actor"), Taller.Actor.Get()))
+			{
+				TestTrue(TEXT("same actor"), Taller.Actor == Added.Actor);
+				TestEqual(TEXT("actor size 420 x 15 x 270 cm"), ActorSizeCm(Taller), FVector(420.0, 15.0, 270.0), 1e-3f);
+			}
+			UFloor101DocumentToolset::RemoveWall(Added.Id);
+		});
+	});
+
+	Describe("history and files", [this]()
+	{
+		It("undoes and redoes a change, returning what it was", [this]()
+		{
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 3550, 0, 120, 2400);
+			TestEqual(TEXT("undo label"), UFloor101DocumentToolset::Undo(), FString(TEXT("Create wall")));
+			TestFalse(TEXT("undone"), HasWall(Added.Id));
+			TestEqual(TEXT("redo label"), UFloor101DocumentToolset::Redo(), FString(TEXT("Create wall")));
+			TestTrue(TEXT("redone with the same id"), HasWall(Added.Id));
+			UFloor101DocumentToolset::RemoveWall(Added.Id);
+			ExpectRaises(TEXT("nothing to redo"), [] { UFloor101DocumentToolset::Redo(); });
+		});
+
+		It("saves and opens project.json; opening clears the history", [this]()
+		{
+			const FString Path = FPaths::ConvertRelativePathToFull(
+				FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Toolset"), TEXT("project.json")));
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 3550, 0, 120, 2400);
+			UFloor101DocumentToolset::SaveProject(Path);
+			TestTrue(TEXT("file written"), IFileManager::Get().FileExists(*Path));
+			UFloor101DocumentToolset::RemoveWall(Added.Id);
+			const TArray<FFloor101WallInfo> Opened = UFloor101DocumentToolset::OpenProject(Path);
+			TestTrue(TEXT("the saved wall is back"), Opened.ContainsByPredicate([&Added](const FFloor101WallInfo& Wall) { return Wall.Id == Added.Id; }));
+			ExpectRaises(TEXT("nothing to undo"), [] { UFloor101DocumentToolset::Undo(); });
+			UFloor101DocumentToolset::RemoveWall(Added.Id);
+			IFileManager::Get().Delete(*Path, false, true, true);
+		});
+	});
+
 	Describe("errors", [this]()
 	{
 		It("AddWall raises on a degenerate wall", [this]()
@@ -86,6 +137,31 @@ void FFloor101DocumentToolsetSpec::Define()
 			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 1000, 0, 120, 2400);
 			ExpectRaises(TEXT("cannot move the end"), [&Added] { UFloor101DocumentToolset::SetWallEnd(Added.Id, 0, 0); });
 			UFloor101DocumentToolset::RemoveWall(Added.Id);
+		});
+
+		It("SetWallLength, SetWallThickness and SetWallHeight raise on non-positive values", [this]()
+		{
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 1000, 0, 120, 2400);
+			ExpectRaises(TEXT("cannot change the length"), [&Added] { UFloor101DocumentToolset::SetWallLength(Added.Id, 0); });
+			ExpectRaises(TEXT("cannot change the thickness"), [&Added] { UFloor101DocumentToolset::SetWallThickness(Added.Id, 0); });
+			ExpectRaises(TEXT("cannot change the height"), [&Added] { UFloor101DocumentToolset::SetWallHeight(Added.Id, -1); });
+			UFloor101DocumentToolset::RemoveWall(Added.Id);
+		});
+
+		It("SaveProject raises when the folder cannot be created", [this]()
+		{
+			const FString Path = FPaths::ConvertRelativePathToFull(
+				FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("bad<>|folder"), TEXT("project.json")));
+			AddExpectedMessagePlain(TEXT("F101: Cannot create the folder"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("cannot save"), [&Path] { UFloor101DocumentToolset::SaveProject(Path); });
+		});
+
+		It("OpenProject raises on a missing file", [this]()
+		{
+			const FString Path = FPaths::ConvertRelativePathToFull(
+				FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Toolset"), TEXT("missing.json")));
+			AddExpectedMessagePlain(TEXT("F101: Cannot open"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("cannot open"), [&Path] { UFloor101DocumentToolset::OpenProject(Path); });
 		});
 
 		It("RemoveWall raises on an unknown id", [this]()
