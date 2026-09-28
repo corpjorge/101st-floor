@@ -16,7 +16,8 @@ param(
         'editor_toolset.toolsets.actor.ActorTools',
         'AutomationTestToolset.AutomationTestToolset',
         'EditorToolset.LogsToolset',
-        'LiveCodingToolset'
+        'LiveCodingToolset',
+        'Floor101Editor.Floor101DocumentToolset'
     )
 )
 

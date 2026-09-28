@@ -3,8 +3,9 @@
 Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
 modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
 
-> Estado: **MVP 0 implementado** (Fase E). CAD Core, Geometry y Scene Model en C++ puro; pared de referencia
-> de 3550 mm regenerada a 4200 mm en Unreal (Lumen HWRT), validada con tests y por MCP. Siguiente: Fases F–G.
+> Estado: **MVP 0 completo** ([informe](docs/mvp0-report.md)). CAD Core, Geometry y Scene Model en C++ puro;
+> pared de referencia de 3550 mm regenerada a 4200 mm en Unreal (Lumen HWRT), validada con tests, por MCP y desde un
+> clon limpio. Siguiente: MVP 1 (Wall Tool interactivo), pendiente de aprobación.
 
 ## Requisitos
 Windows 11 x64, GPU con DXR 1.1 + SM6.6 (referencia: RTX 5070 Ti), Unreal Engine 5.8.x (Epic Games Launcher),
