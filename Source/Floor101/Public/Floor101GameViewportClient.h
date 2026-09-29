@@ -24,6 +24,8 @@ enum class EFloor101KeyCommand : uint8
 	Backspace,
 	WallTool,
 	SelectTool,
+	DoorTool,
+	WindowTool,
 	Cancel,
 	Confirm,
 	Delete,
@@ -36,8 +38,8 @@ enum class EFloor101KeyCommand : uint8
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
-// Keys: W wall tool, V select, Enter, Esc, Backspace, Delete, F frame all, T plan view, Ctrl+Z undo,
-// Ctrl+Y / Ctrl+Shift+Z redo, Ctrl+S save, Ctrl+O open.
+// Keys: W wall, P door, O window, V select, Enter, Esc, Backspace, Delete, F frame all, T plan view,
+// Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo, Ctrl+S save, Ctrl+O open.
 UCLASS()
 class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient
 {

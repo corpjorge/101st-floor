@@ -33,8 +33,8 @@
 - `AFloor101EditingPawn`: cámara orbital sin colisión (foco, guiñada, cabeceo entre −89° y −5°, distancia 0,5–2000 m);
   `Frame` encuadra con margen usando el campo de visión vertical; `TopView` es la vista en planta (−89°, norte arriba).
 - `AFloor101GameMode` (`GlobalDefaultGameMode`) + `AFloor101PlayerController`: cursor visible, modo de entrada juego y
-  UI, y el overlay `SFloor101Overlay` (barra, panel de propiedades, barra de estado, etiqueta del cursor y el área de
-  cada habitación proyectada sobre su suelo).
+  UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta y Ventana, panel de propiedades del muro o del
+  hueco seleccionado, barra de estado, etiqueta del cursor y el área de cada habitación proyectada sobre su suelo).
 
 Desarrollo:
 - `-F101Demo` carga la pared de referencia al empezar el juego (`Run.ps1`, `CheckRendering.ps1 -Demo`).
@@ -45,25 +45,27 @@ Desarrollo:
 ## Controles
 | Entrada | Acción |
 |---|---|
-| clic izquierdo | Seleccionar: elige un muro o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Muro: inicio / crear (sobre un extremo o un muro se une a él) |
-| W / V | herramienta Muro / Seleccionar |
+| clic izquierdo | Seleccionar: elige un muro, una puerta o una ventana (clic en el hueco) o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Muro: inicio / crear (sobre un extremo o un muro se une a él). Puerta / Ventana: coloca el hueco en el muro señalado (centrado en el cursor, borde en la rejilla de 50 mm); el modo sigue activo para colocar más |
+| W / P / O / V | herramienta Muro / Puerta / Ventana / Seleccionar (Ctrl+O sigue siendo abrir) |
 | escribir `355`, `3.55 m`, `3550 mm` | longitud del muro que se dibuja (sin unidad = cm); Retroceso borra |
 | Enter | crea el muro previsualizado |
-| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
-| Supr | elimina el muro seleccionado |
+| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta o Ventana, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
+| Supr | elimina el muro o el hueco seleccionado |
+| panel de propiedades | muro: longitud, espesor, altura; puerta o ventana: ancho, alto, antepecho (ventanas) y posición (desde el inicio del muro hasta el borde del hueco). Sin unidad = cm; Enter aplica |
 | Ctrl+Z / Ctrl+Y o Ctrl+Shift+Z | deshacer / rehacer |
 | Ctrl+S / Ctrl+O | guardar / abrir el archivo actual (o el de por defecto) |
 | derecho arrastrando / central arrastrando / rueda / F / T | orbitar / desplazar / zoom / encuadrar todo / vista en planta (norte arriba) |
 
 ## Herramientas de editor (`Source/Floor101Editor`, solo editor)
 Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetWalls`, `AddWall`, `SetWallEnd`, `SetWallLength`, `MoveCorner`, `GetRooms`,
-`SetWallThickness`, `SetWallHeight`, `RemoveWall`, `Undo`, `Redo`, `SaveProject`, `OpenProject`, en mm enteros. Actúa
+`SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `RemoveOpening`, `RemoveWall`, `Undo`, `Redo`,
+`SaveProject`, `OpenProject`, en mm enteros. Actúa
 sobre el documento de la sesión PIE mientras existe y, si no, sobre el del mundo del editor. Devuelve el actor para
 inspeccionarlo con `ActorTools`. Se registra desde un `UEditorSubsystem` que depende de `UToolsetRegistrySubsystem`,
 porque `RegisterToolsetClass` no hace nada si el registro aún no está listo. Ver `docs/unreal-mcp.md`.
 
 ## Tests de integración
-`Floor101.Adapter.*` (conversión, pared de referencia, estilos de vista), `Floor101.Interaction.*` (mapa de teclas,
+`Floor101.Adapter.*` (conversión, pared de referencia, estilos de vista, muro con puerta: 36 triángulos y 7 secciones), `Floor101.Interaction.*` (mapa de teclas,
 cámara, flujo completo por el subsistema: dibujar con longitud escrita, seleccionar, propiedades, deshacer, errores,
 guardar y abrir con ruta no ASCII; habitación cerrada con suelo, área y arrastre de esquina con área en vivo) y
 `Floor101.Editor.DocumentToolset.*` (cada herramienta y cada error).

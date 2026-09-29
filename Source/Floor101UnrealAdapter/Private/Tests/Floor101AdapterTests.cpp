@@ -132,6 +132,31 @@ bool FFloor101ReferenceWallTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallOpeningTest, "Floor101.Adapter.WallOpening", TestFlags)
+bool FFloor101WallOpeningTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	f101::cad::Project Project;
+	const f101::cad::WallId WallId{f101::cad::Uuid{0, 1}};
+	f101::cad::Wall Wall{WallId, {0, 0}, {4000, 0}, 120, 2400};
+	Wall.openings.push_back(f101::cad::Opening{f101::cad::OpeningId{f101::cad::Uuid{0, 2}}, f101::cad::OpeningKind::Door, 500, 900, 2100, 0});
+	Project.walls.push_back(Wall);
+
+	FFloor101SceneReconciler Reconciler(TestWorld.World);
+	Reconciler.Reconcile(f101::scene::compileScene(Project));
+	AFloor101SceneNodeActor* Actor = Reconciler.FindActor(f101::scene::wallBodyNodeId(WallId));
+	if (!TestNotNull(TEXT("wall actor"), Actor))
+	{
+		return false;
+	}
+	int32 Triangles = 0;
+	Actor->GetMeshComponent()->ProcessMesh([&Triangles](const UE::Geometry::FDynamicMesh3& Mesh) { Triangles = Mesh.TriangleCount(); });
+	TestEqual(TEXT("door hole: 36 triangles (12 for a plain wall)"), Triangles, 36);
+	TestEqual(TEXT("seven material slots (reveal added)"), Actor->GetMeshComponent()->GetNumMaterials(), 7);
+	TestEqual(TEXT("bounds unchanged: 400 cm"), MeshBounds(*Actor).GetSize().X, 400.0, Tolerance);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ViewStylesTest, "Floor101.Adapter.ViewStyles", TestFlags)
 bool FFloor101ViewStylesTest::RunTest(const FString& Parameters)
 {

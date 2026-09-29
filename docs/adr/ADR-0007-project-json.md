@@ -34,6 +34,8 @@ compila sin excepciones (ADR-0002), y los milímetros deben leerse de forma exac
 - Guardado atómico: se escribe `project.json.tmp` y se renombra, para que un fallo nunca trunque un proyecto.
   Rutas en UTF-8 (`path::string()` abortaría con caracteres no ANSI).
 - Niveles, habitaciones, huecos y materiales llegarán en versiones de esquema posteriores, con migración desde v1.
+  **Esquema 2 (MVP 3, ADR-0010):** cada muro puede llevar `openings` (puertas y ventanas), escrito solo si hay
+  alguno; los archivos v1 se leen sin cambios.
 
 ## Verificación
 `Tests/Unit/ProjectFileTests.cpp`: salida exacta documentada, ida y vuelta sin pérdida (incluidos ±999.999.999 mm),

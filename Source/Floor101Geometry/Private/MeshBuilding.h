@@ -3,10 +3,12 @@
 #include "F101/Cad/Geometry2D.h"
 #include "F101/Geometry/MeshData.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
 // Helpers shared by the builders of this module. Not part of its API.
 namespace f101::geometry::detail
@@ -74,5 +76,30 @@ namespace f101::geometry::detail
 		}
 		MeshSection& section = sectionFor(mesh, slot);
 		section.indices.insert(section.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+	}
+
+	// Appends a planar convex polygon (corners in perimeter order, either direction) as a triangle fan.
+	inline void addConvexPolygon(MeshData& mesh, const char* slot, std::vector<Corner> corners, const Vec3& normal)
+	{
+		if (corners.size() < 3)
+		{
+			return;
+		}
+		if (dot(cross(subtract(corners[1].position, corners[0].position), subtract(corners[2].position, corners[0].position)), normal) < 0.0)
+		{
+			std::reverse(corners.begin() + 1, corners.end());
+		}
+		const auto base = static_cast<std::uint32_t>(mesh.positions.size());
+		for (const Corner& corner : corners)
+		{
+			mesh.positions.push_back(corner.position);
+			mesh.normals.push_back(normal);
+			mesh.uvs.push_back(corner.uv);
+		}
+		MeshSection& section = sectionFor(mesh, slot);
+		for (std::uint32_t i = 1; i + 1 < corners.size(); ++i)
+		{
+			section.indices.insert(section.indices.end(), {base, base + i, base + i + 1});
+		}
 	}
 }

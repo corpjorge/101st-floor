@@ -3,14 +3,14 @@
 Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
 modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
 
-> Estado: **MVP 2 completo** ([informe](docs/mvp2-report.md); [MVP 1](docs/mvp1-report.md),
+> Estado: **MVP 3 completo** ([informe](docs/mvp3-report.md); [MVP 2](docs/mvp2-report.md), [MVP 1](docs/mvp1-report.md),
 > [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas
 > limpias en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de esquinas compartidas,
-> selección, propiedades, deshacer/rehacer y `project.json`, sobre Unreal con Lumen HWRT. La lógica vive en un núcleo
-> C++ puro probado sin Unreal. Siguiente MVP: pendiente de decisión.
+> puertas y ventanas como huecos reales del muro, selección, propiedades, deshacer/rehacer y `project.json`, sobre
+> Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro probado sin Unreal. Siguiente MVP: pendiente de decisión.
 
 ## Controles
-W: muro · V: seleccionar · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
+W: muro · P: puerta · O: ventana · V: seleccionar · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
 Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+O: guardar / abrir · Esc o clic derecho: cancelar ·
 arrastrar un asa amarilla: mover la esquina · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
 F: encuadrar · T: vista en planta. Detalle en

@@ -95,6 +95,45 @@ namespace f101::cad
 			return Point2D{x.value(), y.value()};
 		}
 
+		Result<Opening> readOpening(const Json& object, const std::string& where)
+		{
+			if (!object.is_object())
+			{
+				return formatError(where + " must be an object");
+			}
+			const auto idField = object.find("id");
+			if (idField == object.end() || !idField->is_string())
+			{
+				return formatError(where + ".id must be a UUID string");
+			}
+			const Result<Uuid> uuid = parseUuid(idField->get_ref<const std::string&>());
+			if (!uuid)
+			{
+				return formatError(where + ".id: " + uuid.error().message);
+			}
+			const auto kindField = object.find("kind");
+			if (kindField == object.end() || !kindField->is_string() ||
+				(kindField->get_ref<const std::string&>() != kindName(OpeningKind::Door) &&
+					kindField->get_ref<const std::string&>() != kindName(OpeningKind::Window)))
+			{
+				return formatError(where + ".kind must be \"door\" or \"window\"");
+			}
+			Opening opening;
+			opening.id = OpeningId{uuid.value()};
+			opening.kind = kindField->get_ref<const std::string&>() == kindName(OpeningKind::Door) ? OpeningKind::Door : OpeningKind::Window;
+			for (const auto& [key, target] : {std::pair<const char*, std::int64_t*>{"offsetMm", &opening.offsetMm},
+					 {"widthMm", &opening.widthMm}, {"heightMm", &opening.heightMm}, {"sillMm", &opening.sillMm}})
+			{
+				const Result<std::int64_t> value = readMillimetersField(object, key, where);
+				if (!value)
+				{
+					return value.error();
+				}
+				*target = value.value();
+			}
+			return opening;
+		}
+
 		Result<Wall> readWall(const Json& object, std::size_t index)
 		{
 			const std::string where = "walls[" + std::to_string(index) + "]";
@@ -132,7 +171,24 @@ namespace f101::cad
 			{
 				return height.error();
 			}
-			return Wall{WallId{uuid.value()}, start.value(), end.value(), thickness.value(), height.value()};
+			Wall wall{WallId{uuid.value()}, start.value(), end.value(), thickness.value(), height.value()};
+			if (const auto openings = object.find("openings"); openings != object.end()) // schema 2
+			{
+				if (!openings->is_array())
+				{
+					return formatError(where + ".openings must be an array");
+				}
+				for (std::size_t item = 0; item < openings->size(); ++item)
+				{
+					Result<Opening> opening = readOpening((*openings)[item], where + ".openings[" + std::to_string(item) + "]");
+					if (!opening)
+					{
+						return opening.error();
+					}
+					wall.openings.push_back(std::move(opening).value());
+				}
+			}
+			return wall;
 		}
 	}
 
@@ -147,6 +203,22 @@ namespace f101::cad
 			entry["end"] = toJson(wall.end);
 			entry["thicknessMm"] = wall.thicknessMm;
 			entry["heightMm"] = wall.heightMm;
+			if (!wall.openings.empty())
+			{
+				Json openings = Json::array();
+				for (const Opening& opening : wall.openings)
+				{
+					Json item = Json::object();
+					item["id"] = toString(opening.id);
+					item["kind"] = std::string(kindName(opening.kind));
+					item["offsetMm"] = opening.offsetMm;
+					item["widthMm"] = opening.widthMm;
+					item["heightMm"] = opening.heightMm;
+					item["sillMm"] = opening.sillMm;
+					openings.push_back(std::move(item));
+				}
+				entry["openings"] = std::move(openings);
+			}
 			walls.push_back(std::move(entry));
 		}
 		Json root = Json::object();

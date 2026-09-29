@@ -27,13 +27,15 @@ private:
 
 	TSharedRef<SWidget> MakeToolbar();
 	TSharedRef<SWidget> MakePropertiesPanel();
-	TSharedRef<SWidget> MakePropertyRow(const FText& Label, double (*Value)(const f101::cad::Wall&), FSelectionSetter Setter);
+	// A length property: the value shown (mm, unset = nothing selected) and the controller call that sets it.
+	TSharedRef<SWidget> MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter);
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 
 	// Runs an editing action through the subsystem and gives the keyboard back to the viewport.
 	FReply Run(TFunctionRef<f101::Status(f101::cad::EditController&)> Action);
 	const f101::cad::Wall* GetSelectedWall() const;
+	std::optional<f101::cad::OpeningRef> GetSelectedOpening() const;
 	FText GetHintText() const;
 	FText GetCursorText() const;
 	FString GetPathOrDefault() const;

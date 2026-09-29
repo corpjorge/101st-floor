@@ -12,7 +12,8 @@
 namespace f101::cad
 {
 	inline constexpr std::string_view ProjectFormatName = "101st-floor-project";
-	inline constexpr int ProjectSchemaVersion = 1;
+	// 1: walls. 2: walls with openings (doors, windows). Older versions are read as they are.
+	inline constexpr int ProjectSchemaVersion = 2;
 
 	// Deterministic, human-readable JSON (fixed key order, 2-space indentation, trailing newline).
 	FLOOR101CADCORE_API std::string writeProjectJson(const Project& project);

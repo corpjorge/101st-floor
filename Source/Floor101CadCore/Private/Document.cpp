@@ -17,6 +17,17 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "No wall with id " + toString(id)};
 		}
 
+		Error openingNotFound(const OpeningId& id)
+		{
+			return Error{ErrorCode::NotFound, "No opening with id " + toString(id)};
+		}
+
+		void sortOpenings(Wall& wall)
+		{
+			std::stable_sort(wall.openings.begin(), wall.openings.end(),
+				[](const Opening& a, const Opening& b) { return a.offsetMm < b.offsetMm; });
+		}
+
 		std::optional<std::size_t> findWallIndex(const Project& project, const WallId& id)
 		{
 			for (std::size_t index = 0; index < project.walls.size(); ++index)
@@ -88,6 +99,12 @@ namespace f101::cad
 			std::string_view operator()(const ChangeWallLengthCommand&) const { return "Change wall length"; }
 			std::string_view operator()(const ChangeWallThicknessCommand&) const { return "Change wall thickness"; }
 			std::string_view operator()(const ChangeWallHeightCommand&) const { return "Change wall height"; }
+			std::string_view operator()(const AddOpeningCommand& add) const
+			{
+				return add.opening.kind == OpeningKind::Door ? "Add door" : "Add window";
+			}
+			std::string_view operator()(const ChangeOpeningCommand&) const { return "Change opening"; }
+			std::string_view operator()(const DeleteOpeningCommand&) const { return "Delete opening"; }
 		};
 	}
 
@@ -99,6 +116,7 @@ namespace f101::cad
 	Status validateProject(const Project& project)
 	{
 		std::set<WallId> ids;
+		std::set<OpeningId> openingIds;
 		for (const Wall& wall : project.walls)
 		{
 			if (Status valid = validateWall(wall); !valid)
@@ -108,6 +126,13 @@ namespace f101::cad
 			if (!ids.insert(wall.id).second)
 			{
 				return Error{ErrorCode::InvalidArgument, "Duplicate wall id " + toString(wall.id)};
+			}
+			for (const Opening& opening : wall.openings)
+			{
+				if (!openingIds.insert(opening.id).second)
+				{
+					return Error{ErrorCode::InvalidArgument, "Duplicate opening id " + toString(opening.id)};
+				}
 			}
 		}
 		return Status::success();
@@ -195,6 +220,47 @@ namespace f101::cad
 					return Error{ErrorCode::OutOfRange, "Wall end would leave the model range"};
 				}
 				wall.end = end.value();
+				return Status::success();
+			});
+		}
+		if (const auto* add = std::get_if<AddOpeningCommand>(&command))
+		{
+			Opening opening = add->opening;
+			opening.id = OpeningId{newUuid()};
+			return modifyWall(model, add->wall, label, [&opening](Wall& wall)
+			{
+				wall.openings.push_back(opening);
+				sortOpenings(wall);
+				return Status::success();
+			});
+		}
+		if (const auto* change = std::get_if<ChangeOpeningCommand>(&command))
+		{
+			return modifyWall(model, change->wall, label, [change](Wall& wall) -> Status
+			{
+				for (Opening& opening : wall.openings)
+				{
+					if (opening.id == change->opening.id)
+					{
+						opening = change->opening;
+						sortOpenings(wall);
+						return Status::success();
+					}
+				}
+				return openingNotFound(change->opening.id);
+			});
+		}
+		if (const auto* removal = std::get_if<DeleteOpeningCommand>(&command))
+		{
+			return modifyWall(model, removal->wall, label, [removal](Wall& wall) -> Status
+			{
+				const auto found = std::find_if(wall.openings.begin(), wall.openings.end(),
+					[removal](const Opening& opening) { return opening.id == removal->opening; });
+				if (found == wall.openings.end())
+				{
+					return openingNotFound(removal->opening);
+				}
+				wall.openings.erase(found);
 				return Status::success();
 			});
 		}
@@ -310,6 +376,26 @@ namespace f101::cad
 	{
 		const Result<Transaction> applied = execute(DeleteWallCommand{id});
 		return applied ? Status::success() : Status(applied.error());
+	}
+
+	Result<OpeningId> Document::addOpening(const WallId& wall, const Opening& opening)
+	{
+		const Result<Transaction> applied = execute(AddOpeningCommand{wall, opening});
+		if (!applied)
+		{
+			return applied.error();
+		}
+		// The new opening is the one the wall did not have before.
+		const WallChange& change = applied.value().walls.front();
+		for (const Opening& added : change.after->openings)
+		{
+			if (!change.before->findOpening(added.id))
+			{
+				return added.id;
+			}
+		}
+		F101_ASSERT(false);
+		return Error{ErrorCode::NotFound, "Opening not added"};
 	}
 
 	void Document::apply(const Transaction& transaction, bool forward)

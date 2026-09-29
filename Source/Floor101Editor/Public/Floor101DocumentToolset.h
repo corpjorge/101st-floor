@@ -5,6 +5,43 @@
 
 #include "Floor101DocumentToolset.generated.h"
 
+UENUM(BlueprintType)
+enum class EFloor101OpeningKind : uint8
+{
+	Door,
+	Window,
+};
+
+/**
+ * A door or window: a rectangular hole through its wall. Integer millimetres.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101OpeningInfo
+{
+	GENERATED_BODY()
+
+	/** Persistent opening id (UUID). */
+	UPROPERTY()
+	FString Id;
+
+	UPROPERTY()
+	EFloor101OpeningKind Kind = EFloor101OpeningKind::Door;
+
+	/** From the wall start to the opening's near edge, along the wall. */
+	UPROPERTY()
+	int64 OffsetMm = 0;
+
+	UPROPERTY()
+	int64 WidthMm = 0;
+
+	UPROPERTY()
+	int64 HeightMm = 0;
+
+	/** From the floor to the bottom of the opening; 0 for doors. */
+	UPROPERTY()
+	int64 SillMm = 0;
+};
+
 /**
  * A wall of the 101st Floor document. Plan coordinates in integer millimetres (X east, Y north).
  */
@@ -39,6 +76,10 @@ struct FFloor101WallInfo
 	/** Axis length, derived from the end points. */
 	UPROPERTY()
 	double LengthMm = 0.0;
+
+	/** Its doors and windows, by offset. */
+	UPROPERTY()
+	TArray<FFloor101OpeningInfo> Openings;
 
 	/** Transient actor rendering the wall in the target world (Unreal space: cm, Y mirrored). */
 	UPROPERTY()
@@ -132,6 +173,25 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static TArray<FFloor101RoomInfo> GetRooms();
+
+	/**
+	 * Adds a door or window to a wall. It must fit the wall and not overlap another opening; doors have sill 0.
+	 * @return The new opening.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101OpeningInfo AddOpening(const FString& WallId, EFloor101OpeningKind Kind, int64 OffsetMm, int64 WidthMm,
+		int64 HeightMm, int64 SillMm);
+
+	/**
+	 * Moves or resizes an opening (its kind stays).
+	 * @return The updated opening.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101OpeningInfo SetOpening(const FString& WallId, const FString& OpeningId, int64 OffsetMm, int64 WidthMm,
+		int64 HeightMm, int64 SillMm);
+
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void RemoveOpening(const FString& WallId, const FString& OpeningId);
 
 	/**
 	 * Removes a wall and its actor.

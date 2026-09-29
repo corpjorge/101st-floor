@@ -53,6 +53,8 @@ Con *tool search* activo (default, `bEnableToolSearch=true`) el servidor expone 
 ## Toolset propio: `Floor101Editor.Floor101DocumentToolset`
 Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetWallLength`, `SetWallThickness`,
 `MoveCorner` (mueve todos los extremos de una esquina), `GetRooms` (habitaciones con área neta en m², muros y suelo),
+`AddOpening`/`SetOpening`/`RemoveOpening` (puertas y ventanas: posición desde el inicio del muro, ancho, alto,
+antepecho; `GetWalls` las lista en `Openings`),
 `SetWallHeight`, `RemoveWall`, `Undo`/`Redo` (devuelven la etiqueta, p. ej. `Create wall`) y `SaveProject`/
 `OpenProject` (rutas absolutas), con coordenadas y dimensiones en mm enteros. **Mundo objetivo:** el de la sesión PIE
 mientras exista (lo que el usuario está editando; empieza vacío), si no el del editor. Cada cambio es un paso
@@ -67,6 +69,11 @@ pared.
 Verificado (MVP 2, por el transporte MCP con `Scripts/McpClient.ps1`): 4 `AddWall` → `GetRooms` = 1 habitación de
 11,1744 m² con su suelo → `MoveCorner(4000,0 → 4500,0)` mueve 2 muros y el área pasa a 11,8920 m² con la misma clave →
 `Undo` = `Move corner` → 11,1744 m².
+
+Verificado (MVP 3, por el transporte MCP): `OpenProject` de un archivo de esquema 2 con una ventana → `AddOpening`
+(puerta de 900 × 2100 en 300 mm) → otra puerta en 2000 mm rechazada con "The door overlaps another opening" →
+`SetOpening` (ventana a 1500 mm de ancho, antepecho 1000) → `RemoveOpening` → `Undo` × 2 (`Delete opening`,
+`Change opening`) → la ventana vuelve a 1300 × 1200 con antepecho 900.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

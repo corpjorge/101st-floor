@@ -16,7 +16,9 @@ el futuro.
 - Vista: `compileScene(project, overlay)` compila el proyecto **como quedaría** tras el gesto en curso.
   `ViewOverlay::previewWalls` sustituye muros por id (arrastre de una esquina) o añade muros sin id (el que se dibuja,
   nodo `preview/wall/<i>`); ambos llevan estilo `Preview`, y las uniones y habitaciones siguen a la vista previa. El
-  muro seleccionado lleva `Selected` y las asas son `marker/<i>` (`Handle`). Los muros inválidos se omiten.
+  muro seleccionado (o el anfitrión del hueco seleccionado) lleva `Selected` y las asas son `marker/<i>` (`Handle`;
+  en un hueco, en sus bordes). La colocación de una puerta o ventana es una vista previa del muro anfitrión con el hueco
+  nuevo. Los muros inválidos se omiten.
   `compileScene(project)` no lleva overlay: es lo que usan los exportadores.
 
 La escena nunca se guarda como proyecto ni se edita. Un exportador escribe contra ella con su única conversión de

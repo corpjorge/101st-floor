@@ -71,6 +71,9 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	};
 	TestTrue(TEXT("W: wall tool"), Map(EKeys::W) == Command::WallTool);
 	TestTrue(TEXT("V: select"), Map(EKeys::V) == Command::SelectTool);
+	TestTrue(TEXT("P: door"), Map(EKeys::P) == Command::DoorTool);
+	TestTrue(TEXT("O: window"), Map(EKeys::O) == Command::WindowTool);
+	TestTrue(TEXT("Ctrl+O is still open"), Map(EKeys::O, true) == Command::Open);
 	TestTrue(TEXT("Esc: cancel"), Map(EKeys::Escape) == Command::Cancel);
 	TestTrue(TEXT("Enter: confirm"), Map(EKeys::Enter) == Command::Confirm);
 	TestTrue(TEXT("Delete: delete"), Map(EKeys::Delete) == Command::Delete);

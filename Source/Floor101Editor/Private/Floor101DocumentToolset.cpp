@@ -43,9 +43,37 @@ namespace
 		return true;
 	}
 
+	bool ParseOpeningId(const FString& Text, f101::cad::OpeningId& OutId)
+	{
+		const f101::Result<f101::cad::Uuid> Parsed = f101::cad::parseUuid(TCHAR_TO_UTF8(*Text));
+		if (!Parsed)
+		{
+			RaiseError(FString::Printf(TEXT("'%s' is not an opening id: %s"), *Text, *ToFString(Parsed.error().message)));
+			return false;
+		}
+		OutId = f101::cad::OpeningId{Parsed.value()};
+		return true;
+	}
+
+	FFloor101OpeningInfo ToInfo(const f101::cad::Opening& Opening)
+	{
+		FFloor101OpeningInfo Info;
+		Info.Id = ToFString(f101::cad::toString(Opening.id));
+		Info.Kind = Opening.kind == f101::cad::OpeningKind::Door ? EFloor101OpeningKind::Door : EFloor101OpeningKind::Window;
+		Info.OffsetMm = Opening.offsetMm;
+		Info.WidthMm = Opening.widthMm;
+		Info.HeightMm = Opening.heightMm;
+		Info.SillMm = Opening.sillMm;
+		return Info;
+	}
+
 	FFloor101WallInfo ToInfo(const f101::cad::Wall& Wall, const UFloor101DocumentSubsystem& Subsystem)
 	{
 		FFloor101WallInfo Info;
+		for (const f101::cad::Opening& Opening : Wall.openings)
+		{
+			Info.Openings.Add(ToInfo(Opening));
+		}
 		Info.Id = ToFString(f101::cad::toString(Wall.id));
 		Info.StartXMm = Wall.start.x_mm;
 		Info.StartYMm = Wall.start.y_mm;
@@ -186,6 +214,73 @@ TArray<FFloor101RoomInfo> UFloor101DocumentToolset::GetRooms()
 		Rooms.Add(MoveTemp(Info));
 	}
 	return Rooms;
+}
+
+FFloor101OpeningInfo UFloor101DocumentToolset::AddOpening(const FString& WallId, EFloor101OpeningKind Kind, int64 OffsetMm,
+	int64 WidthMm, int64 HeightMm, int64 SillMm)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::WallId Wall;
+	if (!Subsystem || !ParseWallId(WallId, Wall))
+	{
+		return {};
+	}
+	const f101::cad::OpeningKind CadKind = Kind == EFloor101OpeningKind::Door ? f101::cad::OpeningKind::Door : f101::cad::OpeningKind::Window;
+	const f101::Result<f101::cad::OpeningId> Added = Subsystem->GetMutableDocument().addOpening(
+		Wall, f101::cad::Opening{f101::cad::OpeningId{}, CadKind, OffsetMm, WidthMm, HeightMm, SillMm});
+	if (!Added)
+	{
+		RaiseError(FString::Printf(TEXT("cannot add the opening to wall %s: %s"), *WallId, *ToFString(Added.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findWall(Wall)->findOpening(Added.value()));
+}
+
+FFloor101OpeningInfo UFloor101DocumentToolset::SetOpening(const FString& WallId, const FString& OpeningId, int64 OffsetMm,
+	int64 WidthMm, int64 HeightMm, int64 SillMm)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::WallId Wall;
+	f101::cad::OpeningId Id;
+	if (!Subsystem || !ParseWallId(WallId, Wall) || !ParseOpeningId(OpeningId, Id))
+	{
+		return {};
+	}
+	const f101::cad::Wall* Host = Subsystem->GetDocument().project().findWall(Wall);
+	const f101::cad::Opening* Current = Host ? Host->findOpening(Id) : nullptr;
+	if (!Current)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change opening %s: no such opening in wall %s"), *OpeningId, *WallId));
+		return {};
+	}
+	f101::cad::Opening Changed = *Current;
+	Changed.offsetMm = OffsetMm;
+	Changed.widthMm = WidthMm;
+	Changed.heightMm = HeightMm;
+	Changed.sillMm = SillMm;
+	const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(f101::cad::ChangeOpeningCommand{Wall, Changed});
+	if (!Applied)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change opening %s: %s"), *OpeningId, *ToFString(Applied.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findWall(Wall)->findOpening(Id));
+}
+
+void UFloor101DocumentToolset::RemoveOpening(const FString& WallId, const FString& OpeningId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::WallId Wall;
+	f101::cad::OpeningId Id;
+	if (!Subsystem || !ParseWallId(WallId, Wall) || !ParseOpeningId(OpeningId, Id))
+	{
+		return;
+	}
+	const f101::Result<f101::cad::Transaction> Removed = Subsystem->GetMutableDocument().execute(f101::cad::DeleteOpeningCommand{Wall, Id});
+	if (!Removed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot remove opening %s: %s"), *OpeningId, *ToFString(Removed.error().message)));
+	}
 }
 
 void UFloor101DocumentToolset::RemoveWall(const FString& WallId)

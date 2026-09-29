@@ -286,6 +286,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			[
 				ModeButton(LOCTEXT("Wall", "Muro (W)"), LOCTEXT("WallTip", "Dibuja muros: clic, mueve, escribe la longitud, Enter"), EditMode::Wall)
 			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				ModeButton(LOCTEXT("Door", "Puerta (P)"), LOCTEXT("DoorTip", "Coloca una puerta de 90 × 210 cm: clic sobre un muro"), EditMode::Door)
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				ModeButton(LOCTEXT("Window", "Ventana (O)"), LOCTEXT("WindowTip", "Coloca una ventana de 120 × 120 cm a 90 cm del suelo: clic sobre un muro"), EditMode::Window)
+			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 2.0f, 2.0f, 2.0f)
 			[
 				ActionButton(LOCTEXT("Undo", "Deshacer"),
@@ -396,12 +404,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		]);
 }
 
-TSharedRef<SWidget> SFloor101Overlay::MakePropertyRow(const FText& Label, double (*Value)(const f101::cad::Wall&), FSelectionSetter Setter)
+TSharedRef<SWidget> SFloor101Overlay::MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter)
 {
-	auto CurrentText = [this, Value]()
+	auto CurrentText = [Value]()
 	{
-		const f101::cad::Wall* Wall = GetSelectedWall();
-		return Wall ? LengthText(Value(*Wall)) : FText::GetEmpty();
+		const TOptional<double> Millimeters = Value();
+		return Millimeters.IsSet() ? LengthText(Millimeters.GetValue()) : FText::GetEmpty();
 	};
 
 	return SNew(SHorizontalBox)
@@ -442,32 +450,115 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertyRow(const FText& Label, double
 		];
 }
 
+std::optional<f101::cad::OpeningRef> SFloor101Overlay::GetSelectedOpening() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	if (!Subsystem || Subsystem->GetEditController().mode() != EditMode::Select)
+	{
+		return std::nullopt;
+	}
+	return Subsystem->GetEditController().selectedOpening();
+}
+
 TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 {
+	// Values shown in the rows: the selected wall's or the selected opening's, in mm.
+	auto WallValue = [this](double (*Read)(const f101::cad::Wall&))
+	{
+		return [this, Read]() -> TOptional<double>
+		{
+			const f101::cad::Wall* Wall = GetSelectedWall();
+			return Wall ? TOptional<double>(Read(*Wall)) : TOptional<double>();
+		};
+	};
+	auto OpeningValue = [this](std::int64_t f101::cad::Opening::* Field)
+	{
+		return [this, Field]() -> TOptional<double>
+		{
+			const std::optional<f101::cad::OpeningRef> Selected = GetSelectedOpening();
+			return Selected ? TOptional<double>(static_cast<double>(Selected->opening.*Field)) : TOptional<double>();
+		};
+	};
+	auto WallVisible = [this]() { return GetSelectedWall() ? EVisibility::Visible : EVisibility::Collapsed; };
+	auto OpeningVisible = [this]() { return GetSelectedOpening() ? EVisibility::Visible : EVisibility::Collapsed; };
+
 	return SNew(SBox)
 		.WidthOverride(260.0f)
-		.Visibility_Lambda([this]() { return GetSelectedWall() ? EVisibility::Visible : EVisibility::Collapsed; })
+		.Visibility_Lambda([this]() { return GetSelectedWall() || GetSelectedOpening() ? EVisibility::Visible : EVisibility::Collapsed; })
 		[
 			Panel(
 				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+				+ SVerticalBox::Slot().AutoHeight()
 				[
-					SNew(STextBlock).Text(LOCTEXT("SelectedWall", "Muro seleccionado")).Font(Font(11, true))
+					SNew(SVerticalBox)
+					.Visibility_Lambda(WallVisible)
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+					[
+						SNew(STextBlock).Text(LOCTEXT("SelectedWall", "Muro seleccionado")).Font(Font(11, true))
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						MakePropertyRow(LOCTEXT("Length", "Longitud"),
+							WallValue([](const f101::cad::Wall& Wall) { return Wall.lengthMm(); }), &EditController::setSelectionLength)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						MakePropertyRow(LOCTEXT("Thickness", "Espesor"),
+							WallValue([](const f101::cad::Wall& Wall) { return static_cast<double>(Wall.thicknessMm); }), &EditController::setSelectionThickness)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						MakePropertyRow(LOCTEXT("Height", "Altura"),
+							WallValue([](const f101::cad::Wall& Wall) { return static_cast<double>(Wall.heightMm); }), &EditController::setSelectionHeight)
+					]
 				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+				+ SVerticalBox::Slot().AutoHeight()
 				[
-					MakePropertyRow(LOCTEXT("Length", "Longitud"),
-						[](const f101::cad::Wall& Wall) { return Wall.lengthMm(); }, &EditController::setSelectionLength)
-				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-				[
-					MakePropertyRow(LOCTEXT("Thickness", "Espesor"),
-						[](const f101::cad::Wall& Wall) { return static_cast<double>(Wall.thicknessMm); }, &EditController::setSelectionThickness)
-				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-				[
-					MakePropertyRow(LOCTEXT("Height", "Altura"),
-						[](const f101::cad::Wall& Wall) { return static_cast<double>(Wall.heightMm); }, &EditController::setSelectionHeight)
+					SNew(SVerticalBox)
+					.Visibility_Lambda(OpeningVisible)
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+					[
+						SNew(STextBlock)
+						.Font(Font(11, true))
+						.Text_Lambda([this]()
+						{
+							const std::optional<f101::cad::OpeningRef> Selected = GetSelectedOpening();
+							return Selected && Selected->opening.kind == f101::cad::OpeningKind::Window
+								? LOCTEXT("SelectedWindow", "Ventana seleccionada") : LOCTEXT("SelectedDoor", "Puerta seleccionada");
+						})
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						MakePropertyRow(LOCTEXT("OpeningWidth", "Ancho"), OpeningValue(&f101::cad::Opening::widthMm), &EditController::setOpeningWidth)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						MakePropertyRow(LOCTEXT("OpeningHeight", "Alto"), OpeningValue(&f101::cad::Opening::heightMm), &EditController::setOpeningHeight)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						SNew(SBox)
+						.Visibility_Lambda([this]()
+						{
+							const std::optional<f101::cad::OpeningRef> Selected = GetSelectedOpening();
+							return Selected && Selected->opening.kind == f101::cad::OpeningKind::Window ? EVisibility::Visible : EVisibility::Collapsed;
+						})
+						[
+							MakePropertyRow(LOCTEXT("OpeningSill", "Antepecho"), OpeningValue(&f101::cad::Opening::sillMm), &EditController::setOpeningSill)
+						]
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						MakePropertyRow(LOCTEXT("OpeningOffset", "Posición"), OpeningValue(&f101::cad::Opening::offsetMm), &EditController::setOpeningOffset)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						SNew(STextBlock)
+						.Font(Font(9))
+						.ColorAndOpacity(MutedColor)
+						.Text(LOCTEXT("OffsetHint", "Posición: desde el inicio del muro hasta el borde del hueco"))
+						.AutoWrapText(true)
+					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 				[
@@ -502,12 +593,22 @@ FText SFloor101Overlay::GetHintText() const
 			? LOCTEXT("HintDrafting", "Muro · mueve el cursor o escribe la longitud (sin unidad = cm) · Enter o clic: crear · cerca de un muro se une a él · Esc o clic derecho: terminar")
 			: LOCTEXT("HintWallIdle", "Muro · clic: inicio del muro (en un extremo o sobre un muro para unirlo) · Esc o clic derecho: volver a Seleccionar");
 	}
+	if (Editor.mode() == EditMode::Door || Editor.mode() == EditMode::Window)
+	{
+		return Editor.mode() == EditMode::Door
+			? LOCTEXT("HintDoor", "Puerta · apunta a un muro y haz clic para colocarla · Esc o clic derecho: volver a Seleccionar")
+			: LOCTEXT("HintWindow", "Ventana · apunta a un muro y haz clic para colocarla · Esc o clic derecho: volver a Seleccionar");
+	}
 	if (Editor.isDragging())
 	{
 		return LOCTEXT("HintDragging", "Moviendo esquina · los muros unidos la siguen · suelta para aplicar · Esc o clic derecho: cancelar");
 	}
+	if (Editor.selectedOpening())
+	{
+		return LOCTEXT("HintOpening", "Seleccionar · edita sus medidas en el panel · Supr: eliminar");
+	}
 	return Editor.selection().isNil()
-		? LOCTEXT("HintSelect", "Seleccionar · clic: seleccionar muro · W: dibujar muros")
+		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, puerta o ventana · W: muros · P: puertas · O: ventanas")
 		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 

@@ -51,4 +51,7 @@ namespace f101::cad
 
 	struct WallTag;
 	using WallId = TypedId<WallTag>;
+
+	struct OpeningTag;
+	using OpeningId = TypedId<OpeningTag>;
 }

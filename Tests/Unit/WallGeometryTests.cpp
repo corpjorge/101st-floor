@@ -157,3 +157,67 @@ TEST_CASE("UVs are in metres")
 	CHECK(maxU == doctest::Approx(3.55));
 	CHECK(maxV == doctest::Approx(2.4));
 }
+
+namespace
+{
+	// Volume enclosed by a closed, outward-facing triangle mesh (divergence theorem).
+	double enclosedVolume(const MeshData& mesh)
+	{
+		double sixTimes = 0.0;
+		for (const MeshSection& s : mesh.sections)
+		{
+			for (std::size_t t = 0; t < s.indices.size(); t += 3)
+			{
+				const Vec3& a = mesh.positions[s.indices[t]];
+				const Vec3& b = mesh.positions[s.indices[t + 1]];
+				const Vec3& c = mesh.positions[s.indices[t + 2]];
+				sixTimes += dot(a, cross(b, c));
+			}
+		}
+		return sixTimes / 6.0;
+	}
+
+	double sectionArea(const MeshData& mesh, const std::string& slot)
+	{
+		double twice = 0.0;
+		for (const MeshSection& s : mesh.sections)
+		{
+			if (s.slot != slot)
+			{
+				continue;
+			}
+			for (std::size_t t = 0; t < s.indices.size(); t += 3)
+			{
+				const Vec3& a = mesh.positions[s.indices[t]];
+				const Vec3 n = cross(mesh.positions[s.indices[t + 1]] - a, mesh.positions[s.indices[t + 2]] - a);
+				twice += std::sqrt(dot(n, n));
+			}
+		}
+		return twice / 2.0;
+	}
+}
+
+TEST_CASE("a door is a hole to the floor with jambs and a head; the wall stays closed")
+{
+	cad::Wall wall = makeWall({0, 0}, {4000, 0});
+	wall.openings.push_back(cad::Opening{cad::OpeningId{cad::Uuid{0, 9}}, cad::OpeningKind::Door, 500, 900, 2100, 0});
+	const MeshData mesh = buildWallMesh(wall);
+	CHECK(mesh.triangleCount() == 36);
+	CHECK(sectionArea(mesh, "left") == doctest::Approx(4000.0 * 2400.0 - 900.0 * 2100.0));
+	CHECK(sectionArea(mesh, "bottom") == doctest::Approx((4000.0 - 900.0) * 120.0));
+	CHECK(sectionArea(mesh, "reveal") == doctest::Approx(2 * 120.0 * 2100.0 + 900.0 * 120.0));
+	CHECK(enclosedVolume(mesh) == doctest::Approx(120.0 * (4000.0 * 2400.0 - 900.0 * 2100.0)));
+}
+
+TEST_CASE("a window keeps wall below and above it and gets a sill")
+{
+	cad::Wall wall = makeWall({0, 0}, {4000, 0});
+	wall.openings.push_back(cad::Opening{cad::OpeningId{cad::Uuid{0, 9}}, cad::OpeningKind::Window, 2000, 1200, 1200, 900});
+	wall.openings.push_back(cad::Opening{cad::OpeningId{cad::Uuid{0, 10}}, cad::OpeningKind::Door, 300, 900, 2100, 0});
+	std::sort(wall.openings.begin(), wall.openings.end(), [](const cad::Opening& a, const cad::Opening& b) { return a.offsetMm < b.offsetMm; });
+	const MeshData mesh = buildWallMesh(wall);
+	CHECK(sectionArea(mesh, "right") == doctest::Approx(4000.0 * 2400.0 - 1200.0 * 1200.0 - 900.0 * 2100.0));
+	CHECK(sectionArea(mesh, "reveal") == doctest::Approx(2 * 120.0 * 1200.0 + 2 * 1200.0 * 120.0 + 2 * 120.0 * 2100.0 + 900.0 * 120.0));
+	CHECK(enclosedVolume(mesh) == doctest::Approx(120.0 * (4000.0 * 2400.0 - 1200.0 * 1200.0 - 900.0 * 2100.0)));
+	CHECK(enclosedVolume(buildWallMesh(makeWall({0, 0}, {4000, 0}))) == doctest::Approx(120.0 * 4000.0 * 2400.0));
+}

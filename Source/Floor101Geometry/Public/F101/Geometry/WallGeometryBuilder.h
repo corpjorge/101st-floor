@@ -16,11 +16,13 @@ namespace f101::geometry
 		inline constexpr const char* Bottom = "bottom";
 		inline constexpr const char* Start = "start";
 		inline constexpr const char* End = "end";
+		inline constexpr const char* Reveal = "reveal"; // inside faces of door and window holes
 	}
 
-	// Closed prism for a straight wall over its footprint, from the floor (z = 0) to its height. Flat-shaded,
-	// 24 vertices, 12 triangles, one section per face. With plainFootprint(wall) it is the box centred on the axis;
-	// with a resolved footprint (solveWallJoins) the end faces are mitred or cut at another wall.
+	// Closed prism for a straight wall over its footprint, from the floor (z = 0) to its height, flat-shaded, one section
+	// per face (24 vertices and 12 triangles without openings). With plainFootprint(wall) it is the box centred on the
+	// axis; with a resolved footprint (solveWallJoins) the end faces are mitred or cut at another wall. Each opening is a
+	// hole through both long faces with its reveals (jambs, head, and the sill of a window); doors also cut the bottom.
 	// Precondition: cad::validateWallGeometry(wall) succeeds (the id is not used).
 	FLOOR101GEOMETRY_API MeshData buildWallMesh(const cad::Wall& wall, const WallFootprint& footprint);
 

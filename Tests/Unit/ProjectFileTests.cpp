@@ -40,7 +40,7 @@ TEST_CASE("writes the documented, deterministic format")
 	CHECK(writeProjectJson(project) ==
 		"{\n"
 		"  \"format\": \"101st-floor-project\",\n"
-		"  \"schemaVersion\": 1,\n"
+		"  \"schemaVersion\": 2,\n"
 		"  \"units\": \"mm\",\n"
 		"  \"walls\": [\n"
 		"    {\n"
@@ -94,7 +94,7 @@ TEST_CASE("rejects files that are not valid 101st Floor projects")
 
 TEST_CASE("a project from a newer schema version is refused, not misread")
 {
-	CHECK(readError(R"({"format":"101st-floor-project","schemaVersion":2,"units":"mm","walls":[]})") == ErrorCode::InvalidArgument);
+	CHECK(readError(R"({"format":"101st-floor-project","schemaVersion":3,"units":"mm","walls":[]})") == ErrorCode::InvalidArgument);
 }
 
 TEST_CASE("millimetres must be integers inside the model range")
@@ -137,4 +137,34 @@ TEST_CASE("save and load a file, including a non-ASCII path")
 
 	CHECK(loadProjectFile(folder / u8"missing.json").error().code == ErrorCode::NotFound);
 	std::filesystem::remove_all(folder.parent_path(), ignored);
+}
+
+TEST_CASE("schema 2 writes openings and reads them back exactly; schema 1 files still load")
+{
+	Project project;
+	Wall wall{WallId{Uuid{0, 1}}, {0, 0}, {4000, 0}, 120, 2400};
+	wall.openings.push_back(Opening{OpeningId{Uuid{0, 7}}, OpeningKind::Door, 300, 900, 2100, 0});
+	wall.openings.push_back(Opening{OpeningId{Uuid{0, 8}}, OpeningKind::Window, 2000, 1200, 1200, 900});
+	project.walls.push_back(wall);
+	const std::string json = writeProjectJson(project);
+	CHECK(json.find("\"kind\": \"door\"") != std::string::npos);
+	CHECK(json.find("\"sillMm\": 900") != std::string::npos);
+	const Result<Project> loaded = readProjectJson(json);
+	REQUIRE(loaded.ok());
+	CHECK(loaded.value().walls == project.walls);
+
+	// A wall without openings writes no "openings" key; version 1 input (no openings anywhere) is accepted.
+	CHECK(writeProjectJson(sampleProject()).find("openings") == std::string::npos);
+	CHECK(readProjectJson(minimalJson(R"([{"id":"00000000-0000-0000-0000-000000000001","start":[0,0],"end":[3550,0],"thicknessMm":120,"heightMm":2400}])")).ok());
+}
+
+TEST_CASE("invalid openings are refused")
+{
+	const std::string prefix = R"([{"id":"00000000-0000-0000-0000-000000000001","start":[0,0],"end":[3000,0],"thicknessMm":120,"heightMm":2400,"openings":[)";
+	auto opening = [](const std::string& fields) { return R"({"id":"00000000-0000-0000-0000-000000000009",)" + fields + "}"; };
+	CHECK(readError(minimalJson(prefix + opening(R"("kind":"hatch","offsetMm":0,"widthMm":900,"heightMm":2100,"sillMm":0)") + "]}]")) == ErrorCode::ParseError);
+	CHECK(readError(minimalJson(prefix + opening(R"("kind":"door","offsetMm":2500,"widthMm":900,"heightMm":2100,"sillMm":0)") + "]}]")) == ErrorCode::OutOfRange); // past the end
+	CHECK(readError(minimalJson(prefix + opening(R"("kind":"door","offsetMm":0,"widthMm":900,"heightMm":2400,"sillMm":0)") + "]}]")) == ErrorCode::OutOfRange);  // no lintel
+	CHECK(readError(minimalJson(prefix + opening(R"("kind":"door","offsetMm":0,"widthMm":900,"heightMm":2100,"sillMm":100)") + "]}]")) == ErrorCode::OutOfRange); // door off the floor
+	CHECK(readError(minimalJson(prefix + opening(R"("kind":"window","offsetMm":0,"widthMm":900.5,"heightMm":1000,"sillMm":900)") + "]}]")) == ErrorCode::ParseError);
 }

@@ -16,6 +16,8 @@ namespace f101::cad
 	{
 		Select,
 		Wall,
+		Door,
+		Window,
 	};
 
 	struct EditSettings
@@ -24,6 +26,18 @@ namespace f101::cad
 		// Draggable endpoint handles (and the wall tool cursor) are square posts of this size, drawn and picked alike.
 		std::int64_t handleSizeMm = 240;
 		std::int64_t handleHeightMm = 2500;
+		// What the Door and Window tools place (offset ignored), and how far from a wall's face the pointer still
+		// targets it.
+		Opening door{OpeningId{}, OpeningKind::Door, 0, 900, 2100, 0};
+		Opening window{OpeningId{}, OpeningKind::Window, 0, 1200, 1200, 900};
+		double openingToleranceMm = 150.0;
+	};
+
+	// A door or window with its host wall.
+	struct OpeningRef
+	{
+		WallId wall;
+		Opening opening;
 	};
 
 	// What the view shows on top of the project. Not saved; the application maps it to scene::ViewOverlay.
@@ -43,6 +57,8 @@ namespace f101::cad
 	// Select mode: a click picks a wall (or clears the selection); dragging a handle of the selected wall moves that
 	// corner: every wall ending there follows (MoveJointCommand on release; MoveWallEndpointCommand for a free end).
 	// Wall mode: WallTool (click, move, type a length, Enter).
+	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid);
+	// a click adds it. In Select mode a click on a wall where it has an opening selects that opening.
 	class EditController
 	{
 	public:
@@ -80,6 +96,18 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setSelectionThickness(std::string_view text);
 		FLOOR101CADCORE_API Status setSelectionHeight(std::string_view text);
 
+		// The selected door or window; nullopt if none or if it no longer exists. While one is selected, selection()
+		// (the selected wall) is nil.
+		FLOOR101CADCORE_API std::optional<OpeningRef> selectedOpening() const;
+		FLOOR101CADCORE_API Status selectOpening(const WallId& wall, const OpeningId& opening);
+		// Property edits of the selected opening, typed like lengths. The offset runs from the wall start to its edge.
+		FLOOR101CADCORE_API Status setOpeningWidth(std::string_view text);
+		FLOOR101CADCORE_API Status setOpeningHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setOpeningSill(std::string_view text);
+		FLOOR101CADCORE_API Status setOpeningOffset(std::string_view text);
+		// Door/Window mode: what a click would add (id nil); nullopt when the pointer is not over a wall that fits it.
+		const std::optional<OpeningRef>& openingPlacement() const { return placement; }
+
 		const WallTool& wallTool() const { return tool; }
 		const EditSettings& settings() const { return editSettings; }
 		bool isDragging() const { return drag.has_value(); }
@@ -102,7 +130,11 @@ namespace f101::cad
 
 		// Parses `text` as a length and applies the command built from it to the selected wall.
 		Status changeSelection(std::string_view text, Command (*makeCommand)(const WallId&, std::int64_t));
+		// Parses `text` as a length and applies it to a copy of the selected opening, then changes the opening.
+		Status changeOpening(std::string_view text, void (*apply)(Opening&, std::int64_t));
 		void updateDrag();
+		void updatePlacement();
+		bool isOpeningMode() const { return currentMode == EditMode::Door || currentMode == EditMode::Window; }
 		std::optional<PlanPoint> planPointOf(const Ray3& ray, const std::vector<WallId>& ignoreWalls) const;
 
 		Document& document;
@@ -110,7 +142,9 @@ namespace f101::cad
 		WallTool tool;
 		EditMode currentMode = EditMode::Select;
 		WallId selected;
+		OpeningId selectedOpeningId; // with `selected` as its wall
 		std::optional<EndpointDrag> drag;
+		std::optional<OpeningRef> placement;
 		std::optional<PlanPoint> planPoint;
 	};
 }

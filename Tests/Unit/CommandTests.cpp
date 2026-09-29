@@ -2,6 +2,7 @@
 
 #include "F101/Cad/Document.h"
 
+#include <string>
 #include <vector>
 
 using namespace f101;
@@ -195,4 +196,47 @@ TEST_CASE("a corner move that would collapse a wall, or finds no wall end, chang
 	REQUIRE_FALSE(missing.ok());
 	CHECK(missing.error().code == ErrorCode::NotFound);
 	CHECK(document.execute(MoveJointCommand{{4000, 0}, {4000, 0}}).value().walls.empty()); // no-op
+}
+
+TEST_CASE("openings are added, changed and deleted as undoable wall changes")
+{
+	Document document{makeSequentialUuidSource()};
+	const WallId wall = document.addWall({0, 0}, {4000, 0}, 120, 2400).value();
+	const Result<OpeningId> window = document.addOpening(wall, Opening{OpeningId{}, OpeningKind::Window, 2000, 1200, 1200, 900});
+	REQUIRE(window.ok());
+	CHECK(document.undoLabel() == "Add window");
+	const Result<OpeningId> door = document.addOpening(wall, Opening{OpeningId{}, OpeningKind::Door, 300, 900, 2100, 0});
+	REQUIRE(door.ok());
+	CHECK(window.value() != door.value());
+	const Wall& host = *document.project().findWall(wall);
+	REQUIRE(host.openings.size() == 2);
+	CHECK(host.openings[0].id == door.value()); // kept sorted by offset
+
+	Opening wider = *host.findOpening(window.value());
+	wider.widthMm = 1500;
+	REQUIRE(document.execute(ChangeOpeningCommand{wall, wider}).ok());
+	CHECK(document.project().findWall(wall)->findOpening(window.value())->widthMm == 1500);
+
+	wider.widthMm = 3000; // would overlap the door and leave the wall
+	CHECK_FALSE(document.execute(ChangeOpeningCommand{wall, wider}).ok());
+	CHECK(document.project().findWall(wall)->findOpening(window.value())->widthMm == 1500);
+
+	REQUIRE(document.execute(DeleteOpeningCommand{wall, door.value()}).ok());
+	CHECK(document.undoLabel() == "Delete opening");
+	CHECK(document.project().findWall(wall)->openings.size() == 1);
+	REQUIRE(document.undo().ok());
+	CHECK(document.project().findWall(wall)->findOpening(door.value()) != nullptr);
+	CHECK(document.execute(DeleteOpeningCommand{wall, OpeningId{Uuid{9, 9}}}).error().code == ErrorCode::NotFound);
+}
+
+TEST_CASE("a wall change that would leave an opening outside the wall is refused")
+{
+	Document document{makeSequentialUuidSource()};
+	const WallId wall = document.addWall({0, 0}, {4000, 0}, 120, 2400).value();
+	REQUIRE(document.addOpening(wall, Opening{OpeningId{}, OpeningKind::Door, 2500, 900, 2100, 0}).ok());
+	const Result<Transaction> shorter = document.execute(ChangeWallLengthCommand{wall, 3000});
+	REQUIRE_FALSE(shorter.ok());
+	CHECK(shorter.error().message.find("does not fit") != std::string::npos);
+	CHECK_FALSE(document.execute(ChangeWallHeightCommand{wall, 2100}).ok()); // no lintel left
+	CHECK(document.project().findWall(wall)->end == Point2D{4000, 0});
 }

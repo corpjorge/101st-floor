@@ -120,6 +120,32 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("openings", [this]()
+	{
+		It("adds a door and a window, moves the window, and removes them", [this]()
+		{
+			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(0, 0, 4000, 0, 120, 2400);
+			const FFloor101OpeningInfo Door = UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Door, 300, 900, 2100, 0);
+			TestFalse(TEXT("door id"), Door.Id.IsEmpty());
+			const FFloor101OpeningInfo Window = UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Window, 2000, 1200, 1200, 900);
+			TestTrue(TEXT("window kind"), Window.Kind == EFloor101OpeningKind::Window);
+			const FFloor101OpeningInfo Moved = UFloor101DocumentToolset::SetOpening(Wall.Id, Window.Id, 2500, 1200, 1000, 1000);
+			TestEqual(TEXT("moved"), Moved.OffsetMm, int64(2500));
+			TestEqual(TEXT("sill"), Moved.SillMm, int64(1000));
+			const TArray<FFloor101WallInfo> Walls = UFloor101DocumentToolset::GetWalls();
+			const FFloor101WallInfo* Host = Walls.FindByPredicate([&Wall](const FFloor101WallInfo& W) { return W.Id == Wall.Id; });
+			if (TestNotNull(TEXT("host listed"), Host))
+			{
+				TestEqual(TEXT("two openings, by offset"), Host->Openings.Num(), 2);
+				TestEqual(TEXT("door first"), Host->Openings[0].Id, Door.Id);
+			}
+			UFloor101DocumentToolset::RemoveOpening(Wall.Id, Door.Id);
+			UFloor101DocumentToolset::RemoveOpening(Wall.Id, Window.Id);
+			TestEqual(TEXT("undo label"), UFloor101DocumentToolset::Undo(), FString(TEXT("Delete opening")));
+			UFloor101DocumentToolset::RemoveWall(Wall.Id);
+		});
+	});
+
 	Describe("history and files", [this]()
 	{
 		It("undoes and redoes a change, returning what it was", [this]()
@@ -197,6 +223,22 @@ void FFloor101DocumentToolsetSpec::Define()
 				FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Toolset"), TEXT("missing.json")));
 			AddExpectedMessagePlain(TEXT("F101: Cannot open"), ELogVerbosity::Warning); // the status message
 			ExpectRaises(TEXT("cannot open"), [&Path] { UFloor101DocumentToolset::OpenProject(Path); });
+		});
+
+		It("AddOpening, SetOpening and RemoveOpening raise when the opening does not fit or does not exist", [this]()
+		{
+			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(0, 0, 2000, 0, 120, 2400);
+			ExpectRaises(TEXT("cannot add the opening"),
+				[&Wall] { UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Door, 1500, 900, 2100, 0); });
+			ExpectRaises(TEXT("cannot add the opening"),
+				[&Wall] { UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Door, 0, 900, 2100, 300); });
+			const FFloor101OpeningInfo Door = UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Door, 0, 900, 2100, 0);
+			ExpectRaises(TEXT("cannot change opening"),
+				[&Wall, &Door] { UFloor101DocumentToolset::SetOpening(Wall.Id, Door.Id, 0, 900, 2400, 0); });
+			ExpectRaises(TEXT("cannot remove opening"),
+				[&Wall] { UFloor101DocumentToolset::RemoveOpening(Wall.Id, TEXT("00000000-0000-0000-0000-0000000000ff")); });
+			ExpectRaises(TEXT("is not an opening id"), [&Wall] { UFloor101DocumentToolset::RemoveOpening(Wall.Id, TEXT("x")); });
+			UFloor101DocumentToolset::RemoveWall(Wall.Id);
 		});
 
 		It("MoveCorner raises when no wall ends at the point", [this]()

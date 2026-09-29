@@ -243,3 +243,74 @@ TEST_CASE_FIXTURE(Editing, "a corner grabbed high up its handle keeps that offse
 	REQUIRE(editor.view().previewWalls.size() == 1);
 	CHECK(editor.view().previewWalls[0].end == Point2D{3950, 0});
 }
+
+TEST_CASE_FIXTURE(Editing, "the door tool previews a door centred on the pointer and a click adds it")
+{
+	editor.setMode(EditMode::Door);
+	editor.pointerMoved(down(1510.0, 40.0)); // over the wall
+	REQUIRE(editor.openingPlacement().has_value());
+	CHECK(editor.openingPlacement()->wall == wall);
+	CHECK(editor.openingPlacement()->opening.offsetMm == 1050); // centre 1510 - 450, on the 50 mm grid
+	const EditView preview = editor.view();
+	REQUIRE(preview.previewWalls.size() == 1);
+	CHECK(preview.previewWalls[0].openings.size() == 1);
+	CHECK(preview.handles == std::vector<Point2D>{{1050, 0}, {1950, 0}});
+
+	REQUIRE(editor.pointerPressed(down(1510.0, 40.0)).ok());
+	const Wall& host = *document.project().findWall(wall);
+	REQUIRE(host.openings.size() == 1);
+	CHECK(host.openings[0].kind == OpeningKind::Door);
+	CHECK(host.openings[0].widthMm == 900);
+	CHECK(host.openings[0].heightMm == 2100);
+	CHECK(document.undoLabel() == "Add door");
+	CHECK(editor.view().previewWalls.empty()); // the same place is taken now
+
+	// Near the end the door is kept inside the wall; away from walls there is nothing to place.
+	editor.pointerMoved(down(3540.0, 0.0));
+	CHECK(editor.openingPlacement()->opening.offsetMm == 3550 - 900);
+	editor.pointerMoved(down(1500.0, 2000.0));
+	CHECK_FALSE(editor.openingPlacement().has_value());
+	CHECK_FALSE(editor.pointerPressed(down(1500.0, 2000.0)).ok());
+	editor.cancel();
+	CHECK(editor.mode() == EditMode::Select);
+}
+
+TEST_CASE_FIXTURE(Editing, "the window tool adds a window with a sill")
+{
+	editor.setMode(EditMode::Window);
+	REQUIRE(editor.pointerPressed(down(2000.0, 0.0)).ok());
+	const Opening& window = document.project().findWall(wall)->openings.at(0);
+	CHECK(window.kind == OpeningKind::Window);
+	CHECK(window.sillMm == 900);
+	CHECK(window.offsetMm == 1400);
+}
+
+TEST_CASE_FIXTURE(Editing, "clicking a wall where it has an opening selects the opening; its properties take typed lengths")
+{
+	const OpeningId door = document.addOpening(wall, Opening{OpeningId{}, OpeningKind::Door, 1000, 900, 2100, 0}).value();
+	REQUIRE(editor.pointerPressed(down(1400.0, 0.0)).ok());
+	REQUIRE(editor.selectedOpening().has_value());
+	CHECK(editor.selectedOpening()->opening.id == door);
+	CHECK(editor.selection().isNil()); // the wall itself is not the selection
+	CHECK(editor.view().selectedWall == wall);
+	CHECK(editor.view().handles == std::vector<Point2D>{{1000, 0}, {1900, 0}});
+
+	REQUIRE(editor.setOpeningWidth("80").ok());
+	REQUIRE(editor.setOpeningOffset("1.2 m").ok());
+	CHECK(editor.selectedOpening()->opening.widthMm == 800);
+	CHECK(editor.selectedOpening()->opening.offsetMm == 1200);
+	CHECK_FALSE(editor.setOpeningSill("10").ok()); // doors stay on the floor
+	CHECK_FALSE(editor.setOpeningHeight("240").ok()); // no lintel left
+
+	REQUIRE(editor.pointerPressed(down(2600.0, 0.0)).ok()); // elsewhere on the wall: the wall
+	CHECK(editor.selection() == wall);
+	CHECK_FALSE(editor.selectedOpening().has_value());
+
+	REQUIRE(editor.selectOpening(wall, door).ok());
+	REQUIRE(editor.deleteSelection().ok());
+	CHECK(document.project().findWall(wall)->openings.empty());
+	CHECK(document.undoLabel() == "Delete opening");
+	CHECK_FALSE(editor.selectedOpening().has_value());
+	REQUIRE(editor.undo().ok());
+	CHECK(document.project().findWall(wall)->openings.size() == 1);
+}

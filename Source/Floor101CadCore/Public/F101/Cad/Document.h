@@ -71,8 +71,29 @@ namespace f101::cad
 		std::int64_t heightMm = 0;
 	};
 
+	// Adds a door or window to a wall; a new id is assigned (the given one is ignored).
+	struct AddOpeningCommand
+	{
+		WallId wall;
+		Opening opening;
+	};
+
+	// Replaces the opening with the same id: kind, position and size.
+	struct ChangeOpeningCommand
+	{
+		WallId wall;
+		Opening opening;
+	};
+
+	struct DeleteOpeningCommand
+	{
+		WallId wall;
+		OpeningId opening;
+	};
+
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
-		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand>;
+		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
+		ChangeOpeningCommand, DeleteOpeningCommand>;
 
 	// Short name for undo/redo UI, e.g. "Create wall".
 	FLOOR101CADCORE_API std::string_view commandLabel(const Command& command);
@@ -133,6 +154,7 @@ namespace f101::cad
 		FLOOR101CADCORE_API Result<WallId> addWall(Point2D start, Point2D end, std::int64_t thicknessMm, std::int64_t heightMm);
 		FLOOR101CADCORE_API Status setWallEnd(const WallId& id, Point2D end);
 		FLOOR101CADCORE_API Status removeWall(const WallId& id);
+		FLOOR101CADCORE_API Result<OpeningId> addOpening(const WallId& wall, const Opening& opening);
 
 		// Returns a handle for unsubscribe().
 		FLOOR101CADCORE_API std::size_t subscribe(ChangeListener listener);

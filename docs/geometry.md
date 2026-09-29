@@ -11,10 +11,13 @@ Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se rege
   en su cara (T); esquina muy aguda (inglete > 4 × semiespesor) → escuadra; huella inválida → rectángulo.
   `plainFootprint(wall)` es el rectángulo de un muro suelto.
 - **Muros** (`WallGeometryBuilder.h`): `buildWallMesh(wall, footprint)` es el prisma sobre la huella, de z = 0 a la
-  altura. Sombreado plano, 24 vértices, 12 triángulos, 6 secciones (`left`, `right`, `top`, `bottom`, `start`, `end`;
-  izquierda y derecha respecto al eje inicio → fin). Las caras largas siguen paralelas al eje; las de los extremos son
-  los ingletes o cortes. `buildWallMesh(wall)` usa la huella simple (misma malla que en el MVP 1). El orden de cada cara
-  se deduce de su normal (`addQuad`), así que es correcto por construcción.
+  altura. Sombreado plano; sin huecos, 24 vértices, 12 triángulos y 6 secciones (`left`, `right`, `top`, `bottom`,
+  `start`, `end`; izquierda y derecha respecto al eje inicio → fin). Cada puerta o ventana (ADR-0010) es un hueco: las
+  caras largas se parten en una rejilla con los bordes de los huecos y se omiten las celdas interiores, las puertas
+  recortan la cara inferior (Sutherland–Hodgman a lo largo del eje, `addConvexPolygon`) y las mochetas (jambas, dintel
+  y alféizar de ventana) van en la sección `reveal`. La malla sigue cerrada. Las caras largas siguen paralelas al eje;
+  las de los extremos son los ingletes o cortes. `buildWallMesh(wall)` usa la huella simple (misma malla que en el
+  MVP 1). El orden de cada cara se deduce de su normal (`addQuad`), así que es correcto por construcción.
 - **Polígonos** (`PolygonGeometry.h`): `signedArea`, `containsPoint`, `triangulatePolygon` (orejas, admite cóncavos y
   vértices colineales) y `buildPrismMesh` (secciones superior, lateral e inferior). Sirve a los `JointFill` y a los
   suelos.
@@ -23,7 +26,8 @@ Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se rege
   muros y una clave determinista. `buildFloorMesh(room)` → losa de 10 mm (`floor`, `floor_edge`, `floor_bottom`).
 
 Tests: `WallGeometryTests.cpp` (bounds exactos de 3550 × 120 × 2400 mm, normales hacia fuera, orden de triángulos, lado
-izquierdo, espesor en diagonal, regeneración sin escalar), `WallJoinTests.cpp`, `PolygonGeometryTests.cpp` y
-`RoomTests.cpp` (casos en ADR-0009).
+izquierdo, espesor en diagonal, regeneración sin escalar; puerta: 36 triángulos, áreas por sección y volumen encerrado
+exactos; puerta y ventana juntas), `WallJoinTests.cpp`, `PolygonGeometryTests.cpp` y `RoomTests.cpp` (casos en
+ADR-0009).
 
-Futuro: huecos para puertas y ventanas (sobre las huellas y los tramos de muro), techos, materiales por cara.
+Futuro: carpintería (marcos, hojas, vidrio), huecos que respeten las uniones, techos, materiales por cara.
