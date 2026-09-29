@@ -3,14 +3,15 @@
 Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
 modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
 
-> Estado: **MVP 7 completo** ([informe](docs/mvp7-report.md); [MVP 6](docs/mvp6-report.md), [MVP 5](docs/mvp5-report.md),
-> [MVP 4](docs/mvp4-report.md), [MVP 3](docs/mvp3-report.md), [MVP 2](docs/mvp2-report.md), [MVP 1](docs/mvp1-report.md),
-> [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas limpias
+> Estado: **MVP 8 completo** ([informe](docs/mvp8-report.md); [MVP 7](docs/mvp7-report.md), [MVP 6](docs/mvp6-report.md),
+> [MVP 5](docs/mvp5-report.md), [MVP 4](docs/mvp4-report.md), [MVP 3](docs/mvp3-report.md), [MVP 2](docs/mvp2-report.md),
+> [MVP 1](docs/mvp1-report.md), [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas limpias
 > en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de esquinas compartidas, puertas y
 > ventanas con marco, hojas, manillas y vidrio (abatibles, de dos hojas, correderas, fijas; abiertas en ángulo, con su
 > símbolo de apertura) que se arrastran con el ratón y respetan las uniones de muros, varias plantas con forjados, acabados
 > (pintura, ladrillo, hormigón, azulejo, madera...) por cara de muro, suelo, techo y carpintería, selección,
-> propiedades, deshacer/rehacer y `project.json`, sobre Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro
+> propiedades, deshacer/rehacer y `project.json`, planos 2D editables con cotas y habitaciones exportables a SVG y PNG,
+> sobre Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro
 > probado sin Unreal. Siguiente MVP: pendiente de decisión.
 
 ## Controles
@@ -18,7 +19,8 @@ W: muro · P: puerta · O: ventana · M: pintar · V: seleccionar · escribir `3
 Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+O: guardar / abrir · Esc o clic derecho: cancelar ·
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
 cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
-F: encuadrar · T: vista en planta · RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detalle en
+F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · "Plano: SVG / PNG": exportar el plano ·
+RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detalle en
 [docs/unreal-integration.md](docs/unreal-integration.md#controles).
 
 ## Requisitos
@@ -41,7 +43,7 @@ git clone https://github.com/corpjorge/101st-floor.git; cd 101st-floor
 
 ## Documentación
 - [docs/architecture.md](docs/architecture.md) — módulos, dependencias, unidades, flujo de datos, tests ([ADRs](docs/adr/README.md))
-- [docs/cad-core.md](docs/cad-core.md) · [docs/geometry.md](docs/geometry.md) · [docs/scene-model.md](docs/scene-model.md) · [docs/unreal-integration.md](docs/unreal-integration.md) — cada capa
+- [docs/cad-core.md](docs/cad-core.md) · [docs/geometry.md](docs/geometry.md) · [docs/scene-model.md](docs/scene-model.md) · [docs/drawing.md](docs/drawing.md) · [docs/unreal-integration.md](docs/unreal-integration.md) — cada capa
 - [docs/build.md](docs/build.md) — toolchain, compilación y localización del motor
 - [docs/rendering-rtx.md](docs/rendering-rtx.md) — configuración de render y cómo se verifica
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización

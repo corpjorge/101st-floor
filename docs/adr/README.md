@@ -16,6 +16,7 @@
 | [0012](ADR-0012-finishes.md) | Acabados de un catálogo por cara de muro y por habitación; texturas sintetizadas; material generado por commandlet; `project.json` esquema 4 | aceptado y verificado |
 | [0013](ADR-0013-carpentry-and-glass.md) | Carpintería derivada de cada hueco; vidrio translúcido generado; huecos rechazados en uniones; arrastre de huecos; `project.json` esquema 5 | aceptado y verificado |
 | [0014](ADR-0014-opening-types.md) | Tipos de puertas y ventanas: operación, bisagras, sentido y apertura; correderas empotradas con bolsillo validado; símbolo de apertura solo en la vista de edición; `project.json` esquema 6 | aceptado y verificado |
+| [0015](ADR-0015-plan-drawings.md) | Planos 2D: módulo puro `Floor101Drawing` (plano con cotas y SVG); vista 2D con cámara ortográfica y capa Slate, editable; exportación PNG/SVG | aceptado y verificado |
 
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

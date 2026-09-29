@@ -36,6 +36,7 @@ enum class EFloor101KeyCommand : uint8
 	LevelDown,
 	AllLevels,
 	Flip, // hinges of the door or window being placed or selected to the other jamb (ADR-0014)
+	PlanView, // 2D plan on / off (ADR-0015)
 };
 
 // Translates raw input into editing calls (ADR-0008): the cursor becomes a ray in scene space for the edit controller,
@@ -43,8 +44,9 @@ enum class EFloor101KeyCommand : uint8
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
-// Keys: W wall, P door, O window, M paint, V select, Enter, Esc, Backspace, Delete, F frame all, T plan view,
-// Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo, Ctrl+S save, Ctrl+O open.
+// Keys: W wall, P door, O window, M paint, V select, Enter, Esc, Backspace, Delete, F frame all, T top view, Tab 2D plan,
+// Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
+// Ctrl+S save, Ctrl+O open.
 // The camera follows the edited level: its focus moves up or down with the level's elevation.
 UCLASS()
 class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient
@@ -59,11 +61,16 @@ public:
 
 	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
 	void FrameProject();
-	// Plan view (AFloor101EditingPawn::TopView).
+	// Perspective looking down (AFloor101EditingPawn::TopView); leaves the 2D plan.
 	void ShowTopView();
+	// 2D plan (ADR-0015): orthographic camera straight down, no 3D rendering, the plan painted by the overlay. Editing
+	// works as in 3D: the pointer rays come straight down. Off: back to the perspective view.
+	void SetPlanView(bool bPlan);
+	bool IsPlanView() const;
 
-	// Keyboard map. Held keys only repeat Backspace, undo and redo; with Ctrl, only the Ctrl shortcuts apply.
-	static EFloor101KeyCommand MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat);
+	// Keyboard map. Held keys only repeat Backspace, undo and redo; with Ctrl, only the Ctrl shortcuts apply. While a
+	// length is being typed, the letters of its units (m, cm, mm) are text, not commands.
+	static EFloor101KeyCommand MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat, bool bTypingLength = false);
 
 private:
 	// Null while the console is open, input is ignored or the world has no document.

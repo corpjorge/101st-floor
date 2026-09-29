@@ -58,7 +58,7 @@ sin que llegue a los exportadores y cómo se orienta un hueco al colocarlo.
   fuera; la operación es un enumerado ampliable sin romper el esquema.
 - La "vista en planta" es en perspectiva: la coronación de los muros tapa el suelo exterior junto a ellos, así que el
   símbolo de una puerta que abre hacia fuera se ve en las vistas oblicuas y no en la cenital. Una vista 2D ortográfica lo
-  resolverá.
+  resolverá. (MVP 8: el plano 2D, ADR-0015.)
 - Los huecos del proyecto de un MVP anterior se abren tal como eran (puertas abatibles, ventanas fijas).
 
 ## Verificación

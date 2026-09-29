@@ -56,7 +56,8 @@ Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetW
 `AddOpening`/`SetOpening`/`RemoveOpening` (puertas y ventanas: posición desde el inicio del muro, ancho, alto,
 antepecho; `GetWalls` las lista en `Openings`; fallan si el hueco pisa la unión con otro muro, ADR-0013),
 `SetOpeningFinish` (acabado de la carpintería; `GetFinishes` marca los válidos con `bForCarpentry` e informa `Opacity`),
-`SetOpeningOperation` (cómo abre, ADR-0014: operación, bisagras, cara y apertura; los huecos lo informan), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
+`SetOpeningOperation` (cómo abre, ADR-0014: operación, bisagras, cara y apertura; los huecos lo informan),
+`ExportPlan` (plano 2D de una planta a .svg o .png, ADR-0015; el PNG necesita renderer), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
 (vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`
@@ -106,6 +107,11 @@ inicio, cerrada) junto a una T → `SetOpeningOperation(Fixed)` rechazado ("A do
 T rechazada ("The sliding door's pocket runs into a wall joined to this one (1950 to 2050 mm along it)"); corredera
 hacia el otro lado aceptada → `Undo` = `Change opening` → `SaveProject` con esquema 6. `CaptureViewport` mostró el arco
 de una puerta abierta hacia fuera sobre el suelo exterior.
+
+Verificado (MVP 8, por el transporte MCP): `AutomationTestToolset.RunTests(["Floor101.Interaction.PlanView", …])` dentro
+del editor real (con renderer: el PNG se pinta y su corte sale en #262626) → `Success`; `OpenProject` de la casa del
+MVP 7 → `ExportPlan` a .svg (17 KB) y .png (1994 × 1794) → .pdf rechazado ("Export the plan as .svg or .png").
+`LiveCodingToolset.CompileLiveCoding` sirvió para probar un cambio del subsistema sin cerrar el editor.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

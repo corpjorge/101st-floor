@@ -5,6 +5,7 @@
 #include "Floor101DocumentToolset.h"
 #include "GameFramework/Actor.h"
 #include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "ToolsetRegistry/ToolCallExceptionHandler.h"
 
@@ -444,6 +445,37 @@ void FFloor101DocumentToolsetSpec::Define()
 			});
 			UFloor101DocumentToolset::RemoveWall(Tee.Id);
 			UFloor101DocumentToolset::RemoveWall(Host.Id);
+		});
+
+		It("ExportPlan writes the plan as SVG; raises on another extension and on an unknown level", [this]()
+		{
+			TArray<FString> Ids;
+			const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+			for (int32 i = 0; i < 4; ++i)
+			{
+				const int64* A = Corners[i];
+				const int64* B = Corners[(i + 1) % 4];
+				Ids.Add(UFloor101DocumentToolset::AddWall(TEXT(""), A[0] + 80000, A[1], B[0] + 80000, B[1], 120, 2800).Id);
+			}
+			const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Toolset")));
+			const FString Path = FPaths::Combine(Directory, TEXT("plan.svg"));
+			IFileManager::Get().Delete(*Path, false, true, true);
+			UFloor101DocumentToolset::ExportPlan(Path, TEXT(""));
+			FString Svg;
+			TestTrue(TEXT("written"), FFileHelper::LoadFileToString(Svg, *Path));
+			TestTrue(TEXT("an SVG sheet"), Svg.StartsWith(TEXT("<?xml")) && Svg.Contains(TEXT("<svg xmlns=\"http://www.w3.org/2000/svg\"")));
+			TestTrue(TEXT("with the cut walls and the room's area"), Svg.Contains(TEXT("<polygon")) && Svg.Contains(TEXT("11,17 m²")));
+			AddExpectedMessagePlain(TEXT("F101: Export the plan as .svg or .png"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("Export the plan as .svg or .png"),
+				[&Directory] { UFloor101DocumentToolset::ExportPlan(FPaths::Combine(Directory, TEXT("plan.pdf")), TEXT("")); });
+			AddExpectedMessagePlain(TEXT("F101: Level not found"), ELogVerbosity::Warning);
+			ExpectRaises(TEXT("Level not found"),
+				[&Path] { UFloor101DocumentToolset::ExportPlan(Path, TEXT("00000000-0000-0000-0000-0000000000ff")); });
+			IFileManager::Get().Delete(*Path, false, true, true);
+			for (const FString& Id : Ids)
+			{
+				UFloor101DocumentToolset::RemoveWall(Id);
+			}
 		});
 
 		It("RemoveWall raises on an unknown id", [this]()

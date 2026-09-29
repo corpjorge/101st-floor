@@ -75,6 +75,7 @@ Floor101.uproject
 Source/Floor101CadCore/         C++ puro: modelo CAD (docs/cad-core.md)
 Source/Floor101Geometry/        C++ puro: geometría derivada (docs/geometry.md)
 Source/Floor101SceneModel/      C++ puro: escena neutral (docs/scene-model.md)
+Source/Floor101Drawing/         C++ puro: planos 2D con cotas y su SVG (docs/drawing.md)
 Source/Floor101UnrealAdapter/   escena → actores Unreal (docs/unreal-integration.md)
 Source/Floor101/                aplicación: documento y edición, entrada, cámara, UI Slate, RenderCheck
 Source/Floor101Editor/          solo editor: toolset MCP
@@ -91,3 +92,5 @@ Scripts/                        PowerShell 7
   lo usan. Claude Code ejecuta sus hooks con Git Bash, donde `bash` es el de Git.
 - Git: `core.longpaths=true`; binarios de Unreal y arte fuente en Git LFS (`.gitattributes`).
 - CPU i7-9700K (8 hilos) y SSD SATA: la compilación de shaders es el cuello de botella de la primera ejecución.
+- Si el juego o el editor fallan, `CrashReportClientEditor.exe` puede quedarse con `UnrealEditor-Floor101.dll` abierta y
+  el siguiente `Build.ps1` falla al enlazar (LNK1104): cerrar ese proceso primero.

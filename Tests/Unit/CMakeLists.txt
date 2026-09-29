@@ -33,6 +33,8 @@ f101_pure_module(Floor101Geometry)
 target_link_libraries(Floor101Geometry PUBLIC Floor101CadCore)
 f101_pure_module(Floor101SceneModel)
 target_link_libraries(Floor101SceneModel PUBLIC Floor101Geometry)
+f101_pure_module(Floor101Drawing)
+target_link_libraries(Floor101Drawing PUBLIC Floor101Geometry)
 
 add_executable(Floor101UnitTests
 	Main.cpp
@@ -55,6 +57,7 @@ add_executable(Floor101UnitTests
 	FinishTests.cpp
 	CarpentryTests.cpp
 	OpeningTypeTests.cpp
+	PlanDrawingTests.cpp
 )
 target_include_directories(Floor101UnitTests SYSTEM PRIVATE "${F101_ROOT}/ThirdParty/doctest")
 # No exceptions, like Unreal (a failed REQUIRE aborts the run). Real std headers instead of doctest's forward
@@ -63,7 +66,7 @@ target_compile_definitions(Floor101UnitTests PRIVATE
 	DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 	DOCTEST_CONFIG_USE_STD_HEADERS
 )
-target_link_libraries(Floor101UnitTests PRIVATE Floor101SceneModel)
+target_link_libraries(Floor101UnitTests PRIVATE Floor101SceneModel Floor101Drawing)
 
 enable_testing()
 add_test(NAME Floor101UnitTests COMMAND Floor101UnitTests)

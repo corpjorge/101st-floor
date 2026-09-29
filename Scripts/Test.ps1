@@ -2,7 +2,7 @@
 .SYNOPSIS
     Runs the 101st Floor tests.
 .DESCRIPTION
-    1. Architecture: pure modules (CadCore, Geometry, SceneModel) must not include or use Unreal (ADR-0002).
+    1. Architecture: pure modules (CadCore, Geometry, SceneModel, Drawing) must not include or use Unreal (ADR-0002).
     2. Unit tests: pure modules built with CMake + Ninja + MSVC 14.50, doctest, no Unreal (seconds).
     3. With -Integration: Unreal Automation tests "Floor101.*" in a headless editor (-nullrhi). Needs a current
        Build.ps1 and the editor closed or at least not holding the tests' world.
@@ -20,7 +20,7 @@ param(
 
 . "$PSScriptRoot\Common.ps1"
 
-$PureModules = 'Floor101CadCore', 'Floor101Geometry', 'Floor101SceneModel'
+$PureModules = 'Floor101CadCore', 'Floor101Geometry', 'Floor101SceneModel', 'Floor101Drawing'
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Test-Architecture {

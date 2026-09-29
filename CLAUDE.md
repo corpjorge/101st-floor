@@ -6,7 +6,7 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 
 ## Arquitectura (no romper sin ADR)
 - Fuente de verdad: el modelo de 101st Floor (CAD Core). Unreal solo representa; Twinmotion solo presenta.
-- CAD Core, Geometry Engine y Scene Model: C++ estándar, sin tipos de Unreal, sin MCP, testeables sin Unreal.
+- CAD Core, Geometry Engine, Scene Model y Drawing: C++ estándar, sin tipos de Unreal, sin MCP, testeables sin Unreal.
 - Unidades persistentes: milímetros enteros (`int64_t`). `double` solo como cálculo temporal con cuantización explícita.
 - Sin lógica de producto en Blueprints. Sin pasos manuales en el Editor: todo reproducible desde Git + `Scripts/`.
 - La interacción vive en `f101::cad::EditController` (puro); Unreal solo traduce la entrada y muestra (ADR-0008).
@@ -24,6 +24,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Tipos de hueco: operación, bisagras, cara y apertura % en `Opening`; las puertas correderas son empotradas y su
   bolsillo (`occupiedSpan`) se valida como el hueco; los arcos de apertura solo existen en la escena de edición.
   `project.json` esquema 6 (ADR-0014).
+- Planos 2D: el módulo puro `Floor101Drawing` dibuja la planta (corte, carpintería, cotas a ejes, habitaciones) y su
+  SVG; la vista 2D es una cámara ortográfica + capa Slate (la edición sigue en el viewport); el PNG pinta la misma capa
+  con `FWidgetRenderer` (ADR-0015).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
@@ -32,7 +35,8 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Compilar: `.\Scripts\Build.ps1` (con el editor cerrado; abierto → Live Coding vía MCP). Validar render: `.\Scripts\CheckRendering.ps1`.
 - Tests: `.\Scripts\Test.ps1` (arquitectura + unitarios CMake, segundos); `-Integration` añade Unreal Automation.
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
-- Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm,
+- Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, exportar
+  el plano,
   esquinas, habitaciones, puertas y ventanas con su carpintería, acabados, vista por planta, deshacer/rehacer,
   guardar/abrir). Con PIE
   activo actúa sobre el documento de PIE; si no, sobre el del editor.

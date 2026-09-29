@@ -26,6 +26,8 @@ código sin fricción.
   puros en CMake: `/W4 /WX /permissive- /EHs-c-`.
 - Dirección de dependencias: CadCore ← Geometry ← SceneModel ← UnrealAdapter ← Floor101. Ningún módulo puro depende
   de Unreal, UI, MCP, Twinmotion ni RealityScan.
+- (MVP 8, ADR-0015) `Floor101Drawing` (planos 2D y SVG) es otro módulo puro con las mismas reglas: CadCore ← Geometry ←
+  Drawing ← Floor101.
 
 ## Consecuencias
 - Dos compilaciones del mismo código (UBT y CMake): una incompatibilidad se detecta pronto y en un solo sitio.

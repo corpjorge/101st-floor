@@ -452,4 +452,12 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static TArray<FFloor101WallInfo> OpenProject(const FString& Path);
+
+	/**
+	 * Exports the floor plan of a level: cut walls, doors and windows, dimensions in metres, room names and areas.
+	 * @param Path Absolute path ending in .svg or .png (PNG needs a renderer).
+	 * @param LevelId Empty: the level being edited.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void ExportPlan(const FString& Path, const FString& LevelId);
 };

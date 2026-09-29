@@ -196,7 +196,7 @@ bool UFloor101GameViewportClient::InputAxis(const FInputKeyEventArgs& EventArgs)
 	return Super::InputAxis(EventArgs);
 }
 
-EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat)
+EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat, bool bTypingLength)
 {
 	if (bControl)
 	{
@@ -226,7 +226,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	{
 		return EFloor101KeyCommand::Backspace;
 	}
-	if (bRepeat)
+	if (bRepeat || (bTypingLength && (Key == EKeys::M || Key == EKeys::C)))
 	{
 		return EFloor101KeyCommand::None;
 	}
@@ -244,6 +244,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::PageDown) { return EFloor101KeyCommand::LevelDown; }
 	if (Key == EKeys::L) { return EFloor101KeyCommand::AllLevels; }
 	if (Key == EKeys::SpaceBar) { return EFloor101KeyCommand::Flip; }
+	if (Key == EKeys::Tab) { return EFloor101KeyCommand::PlanView; }
 	return EFloor101KeyCommand::None;
 }
 
@@ -259,7 +260,9 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	};
 	const FString Path = Document.GetProjectPath().IsEmpty() ? UFloor101DocumentSubsystem::GetDefaultProjectPath() : Document.GetProjectPath();
 
-	switch (MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat))
+	const EditController& Current = Document.GetEditController();
+	const bool bTypingLength = Current.mode() == f101::cad::EditMode::Wall && Current.wallTool().state() == f101::cad::WallTool::State::Drafting;
+	switch (MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat, bTypingLength))
 	{
 	case EFloor101KeyCommand::None: return false;
 	case EFloor101KeyCommand::Undo: Edit([](EditController& Editor) { return Editor.undo(); }); break;
@@ -294,6 +297,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 		Edit([](EditController& Target) { return Target.flip(); });
 		break;
 	}
+	case EFloor101KeyCommand::PlanView: SetPlanView(!IsPlanView()); break;
 	}
 	return true;
 }
@@ -356,8 +360,33 @@ void UFloor101GameViewportClient::FrameProject()
 
 void UFloor101GameViewportClient::ShowTopView()
 {
+	if (IsPlanView())
+	{
+		SetPlanView(false);
+	}
 	if (AFloor101EditingPawn* Pawn = GetEditingPawn())
 	{
 		Pawn->TopView();
 	}
+}
+
+void UFloor101GameViewportClient::SetPlanView(bool bPlan)
+{
+	UWorld* CurrentWorld = GetWorld();
+	UFloor101DocumentSubsystem* Document = CurrentWorld ? CurrentWorld->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
+	AFloor101EditingPawn* Pawn = GetEditingPawn();
+	if (!Document || !Pawn || Pawn->IsPlanView() == bPlan)
+	{
+		return;
+	}
+	bDisableWorldRendering = bPlan; // the overlay paints the plan over the whole view
+	Pawn->SetPlanView(bPlan);
+	Document->SetPlanView(bPlan);
+	FrameProject();
+}
+
+bool UFloor101GameViewportClient::IsPlanView() const
+{
+	const AFloor101EditingPawn* Pawn = GetEditingPawn();
+	return Pawn && Pawn->IsPlanView();
 }

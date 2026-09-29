@@ -18,6 +18,11 @@ namespace f101::cad
 	struct Ray3;
 }
 
+namespace f101::drawing
+{
+	struct PlanDrawing;
+}
+
 // A room as the UI shows it: where its label goes and its net floor area.
 struct FFloor101RoomView
 {
@@ -76,6 +81,17 @@ public:
 	// Rooms of the edited level (of every level when all are shown) as last shown, following the current gesture.
 	const TArray<FFloor101RoomView>& GetRooms() const { return Rooms; }
 
+	// 2D plan (ADR-0015). While it is shown, every refresh also draws the edited level's plan with the editing marks
+	// (selection, previews, handles).
+	void SetPlanView(bool bShown);
+	bool IsPlanView() const { return bPlanView; }
+	const f101::drawing::PlanDrawing& GetPlanDrawing() const;
+	// Exports the plan of a level (nil: the edited one), without editing marks, as .svg or .png by the path's extension.
+	// The status says where it went. PNG needs a renderer (not with -nullrhi).
+	f101::Status ExportPlan(const FString& Path, const f101::cad::LevelId& Level);
+	// Next to the project file (or the default one): "<file name>-<level>.<Extension>", e.g. "casa-planta-baja.svg".
+	FString GetDefaultPlanPath(const FString& Extension) const;
+
 	// MVP 0 reference wall: (0,0) -> (3550,0) mm, 120 mm thick, 2400 mm high. No-op if already loaded.
 	void LoadReferenceWall();
 	// Moves the reference wall's end to (LengthMm, 0). Returns false (and logs why) if rejected.
@@ -87,11 +103,15 @@ private:
 	// Compiles the document plus the editing view state and reconciles the world. Document changes log what changed.
 	void Resync(bool bDocumentChanged);
 	void SetStatus(const FText& Message, bool bIsError);
+	// Renders the drawing offscreen (fitted, 5 mm per pixel at most, 4096 px wide at most) and saves it as a PNG.
+	f101::Status SavePlanPng(const f101::drawing::PlanDrawing& Drawing, const FString& Path) const;
 
 	// TPimplPtr: UHT-generated code destroys members where these types are incomplete.
 	TPimplPtr<f101::cad::Document> Document;
 	TPimplPtr<f101::cad::EditController> Editor;
 	TPimplPtr<FFloor101SceneReconciler> Reconciler;
+	TPimplPtr<f101::drawing::PlanDrawing> PlanDrawing;
+	bool bPlanView = false;
 	std::size_t ListenerHandle = 0;
 	f101::cad::WallId ReferenceWallId;
 

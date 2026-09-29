@@ -5,20 +5,32 @@
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/ProjectFile.h"
 #include "F101/Cad/Units.h"
+#include "F101/Drawing/PlanDrawing.h"
+#include "F101/Drawing/SvgWriter.h"
 #include "F101/Geometry/Rooms.h"
 #include "F101/Geometry/WallJoins.h"
 #include "F101/Scene/SceneCompiler.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Floor101.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
 #include "Floor101SceneSpace.h"
+#include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
+#include "ImageUtils.h"
+#include "Misc/App.h"
 #include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "RenderingThread.h"
+#include "RHI.h"
+#include "SFloor101PlanView.h"
+#include "Slate/WidgetRenderer.h"
+#include "TextureResource.h"
 
 #include <filesystem>
 #include <string_view>
@@ -52,6 +64,20 @@ namespace
 	{
 		return FText::FromString(UTF8_TO_TCHAR(Utf8.c_str()));
 	}
+
+	// The plan's words and numbers in the UI's language (ADR-0015).
+	f101::drawing::DrawingTexts PlanTexts()
+	{
+		f101::drawing::DrawingTexts Texts;
+		Texts.roomName = TCHAR_TO_UTF8(*LOCTEXT("PlanRoomName", "Habitación {n}").ToString());
+		Texts.areaUnit = TCHAR_TO_UTF8(*LOCTEXT("PlanAreaUnit", " m²").ToString());
+		Texts.decimalSeparator = ',';
+		return Texts;
+	}
+
+	constexpr double PlanMarginMm = 1000.0;
+	constexpr double PlanPngPixelsPerMm = 0.2; // 5 mm per pixel: 1:100 at about 127 dpi
+	constexpr double PlanPngMaxPixels = 4096.0;
 
 	// The file named on the command line, else the current one, else the default one.
 	FString ResolveProjectPath(const TArray<FString>& Args, const UFloor101DocumentSubsystem& Subsystem)
@@ -139,6 +165,19 @@ namespace
 			}
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs ExportPlanCommand(
+		TEXT("f101.Plan.Export"),
+		TEXT("Exports the edited level's plan (ADR-0015) as .svg or .png: to the given path, else next to the project file as <name>-<level>.svg."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UFloor101DocumentSubsystem* Subsystem = FindSubsystem(World))
+			{
+				const FString Path = Args.IsEmpty() ? Subsystem->GetDefaultPlanPath(TEXT("svg"))
+					: FPaths::ConvertRelativePathToFull(FString::Join(Args, TEXT(" ")));
+				(void)Subsystem->ExportPlan(Path, f101::cad::LevelId());
+			}
+		}));
+
 	FAutoConsoleCommandWithWorld UndoCommand(
 		TEXT("f101.Undo"),
 		TEXT("Undoes the last change of the document."),
@@ -179,6 +218,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
+	PlanDrawing = MakePimpl<f101::drawing::PlanDrawing>();
 	ListenerHandle = Document->subscribe([this](const f101::cad::ChangeSet&)
 	{
 		++ChangeCount;
@@ -313,6 +353,121 @@ AActor* UFloor101DocumentSubsystem::FindRoomSlabActor(const FString& RoomKey) co
 	return Reconciler->FindActor(f101::scene::SceneNodeId{std::string(TCHAR_TO_UTF8(*RoomKey)) + "/slab"});
 }
 
+void UFloor101DocumentSubsystem::SetPlanView(bool bShown)
+{
+	bPlanView = bShown;
+	if (!bShown)
+	{
+		*PlanDrawing = f101::drawing::PlanDrawing{};
+	}
+	Resync(false);
+}
+
+const f101::drawing::PlanDrawing& UFloor101DocumentSubsystem::GetPlanDrawing() const
+{
+	return *PlanDrawing;
+}
+
+FString UFloor101DocumentSubsystem::GetDefaultPlanPath(const FString& Extension) const
+{
+	const FString Project = ProjectPath.IsEmpty() ? GetDefaultProjectPath() : ProjectPath;
+	const f101::cad::Project& Model = Document->project();
+	const f101::cad::LevelId Level = Editor->activeLevel();
+	const f101::cad::Level* Found = Model.findLevel(Level);
+	const std::size_t Index = Model.levelIndex(Level).value_or(0);
+	FString Name = Found && !Found->name.empty() ? FString(UTF8_TO_TCHAR(Found->name.c_str()))
+		: Index == 0 ? FString(TEXT("planta baja")) : FString::Printf(TEXT("planta %d"), static_cast<int32>(Index));
+	// A file name: lower case, words joined by hyphens, no characters Windows forbids.
+	Name = Name.ToLower().TrimStartAndEnd();
+	FString Slug;
+	for (const TCHAR Character : Name)
+	{
+		Slug.AppendChar(FChar::IsWhitespace(Character) || FCString::Strchr(TEXT("\\/:*?\"<>|"), Character) ? TEXT('-') : Character);
+	}
+	return FPaths::Combine(FPaths::GetPath(Project), FPaths::GetBaseFilename(Project) + TEXT("-") + Slug + TEXT(".") + Extension);
+}
+
+f101::Status UFloor101DocumentSubsystem::ExportPlan(const FString& Path, const f101::cad::LevelId& Level)
+{
+	const f101::cad::Project& Model = Document->project();
+	const f101::cad::LevelId Target = Level.isNil() ? Editor->activeLevel() : Level;
+	auto Fail = [this](const std::string& Message) -> f101::Status
+	{
+		const f101::Error Failed{f101::ErrorCode::InvalidArgument, Message};
+		SetStatus(ToText(Message), true);
+		return Failed;
+	};
+	if (!Model.levels.empty() && !Model.findLevel(Target))
+	{
+		return Fail("Level not found: " + f101::cad::toString(Target));
+	}
+	const FString Extension = FPaths::GetExtension(Path).ToLower();
+	if (Extension != TEXT("svg") && Extension != TEXT("png"))
+	{
+		return Fail("Export the plan as .svg or .png");
+	}
+	const FString Directory = FPaths::GetPath(Path);
+	if (!Directory.IsEmpty() && !IFileManager::Get().MakeDirectory(*Directory, true))
+	{
+		return Fail("Cannot create the folder " + std::string(TCHAR_TO_UTF8(*Directory)));
+	}
+	const f101::drawing::PlanDrawing Drawing = f101::drawing::buildPlanDrawing(Model, Target, {}, PlanTexts());
+	if (Extension == TEXT("svg"))
+	{
+		const std::string Svg = f101::drawing::writeSvg(Drawing, f101::drawing::SvgOptions{100.0, PlanMarginMm});
+		if (!FFileHelper::SaveArrayToFile(TArrayView<const uint8>(reinterpret_cast<const uint8*>(Svg.data()), static_cast<int32>(Svg.size())), *Path))
+		{
+			return Fail("Cannot write " + std::string(TCHAR_TO_UTF8(*Path)));
+		}
+	}
+	else if (const f101::Status Saved = SavePlanPng(Drawing, Path); !Saved)
+	{
+		return Fail(Saved.error().message);
+	}
+	SetStatus(FText::Format(LOCTEXT("PlanExported", "Plano exportado: {0}"), FText::FromString(Path)), false);
+	return f101::Status::success();
+}
+
+f101::Status UFloor101DocumentSubsystem::SavePlanPng(const f101::drawing::PlanDrawing& Drawing, const FString& Path) const
+{
+	if (GUsingNullRHI || !FApp::CanEverRender() || !FSlateApplication::IsInitialized())
+	{
+		return f101::Error{f101::ErrorCode::InvalidArgument, "Exporting a PNG needs a renderer (not available with -nullrhi)"};
+	}
+	const double WidthMm = (Drawing.empty() ? 0.0 : Drawing.max.x_mm - Drawing.min.x_mm) + 2.0 * PlanMarginMm;
+	const double HeightMm = (Drawing.empty() ? 0.0 : Drawing.max.y_mm - Drawing.min.y_mm) + 2.0 * PlanMarginMm;
+	const double Scale = FMath::Min(PlanPngPixelsPerMm, PlanPngMaxPixels / FMath::Max(WidthMm, HeightMm));
+	const FIntPoint Pixels(FMath::Max(1, FMath::CeilToInt32(WidthMm * Scale)), FMath::Max(1, FMath::CeilToInt32(HeightMm * Scale)));
+	const TSharedRef<SFloor101PlanView> Sheet = SNew(SFloor101PlanView)
+		.Drawing([&Drawing]() { return &Drawing; })
+		.MarginMm(PlanMarginMm);
+	// Slate blends in linear space and its gamma correction writes sRGB, so the target must not encode again (an sRGB
+	// target makes everything paler; no correction makes it darker): the pixels come out as the inks' sRGB colours.
+	FWidgetRenderer Renderer(true, true);
+	UTextureRenderTarget2D* Target = FWidgetRenderer::CreateTargetFor(FVector2D(Pixels), TF_Bilinear, false);
+	if (!Target)
+	{
+		return f101::Error{f101::ErrorCode::InvalidArgument, "Cannot create the image to render the plan into"};
+	}
+	Renderer.DrawWidget(Target, Sheet, FVector2D(Pixels), 0.0f);
+	FlushRenderingCommands();
+	TArray<FColor> Colors;
+	FTextureRenderTargetResource* Resource = Target->GameThread_GetRenderTargetResource();
+	if (!Resource || !Resource->ReadPixels(Colors) || Colors.Num() != Pixels.X * Pixels.Y)
+	{
+		return f101::Error{f101::ErrorCode::InvalidArgument, "Cannot read the rendered plan"};
+	}
+	for (FColor& Color : Colors)
+	{
+		Color.A = 255; // paper is opaque
+	}
+	if (!FImageUtils::SaveImageByExtension(*Path, FImageView(Colors.GetData(), Pixels.X, Pixels.Y)))
+	{
+		return f101::Error{f101::ErrorCode::InvalidArgument, "Cannot write " + std::string(TCHAR_TO_UTF8(*Path))};
+	}
+	return f101::Status::success();
+}
+
 void UFloor101DocumentSubsystem::LoadReferenceWall()
 {
 	if (!ReferenceWallId.isNil() && Document->project().findWall(ReferenceWallId))
@@ -369,6 +524,15 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 
 	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);
+	if (bPlanView)
+	{
+		f101::drawing::PlanOverlay Marks;
+		Marks.selectedWall = View.selectedWall;
+		Marks.previewWalls = View.previewWalls;
+		Marks.handles = View.handles;
+		Marks.handleSizeMm = static_cast<double>(Editor->settings().handleSizeMm);
+		*PlanDrawing = f101::drawing::buildPlanDrawing(Document->project(), View.activeLevel, Marks, PlanTexts());
+	}
 
 	// Labels sit on the floor of each room of the edited level, or of every level when all are shown (preview included,
 	// so they follow a gesture live).

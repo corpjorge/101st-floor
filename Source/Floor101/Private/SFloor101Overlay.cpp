@@ -5,8 +5,10 @@
 #include "Engine/World.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/Units.h"
+#include "F101/Drawing/PlanDrawing.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101GameViewportClient.h"
+#include "Floor101SceneSpace.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
@@ -245,14 +247,31 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 	PathText = GetPathOrDefault();
 
 	// Only the panels take the mouse; everything else lets clicks through to the viewport.
+	auto PlanShown = [this]()
+	{
+		const UFloor101DocumentSubsystem* S = Document.Get();
+		return S && S->IsPlanView();
+	};
 	ChildSlot
 	[
 		SNew(SOverlay)
 		.Visibility(EVisibility::SelfHitTestInvisible)
 		+ SOverlay::Slot()
 		[
+			// The 2D plan (ADR-0015) covers the view (the 3D is not rendered meanwhile); input still reaches the viewport.
+			SNew(SFloor101PlanView)
+			.Visibility_Lambda([PlanShown]() { return PlanShown() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+			.Drawing([this]() -> const f101::drawing::PlanDrawing*
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				return S ? &S->GetPlanDrawing() : nullptr;
+			})
+			.Mapping([this](const FGeometry& Geometry) { return GetPlanMapping(Geometry); })
+		]
+		+ SOverlay::Slot()
+		[
 			SNew(SFloor101RoomLabels)
-			.Visibility(EVisibility::HitTestInvisible)
+			.Visibility_Lambda([PlanShown]() { return PlanShown() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 			.Document(Document)
 		]
 		+ SOverlay::Slot()
@@ -291,6 +310,38 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 			MakeStatusBar()
 		]
 	];
+}
+
+TOptional<FFloor101PlanMapping> SFloor101Overlay::GetPlanMapping(const FGeometry& Geometry) const
+{
+	// The orthographic plan camera maps the plan without rotation: two projected points give the scale and the origin.
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	const UWorld* World = Subsystem ? Subsystem->GetWorld() : nullptr;
+	const APlayerController* Controller = World ? World->GetFirstPlayerController() : nullptr;
+	const ULocalPlayer* Player = Controller ? Controller->GetLocalPlayer() : nullptr;
+	if (!Player || !Player->ViewportClient)
+	{
+		return {};
+	}
+	FVector2D ViewportPixels;
+	Player->ViewportClient->GetViewportSize(ViewportPixels);
+	if (ViewportPixels.X <= 0.0 || ViewportPixels.Y <= 0.0)
+	{
+		return {};
+	}
+	const double Z = static_cast<double>(f101::cad::levelElevationMm(Subsystem->GetDocument().project(), Subsystem->GetEditController().activeLevel()));
+	FVector2D Origin;
+	FVector2D East;
+	if (!Controller->ProjectWorldLocationToScreen(FVector(Floor101::Conversion::ToUnrealPosition({0.0, 0.0, Z})), Origin, true) ||
+		!Controller->ProjectWorldLocationToScreen(FVector(Floor101::Conversion::ToUnrealPosition({1000.0, 0.0, Z})), East, true))
+	{
+		return {};
+	}
+	const FVector2D PixelsToLocal = Geometry.GetLocalSize() / ViewportPixels;
+	FFloor101PlanMapping Result;
+	Result.Origin = Origin * PixelsToLocal;
+	Result.Scale = (East.X - Origin.X) * PixelsToLocal.X / 1000.0;
+	return Result.Scale > 0.0 ? TOptional<FFloor101PlanMapping>(Result) : TOptional<FFloor101PlanMapping>();
 }
 
 void SFloor101Overlay::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -434,7 +485,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
 			[
-				ActionButton(LOCTEXT("TopView", "Planta (T)"), LOCTEXT("TopViewTip", "Vista desde arriba, con el norte hacia arriba"), true,
+				ActionButton(LOCTEXT("TopView", "Cenital (T)"), LOCTEXT("TopViewTip", "Vista 3D desde arriba, con el norte hacia arriba"), true,
 					FOnClicked::CreateLambda([this]()
 					{
 						if (UFloor101GameViewportClient* Client = ViewportClient.Get())
@@ -444,6 +495,29 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 						FSlateApplication::Get().SetAllUserFocusToGameViewport();
 						return FReply::Handled();
 					}))
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				SNew(SButton)
+				.IsFocusable(false)
+				.ToolTipText(LOCTEXT("PlanTip", "Plano 2D de la planta: muros cortados, puertas, ventanas, cotas y habitaciones. Se edita igual que en 3D"))
+				.ButtonColorAndOpacity_Lambda([this]()
+				{
+					const UFloor101DocumentSubsystem* S = Document.Get();
+					return S && S->IsPlanView() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+				})
+				.OnClicked_Lambda([this]()
+				{
+					if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+					{
+						Client->SetPlanView(!Client->IsPlanView());
+					}
+					FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					return FReply::Handled();
+				})
+				[
+					SNew(STextBlock).Text(LOCTEXT("Plan", "Plano 2D (Tab)")).Font(Font(10, true))
+				]
 			]
 		]
 		+ SVerticalBox::Slot()
@@ -502,6 +576,18 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 						return FReply::Handled();
 					}))
 			]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10.0f, 0.0f, 4.0f, 0.0f)
+			[
+				SNew(STextBlock).Text(LOCTEXT("ExportPlan", "Plano:")).Font(Font(10))
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+			[
+				MakePlanExportButton(TEXT("svg"))
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+			[
+				MakePlanExportButton(TEXT("png"))
+			]
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -509,6 +595,30 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		[
 			MakeLevelRow()
 		]);
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakePlanExportButton(const FString& Extension)
+{
+	return SNew(SButton)
+		.IsFocusable(false)
+		.ToolTipText_Lambda([this, Extension]()
+		{
+			const UFloor101DocumentSubsystem* S = Document.Get();
+			return FText::Format(LOCTEXT("ExportPlanTip", "Exporta el plano de esta planta a {0}"),
+				S ? FText::FromString(S->GetDefaultPlanPath(Extension)) : FText::GetEmpty());
+		})
+		.OnClicked_Lambda([this, Extension]()
+		{
+			if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
+			{
+				(void)Subsystem->ExportPlan(Subsystem->GetDefaultPlanPath(Extension), f101::cad::LevelId());
+			}
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			return FReply::Handled();
+		})
+		[
+			SNew(STextBlock).Text(FText::FromString(Extension.ToUpper())).Font(Font(10))
+		];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
@@ -1388,7 +1498,7 @@ FText SFloor101Overlay::GetHintText() const
 		return LOCTEXT("HintOpening", "Seleccionar · arrastra el hueco para moverlo o sus asas para cambiar el ancho · Espacio: invertir bisagras · tipo, apertura y carpintería en el panel · Supr: eliminar");
 	}
 	return Editor.selection().isNil()
-		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco o habitación · W: muros · P: puertas · O: ventanas · M: pintar · RePág/AvPág: planta")
+		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco o habitación · W: muros · P: puertas · O: ventanas · M: pintar · Tab: plano 2D · RePág/AvPág: planta")
 		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 
@@ -1422,8 +1532,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
 			{
 				const UFloor101DocumentSubsystem* S = Document.Get();
 				const bool bUnsaved = S && S->HasUnsavedChanges();
-				return FText::Format(LOCTEXT("CameraHint", "{0}Clic derecho arrastrando: orbitar · Rueda: zoom · Clic central: desplazar"),
-					bUnsaved ? LOCTEXT("Unsaved", "Sin guardar  ·  ") : FText::GetEmpty());
+				const FText Unsaved = bUnsaved ? LOCTEXT("Unsaved", "Sin guardar  ·  ") : FText::GetEmpty();
+				return S && S->IsPlanView()
+					? FText::Format(LOCTEXT("PlanCameraHint", "{0}Plano 2D · Rueda: zoom · Clic central: desplazar · Tab: volver a 3D"), Unsaved)
+					: FText::Format(LOCTEXT("CameraHint", "{0}Clic derecho arrastrando: orbitar · Rueda: zoom · Clic central: desplazar"), Unsaved);
 			})
 		]);
 }

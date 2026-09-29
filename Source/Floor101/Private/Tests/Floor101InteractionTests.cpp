@@ -14,10 +14,17 @@
 #include "Floor101FinishLibrary.h"
 #include "Floor101GameViewportClient.h"
 #include "Floor101SceneNodeActor.h"
+#include "Camera/CameraComponent.h"
+#include "DynamicRHI.h"
+#include "F101/Drawing/PlanDrawing.h"
 #include "HAL/FileManager.h"
+#include "ImageUtils.h"
 #include "InputCoreTypes.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+
+#include <algorithm>
 
 namespace
 {
@@ -85,6 +92,10 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Page Down: level down"), Map(EKeys::PageDown) == Command::LevelDown);
 	TestTrue(TEXT("L: every level"), Map(EKeys::L) == Command::AllLevels);
 	TestTrue(TEXT("Space: flip the hinges"), Map(EKeys::SpaceBar) == Command::Flip);
+	TestTrue(TEXT("Tab: 2D plan"), Map(EKeys::Tab) == Command::PlanView);
+	TestTrue(TEXT("M typed in a length is text ('3.55 m')"),
+		UFloor101GameViewportClient::MapKey(EKeys::M, false, false, false, true) == Command::None);
+	TestTrue(TEXT("W still switches while typing"), UFloor101GameViewportClient::MapKey(EKeys::W, false, false, false, true) == Command::WallTool);
 	TestTrue(TEXT("Backspace: backspace"), Map(EKeys::BackSpace) == Command::Backspace);
 	TestTrue(TEXT("Ctrl+Z: undo"), Map(EKeys::Z, true) == Command::Undo);
 	TestTrue(TEXT("Ctrl+Shift+Z: redo"), Map(EKeys::Z, true, true) == Command::Redo);
@@ -507,6 +518,99 @@ bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
 	AddExpectedMessagePlain(TEXT("A door cannot be fixed"), ELogVerbosity::Warning);
 	TestFalse(TEXT("fixed door refused"), Document->Edit([](EditController& Editor) { return Editor.setOpeningOperation(f101::cad::OpeningOperation::Fixed); }).ok());
 	TestTrue(TEXT("the refusal reaches the status bar"), Document->IsStatusError());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewTest, "Floor101.Interaction.PlanView", TestFlags)
+bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document))
+	{
+		return false;
+	}
+	TArray<f101::cad::WallId> Walls;
+	const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+	for (int32 i = 0; i < 4; ++i)
+	{
+		Walls.Add(Document->GetMutableDocument().addWall({Corners[i][0], Corners[i][1]}, {Corners[(i + 1) % 4][0], Corners[(i + 1) % 4][1]}, 120, 2800).value());
+	}
+
+	// Shown: every refresh draws the edited level, with the room in Spanish and the editing marks.
+	TestTrue(TEXT("no drawing while hidden"), Document->GetPlanDrawing().empty());
+	Document->SetPlanView(true);
+	const f101::drawing::PlanDrawing& Plan = Document->GetPlanDrawing();
+	TestEqual(TEXT("four cut walls"), static_cast<int32>(Plan.fills.size()), 4);
+	auto HasLabel = [&Plan](const char* Text)
+	{
+		return std::any_of(Plan.labels.begin(), Plan.labels.end(), [Text](const f101::drawing::Label& Label) { return Label.text == Text; });
+	};
+	TestTrue(TEXT("room name"), HasLabel("Habitación 1"));
+	TestTrue(TEXT("its area with a decimal comma"), HasLabel("11,17 m²"));
+	TestTrue(TEXT("a length in metres"), HasLabel("4,00"));
+	TestTrue(TEXT("select the south wall"), Document->Edit([&Walls](EditController& Editor) { return Editor.select(Walls[0]); }).ok());
+	TestTrue(TEXT("tinted as selected"), std::any_of(Plan.fills.begin(), Plan.fills.end(),
+		[](const f101::drawing::Fill& Fill) { return Fill.ink == f101::drawing::Ink::Selected; }));
+	TestTrue(TEXT("with its handles"), std::any_of(Plan.fills.begin(), Plan.fills.end(),
+		[](const f101::drawing::Fill& Fill) { return Fill.ink == f101::drawing::Ink::Handle; }));
+	Document->SetPlanView(false);
+	TestTrue(TEXT("hidden: nothing drawn"), Document->GetPlanDrawing().empty());
+
+	// The camera of the plan: orthographic, straight down, north up, as wide as the view was.
+	AFloor101EditingPawn* Pawn = TestWorld.World->SpawnActor<AFloor101EditingPawn>();
+	if (TestNotNull(TEXT("pawn"), Pawn))
+	{
+		Pawn->SetPlanView(true);
+		TestTrue(TEXT("orthographic"), Pawn->GetCamera()->ProjectionMode == ECameraProjectionMode::Orthographic);
+		TestEqual(TEXT("straight down"), Pawn->GetActorRotation().Pitch, -90.0, 1e-3);
+		TestEqual(TEXT("ortho width = view width"), static_cast<double>(Pawn->GetCamera()->OrthoWidth), Pawn->GetViewWidth(), 1e-2);
+		Pawn->Frame(FBox(FVector(0.0, -300.0, 0.0), FVector(400.0, 0.0, 280.0)));
+		TestTrue(TEXT("framed: the plan and its dimensions fit"), Pawn->GetViewWidth() > 400.0 && Pawn->GetViewWidth() < 1500.0);
+		TestTrue(TEXT("far above the walls"), Pawn->GetActorLocation().Z > 10000.0);
+		Pawn->Orbit(FVector2D(100.0, 50.0));
+		TestEqual(TEXT("no orbit in the plan"), Pawn->GetActorRotation().Pitch, -90.0, 1e-3);
+		Pawn->SetPlanView(false);
+		TestTrue(TEXT("back to perspective"), Pawn->GetCamera()->ProjectionMode == ECameraProjectionMode::Perspective);
+	}
+
+	// Exports: SVG always; PNG where there is a renderer. Default paths sit next to the project file.
+	const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101"), TEXT("Plano ñ")));
+	const FString SvgPath = FPaths::Combine(Directory, TEXT("casa-planta-baja.svg"));
+	IFileManager::Get().Delete(*SvgPath, false, true, true);
+	TestTrue(TEXT("SVG exported"), Document->ExportPlan(SvgPath, f101::cad::LevelId()).ok());
+	FString Svg;
+	TestTrue(TEXT("SVG on disk"), FFileHelper::LoadFileToString(Svg, *SvgPath) && Svg.Contains(TEXT("Habitación 1")));
+	TestTrue(TEXT("no editing marks in exports"), !Svg.Contains(TEXT("#ff6b14")));
+	TestTrue(TEXT("status tells where"), Document->GetStatusMessage().ToString().Contains(SvgPath));
+	TestTrue(TEXT("save the project"), Document->SaveProject(FPaths::Combine(Directory, TEXT("casa.json"))).ok());
+	TestEqual(TEXT("default plan path"), Document->GetDefaultPlanPath(TEXT("png")), FPaths::Combine(Directory, TEXT("casa-planta-baja.png")));
+	const FString PngPath = FPaths::Combine(Directory, TEXT("casa-planta-baja.png"));
+	if (GUsingNullRHI)
+	{
+		AddExpectedMessagePlain(TEXT("needs a renderer"), ELogVerbosity::Warning);
+		TestFalse(TEXT("PNG needs a renderer"), Document->ExportPlan(PngPath, f101::cad::LevelId()).ok());
+	}
+	else
+	{
+		TestTrue(TEXT("PNG exported"), Document->ExportPlan(PngPath, f101::cad::LevelId()).ok());
+		TestTrue(TEXT("PNG on disk"), IFileManager::Get().FileSize(*PngPath) > 1000);
+		// The cut walls keep their ink: the darkest common colour is the cut's #262626, not paler or darker.
+		FImage Image;
+		if (TestTrue(TEXT("PNG readable"), FImageUtils::LoadImage(*PngPath, Image)))
+		{
+			Image.ChangeFormat(ERawImageFormat::BGRA8, EGammaSpace::sRGB);
+			const FImageView View = Image;
+			int32 Cut = 0;
+			for (int64 Index = 0; Index < View.GetNumPixels(); ++Index)
+			{
+				const FColor Pixel = View.AsBGRA8()[Index];
+				Cut += FMath::Abs(Pixel.R - 38) <= 3 && FMath::Abs(Pixel.G - 38) <= 3 && FMath::Abs(Pixel.B - 38) <= 3 ? 1 : 0;
+			}
+			TestTrue(TEXT("walls drawn in the cut ink (#262626)"), Cut > 1000);
+		}
+	}
+	IFileManager::Get().DeleteDirectory(*Directory, false, true);
 	return true;
 }
 

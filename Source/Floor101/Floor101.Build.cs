@@ -12,9 +12,11 @@ public class Floor101 : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"Floor101CadCore", "Floor101Geometry", "Floor101SceneModel", "Floor101UnrealAdapter",
+			"Floor101CadCore", "Floor101Geometry", "Floor101SceneModel", "Floor101Drawing", "Floor101UnrealAdapter",
 			"InputCore", "Slate", "SlateCore",
-			// RHI/RenderCore are only used by the development render check (Private/RenderCheck.cpp).
+			// Plan PNG export (ADR-0015): widgets rendered offscreen and saved as an image.
+			"UMG", "ImageCore",
+			// RHI/RenderCore: the development render check (Private/RenderCheck.cpp) and the offscreen plan render.
 			"RHI", "RenderCore",
 		});
 	}

@@ -25,6 +25,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "Floor101Drawing",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "Floor101UnrealAdapter",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

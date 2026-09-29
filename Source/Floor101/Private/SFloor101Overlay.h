@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "F101/Cad/EditController.h"
+#include "SFloor101PlanView.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -28,6 +29,8 @@ private:
 
 	TSharedRef<SWidget> MakeToolbar();
 	TSharedRef<SWidget> MakeLevelRow();
+	// Exports the edited level's plan next to the project file (ADR-0015); Extension: "svg" or "png".
+	TSharedRef<SWidget> MakePlanExportButton(const FString& Extension);
 	// Name, height and slab of the active level, and a button to delete it.
 	TSharedRef<SWidget> MakeLevelSection();
 	// Finishes (ADR-0012): a drop-down of the finishes a surface allows, the Paint palette and the selected room.
@@ -60,6 +63,8 @@ private:
 	bool IsLevelPanelShown() const;
 	FText GetHintText() const;
 	FText GetCursorText() const;
+	// Plan millimetres to this widget in the 2D plan view (camera straight down, north up); unset without a camera.
+	TOptional<FFloor101PlanMapping> GetPlanMapping(const FGeometry& Geometry) const;
 	FString GetPathOrDefault() const;
 
 	TWeakObjectPtr<UFloor101DocumentSubsystem> Document;

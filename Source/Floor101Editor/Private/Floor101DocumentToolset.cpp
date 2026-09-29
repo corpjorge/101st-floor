@@ -581,3 +581,18 @@ TArray<FFloor101WallInfo> UFloor101DocumentToolset::OpenProject(const FString& P
 	}
 	return AllWalls(*Subsystem);
 }
+
+void UFloor101DocumentToolset::ExportPlan(const FString& Path, const FString& LevelId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Level;
+	if (!Subsystem || !ParseLevelId(LevelId, Level))
+	{
+		return;
+	}
+	const f101::Status Exported = Subsystem->ExportPlan(Path, Level);
+	if (!Exported)
+	{
+		RaiseError(FString::Printf(TEXT("cannot export the plan to %s: %s"), *Path, *ToFString(Exported.error().message)));
+	}
+}
