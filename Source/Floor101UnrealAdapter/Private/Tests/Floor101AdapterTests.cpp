@@ -304,7 +304,8 @@ bool FFloor101CarpentryTest::RunTest(const FString& Parameters)
 	const f101::cad::WallId WallId{f101::cad::Uuid{0, 1}};
 	f101::cad::Wall Wall{WallId, {0, 0}, {4000, 0}, 120, 2800};
 	const f101::cad::OpeningId WindowId{f101::cad::Uuid{0, 2}};
-	Wall.openings.push_back(f101::cad::Opening{WindowId, f101::cad::OpeningKind::Window, 1000, 1200, 1200, 900});
+	Wall.openings.push_back(f101::cad::Opening{WindowId, f101::cad::OpeningKind::Window, 1000, 1200, 1200, 900, {},
+		f101::cad::OpeningOperation::Fixed});
 	Project.walls.push_back(Wall);
 	const f101::scene::Scene Scene = f101::scene::compileScene(Project);
 	FFloor101SceneReconciler Reconciler(TestWorld.World);
@@ -345,6 +346,61 @@ bool FFloor101CarpentryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("in the hole: 120 cm wide"), Bounds.GetSize().X, 120.0, Tolerance);
 	TestEqual(TEXT("from the sill (90 cm)"), Bounds.Min.Z, 90.0, Tolerance);
 	TestEqual(TEXT("7 cm deep frame"), Bounds.GetSize().Y, 7.0, Tolerance);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OpeningTypesTest, "Floor101.Adapter.OpeningTypes", TestFlags)
+bool FFloor101OpeningTypesTest::RunTest(const FString& Parameters)
+{
+	// A door fully open towards the north face (ADR-0014), seen in the editing view: its leaf stands out of the wall and
+	// its swing is drawn on the floor as a dark symbol without shadow.
+	FTestWorld TestWorld;
+	f101::cad::Project Project;
+	f101::cad::Wall Wall{f101::cad::WallId{f101::cad::Uuid{0, 1}}, {0, 0}, {4000, 0}, 120, 2800};
+	Wall.openings.push_back(f101::cad::Opening{f101::cad::OpeningId{f101::cad::Uuid{0, 2}}, f101::cad::OpeningKind::Door, 1000, 900,
+		2100, 0, {}, f101::cad::OpeningOperation::Hinged, f101::cad::OpeningEnd::Start, f101::cad::WallSide::Left, 100});
+	Project.walls.push_back(Wall);
+	FFloor101SceneReconciler Reconciler(TestWorld.World);
+	auto FindActor = [&Reconciler](const f101::scene::Scene& Scene, f101::scene::NodeStyle Style) -> AFloor101SceneNodeActor*
+	{
+		for (const f101::scene::SceneNode& Node : Scene.nodes)
+		{
+			if (Node.sourceKind == f101::scene::SourceKind::Opening && Node.style == Style)
+			{
+				return Reconciler.FindActor(Node.id);
+			}
+		}
+		return nullptr;
+	};
+
+	f101::scene::Scene Scene = f101::scene::compileScene(Project, f101::scene::ViewOverlay{});
+	Reconciler.Reconcile(Scene);
+	AFloor101SceneNodeActor* Door = FindActor(Scene, f101::scene::NodeStyle::Normal);
+	AFloor101SceneNodeActor* Swing = FindActor(Scene, f101::scene::NodeStyle::Symbol);
+	if (!TestNotNull(TEXT("door actor"), Door) || !TestNotNull(TEXT("swing actor"), Swing))
+	{
+		return false;
+	}
+	TestEqual(TEXT("the open leaf reaches 81.4 cm north of the axis (Unreal -Y)"), Door->GetMeshBounds().Min.Y, -81.4, Tolerance);
+	TestEqual(TEXT("swing on the floor (1.3 cm)"), Swing->GetMeshBounds().Min.Z, 1.3, Tolerance);
+	TestEqual(TEXT("swing radius: the leaf (79.4 cm) from the face"), Swing->GetMeshBounds().Min.Y, -(6.0 + 79.4 + 1.0), Tolerance);
+	TestNotNull(TEXT("symbol tinted dark"), Cast<UMaterialInstanceDynamic>(Swing->GetDisplayMaterial()));
+	TestFalse(TEXT("symbol casts no shadow"), static_cast<bool>(Swing->GetMeshComponent()->CastShadow));
+	TestTrue(TEXT("the door does"), static_cast<bool>(Door->GetMeshComponent()->CastShadow));
+
+	// Closed again: the same actor, the leaf back in the wall (handles 5 cm off the axis).
+	Project.walls[0].openings[0].openPercent = 0;
+	Scene = f101::scene::compileScene(Project, f101::scene::ViewOverlay{});
+	Reconciler.Reconcile(Scene);
+	TestTrue(TEXT("same door actor"), FindActor(Scene, f101::scene::NodeStyle::Normal) == Door);
+	TestEqual(TEXT("closed"), Door->GetMeshBounds().Min.Y, -5.0, Tolerance);
+	// Exporters never see symbols.
+	int32 Symbols = 0;
+	for (const f101::scene::SceneNode& Node : f101::scene::compileScene(Project).nodes)
+	{
+		Symbols += Node.style == f101::scene::NodeStyle::Symbol ? 1 : 0;
+	}
+	TestEqual(TEXT("no symbols for exporters"), Symbols, 0);
 	return true;
 }
 

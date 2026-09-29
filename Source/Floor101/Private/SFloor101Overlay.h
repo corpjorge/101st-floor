@@ -40,6 +40,12 @@ private:
 	TSharedRef<SWidget> MakePropertiesPanel();
 	// A length property: the value shown (mm, unset = nothing selected) and the controller call that sets it.
 	TSharedRef<SWidget> MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter);
+	// A typed property: the text shown and the controller call that parses and sets what is typed.
+	TSharedRef<SWidget> MakeTextRow(const FText& Label, TFunction<FText()> CurrentText, FSelectionSetter Setter);
+	// How the selected door or window opens (ADR-0014): its type, its hinges, the face it opens to, how open it is shown.
+	TSharedRef<SWidget> MakeOpeningTypeSection();
+	// A row with a label, a value and an "Invertir" button running `Flip`.
+	TSharedRef<SWidget> MakeFlipRow(TFunction<FText()> Label, TFunction<FText()> Value, f101::Status (f101::cad::EditController::*Flip)());
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 
@@ -62,4 +68,7 @@ private:
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
 	// Finish ids each surface allows, for the drop-downs (kept alive for SComboBox).
 	TMap<uint8, TArray<TSharedPtr<FString>>> FinishOptions;
+	// The types a door and a window can have, for their drop-downs.
+	TArray<TSharedPtr<f101::cad::OpeningOperation>> DoorOperations;
+	TArray<TSharedPtr<f101::cad::OpeningOperation>> WindowOperations;
 };

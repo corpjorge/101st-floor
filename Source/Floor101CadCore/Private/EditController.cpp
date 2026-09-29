@@ -84,15 +84,35 @@ namespace f101::cad
 			return gaps;
 		}
 
-		// Offset of an opening `width` wide as close to `wanted` as the gaps allow, on the grid when the gap has room for
-		// it; nullopt when no gap is wide enough (ADR-0013).
-		std::optional<std::int64_t> fitOpening(double wanted, std::int64_t width, const std::vector<AxisSpan>& gaps, std::int64_t grid)
+		// The side of a wall's axis a plan point is on.
+		WallSide sideOf(const Wall& wall, PlanPoint p)
 		{
+			const double ax = static_cast<double>(wall.end.x_mm - wall.start.x_mm);
+			const double ay = static_cast<double>(wall.end.y_mm - wall.start.y_mm);
+			const double px = p.x_mm - static_cast<double>(wall.start.x_mm);
+			const double py = p.y_mm - static_cast<double>(wall.start.y_mm);
+			return ax * py - ay * px >= 0.0 ? WallSide::Left : WallSide::Right;
+		}
+
+		bool fitsGap(const AxisSpan& span, const std::vector<AxisSpan>& gaps)
+		{
+			return std::any_of(gaps.begin(), gaps.end(),
+				[&span](const AxisSpan& gap) { return gap.fromMm <= span.fromMm && span.toMm <= gap.toMm; });
+		}
+
+		// Offset for `opening` as close to `wanted` as the gaps allow, with everything it takes (its hole and a sliding
+		// door's pocket, ADR-0014) inside one gap, on the grid when the gap has room for it; nullopt when no gap is wide
+		// enough (ADR-0013). The opening's own offset is ignored.
+		std::optional<std::int64_t> fitOpening(double wanted, const Opening& opening, const std::vector<AxisSpan>& gaps, std::int64_t grid)
+		{
+			const AxisSpan taken = occupiedSpan(opening);
+			const std::int64_t before = opening.offsetMm - taken.fromMm; // what it takes before its offset
+			const std::int64_t after = taken.toMm - opening.offsetMm;   // from its offset on
 			std::optional<std::int64_t> best;
 			for (const AxisSpan& gap : gaps)
 			{
-				const std::int64_t low = gap.fromMm;
-				const std::int64_t high = gap.toMm - width;
+				const std::int64_t low = gap.fromMm + before;
+				const std::int64_t high = gap.toMm - after;
 				if (high < low)
 				{
 					continue;
@@ -257,17 +277,19 @@ namespace f101::cad
 			return;
 		}
 		// Centred on the pointer, its edge on the snap grid, in the free stretch of the wall nearest to it: clear of the
-		// joined walls and of the other openings (ADR-0013).
+		// joined walls and of the other openings (ADR-0013). It opens towards the side of the wall the pointer is on
+		// (ADR-0014).
+		Opening opening = defaults;
+		opening.id = OpeningId();
+		opening.opensTo = sideOf(*host, *planPoint);
 		const auto length = static_cast<std::int64_t>(std::floor(host->lengthMm()));
 		const std::vector<AxisSpan> gaps = freeGaps(length, blockedSpans(project, *host, OpeningId()));
 		const std::optional<std::int64_t> offset =
-			fitOpening(hostAlong - static_cast<double>(defaults.widthMm) / 2.0, defaults.widthMm, gaps, gridMm());
+			fitOpening(hostAlong - static_cast<double>(defaults.widthMm) / 2.0, opening, gaps, gridMm());
 		if (!offset)
 		{
 			return;
 		}
-		Opening opening = defaults;
-		opening.id = OpeningId();
 		opening.offsetMm = *offset;
 		placement = OpeningRef{host->id, opening};
 	}
@@ -284,7 +306,7 @@ namespace f101::cad
 		{
 			if (opening.id != except)
 			{
-				blocked.push_back(AxisSpan{opening.offsetMm, opening.offsetMm + opening.widthMm});
+				blocked.push_back(occupiedSpan(opening));
 			}
 		}
 		return blocked;
@@ -306,7 +328,7 @@ namespace f101::cad
 		Opening moved = *original;
 		if (openingDrag->part == OpeningDrag::Part::Body)
 		{
-			const std::optional<std::int64_t> offset = fitOpening(along, original->widthMm, gaps, gridMm());
+			const std::optional<std::int64_t> offset = fitOpening(along, *original, gaps, gridMm());
 			if (offset)
 			{
 				moved.offsetMm = *offset;
@@ -335,6 +357,10 @@ namespace f101::cad
 			else
 			{
 				moved.widthMm = std::clamp(snapped, start + minimum, std::max(room.toMm, start + minimum)) - start;
+			}
+			if (!fitsGap(occupiedSpan(moved), gaps))
+			{
+				return; // a sliding door's pocket (as wide as the door) would run out of room: keep the last width
 			}
 		}
 		openingDrag->opening = moved;
@@ -734,7 +760,7 @@ namespace f101::cad
 		return changeOpening(text, [](Opening& opening, std::int64_t mm) { opening.offsetMm = mm; });
 	}
 
-	Status EditController::setOpeningFinish(std::string_view finish)
+	Status EditController::editSelectedOpening(const std::function<void(Opening&)>& edit)
 	{
 		const std::optional<OpeningRef> current = selectedOpening();
 		if (!current)
@@ -742,8 +768,77 @@ namespace f101::cad
 			return nothingSelected();
 		}
 		Opening changed = current->opening;
-		changed.finish = std::string(finish);
+		edit(changed);
 		return toStatus(document.execute(ChangeOpeningCommand{current->wall, changed}));
+	}
+
+	Status EditController::setOpeningFinish(std::string_view finish)
+	{
+		return editSelectedOpening([finish](Opening& opening) { opening.finish = std::string(finish); });
+	}
+
+	Status EditController::setOpeningOperation(OpeningOperation operation)
+	{
+		return editSelectedOpening([operation](Opening& opening)
+		{
+			opening.operation = operation;
+			if (operation == OpeningOperation::Fixed)
+			{
+				opening.openPercent = 0;
+			}
+		});
+	}
+
+	Status EditController::flipOpeningHinge()
+	{
+		return editSelectedOpening([](Opening& opening) { opening.hinge = oppositeEnd(opening.hinge); });
+	}
+
+	Status EditController::flipOpeningSide()
+	{
+		return editSelectedOpening([](Opening& opening) { opening.opensTo = oppositeSide(opening.opensTo); });
+	}
+
+	Status EditController::setOpeningOpenPercent(std::string_view text)
+	{
+		// "35", "35%", "35 %": a whole percentage.
+		std::string digits;
+		for (const char c : text)
+		{
+			if (c != ' ' && c != '%')
+			{
+				digits += c;
+			}
+		}
+		const bool whole = !digits.empty() && digits.size() <= 3 &&
+			std::all_of(digits.begin(), digits.end(), [](char c) { return c >= '0' && c <= '9'; });
+		int percent = whole ? 0 : -1;
+		for (const char c : whole ? digits : std::string())
+		{
+			percent = percent * 10 + (c - '0');
+		}
+		if (percent < 0 || percent > 100)
+		{
+			return Error{ErrorCode::InvalidArgument, "Type how open it is shown: a whole number from 0 to 100 (%)"};
+		}
+		return editSelectedOpening([percent](Opening& opening) { opening.openPercent = percent; });
+	}
+
+	Status EditController::flip()
+	{
+		if (isOpeningMode())
+		{
+			// The doors or windows placed from now on: their hinges on the other jamb.
+			Opening& defaults = currentMode == EditMode::Door ? editSettings.door : editSettings.window;
+			defaults.hinge = oppositeEnd(defaults.hinge);
+			updatePlacement();
+			return Status::success();
+		}
+		if (!selectedOpening())
+		{
+			return Error{ErrorCode::NotFound, "Select a door or window, or pick the door or window tool, to flip its hinges"};
+		}
+		return flipOpeningHinge();
 	}
 
 	Status EditController::paint(const Project& project, const Ray3& ray)
@@ -752,11 +847,7 @@ namespace f101::cad
 		if (const std::optional<WallHit> hit = pickWall(project, ray))
 		{
 			const Wall& wall = *project.findWall(hit->wall);
-			const double px = ray.originX + ray.directionX * hit->distance - static_cast<double>(wall.start.x_mm);
-			const double py = ray.originY + ray.directionY * hit->distance - static_cast<double>(wall.start.y_mm);
-			const double ax = static_cast<double>(wall.end.x_mm - wall.start.x_mm);
-			const double ay = static_cast<double>(wall.end.y_mm - wall.start.y_mm);
-			const WallSide side = ax * py - ay * px >= 0.0 ? WallSide::Left : WallSide::Right;
+			const WallSide side = sideOf(wall, PlanPoint{ray.originX + ray.directionX * hit->distance, ray.originY + ray.directionY * hit->distance});
 			return toStatus(document.execute(SetWallFinishCommand{wall.id, side, editSettings.paintFinish}));
 		}
 		const std::optional<std::string> room = planPoint && roomLocator ? roomLocator(project, *planPoint) : std::nullopt;

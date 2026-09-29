@@ -227,8 +227,9 @@ namespace f101::cad
 		FLOOR101CADCORE_API Result<LevelId> addLevel(std::int64_t heightMm = DefaultLevelHeightMm,
 			std::int64_t slabThicknessMm = DefaultSlabThicknessMm);
 
-		// Openings added or changed must stay clear of the walls joined to their host (ADR-0013). The Geometry Engine
-		// provides the spans (geometry::makeWallObstructions); without it only the wall itself is checked.
+		// Openings added or changed must stay clear of the walls joined to their host (ADR-0013), pockets of sliding doors
+		// included (ADR-0014). The Geometry Engine provides the spans (geometry::makeWallObstructions); without it only the
+		// wall itself is checked.
 		void setWallObstructions(WallObstructions provider) { obstructions = std::move(provider); }
 		// Where `wall` of `levelWalls` must not have an opening; empty without a provider.
 		FLOOR101CADCORE_API std::vector<AxisSpan> openingObstructions(const Project& levelWalls, const Wall& wall) const;

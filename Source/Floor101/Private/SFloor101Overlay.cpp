@@ -91,18 +91,49 @@ namespace
 		return Finish ? FLinearColor::FromSRGBColor(FColor(Finish->color.r, Finish->color.g, Finish->color.b)) : FLinearColor(1.0f, 0.0f, 1.0f);
 	}
 
-	// Where a wall face looks, as a compass point (plan: +x east, +y north).
+	// A plan direction as a compass point (plan: +x east, +y north).
+	FText CompassPoint(double Dx, double Dy)
+	{
+		const double Degrees = FMath::RadiansToDegrees(FMath::Atan2(Dy, Dx)); // from east
+		static const FText Points[8] = {LOCTEXT("East", "este"), LOCTEXT("NorthEast", "noreste"), LOCTEXT("North", "norte"),
+			LOCTEXT("NorthWest", "noroeste"), LOCTEXT("West", "oeste"), LOCTEXT("SouthWest", "suroeste"), LOCTEXT("South", "sur"),
+			LOCTEXT("SouthEast", "sureste")};
+		const int32 Sector = static_cast<int32>(FMath::RoundToDouble(FMath::Fmod(Degrees + 360.0, 360.0) / 45.0)) % 8;
+		return Points[Sector];
+	}
+
+	// Where a wall face looks ("Cara norte").
 	FText FaceDirection(const f101::cad::Wall& Wall, f101::cad::WallSide Side)
 	{
 		const double Ax = static_cast<double>(Wall.end.x_mm - Wall.start.x_mm);
 		const double Ay = static_cast<double>(Wall.end.y_mm - Wall.start.y_mm);
 		const double Sign = Side == f101::cad::WallSide::Left ? 1.0 : -1.0;
-		const double Degrees = FMath::RadiansToDegrees(FMath::Atan2(Ax * Sign, -Ay * Sign)); // the face normal, from east
-		static const FText Points[8] = {LOCTEXT("East", "este"), LOCTEXT("NorthEast", "noreste"), LOCTEXT("North", "norte"),
-			LOCTEXT("NorthWest", "noroeste"), LOCTEXT("West", "oeste"), LOCTEXT("SouthWest", "suroeste"), LOCTEXT("South", "sur"),
-			LOCTEXT("SouthEast", "sureste")};
-		const int32 Sector = static_cast<int32>(FMath::RoundToDouble(FMath::Fmod(Degrees + 360.0, 360.0) / 45.0)) % 8;
-		return FText::Format(LOCTEXT("Face", "Cara {0}"), Points[Sector]);
+		return FText::Format(LOCTEXT("Face", "Cara {0}"), CompassPoint(-Ay * Sign, Ax * Sign)); // the face normal
+	}
+
+	// Which way an end of an opening lies along its wall ("Lado oeste").
+	FText EndDirection(const f101::cad::Wall& Wall, f101::cad::OpeningEnd End)
+	{
+		const double Sign = End == f101::cad::OpeningEnd::End ? 1.0 : -1.0;
+		return FText::Format(LOCTEXT("Side", "Lado {0}"), CompassPoint(static_cast<double>(Wall.end.x_mm - Wall.start.x_mm) * Sign,
+			static_cast<double>(Wall.end.y_mm - Wall.start.y_mm) * Sign));
+	}
+
+	// How a door or window opens (ADR-0014), in the words used for each kind.
+	FText OperationName(f101::cad::OpeningKind Kind, f101::cad::OpeningOperation Operation)
+	{
+		const bool bDoor = Kind == f101::cad::OpeningKind::Door;
+		switch (Operation)
+		{
+		case f101::cad::OpeningOperation::DoubleHinged:
+			return bDoor ? LOCTEXT("DoorDouble", "Abatible de dos hojas") : LOCTEXT("WindowDouble", "Practicable de dos hojas");
+		case f101::cad::OpeningOperation::Sliding:
+			return bDoor ? LOCTEXT("DoorSliding", "Corredera empotrada") : LOCTEXT("WindowSliding", "Corredera");
+		case f101::cad::OpeningOperation::Fixed:
+			return LOCTEXT("WindowFixed", "Fija");
+		default:
+			return bDoor ? LOCTEXT("DoorHinged", "Abatible") : LOCTEXT("WindowHinged", "Practicable");
+		}
 	}
 
 	// "Planta baja", "Planta 1"... unless the level has a name of its own.
@@ -570,12 +601,15 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
 
 TSharedRef<SWidget> SFloor101Overlay::MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter)
 {
-	auto CurrentText = [Value]()
+	return MakeTextRow(Label, [Value]()
 	{
 		const TOptional<double> Millimeters = Value();
 		return Millimeters.IsSet() ? LengthText(Millimeters.GetValue()) : FText::GetEmpty();
-	};
+	}, Setter);
+}
 
+TSharedRef<SWidget> SFloor101Overlay::MakeTextRow(const FText& Label, TFunction<FText()> CurrentText, FSelectionSetter Setter)
+{
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 		[
@@ -589,7 +623,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertyRow(const FText& Label, TFunct
 				SNew(SEditableTextBox)
 				.Font(Font(10))
 				.SelectAllTextWhenFocused(true)
-				.Text_Lambda(CurrentText)
+				.Text_Lambda([CurrentText]() { return CurrentText(); })
 				.OnTextCommitted_Lambda([this, CurrentText, Setter](const FText& Text, ETextCommit::Type Commit)
 				{
 					// Unchanged text is not re-applied: the shown value is rounded to 1 mm and could move a diagonal wall.
@@ -729,6 +763,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					[
 						MakePropertyRow(LOCTEXT("OpeningOffset", "Posición"), OpeningValue(&f101::cad::Opening::offsetMm), &EditController::setOpeningOffset)
 					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 2.0f)
+					[
+						MakeOpeningTypeSection()
+					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 					[
 						SNew(SHorizontalBox)
@@ -786,6 +824,164 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 						SNew(STextBlock).Text(LOCTEXT("Delete", "Eliminar (Supr)")).Font(Font(10))
 					]
 				])
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeFlipRow(TFunction<FText()> Label, TFunction<FText()> Value,
+	f101::Status (f101::cad::EditController::*Flip)())
+{
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+		[
+			SNew(STextBlock).Font(Font(10)).Text_Lambda([Label]() { return Label(); })
+		]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			SNew(STextBlock).Font(Font(10)).Text_Lambda([Value]() { return Value(); })
+		]
+		+ SHorizontalBox::Slot().AutoWidth()
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.OnClicked_Lambda([this, Flip]() { return Run([Flip](EditController& Editor) { return (Editor.*Flip)(); }); })
+			[
+				SNew(STextBlock).Text(LOCTEXT("Flip", "Invertir")).Font(Font(9))
+			]
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeOpeningTypeSection()
+{
+	using f101::cad::OpeningOperation;
+	if (DoorOperations.IsEmpty())
+	{
+		for (const OpeningOperation Operation : {OpeningOperation::Hinged, OpeningOperation::DoubleHinged, OpeningOperation::Sliding})
+		{
+			DoorOperations.Add(MakeShared<OpeningOperation>(Operation));
+			WindowOperations.Add(MakeShared<OpeningOperation>(Operation));
+		}
+		WindowOperations.Add(MakeShared<OpeningOperation>(OpeningOperation::Fixed));
+	}
+	// The selected opening with its wall, re-read every frame.
+	auto Selected = [this]() -> std::optional<std::pair<f101::cad::Wall, f101::cad::Opening>>
+	{
+		const std::optional<f101::cad::OpeningRef> Opening = GetSelectedOpening();
+		const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+		const f101::cad::Wall* Wall = Opening && Subsystem ? Subsystem->GetDocument().project().findWall(Opening->wall) : nullptr;
+		return Wall ? std::optional<std::pair<f101::cad::Wall, f101::cad::Opening>>(std::pair{*Wall, Opening->opening}) : std::nullopt;
+	};
+	auto VisibleFor = [Selected](TFunction<bool(const f101::cad::Opening&)> Shown)
+	{
+		return [Selected, Shown]()
+		{
+			const auto Current = Selected();
+			return Current && Shown(Current->second) ? EVisibility::Visible : EVisibility::Collapsed;
+		};
+	};
+	auto TypeCombo = [this, Selected, VisibleFor](f101::cad::OpeningKind Kind, TArray<TSharedPtr<OpeningOperation>>* Options)
+	{
+		return SNew(SBox)
+			.WidthOverride(150.0f)
+			.Visibility_Lambda(VisibleFor([Kind](const f101::cad::Opening& Opening) { return Opening.kind == Kind; }))
+			[
+				SNew(SComboBox<TSharedPtr<OpeningOperation>>)
+				.IsFocusable(false)
+				.OptionsSource(Options)
+				.OnGenerateWidget_Lambda([Kind](TSharedPtr<OpeningOperation> Operation)
+				{
+					return SNew(STextBlock).Text(OperationName(Kind, *Operation)).Font(Font(9));
+				})
+				.OnSelectionChanged_Lambda([this](TSharedPtr<OpeningOperation> Operation, ESelectInfo::Type Info)
+				{
+					if (Operation && Info != ESelectInfo::Direct)
+					{
+						const OpeningOperation Chosen = *Operation;
+						(void)Run([Chosen](EditController& Editor) { return Editor.setOpeningOperation(Chosen); });
+					}
+				})
+				[
+					SNew(STextBlock)
+					.Font(Font(9))
+					.ColorAndOpacity(FLinearColor::White)
+					.Text_Lambda([Selected, Kind]()
+					{
+						const auto Current = Selected();
+						return Current ? OperationName(Kind, Current->second.operation) : FText::GetEmpty();
+					})
+				]
+			];
+	};
+
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(LOCTEXT("OpeningType", "Tipo")).Font(Font(10))
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				TypeCombo(f101::cad::OpeningKind::Door, &DoorOperations)
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				TypeCombo(f101::cad::OpeningKind::Window, &WindowOperations)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox)
+			.Visibility_Lambda(VisibleFor([](const f101::cad::Opening& Opening)
+			{
+				return Opening.operation == OpeningOperation::Hinged || Opening.operation == OpeningOperation::Sliding;
+			}))
+			[
+				MakeFlipRow(
+					[Selected]()
+					{
+						const auto Current = Selected();
+						return Current && Current->second.operation == OpeningOperation::Sliding
+							? LOCTEXT("SlidesTowards", "Se abre hacia") : LOCTEXT("Hinges", "Bisagras");
+					},
+					[Selected]()
+					{
+						const auto Current = Selected();
+						return Current ? EndDirection(Current->first, Current->second.hinge) : FText::GetEmpty();
+					},
+					&EditController::flipOpeningHinge)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox)
+			.Visibility_Lambda(VisibleFor([](const f101::cad::Opening& Opening)
+			{
+				return Opening.operation == OpeningOperation::Hinged || Opening.operation == OpeningOperation::DoubleHinged;
+			}))
+			[
+				MakeFlipRow([]() { return LOCTEXT("OpensTo", "Abre hacia"); },
+					[Selected]()
+					{
+						const auto Current = Selected();
+						return Current ? FaceDirection(Current->first, Current->second.opensTo) : FText::GetEmpty();
+					},
+					&EditController::flipOpeningSide)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox)
+			.Visibility_Lambda(VisibleFor([](const f101::cad::Opening& Opening) { return Opening.operation != OpeningOperation::Fixed; }))
+			[
+				MakeTextRow(LOCTEXT("OpenPercent", "Apertura"),
+					[Selected]()
+					{
+						const auto Current = Selected();
+						return Current ? FText::Format(LOCTEXT("Percent", "{0} %"), FText::AsNumber(Current->second.openPercent)) : FText::GetEmpty();
+					},
+					&EditController::setOpeningOpenPercent)
+			]
 		];
 }
 
@@ -1172,8 +1368,8 @@ FText SFloor101Overlay::GetHintText() const
 	if (Editor.mode() == EditMode::Door || Editor.mode() == EditMode::Window)
 	{
 		return Editor.mode() == EditMode::Door
-			? LOCTEXT("HintDoor", "Puerta · apunta a un muro y haz clic para colocarla · Esc o clic derecho: volver a Seleccionar")
-			: LOCTEXT("HintWindow", "Ventana · apunta a un muro y haz clic para colocarla · Esc o clic derecho: volver a Seleccionar");
+			? LOCTEXT("HintDoor", "Puerta · apunta a un muro: abre hacia el lado al que apuntas · Espacio: bisagras al otro lado · clic: colocarla · Esc o clic derecho: volver a Seleccionar")
+			: LOCTEXT("HintWindow", "Ventana · apunta a un muro: abre hacia el lado al que apuntas · Espacio: bisagras al otro lado · clic: colocarla · Esc o clic derecho: volver a Seleccionar");
 	}
 	if (Editor.isDraggingOpening())
 	{
@@ -1189,7 +1385,7 @@ FText SFloor101Overlay::GetHintText() const
 	}
 	if (Editor.selectedOpening())
 	{
-		return LOCTEXT("HintOpening", "Seleccionar · arrastra el hueco para moverlo o sus asas para cambiar el ancho · medidas y carpintería en el panel · Supr: eliminar");
+		return LOCTEXT("HintOpening", "Seleccionar · arrastra el hueco para moverlo o sus asas para cambiar el ancho · Espacio: invertir bisagras · tipo, apertura y carpintería en el panel · Supr: eliminar");
 	}
 	return Editor.selection().isNil()
 		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco o habitación · W: muros · P: puertas · O: ventanas · M: pintar · RePág/AvPág: planta")

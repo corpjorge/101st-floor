@@ -30,10 +30,10 @@ namespace f101::cad
 		// Draggable endpoint handles (and the wall tool cursor) are square posts of this size, drawn and picked alike.
 		std::int64_t handleSizeMm = 240;
 		std::int64_t handleHeightMm = 2500;
-		// What the Door and Window tools place (offset ignored), and how far from a wall's face the pointer still
-		// targets it.
+		// What the Door and Window tools place (offset ignored; it opens towards the side the pointer is on), and how far
+		// from a wall's face the pointer still targets it.
 		Opening door{OpeningId{}, OpeningKind::Door, 0, 900, 2100, 0};
-		Opening window{OpeningId{}, OpeningKind::Window, 0, 1200, 1200, 900};
+		Opening window{OpeningId{}, OpeningKind::Window, 0, 1200, 1200, 900, {}, OpeningOperation::DoubleHinged};
 		double openingToleranceMm = 150.0;
 		// Dragging an edge of a door or window never makes it narrower than this.
 		std::int64_t minOpeningWidthMm = 300;
@@ -74,7 +74,8 @@ namespace f101::cad
 	// corner: every wall ending there follows (MoveJointCommand on release; MoveWallEndpointCommand for a free end).
 	// Wall mode: WallTool (click, move, type a length, Enter).
 	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid) in the
-	// free stretch nearest to it, clear of the walls joined to its host and of its other openings (ADR-0013); a click adds
+	// free stretch nearest to it, clear of the walls joined to its host and of its other openings (ADR-0013), opening
+	// towards the side of the wall the pointer is on (ADR-0014); flip() moves its hinges to the other jamb; a click adds
 	// it. In Select mode a click on a wall where it has an opening selects that opening; dragging the selected opening moves
 	// it along its wall, dragging one of its edge handles resizes it (one ChangeOpeningCommand on release).
 	// Paint mode: a click on a wall paints the face it hits (the side of the axis); elsewhere, the floor of the room under
@@ -129,6 +130,16 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setOpeningOffset(std::string_view text);
 		// Its carpentry (frame and leaf, ADR-0013); empty restores the default.
 		FLOOR101CADCORE_API Status setOpeningFinish(std::string_view finish);
+		// How it opens (ADR-0014). Fixed closes it. A sliding door needs room for its pocket beside it.
+		FLOOR101CADCORE_API Status setOpeningOperation(OpeningOperation operation);
+		// Hinges (or where a sliding leaf goes) to the other end; leaves swinging towards the other face.
+		FLOOR101CADCORE_API Status flipOpeningHinge();
+		FLOOR101CADCORE_API Status flipOpeningSide();
+		// How open it is shown, typed as a whole percentage ("35", "35 %").
+		FLOOR101CADCORE_API Status setOpeningOpenPercent(std::string_view text);
+		// Space: in Door/Window mode, the next openings get their hinges on the other jamb; otherwise flips the hinges of
+		// the selected opening.
+		FLOOR101CADCORE_API Status flip();
 		// Door/Window mode: what a click would add (id nil); nullopt when the pointer is not over a wall that fits it.
 		const std::optional<OpeningRef>& openingPlacement() const { return placement; }
 
@@ -201,6 +212,8 @@ namespace f101::cad
 		Status changeSelection(std::string_view text, Command (*makeCommand)(const WallId&, std::int64_t));
 		// Parses `text` as a length and applies it to a copy of the selected opening, then changes the opening.
 		Status changeOpening(std::string_view text, void (*apply)(Opening&, std::int64_t));
+		// Edits a copy of the selected opening and changes it (one undoable step).
+		Status editSelectedOpening(const std::function<void(Opening&)>& edit);
 		void updateDrag();
 		void updatePlacement();
 		void updateOpeningDrag();

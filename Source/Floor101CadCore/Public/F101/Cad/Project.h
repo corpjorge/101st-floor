@@ -92,15 +92,6 @@ namespace f101::cad
 		}
 	};
 
-	// A stretch along a wall axis, in mm from its start.
-	struct AxisSpan
-	{
-		std::int64_t fromMm = 0;
-		std::int64_t toMm = 0;
-
-		friend bool operator==(const AxisSpan&, const AxisSpan&) = default;
-	};
-
 	// Where a wall of `levelWalls` must not have an opening because other walls join it there: the mitred ends, where
 	// another wall meets it in a T, crossings (ADR-0013). Joins are derived in the Geometry Engine, which provides this
 	// (geometry::makeWallObstructions); without it openings are only checked against the wall itself.

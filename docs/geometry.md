@@ -30,18 +30,26 @@ Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se rege
   muros y una clave determinista. `buildFloorMesh(room)` → losa de 10 mm (`floor`, `floor_edge`, `floor_bottom`).
   `buildSlabMesh(room, bottomZ, topZ)` → forjado sobre el mismo contorno (`slab_top`, `slab_edge`, `ceiling`; ADR-0011).
   `makeRoomLocator()` da al `EditController` la habitación cuyo suelo contiene un punto (seleccionar y pintar suelos).
-- **Carpintería** (`CarpentryBuilder.h`, ADR-0013): `buildOpeningMesh(wall, footprint, opening)` → en el hueco recortado,
-  marco centrado en el grueso (50 mm de perfil, 70 mm de fondo o el grueso), jambas y cabecero; puerta: hoja cerrada de
-  40 mm (3 mm de holgura, 10 mm sobre el suelo) y una manilla por cara; ventana: travesaño inferior, vidrio de 6 mm y
-  montante si mide más de 1300 mm. Secciones `frame`, `leaf`, `hardware`, `glass`; cajas cerradas de sombreado plano.
+- **Carpintería** (`CarpentryBuilder.h`, ADR-0013, ADR-0014): `buildOpeningMesh(wall, footprint, opening)` → en el hueco
+  recortado, marco centrado en el grueso (50 mm de perfil, 70 mm de fondo o el grueso), jambas y cabecero (ventanas,
+  también travesaño inferior), y según la operación: puerta abatible, hoja de 40 mm (3 mm de holgura, 10 mm sobre el
+  suelo) con una manilla por cara, girada alrededor de su bisagra hacia `opensTo` (100 % = 90°); de dos hojas, dos medias
+  hojas; corredera, la hoja desplazada dentro del muro hacia `hinge` con un tirador por cara; ventana practicable (una o
+  dos hojas de 50 mm con perfiles y vidrio, giradas igual, manilla en la cara hacia la que abre), corredera (dos hojas
+  solapadas 50 mm en dos vías; la de `opensTo` corre sobre la otra) o fija (vidrio de 6 mm y montante si mide más de
+  1300 mm). Las piezas que giran se construyen en un marco local (bisagra, dirección de la hoja, grueso). Secciones
+  `frame`, `leaf`, `hardware`, `glass`; cajas cerradas de sombreado plano.
+  `buildOpeningSymbolMesh` → el símbolo de las puertas abatibles y de dos hojas: por hoja, el arco de 90° y la hoja
+  abierta, líneas planas de 20 mm a 3 mm sobre el suelo, desde la cara hacia la que abre (sección `swing`).
 
 Tests: `WallGeometryTests.cpp` (bounds exactos de 3550 × 120 × 2400 mm, normales hacia fuera, orden de triángulos, lado
 izquierdo, espesor en diagonal, regeneración sin escalar; puerta: 36 triángulos, áreas por sección y volumen encerrado
 exactos; puerta y ventana juntas), `WallJoinTests.cpp`, `PolygonGeometryTests.cpp`, `RoomTests.cpp` (casos en
-ADR-0009) y `CarpentryTests.cpp` (mallas de carpintería, tramos de unión, recorte en un inglete).
+ADR-0009), `CarpentryTests.cpp` (mallas de carpintería, tramos de unión, recorte en un inglete) y `OpeningTypeTests.cpp`
+(hojas giradas y desplazadas por tipo, símbolos).
 
 Todo es local a una planta: la escena resuelve uniones y habitaciones planta a planta y sube la geometría a su cota.
 
 Cada sección de una malla recibe en la escena el acabado de su cara (ADR-0012).
 
-Futuro: tipos de carpintería (sentido de apertura, correderas), escaleras y huecos en forjados.
+Futuro: puertas plegables y oscilobatientes, escaleras y huecos en forjados.

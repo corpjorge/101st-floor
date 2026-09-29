@@ -20,6 +20,29 @@ enum class EFloor101WallSide : uint8
 	Right,
 };
 
+/** How a door or window opens. */
+UENUM(BlueprintType)
+enum class EFloor101OpeningOperation : uint8
+{
+	/** One leaf or sash on hinges at one jamb. */
+	Hinged,
+	/** Two leaves or sashes hinged at both jambs. */
+	DoubleHinged,
+	/** Doors: a leaf sliding into a pocket in the wall beside it, as long as the door is wide. Windows: two sashes on two tracks. */
+	Sliding,
+	/** Windows only: does not open. */
+	Fixed,
+};
+
+/** An end of an opening along its wall. */
+UENUM(BlueprintType)
+enum class EFloor101OpeningEnd : uint8
+{
+	/** Towards the wall start. */
+	Start,
+	End,
+};
+
 /**
  * A finish of the catalogue: what a wall face, a floor or a ceiling can be covered with.
  */
@@ -123,6 +146,21 @@ struct FFloor101OpeningInfo
 	/** Finish id of its frame and leaf; empty: the default. */
 	UPROPERTY()
 	FString Finish;
+
+	UPROPERTY()
+	EFloor101OpeningOperation Operation = EFloor101OpeningOperation::Hinged;
+
+	/** Hinged: the jamb with the hinges. Sliding: the end the moving leaf goes to (a door's pocket is there). */
+	UPROPERTY()
+	EFloor101OpeningEnd Hinge = EFloor101OpeningEnd::Start;
+
+	/** Hinged and double: the wall face the leaves swing towards. Sliding window: the face of the moving sash. */
+	UPROPERTY()
+	EFloor101WallSide OpensTo = EFloor101WallSide::Left;
+
+	/** How open it is shown: 100 = hinged at 90 degrees, sliding fully open; always 0 when fixed. */
+	UPROPERTY(meta = (ClampMin = "0", ClampMax = "100"))
+	int32 OpenPercent = 0;
 };
 
 /**
@@ -320,7 +358,7 @@ public:
 
 	/**
 	 * Adds a door or window to a wall. It must fit the wall, keep clear of the walls joined to it and not overlap another
-	 * opening; doors have sill 0.
+	 * opening; doors have sill 0. It is hinged at its start, opens towards the left face and is shown closed.
 	 * @return The new opening.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
@@ -342,6 +380,18 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static FFloor101OpeningInfo SetOpeningFinish(const FString& WallId, const FString& OpeningId, const FString& FinishId);
+
+	/**
+	 * Sets how a door or window opens. Doors cannot be Fixed; a fixed window must be 0 % open; a sliding door needs its
+	 * pocket clear inside the wall.
+	 * @param Hinge See FFloor101OpeningInfo::Hinge.
+	 * @param OpensTo See FFloor101OpeningInfo::OpensTo.
+	 * @param OpenPercent How open it is shown, 0 to 100.
+	 * @return The updated opening.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101OpeningInfo SetOpeningOperation(const FString& WallId, const FString& OpeningId, EFloor101OpeningOperation Operation,
+		EFloor101OpeningEnd Hinge, EFloor101WallSide OpensTo, int32 OpenPercent);
 
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveOpening(const FString& WallId, const FString& OpeningId);

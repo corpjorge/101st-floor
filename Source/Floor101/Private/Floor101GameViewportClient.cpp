@@ -243,6 +243,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::PageUp) { return EFloor101KeyCommand::LevelUp; }
 	if (Key == EKeys::PageDown) { return EFloor101KeyCommand::LevelDown; }
 	if (Key == EKeys::L) { return EFloor101KeyCommand::AllLevels; }
+	if (Key == EKeys::SpaceBar) { return EFloor101KeyCommand::Flip; }
 	return EFloor101KeyCommand::None;
 }
 
@@ -281,6 +282,18 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	case EFloor101KeyCommand::AllLevels:
 		Edit(Always([](EditController& Editor) { Editor.setShowAllLevels(!Editor.showsAllLevels()); }));
 		break;
+	case EFloor101KeyCommand::Flip:
+	{
+		// Only with a door or window at hand: elsewhere (e.g. typing "3.55 m") the space stays a character.
+		const EditController& Editor = Document.GetEditController();
+		const bool bOpeningTool = Editor.mode() == f101::cad::EditMode::Door || Editor.mode() == f101::cad::EditMode::Window;
+		if (!bOpeningTool && !Editor.selectedOpening())
+		{
+			return false;
+		}
+		Edit([](EditController& Target) { return Target.flip(); });
+		break;
+	}
 	}
 	return true;
 }

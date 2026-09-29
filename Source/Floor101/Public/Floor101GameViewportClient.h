@@ -35,6 +35,7 @@ enum class EFloor101KeyCommand : uint8
 	LevelUp,
 	LevelDown,
 	AllLevels,
+	Flip, // hinges of the door or window being placed or selected to the other jamb (ADR-0014)
 };
 
 // Translates raw input into editing calls (ADR-0008): the cursor becomes a ray in scene space for the edit controller,

@@ -731,10 +731,12 @@ namespace f101::cad
 		{
 			return Status::success();
 		}
-		// Only where it moves or grows: a finish change never fails because of a joint made after the opening.
+		// Only where what it takes moves or grows (a pocket counts, ADR-0014): a finish change never fails because of a
+		// joint made after the opening.
 		const std::optional<Wall>& beforeWall = transaction.walls.front().before;
 		const Opening* previous = beforeWall ? beforeWall->findOpening(opening) : nullptr;
-		if (previous && previous->offsetMm == checked->offsetMm && previous->widthMm == checked->widthMm)
+		const AxisSpan taken = occupiedSpan(*checked);
+		if (previous && occupiedSpan(*previous) == taken)
 		{
 			return Status::success();
 		}
@@ -749,11 +751,12 @@ namespace f101::cad
 		}
 		for (const AxisSpan& span : obstructions(level, after))
 		{
-			if (checked->offsetMm < span.toMm && checked->offsetMm + checked->widthMm > span.fromMm)
+			if (taken.fromMm < span.toMm && taken.toMm > span.fromMm)
 			{
-				return Error{ErrorCode::OutOfRange, std::string(checked->kind == OpeningKind::Door ? "The door" : "The window") +
-					" runs into a wall joined to this one (" + std::to_string(span.fromMm) + " to " + std::to_string(span.toMm) +
-					" mm along it)"};
+				const bool hole = checked->offsetMm < span.toMm && checked->offsetMm + checked->widthMm > span.fromMm;
+				return Error{ErrorCode::OutOfRange, std::string(!hole ? "The sliding door's pocket" :
+					checked->kind == OpeningKind::Door ? "The door" : "The window") + " runs into a wall joined to this one (" +
+					std::to_string(span.fromMm) + " to " + std::to_string(span.toMm) + " mm along it)"};
 			}
 		}
 		return Status::success();

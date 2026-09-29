@@ -412,6 +412,40 @@ void FFloor101DocumentToolsetSpec::Define()
 			UFloor101DocumentToolset::RemoveWall(Host.Id);
 		});
 
+		It("SetOpeningOperation sets how it opens; raises for a fixed door, a pocket over a joint and an unknown opening", [this]()
+		{
+			const FFloor101WallInfo Host = UFloor101DocumentToolset::AddWall(TEXT(""), 60000, 0, 66000, 0, 120, 2800);
+			const FFloor101WallInfo Tee = UFloor101DocumentToolset::AddWall(TEXT(""), 62000, 0, 62000, 3000, 100, 2800);
+			const FFloor101OpeningInfo Door = UFloor101DocumentToolset::AddOpening(Host.Id, EFloor101OpeningKind::Door, 2300, 800, 2100, 0);
+			TestTrue(TEXT("added closed, hinged at its start"), Door.Operation == EFloor101OpeningOperation::Hinged &&
+				Door.Hinge == EFloor101OpeningEnd::Start && Door.OpenPercent == 0);
+			const FFloor101OpeningInfo Open = UFloor101DocumentToolset::SetOpeningOperation(Host.Id, Door.Id,
+				EFloor101OpeningOperation::DoubleHinged, EFloor101OpeningEnd::Start, EFloor101WallSide::Right, 45);
+			TestTrue(TEXT("double, towards the right face, 45 % open"), Open.Operation == EFloor101OpeningOperation::DoubleHinged &&
+				Open.OpensTo == EFloor101WallSide::Right && Open.OpenPercent == 45);
+			TestEqual(TEXT("one undoable step"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change opening")));
+			ExpectRaises(TEXT("A door cannot be fixed"), [&Host, &Door]
+			{
+				UFloor101DocumentToolset::SetOpeningOperation(Host.Id, Door.Id, EFloor101OpeningOperation::Fixed, EFloor101OpeningEnd::Start,
+					EFloor101WallSide::Left, 0);
+			});
+			ExpectRaises(TEXT("pocket runs into a wall joined to this one"), [&Host, &Door]
+			{
+				UFloor101DocumentToolset::SetOpeningOperation(Host.Id, Door.Id, EFloor101OpeningOperation::Sliding, EFloor101OpeningEnd::Start,
+					EFloor101WallSide::Left, 0);
+			});
+			const FFloor101OpeningInfo Sliding = UFloor101DocumentToolset::SetOpeningOperation(Host.Id, Door.Id,
+				EFloor101OpeningOperation::Sliding, EFloor101OpeningEnd::End, EFloor101WallSide::Left, 100);
+			TestTrue(TEXT("sliding into a pocket at its end"), Sliding.Operation == EFloor101OpeningOperation::Sliding && Sliding.Hinge == EFloor101OpeningEnd::End);
+			ExpectRaises(TEXT("no such opening"), [&Host]
+			{
+				UFloor101DocumentToolset::SetOpeningOperation(Host.Id, TEXT("00000000-0000-0000-0000-0000000000ff"),
+					EFloor101OpeningOperation::Hinged, EFloor101OpeningEnd::Start, EFloor101WallSide::Left, 0);
+			});
+			UFloor101DocumentToolset::RemoveWall(Tee.Id);
+			UFloor101DocumentToolset::RemoveWall(Host.Id);
+		});
+
 		It("RemoveWall raises on an unknown id", [this]()
 		{
 			ExpectRaises(TEXT("cannot remove wall"),

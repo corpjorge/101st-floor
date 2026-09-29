@@ -148,9 +148,11 @@ namespace f101::scene
 		// Walls (with their node ids and styles), joint fills, room floors and slabs of a project, level by level: joins
 		// and rooms never mix levels, and each level's geometry is lifted to its elevation. `activeLevel` (with
 		// `showAll` false) hides the levels above it and its own slabs and dims the levels below it. Each section gets its
-		// finish (ADR-0012); the floor of `selectedRoom` is Selected.
+		// finish (ADR-0012); the floor of `selectedRoom` is Selected. `symbols`: door swings on the floors of the levels
+		// that are not dimmed (ADR-0014), last.
 		Scene compileProject(const cad::Project& project, const std::vector<SceneNodeId>& wallIds,
-			const std::vector<NodeStyle>& wallStyles, const cad::LevelId& activeLevel, bool showAll, const std::string& selectedRoom)
+			const std::vector<NodeStyle>& wallStyles, const cad::LevelId& activeLevel, bool showAll, const std::string& selectedRoom,
+			bool symbols)
 		{
 			const std::vector<LevelGroup> groups = levelGroups(project);
 			std::optional<std::size_t> active;
@@ -164,6 +166,7 @@ namespace f101::scene
 			std::vector<SceneNode> floors;
 			std::vector<SceneNode> slabs;
 			std::vector<SceneNode> openings;
+			std::vector<SceneNode> swings;
 			Scene scene;
 			for (std::size_t groupIndex = 0; groupIndex < groups.size(); ++groupIndex)
 			{
@@ -227,6 +230,24 @@ namespace f101::scene
 							frame);
 						carpentry.contentHash = hashNode(carpentry.mesh, carpentry.finishes);
 						carpentry.style = node.style; // with its wall: selected, previewed, dimmed
+						if (symbols && !context)
+						{
+							SceneNode swing;
+							swing.mesh = geometry::buildOpeningSymbolMesh(wall, joins.footprints[k], opening);
+							if (!swing.mesh.sections.empty())
+							{
+								swing.id = SceneNodeId{carpentry.id.value + "/swing"};
+								swing.sourceKind = SourceKind::Opening;
+								swing.sourceId = carpentry.sourceId;
+								swing.level = group.level;
+								swing.name = "Swing " + carpentry.sourceId.substr(0, 8);
+								translateZ(swing.mesh, dz);
+								swing.finishes = sectionFinishes(swing.mesh, {}, cad::DefaultWallFinish);
+								swing.contentHash = hashNode(swing.mesh, swing.finishes);
+								swing.style = NodeStyle::Symbol;
+								swings.push_back(std::move(swing));
+							}
+						}
 						openings.push_back(std::move(carpentry));
 					}
 					wallNodes[index] = std::move(node);
@@ -283,7 +304,7 @@ namespace f101::scene
 				}
 			}
 
-			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size());
+			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size() + swings.size());
 			for (std::optional<SceneNode>& node : wallNodes)
 			{
 				if (node)
@@ -291,7 +312,7 @@ namespace f101::scene
 					scene.nodes.push_back(std::move(*node));
 				}
 			}
-			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs, &openings})
+			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs, &openings, &swings})
 			{
 				for (SceneNode& node : *group)
 				{
@@ -309,7 +330,8 @@ namespace f101::scene
 		{
 			ids.push_back(wallBodyNodeId(wall.id));
 		}
-		return compileProject(project, ids, std::vector<NodeStyle>(project.walls.size(), NodeStyle::Normal), cad::LevelId(), true, std::string());
+		return compileProject(project, ids, std::vector<NodeStyle>(project.walls.size(), NodeStyle::Normal), cad::LevelId(), true, std::string(),
+			false);
 	}
 
 	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay)
@@ -345,7 +367,7 @@ namespace f101::scene
 			styles.push_back(NodeStyle::Preview);
 		}
 
-		Scene scene = compileProject(previewed, ids, styles, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom);
+		Scene scene = compileProject(previewed, ids, styles, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom, true);
 		// Handles stand on the level being edited.
 		const double markerElevation = static_cast<double>(cad::levelElevationMm(project, overlay.activeLevel));
 		for (std::size_t index = 0; index < overlay.markers.size(); ++index)

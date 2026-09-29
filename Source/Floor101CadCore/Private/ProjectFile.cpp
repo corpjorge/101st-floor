@@ -140,6 +140,49 @@ namespace f101::cad
 				}
 				opening.finish = finish->get<std::string>();
 			}
+			// Schema 6 (ADR-0014). Older files had closed doors and fixed windows: that is what their openings become.
+			opening.operation = opening.kind == OpeningKind::Door ? OpeningOperation::Hinged : OpeningOperation::Fixed;
+			if (const auto operation = object.find("operation"); operation != object.end())
+			{
+				bool known = false;
+				for (const OpeningOperation candidate : {OpeningOperation::Hinged, OpeningOperation::DoubleHinged,
+						 OpeningOperation::Sliding, OpeningOperation::Fixed})
+				{
+					if (operation->is_string() && operation->get_ref<const std::string&>() == operationName(candidate))
+					{
+						opening.operation = candidate;
+						known = true;
+					}
+				}
+				if (!known)
+				{
+					return formatError(where + ".operation must be \"hinged\", \"double\", \"sliding\" or \"fixed\"");
+				}
+			}
+			if (const auto hinge = object.find("hinge"); hinge != object.end())
+			{
+				if (!hinge->is_string() || (*hinge != "start" && *hinge != "end"))
+				{
+					return formatError(where + ".hinge must be \"start\" or \"end\"");
+				}
+				opening.hinge = *hinge == "start" ? OpeningEnd::Start : OpeningEnd::End;
+			}
+			if (const auto opensTo = object.find("opensTo"); opensTo != object.end())
+			{
+				if (!opensTo->is_string() || (*opensTo != "left" && *opensTo != "right"))
+				{
+					return formatError(where + ".opensTo must be \"left\" or \"right\"");
+				}
+				opening.opensTo = *opensTo == "left" ? WallSide::Left : WallSide::Right;
+			}
+			if (const auto open = object.find("openPercent"); open != object.end())
+			{
+				if (!open->is_number_integer() || open->get<std::int64_t>() < 0 || open->get<std::int64_t>() > 100)
+				{
+					return formatError(where + ".openPercent must be an integer from 0 to 100");
+				}
+				opening.openPercent = static_cast<int>(open->get<std::int64_t>());
+			}
 			return opening;
 		}
 
@@ -348,6 +391,10 @@ namespace f101::cad
 					item["widthMm"] = opening.widthMm;
 					item["heightMm"] = opening.heightMm;
 					item["sillMm"] = opening.sillMm;
+					item["operation"] = std::string(operationName(opening.operation));
+					item["hinge"] = opening.hinge == OpeningEnd::Start ? "start" : "end";
+					item["opensTo"] = opening.opensTo == WallSide::Left ? "left" : "right";
+					item["openPercent"] = opening.openPercent;
 					if (!opening.finish.empty())
 					{
 						item["finish"] = opening.finish;

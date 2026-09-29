@@ -59,7 +59,7 @@ TEST_CASE("writes the documented, deterministic format")
 	CHECK(writeProjectJson(project) ==
 		"{\n"
 		"  \"format\": \"101st-floor-project\",\n"
-		"  \"schemaVersion\": 5,\n"
+		"  \"schemaVersion\": 6,\n"
 		"  \"units\": \"mm\",\n"
 		"  \"levels\": [\n"
 		"    {\n"
@@ -125,7 +125,7 @@ TEST_CASE("rejects files that are not valid 101st Floor projects")
 
 TEST_CASE("a project from a newer schema version is refused, not misread")
 {
-	CHECK(readError(R"({"format":"101st-floor-project","schemaVersion":6,"units":"mm","walls":[]})") == ErrorCode::InvalidArgument);
+	CHECK(readError(R"({"format":"101st-floor-project","schemaVersion":7,"units":"mm","walls":[]})") == ErrorCode::InvalidArgument);
 }
 
 TEST_CASE("millimetres must be integers inside the model range")

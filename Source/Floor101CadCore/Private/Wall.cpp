@@ -2,6 +2,7 @@
 
 #include "F101/Cad/Units.h"
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -19,11 +20,30 @@ namespace f101::cad
 			return std::string(opening.kind == OpeningKind::Door ? "The door" : "The window");
 		}
 
+		// How it opens suits its kind, and how open it is shown is a percentage (ADR-0014).
+		Status validateOperation(const Opening& opening)
+		{
+			if (opening.kind == OpeningKind::Door && opening.operation == OpeningOperation::Fixed)
+			{
+				return Error{ErrorCode::InvalidArgument, "A door cannot be fixed"};
+			}
+			if (opening.openPercent < 0 || opening.openPercent > 100)
+			{
+				return Error{ErrorCode::OutOfRange, describe(opening) + " is open from 0 to 100 %"};
+			}
+			if (opening.operation == OpeningOperation::Fixed && opening.openPercent != 0)
+			{
+				return Error{ErrorCode::InvalidArgument, "A fixed window does not open"};
+			}
+			return Status::success();
+		}
+
 		Status validateOpenings(const Wall& wall)
 		{
 			// Openings must fit the axis length rounded down to whole millimetres.
 			const auto length = static_cast<std::int64_t>(std::floor(wall.lengthMm()));
-			std::int64_t previousEnd = 0;
+			std::int64_t previousEnd = 0;   // end of the previous hole
+			std::int64_t previousTaken = 0; // furthest end of what the previous openings take (pockets included)
 			for (std::size_t index = 0; index < wall.openings.size(); ++index)
 			{
 				const Opening& opening = wall.openings[index];
@@ -47,11 +67,28 @@ namespace f101::cad
 					return Error{ErrorCode::OutOfRange, describe(opening) + " must stay below the top of the wall (" +
 						std::to_string(wall.heightMm) + " mm)"};
 				}
+				if (Status valid = validateOperation(opening); !valid)
+				{
+					return valid;
+				}
+				const AxisSpan taken = occupiedSpan(opening);
+				if (taken.fromMm < 0 || taken.toMm > length)
+				{
+					return Error{ErrorCode::OutOfRange, "The sliding door needs " + std::to_string(opening.widthMm) +
+						" mm of wall beside it for its pocket"};
+				}
 				if (index > 0 && opening.offsetMm < previousEnd)
 				{
 					return Error{ErrorCode::InvalidArgument, describe(opening) + " overlaps another opening"};
 				}
+				if (index > 0 && taken.fromMm < previousTaken)
+				{
+					return Error{ErrorCode::InvalidArgument, opening.offsetMm < previousTaken
+						? describe(opening) + " is in the pocket of a sliding door"
+						: std::string("The sliding door's pocket overlaps another opening")};
+				}
 				previousEnd = opening.offsetMm + opening.widthMm;
+				previousTaken = std::max(previousTaken, taken.toMm);
 			}
 			return Status::success();
 		}
@@ -60,6 +97,34 @@ namespace f101::cad
 	std::string_view kindName(OpeningKind kind)
 	{
 		return kind == OpeningKind::Door ? "door" : "window";
+	}
+
+	std::string_view operationName(OpeningOperation operation)
+	{
+		switch (operation)
+		{
+		case OpeningOperation::DoubleHinged: return "double";
+		case OpeningOperation::Sliding: return "sliding";
+		case OpeningOperation::Fixed: return "fixed";
+		default: return "hinged";
+		}
+	}
+
+	AxisSpan occupiedSpan(const Opening& opening)
+	{
+		AxisSpan span{opening.offsetMm, opening.offsetMm + opening.widthMm};
+		if (opening.kind == OpeningKind::Door && opening.operation == OpeningOperation::Sliding)
+		{
+			if (opening.hinge == OpeningEnd::Start)
+			{
+				span.fromMm -= opening.widthMm;
+			}
+			else
+			{
+				span.toMm += opening.widthMm;
+			}
+		}
+		return span;
 	}
 
 	Status validateWall(const Wall& wall)

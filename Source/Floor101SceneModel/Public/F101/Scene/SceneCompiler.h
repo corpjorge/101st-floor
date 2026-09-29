@@ -39,6 +39,8 @@ namespace f101::scene
 
 	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls are Preview (new ones
 	// get the ids "preview/wall/<index>"), the selected wall is Selected, and markers are "marker/<index>" (Handle).
+	// It also draws the swing of each hinged or double door on the floor of the levels shown undimmed
+	// ("<wall>/opening/<opening>/swing", Symbol; ADR-0014), after the carpentry: an editing aid exporters never see.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ViewOverlay& overlay);
 
 	// FNV-1a 64 over everything a consumer renders (positions, normals, uvs, sections).

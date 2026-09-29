@@ -61,7 +61,7 @@ pasa cuando un hueco invade la unión con otro muro y cómo se edita un hueco co
 ## Consecuencias
 - Las puertas se ven siempre cerradas, con la manilla en el lado del final del hueco; no hay sentido de apertura,
   batientes ni perfiles moldurados. Un tipo de carpintería (abatible, corredera, fija) podrá añadirse al hueco sin romper
-  el esquema 5.
+  el esquema 5. (MVP 7: hecho en ADR-0014, esquema 6.)
 - El vidrio no refracta ni se elige por hueco (un solo id de vidrio). La translucidez tiene coste, acotado a los vidrios.
 - La comprobación de uniones actúa al editar el hueco: editar un muro no se rechaza por los huecos de otros. Un hueco
   que acaba en un inglete se recorta; uno que acaba bajo un muro en T se mantiene hasta que se edita.

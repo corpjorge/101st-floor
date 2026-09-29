@@ -21,6 +21,7 @@ namespace
 		case f101::scene::NodeStyle::Preview: return FLinearColor(0.22f, 0.58f, 1.0f);
 		case f101::scene::NodeStyle::Handle: return FLinearColor(1.0f, 0.85f, 0.1f);
 		case f101::scene::NodeStyle::Context: return FLinearColor(0.3f, 0.32f, 0.36f); // levels below the edited one
+		case f101::scene::NodeStyle::Symbol: return FLinearColor(0.02f, 0.03f, 0.05f); // plan symbols, e.g. door swings
 		default: return FLinearColor::White;
 		}
 	}
@@ -80,6 +81,8 @@ void AFloor101SceneNodeActor::ApplyNode(const f101::scene::SceneNode& Node)
 #endif
 
 	MeshComponent->SetMesh(Floor101::Conversion::ToDynamicMesh(Node.mesh));
+	// Symbols are drawn on the floor, not part of the building: they cast no shadow.
+	MeshComponent->SetCastShadow(Node.style != f101::scene::NodeStyle::Symbol);
 
 	// Normal nodes show the finish of each section, Context ones the same finishes darker; other view styles tint the
 	// whole node.

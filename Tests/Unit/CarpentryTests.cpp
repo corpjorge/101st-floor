@@ -138,10 +138,10 @@ TEST_CASE("door carpentry: frame in the hole, a closed leaf and a handle on each
 	CHECK(handles.min.y == doctest::Approx(-50.0));
 }
 
-TEST_CASE("window carpentry: frame with a bottom rail around a pane; wide windows get a mullion")
+TEST_CASE("fixed window carpentry: frame with a bottom rail around a pane; wide ones get a mullion")
 {
 	Wall wall = eastWall();
-	Opening window{OpeningId{Uuid{0, 9}}, OpeningKind::Window, 1000, 1200, 1200, 900};
+	Opening window{OpeningId{Uuid{0, 9}}, OpeningKind::Window, 1000, 1200, 1200, 900, {}, OpeningOperation::Fixed};
 	geometry::MeshData mesh = geometry::buildOpeningMesh(wall, geometry::plainFootprint(wall), window);
 	CHECK(triangles(mesh, geometry::carpentry_slots::Frame) == 4 * 12);
 	CHECK(triangles(mesh, geometry::carpentry_slots::Glass) == 12);

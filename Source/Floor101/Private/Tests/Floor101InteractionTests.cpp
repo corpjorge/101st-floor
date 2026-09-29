@@ -84,6 +84,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Page Up: level up"), Map(EKeys::PageUp) == Command::LevelUp);
 	TestTrue(TEXT("Page Down: level down"), Map(EKeys::PageDown) == Command::LevelDown);
 	TestTrue(TEXT("L: every level"), Map(EKeys::L) == Command::AllLevels);
+	TestTrue(TEXT("Space: flip the hinges"), Map(EKeys::SpaceBar) == Command::Flip);
 	TestTrue(TEXT("Backspace: backspace"), Map(EKeys::BackSpace) == Command::Backspace);
 	TestTrue(TEXT("Ctrl+Z: undo"), Map(EKeys::Z, true) == Command::Undo);
 	TestTrue(TEXT("Ctrl+Shift+Z: redo"), Map(EKeys::Z, true, true) == Command::Redo);
@@ -464,6 +465,48 @@ bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 	(void)Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(5000.0, 30.0)); });
 	TestEqual(TEXT("not moved"), Document->GetDocument().project().findWall(Host)->findOpening(Window)->offsetMm, int64(3850));
 	TestTrue(TEXT("still selected"), Document->GetEditController().selectedOpening().has_value());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OpeningTypesInteractionTest, "Floor101.Interaction.OpeningTypes", TestFlags)
+bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document))
+	{
+		return false;
+	}
+	const f101::cad::WallId Host = Document->GetMutableDocument().addWall({0, 0}, {6000, 0}, 120, 2800).value();
+
+	// The door tool, pointing at the south half of the wall: the door opens south; Space puts its hinges at its end.
+	(void)Document->Edit([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Door); return f101::Status::success(); });
+	Document->UpdatePointer(Down(3000.0, -40.0));
+	TestTrue(TEXT("Space"), Document->Edit([](EditController& Editor) { return Editor.flip(); }).ok());
+	TestTrue(TEXT("click places it"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(3000.0, -40.0)); }).ok());
+	const f101::cad::Opening Placed = Document->GetDocument().project().findWall(Host)->openings.front();
+	TestTrue(TEXT("opens south, hinged at its end"), Placed.opensTo == f101::cad::WallSide::Right && Placed.hinge == f101::cad::OpeningEnd::End);
+
+	// Selected: shown 100 % open, its leaf stands south of the wall (Unreal +Y) in the same actor; its swing is drawn.
+	(void)Document->Edit([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Select); return f101::Status::success(); });
+	TestTrue(TEXT("select it"), Document->Edit([Host, &Placed](EditController& Editor) { return Editor.selectOpening(Host, Placed.id); }).ok());
+	const FString NodeId = UTF8_TO_TCHAR((f101::cad::toString(Host) + "/opening/" + f101::cad::toString(Placed.id)).c_str());
+	const AFloor101SceneNodeActor* Carpentry = FindNode(TestWorld.World, NodeId);
+	if (!TestNotNull(TEXT("carpentry actor"), Carpentry) || !TestNotNull(TEXT("swing symbol"), FindNode(TestWorld.World, NodeId + TEXT("/swing"))))
+	{
+		return false;
+	}
+	TestEqual(TEXT("closed: inside the wall"), Carpentry->GetMeshBounds().Max.Y, 5.0, 1e-6);
+	TestTrue(TEXT("100 % open"), Document->Edit([](EditController& Editor) { return Editor.setOpeningOpenPercent("100"); }).ok());
+	TestTrue(TEXT("same actor"), FindNode(TestWorld.World, NodeId) == Carpentry);
+	TestEqual(TEXT("open south: 81.4 cm out"), Carpentry->GetMeshBounds().Max.Y, 81.4, 1e-6);
+
+	// A sliding door leaves no swing; a window cannot become a door's type it does not have, and a door cannot be fixed.
+	TestTrue(TEXT("sliding"), Document->Edit([](EditController& Editor) { return Editor.setOpeningOperation(f101::cad::OpeningOperation::Sliding); }).ok());
+	TestNull(TEXT("no swing for a sliding door"), FindNode(TestWorld.World, NodeId + TEXT("/swing")));
+	AddExpectedMessagePlain(TEXT("A door cannot be fixed"), ELogVerbosity::Warning);
+	TestFalse(TEXT("fixed door refused"), Document->Edit([](EditController& Editor) { return Editor.setOpeningOperation(f101::cad::OpeningOperation::Fixed); }).ok());
+	TestTrue(TEXT("the refusal reaches the status bar"), Document->IsStatusError());
 	return true;
 }
 

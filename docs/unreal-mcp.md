@@ -55,7 +55,8 @@ Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetW
 `MoveCorner` (mueve todos los extremos de una esquina), `GetRooms` (habitaciones con área neta en m², muros y suelo),
 `AddOpening`/`SetOpening`/`RemoveOpening` (puertas y ventanas: posición desde el inicio del muro, ancho, alto,
 antepecho; `GetWalls` las lista en `Openings`; fallan si el hueco pisa la unión con otro muro, ADR-0013),
-`SetOpeningFinish` (acabado de la carpintería; `GetFinishes` marca los válidos con `bForCarpentry` e informa `Opacity`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
+`SetOpeningFinish` (acabado de la carpintería; `GetFinishes` marca los válidos con `bForCarpentry` e informa `Opacity`),
+`SetOpeningOperation` (cómo abre, ADR-0014: operación, bisagras, cara y apertura; los huecos lo informan), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
 (vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`
@@ -98,6 +99,13 @@ puerta en 1500 mm rechazada ("The door runs into a wall joined to this one (1950
 3000 mm → `SetOpeningFinish("wood-oak")`; `brick-red` rechazado ("is not for doors and window frames") → `Undo` =
 `Change opening` (acabado vacío otra vez) → `SaveProject` con esquema 5 y `"finish": "aluminium-anthracite"` → 3
 actores (2 muros y la carpintería) → `RemoveWall` × 2.
+
+Verificado (MVP 7, por el transporte MCP): `OpenProject` de un archivo de esquema 6 → los 6 huecos con su operación,
+bisagras, cara y apertura; 2 actores de símbolo (las dos puertas abatibles) → `AddOpening` (abatible, bisagras al
+inicio, cerrada) junto a una T → `SetOpeningOperation(Fixed)` rechazado ("A door cannot be fixed"); corredera hacia la
+T rechazada ("The sliding door's pocket runs into a wall joined to this one (1950 to 2050 mm along it)"); corredera
+hacia el otro lado aceptada → `Undo` = `Change opening` → `SaveProject` con esquema 6. `CaptureViewport` mostró el arco
+de una puerta abierta hacia fuera sobre el suelo exterior.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

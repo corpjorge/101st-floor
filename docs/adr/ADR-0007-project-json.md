@@ -42,6 +42,8 @@ compila sin excepciones (ADR-0002), y los milímetros deben leerse de forma exac
   solo si hay alguno.
   **Esquema 5 (MVP 6, ADR-0013):** `finish` (acabado de la carpintería) en cada hueco que lo tenga; los esquemas
   anteriores se leen con la carpintería por defecto.
+  **Esquema 6 (MVP 7, ADR-0014):** `operation`, `hinge`, `opensTo` y `openPercent` en cada hueco; los esquemas anteriores
+  se leen como puertas abatibles cerradas y ventanas fijas.
 
 ## Verificación
 `Tests/Unit/ProjectFileTests.cpp`: salida exacta documentada, ida y vuelta sin pérdida (incluidos ±999.999.999 mm),

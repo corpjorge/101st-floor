@@ -13,8 +13,9 @@ namespace f101::cad
 {
 	inline constexpr std::string_view ProjectFormatName = "101st-floor-project";
 	// 1: walls. 2: walls with openings (doors, windows). 3: levels, every wall on one (ADR-0011). 4: finishes of wall
-	// faces and rooms (ADR-0012). 5: finishes of door and window carpentry (ADR-0013).
-	inline constexpr int ProjectSchemaVersion = 5;
+	// faces and rooms (ADR-0012). 5: finishes of door and window carpentry (ADR-0013). 6: how each opening opens:
+	// operation, hinge, opensTo, openPercent (ADR-0014); older openings are read as hinged doors and fixed windows.
+	inline constexpr int ProjectSchemaVersion = 6;
 
 	// Files before schema 3 have no levels: their walls are read onto one level with this id
 	// (f1010000-0000-4000-8000-000000000001), as tall as the tallest wall so the derived slabs stay inside the walls.

@@ -43,6 +43,7 @@ namespace f101::scene
 		Preview,
 		Handle,
 		Context, // a level below the one being edited: shown dimmed, for reference
+		Symbol,  // plan annotation (e.g. a door swing on the floor): a dark line that casts no shadow
 	};
 
 	struct SceneNode

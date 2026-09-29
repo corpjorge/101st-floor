@@ -8,6 +8,12 @@
 #include "Floor101DocumentSubsystem.h"
 #include "Kismet/KismetSystemLibrary.h"
 
+// The toolset's operations mirror the core's, value for value.
+static_assert(static_cast<int>(EFloor101OpeningOperation::Hinged) == static_cast<int>(f101::cad::OpeningOperation::Hinged) &&
+	static_cast<int>(EFloor101OpeningOperation::DoubleHinged) == static_cast<int>(f101::cad::OpeningOperation::DoubleHinged) &&
+	static_cast<int>(EFloor101OpeningOperation::Sliding) == static_cast<int>(f101::cad::OpeningOperation::Sliding) &&
+	static_cast<int>(EFloor101OpeningOperation::Fixed) == static_cast<int>(f101::cad::OpeningOperation::Fixed));
+
 namespace
 {
 	void RaiseError(const FString& Message)
@@ -96,7 +102,39 @@ namespace
 		Info.HeightMm = Opening.heightMm;
 		Info.SillMm = Opening.sillMm;
 		Info.Finish = ToFString(Opening.finish);
+		Info.Operation = static_cast<EFloor101OpeningOperation>(Opening.operation); // same order
+		Info.Hinge = Opening.hinge == f101::cad::OpeningEnd::Start ? EFloor101OpeningEnd::Start : EFloor101OpeningEnd::End;
+		Info.OpensTo = Opening.opensTo == f101::cad::WallSide::Left ? EFloor101WallSide::Left : EFloor101WallSide::Right;
+		Info.OpenPercent = Opening.openPercent;
 		return Info;
+	}
+
+	// Applies `Edit` to a copy of an opening and changes it (one undoable step); raises and returns empty on failure.
+	FFloor101OpeningInfo ChangeOpening(const FString& WallId, const FString& OpeningId, TFunctionRef<void(f101::cad::Opening&)> Edit)
+	{
+		UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+		f101::cad::WallId Wall;
+		f101::cad::OpeningId Id;
+		if (!Subsystem || !ParseWallId(WallId, Wall) || !ParseOpeningId(OpeningId, Id))
+		{
+			return {};
+		}
+		const f101::cad::Wall* Host = Subsystem->GetDocument().project().findWall(Wall);
+		const f101::cad::Opening* Current = Host ? Host->findOpening(Id) : nullptr;
+		if (!Current)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change opening %s: no such opening in wall %s"), *OpeningId, *WallId));
+			return {};
+		}
+		f101::cad::Opening Changed = *Current;
+		Edit(Changed);
+		const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(f101::cad::ChangeOpeningCommand{Wall, Changed});
+		if (!Applied)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change opening %s: %s"), *OpeningId, *ToFString(Applied.error().message)));
+			return {};
+		}
+		return ToInfo(*Subsystem->GetDocument().project().findWall(Wall)->findOpening(Id));
 	}
 
 	FFloor101WallInfo ToInfo(const f101::cad::Wall& Wall, const UFloor101DocumentSubsystem& Subsystem)
@@ -375,59 +413,30 @@ FFloor101OpeningInfo UFloor101DocumentToolset::AddOpening(const FString& WallId,
 FFloor101OpeningInfo UFloor101DocumentToolset::SetOpening(const FString& WallId, const FString& OpeningId, int64 OffsetMm,
 	int64 WidthMm, int64 HeightMm, int64 SillMm)
 {
-	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
-	f101::cad::WallId Wall;
-	f101::cad::OpeningId Id;
-	if (!Subsystem || !ParseWallId(WallId, Wall) || !ParseOpeningId(OpeningId, Id))
+	return ChangeOpening(WallId, OpeningId, [&](f101::cad::Opening& Opening)
 	{
-		return {};
-	}
-	const f101::cad::Wall* Host = Subsystem->GetDocument().project().findWall(Wall);
-	const f101::cad::Opening* Current = Host ? Host->findOpening(Id) : nullptr;
-	if (!Current)
-	{
-		RaiseError(FString::Printf(TEXT("cannot change opening %s: no such opening in wall %s"), *OpeningId, *WallId));
-		return {};
-	}
-	f101::cad::Opening Changed = *Current;
-	Changed.offsetMm = OffsetMm;
-	Changed.widthMm = WidthMm;
-	Changed.heightMm = HeightMm;
-	Changed.sillMm = SillMm;
-	const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(f101::cad::ChangeOpeningCommand{Wall, Changed});
-	if (!Applied)
-	{
-		RaiseError(FString::Printf(TEXT("cannot change opening %s: %s"), *OpeningId, *ToFString(Applied.error().message)));
-		return {};
-	}
-	return ToInfo(*Subsystem->GetDocument().project().findWall(Wall)->findOpening(Id));
+		Opening.offsetMm = OffsetMm;
+		Opening.widthMm = WidthMm;
+		Opening.heightMm = HeightMm;
+		Opening.sillMm = SillMm;
+	});
 }
 
 FFloor101OpeningInfo UFloor101DocumentToolset::SetOpeningFinish(const FString& WallId, const FString& OpeningId, const FString& FinishId)
 {
-	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
-	f101::cad::WallId Wall;
-	f101::cad::OpeningId Id;
-	if (!Subsystem || !ParseWallId(WallId, Wall) || !ParseOpeningId(OpeningId, Id))
+	return ChangeOpening(WallId, OpeningId, [&FinishId](f101::cad::Opening& Opening) { Opening.finish = TCHAR_TO_UTF8(*FinishId); });
+}
+
+FFloor101OpeningInfo UFloor101DocumentToolset::SetOpeningOperation(const FString& WallId, const FString& OpeningId,
+	EFloor101OpeningOperation Operation, EFloor101OpeningEnd Hinge, EFloor101WallSide OpensTo, int32 OpenPercent)
+{
+	return ChangeOpening(WallId, OpeningId, [&](f101::cad::Opening& Opening)
 	{
-		return {};
-	}
-	const f101::cad::Wall* Host = Subsystem->GetDocument().project().findWall(Wall);
-	const f101::cad::Opening* Current = Host ? Host->findOpening(Id) : nullptr;
-	if (!Current)
-	{
-		RaiseError(FString::Printf(TEXT("cannot change opening %s: no such opening in wall %s"), *OpeningId, *WallId));
-		return {};
-	}
-	f101::cad::Opening Changed = *Current;
-	Changed.finish = TCHAR_TO_UTF8(*FinishId);
-	const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(f101::cad::ChangeOpeningCommand{Wall, Changed});
-	if (!Applied)
-	{
-		RaiseError(FString::Printf(TEXT("cannot change opening %s: %s"), *OpeningId, *ToFString(Applied.error().message)));
-		return {};
-	}
-	return ToInfo(*Subsystem->GetDocument().project().findWall(Wall)->findOpening(Id));
+		Opening.operation = static_cast<f101::cad::OpeningOperation>(Operation); // same order
+		Opening.hinge = Hinge == EFloor101OpeningEnd::Start ? f101::cad::OpeningEnd::Start : f101::cad::OpeningEnd::End;
+		Opening.opensTo = OpensTo == EFloor101WallSide::Left ? f101::cad::WallSide::Left : f101::cad::WallSide::Right;
+		Opening.openPercent = OpenPercent;
+	});
 }
 
 void UFloor101DocumentToolset::RemoveOpening(const FString& WallId, const FString& OpeningId)

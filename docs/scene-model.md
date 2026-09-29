@@ -32,6 +32,9 @@ el futuro.
   nuevo; el arrastre de un hueco, una vista previa del anfitrión con el hueco movido (y su carpintería). Los muros
   inválidos se omiten.
   `ViewOverlay::selectedRoom`: el suelo de esa habitación lleva `Selected`.
+  Símbolos (ADR-0014): la escena de edición añade, al final, el arco de cada puerta abatible o de dos hojas de las plantas
+  no atenuadas (`<wall uuid>/opening/<opening uuid>/swing`, `sourceKind` `Opening`, estilo `Symbol`); la de exportación
+  no los tiene.
   `ViewOverlay::activeLevel` (ADR-0011): sin `showAllLevels`, las plantas de encima no se compilan, la activa no
   muestra sus forjados y las de abajo llevan estilo `Context`; las asas van en la cota de la planta activa.
   `compileScene(project)` no lleva overlay: es lo que usan los exportadores.
@@ -41,5 +44,5 @@ ejes (glTF: `(x, z, −y) / 1000`).
 
 Tests: `Tests/Unit/SceneTests.cpp` (ID esperado, determinismo, el hash sigue a la geometría, borrado, vista previa unida
 al proyecto, sustitución por id, orden muros → uniones → suelos → forjados) y `LevelTests.cpp` (cotas, forjados, vista
-por planta), `FinishTests.cpp` (acabados por sección, hash, texturas) y `CarpentryTests.cpp` (nodos de carpintería,
-acabados, planta y estilo).
+por planta), `FinishTests.cpp` (acabados por sección, hash, texturas), `CarpentryTests.cpp` (nodos de carpintería,
+acabados, planta y estilo) y `OpeningTypeTests.cpp` (símbolos solo en la escena de edición y en la planta activa).

@@ -21,6 +21,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Carpintería (marco, hoja, manillas, vidrio) derivada de cada hueco; solo se guarda su acabado (`Opening::finish`).
   Los huecos no pueden pisar uniones (el `Document` recibe `WallObstructions` del Geometry Engine). Vidrio con
   `M_Floor101Glass`, generado igual. `project.json` esquema 5 (ADR-0013).
+- Tipos de hueco: operación, bisagras, cara y apertura % en `Opening`; las puertas correderas son empotradas y su
+  bolsillo (`occupiedSpan`) se valida como el hueco; los arcos de apertura solo existen en la escena de edición.
+  `project.json` esquema 6 (ADR-0014).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
