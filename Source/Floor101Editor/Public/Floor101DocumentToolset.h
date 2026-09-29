@@ -41,6 +41,10 @@ struct FFloor101FinishInfo
 	UPROPERTY()
 	bool bForCeilings = false;
 
+	/** Frames and leaves of doors and windows (SetOpeningFinish). */
+	UPROPERTY()
+	bool bForCarpentry = false;
+
 	/** Base colour (sRGB). */
 	UPROPERTY()
 	FColor Color = FColor::White;
@@ -48,6 +52,10 @@ struct FFloor101FinishInfo
 	/** 0 mirror .. 1 matte. */
 	UPROPERTY()
 	float Roughness = 0.0f;
+
+	/** 1 opaque; below 1 see-through (glass). */
+	UPROPERTY()
+	float Opacity = 1.0f;
 };
 
 /**
@@ -111,6 +119,10 @@ struct FFloor101OpeningInfo
 	/** From the floor to the bottom of the opening; 0 for doors. */
 	UPROPERTY()
 	int64 SillMm = 0;
+
+	/** Finish id of its frame and leaf; empty: the default. */
+	UPROPERTY()
+	FString Finish;
 };
 
 /**
@@ -307,7 +319,8 @@ public:
 	static TArray<FFloor101RoomInfo> GetRooms();
 
 	/**
-	 * Adds a door or window to a wall. It must fit the wall and not overlap another opening; doors have sill 0.
+	 * Adds a door or window to a wall. It must fit the wall, keep clear of the walls joined to it and not overlap another
+	 * opening; doors have sill 0.
 	 * @return The new opening.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
@@ -321,6 +334,14 @@ public:
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static FFloor101OpeningInfo SetOpening(const FString& WallId, const FString& OpeningId, int64 OffsetMm, int64 WidthMm,
 		int64 HeightMm, int64 SillMm);
+
+	/**
+	 * Sets the finish of a door or window's carpentry (frame and leaf).
+	 * @param FinishId A catalogue id that allows carpentry; empty restores the default.
+	 * @return The updated opening.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101OpeningInfo SetOpeningFinish(const FString& WallId, const FString& OpeningId, const FString& FinishId);
 
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveOpening(const FString& WallId, const FString& OpeningId);

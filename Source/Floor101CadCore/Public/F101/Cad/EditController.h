@@ -35,6 +35,8 @@ namespace f101::cad
 		Opening door{OpeningId{}, OpeningKind::Door, 0, 900, 2100, 0};
 		Opening window{OpeningId{}, OpeningKind::Window, 0, 1200, 1200, 900};
 		double openingToleranceMm = 150.0;
+		// Dragging an edge of a door or window never makes it narrower than this.
+		std::int64_t minOpeningWidthMm = 300;
 		// What the Paint mode applies.
 		FinishId paintFinish = "paint-sand";
 	};
@@ -71,8 +73,10 @@ namespace f101::cad
 	// Select mode: a click picks a wall (or clears the selection); dragging a handle of the selected wall moves that
 	// corner: every wall ending there follows (MoveJointCommand on release; MoveWallEndpointCommand for a free end).
 	// Wall mode: WallTool (click, move, type a length, Enter).
-	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid);
-	// a click adds it. In Select mode a click on a wall where it has an opening selects that opening.
+	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid) in the
+	// free stretch nearest to it, clear of the walls joined to its host and of its other openings (ADR-0013); a click adds
+	// it. In Select mode a click on a wall where it has an opening selects that opening; dragging the selected opening moves
+	// it along its wall, dragging one of its edge handles resizes it (one ChangeOpeningCommand on release).
 	// Paint mode: a click on a wall paints the face it hits (the side of the axis); elsewhere, the floor of the room under
 	// the pointer. In Select mode a click on a room floor (not on a wall) selects the room.
 	// Levels (ADR-0011): everything happens on the active level. Pointer rays are taken to that level's elevation, and
@@ -123,12 +127,15 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setOpeningHeight(std::string_view text);
 		FLOOR101CADCORE_API Status setOpeningSill(std::string_view text);
 		FLOOR101CADCORE_API Status setOpeningOffset(std::string_view text);
+		// Its carpentry (frame and leaf, ADR-0013); empty restores the default.
+		FLOOR101CADCORE_API Status setOpeningFinish(std::string_view finish);
 		// Door/Window mode: what a click would add (id nil); nullopt when the pointer is not over a wall that fits it.
 		const std::optional<OpeningRef>& openingPlacement() const { return placement; }
 
 		const WallTool& wallTool() const { return tool; }
 		const EditSettings& settings() const { return editSettings; }
-		bool isDragging() const { return drag.has_value(); }
+		bool isDragging() const { return drag.has_value() || openingDrag.has_value(); }
+		bool isDraggingOpening() const { return openingDrag.has_value(); }
 		// Last cursor position in plan: under the point where the pointer ray meets a wall, else where it meets the floor;
 		// nullopt when it meets neither (e.g. looking at the sky).
 		const std::optional<PlanPoint>& pointerOnPlan() const { return planPoint; }
@@ -164,6 +171,22 @@ namespace f101::cad
 		FLOOR101CADCORE_API EditView view() const;
 
 	private:
+		// A selected door or window being moved (Body) or resized (an edge) along its wall.
+		struct OpeningDrag
+		{
+			enum class Part
+			{
+				Body,
+				StartEdge,
+				EndEdge,
+			};
+
+			WallId wall;
+			Opening opening; // where it would go (the original until the pointer moves)
+			Part part = Part::Body;
+			double grab = 0.0; // pointer minus the dragged edge at the press, along the wall
+		};
+
 		struct EndpointDrag
 		{
 			WallId wall;
@@ -180,6 +203,10 @@ namespace f101::cad
 		Status changeOpening(std::string_view text, void (*apply)(Opening&, std::int64_t));
 		void updateDrag();
 		void updatePlacement();
+		void updateOpeningDrag();
+		std::int64_t gridMm() const;
+		// Where an opening of `wall` must not go: walls joined to it and its other openings (except `except`).
+		std::vector<AxisSpan> blockedSpans(const Project& levelWalls, const Wall& wall, const OpeningId& except) const;
 		bool isOpeningMode() const { return currentMode == EditMode::Door || currentMode == EditMode::Window; }
 		std::optional<PlanPoint> planPointOf(const Ray3& ray, const std::vector<WallId>& ignoreWalls) const;
 		// Pointer handling with a ray already in the active level's space.
@@ -200,6 +227,7 @@ namespace f101::cad
 		WallId selected;
 		OpeningId selectedOpeningId; // with `selected` as its wall
 		std::optional<EndpointDrag> drag;
+		std::optional<OpeningDrag> openingDrag;
 		std::optional<OpeningRef> placement;
 		std::optional<PlanPoint> planPoint;
 		bool allLevels = false;

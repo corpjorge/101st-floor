@@ -31,6 +31,7 @@ namespace f101::cad
 		std::int64_t widthMm = 0;
 		std::int64_t heightMm = 0;
 		std::int64_t sillMm = 0; // floor -> bottom of the opening
+		FinishId finish; // its frame and leaf (ADR-0013); empty: the default carpentry finish
 
 		friend bool operator==(const Opening&, const Opening&) = default;
 	};

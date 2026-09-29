@@ -34,11 +34,12 @@ namespace f101::scene
 	// `size` must be a power of two (at least 4).
 	FLOOR101SCENEMODEL_API FinishTexture buildFinishTexture(const cad::FinishInfo& finish, int size = 512);
 
-	// Everything a renderer needs to show a finish (SceneNode::finishes): roughness and colour texture. An id that is not in
-	// the catalogue gives flat magenta, so a missing finish shows instead of passing unnoticed.
+	// Everything a renderer needs to show a finish (SceneNode::finishes): roughness, opacity and colour texture. An id
+	// that is not in the catalogue gives flat magenta, so a missing finish shows instead of passing unnoticed.
 	struct FinishLook
 	{
 		double roughness = 0.85;
+		double opacity = 1.0; // less than 1: see-through (glass), for a translucent material
 		FinishTexture texture;
 	};
 

@@ -54,7 +54,8 @@ Con *tool search* activo (default, `bEnableToolSearch=true`) el servidor expone 
 Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetWallLength`, `SetWallThickness`,
 `MoveCorner` (mueve todos los extremos de una esquina), `GetRooms` (habitaciones con área neta en m², muros y suelo),
 `AddOpening`/`SetOpening`/`RemoveOpening` (puertas y ventanas: posición desde el inicio del muro, ancho, alto,
-antepecho; `GetWalls` las lista en `Openings`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
+antepecho; `GetWalls` las lista en `Openings`; fallan si el hueco pisa la unión con otro muro, ADR-0013),
+`SetOpeningFinish` (acabado de la carpintería; `GetFinishes` marca los válidos con `bForCarpentry` e informa `Opacity`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
 (vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`
@@ -90,6 +91,13 @@ Verificado (MVP 5, por el transporte MCP): `GetFinishes` → 11 acabados con sus
 "brick-red")` → poner `wood-oak` en una cara se rechaza ("The finish 'wood-oak' is not for walls") → `SetRoomFinish`
 (`tile-grey`, `concrete`) visible en `GetRooms` → `Undo` × 2 (`Change room finish`, `Change finish`) → `SaveProject`
 con `"right": "paint-sage"` en el muro.
+
+Verificado (MVP 6, por el transporte MCP): `GetFinishes` → carpintería `wood-oak`, `wood-walnut`, `lacquer-white`,
+`aluminium-anthracite`; translúcido `glass-clear` (0,18) → muro de 6 m con otro en T a 2 m → `AddOpening` de una
+puerta en 1500 mm rechazada ("The door runs into a wall joined to this one (1950 to 2050 mm along it)") → puerta en
+3000 mm → `SetOpeningFinish("wood-oak")`; `brick-red` rechazado ("is not for doors and window frames") → `Undo` =
+`Change opening` (acabado vacío otra vez) → `SaveProject` con esquema 5 y `"finish": "aluminium-anthracite"` → 3
+actores (2 muros y la carpintería) → `RemoveWall` × 2.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

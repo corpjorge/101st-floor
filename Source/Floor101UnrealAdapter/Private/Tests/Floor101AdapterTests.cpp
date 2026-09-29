@@ -288,4 +288,64 @@ bool FFloor101FinishesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CarpentryTest, "Floor101.Adapter.Carpentry", TestFlags)
+bool FFloor101CarpentryTest::RunTest(const FString& Parameters)
+{
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("finish library"), Library) || !TestNotNull(TEXT("generated glass material"), Library->GetGlassMaterial()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("glass is translucent"), Library->GetGlassMaterial()->GetBlendMode(), BLEND_Translucent);
+
+	// A wall with a window: its carpentry is a node of its own, the frame in lacquer and the pane in glass.
+	FTestWorld TestWorld;
+	f101::cad::Project Project;
+	const f101::cad::WallId WallId{f101::cad::Uuid{0, 1}};
+	f101::cad::Wall Wall{WallId, {0, 0}, {4000, 0}, 120, 2800};
+	const f101::cad::OpeningId WindowId{f101::cad::Uuid{0, 2}};
+	Wall.openings.push_back(f101::cad::Opening{WindowId, f101::cad::OpeningKind::Window, 1000, 1200, 1200, 900});
+	Project.walls.push_back(Wall);
+	const f101::scene::Scene Scene = f101::scene::compileScene(Project);
+	FFloor101SceneReconciler Reconciler(TestWorld.World);
+	Reconciler.Reconcile(Scene);
+	const f101::scene::SceneNode* Found = nullptr;
+	for (const f101::scene::SceneNode& Candidate : Scene.nodes)
+	{
+		if (Candidate.sourceKind == f101::scene::SourceKind::Opening)
+		{
+			Found = &Candidate;
+		}
+	}
+	AFloor101SceneNodeActor* Window = Found ? Reconciler.FindActor(Found->id) : nullptr;
+	if (!TestNotNull(TEXT("window actor"), Window))
+	{
+		return false;
+	}
+	const f101::scene::SceneNode& Node = *Found;
+	for (int32 Section = 0; Section < static_cast<int32>(Node.mesh.sections.size()); ++Section)
+	{
+		const FString Slot = UTF8_TO_TCHAR(Node.mesh.sections[Section].slot.c_str());
+		UMaterialInterface* Material = Window->GetMeshComponent()->GetMaterial(Section);
+		if (Slot == TEXT("glass"))
+		{
+			TestTrue(TEXT("pane in glass"), Material == Library->GetFinishMaterial(TEXT("glass-clear")));
+			TestEqual(TEXT("see-through"), Material->GetBlendMode(), BLEND_Translucent);
+			float Opacity = 1.0f;
+			TestTrue(TEXT("opacity set"), Material->GetScalarParameterValue(FHashedMaterialParameterInfo(UFloor101FinishLibrary::OpacityParameter), Opacity));
+			TestTrue(TEXT("mostly clear"), Opacity < 0.5f);
+		}
+		else
+		{
+			TestTrue(*FString::Printf(TEXT("%s in white lacquer"), *Slot), Material == Library->GetFinishMaterial(TEXT("lacquer-white")));
+			TestEqual(TEXT("opaque"), Material->GetBlendMode(), BLEND_Opaque);
+		}
+	}
+	const FBox Bounds = Window->GetMeshBounds();
+	TestEqual(TEXT("in the hole: 120 cm wide"), Bounds.GetSize().X, 120.0, Tolerance);
+	TestEqual(TEXT("from the sill (90 cm)"), Bounds.Min.Z, 90.0, Tolerance);
+	TestEqual(TEXT("7 cm deep frame"), Bounds.GetSize().Y, 7.0, Tolerance);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

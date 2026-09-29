@@ -42,14 +42,15 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 .\Scripts\Run.ps1                                     # app en ventana (-game) con la pared de referencia
 .\Scripts\CheckRendering.ps1 [-Demo]                  # validación de render (ver rendering-rtx.md)
 .\Scripts\RunEditorMcp.ps1 ; .\Scripts\CheckMcp.ps1   # editor + MCP (ver unreal-mcp.md)
-.\Scripts\GenerateAssets.ps1                          # regenera Content/Floor101 (material de los acabados) desde código
+.\Scripts\GenerateAssets.ps1                          # regenera Content/Floor101 (materiales de acabados y vidrio) desde código
 .\Scripts\Clean.ps1 [-IncludeSaved]                   # borra Binaries, Intermediate y DerivedDataCache
 ```
 `Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 1).
 
 ### Assets generados (`Content/`)
 `Content/` solo tiene lo que genera `.\Scripts\GenerateAssets.ps1` (commandlet `Floor101GenerateAssets`, editor
-headless): hoy `/Game/Floor101/Materials/M_Floor101Finish`, el material base de los acabados (ADR-0012). Se versiona en
+headless): hoy `/Game/Floor101/Materials/M_Floor101Finish`, el material base de los acabados (ADR-0012), y
+`M_Floor101Glass`, el vidrio translúcido (ADR-0013). Se versionan en
 Git (LFS) y se regenera tras cambiar el commandlet, con el editor cerrado y después de `Build.ps1`. Se cocina siempre
 (`DirectoriesToAlwaysCook` en `Config/DefaultGame.ini`).
 

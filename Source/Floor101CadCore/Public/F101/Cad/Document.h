@@ -227,6 +227,12 @@ namespace f101::cad
 		FLOOR101CADCORE_API Result<LevelId> addLevel(std::int64_t heightMm = DefaultLevelHeightMm,
 			std::int64_t slabThicknessMm = DefaultSlabThicknessMm);
 
+		// Openings added or changed must stay clear of the walls joined to their host (ADR-0013). The Geometry Engine
+		// provides the spans (geometry::makeWallObstructions); without it only the wall itself is checked.
+		void setWallObstructions(WallObstructions provider) { obstructions = std::move(provider); }
+		// Where `wall` of `levelWalls` must not have an opening; empty without a provider.
+		FLOOR101CADCORE_API std::vector<AxisSpan> openingObstructions(const Project& levelWalls, const Wall& wall) const;
+
 		// Returns a handle for unsubscribe().
 		FLOOR101CADCORE_API std::size_t subscribe(ChangeListener listener);
 		FLOOR101CADCORE_API void unsubscribe(std::size_t handle);
@@ -235,6 +241,8 @@ namespace f101::cad
 		Result<Transaction> buildTransaction(const Command& command);
 		void apply(const Transaction& transaction, bool forward);
 		void notify(const ChangeSet& changes) const;
+		// The opening of the (single-wall) transaction clear of the walls joined to its host.
+		Status checkOpeningClear(const Transaction& transaction, const OpeningId& opening) const;
 
 		Project model;
 		UuidSource newUuid;
@@ -242,6 +250,7 @@ namespace f101::cad
 		std::vector<Transaction> redoStack;
 		std::vector<std::pair<std::size_t, ChangeListener>> listeners;
 		std::size_t nextListenerHandle = 1;
+		WallObstructions obstructions;
 	};
 
 	// Checks a whole project: at least one level, every level and wall valid, every id unique, every wall on an existing

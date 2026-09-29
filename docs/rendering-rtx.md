@@ -38,8 +38,12 @@ Los valores replican lo que el asistente de proyectos de UE 5.8.3 escribe para u
 
 Para re-analizar un log sin relanzar el motor: `.\Scripts\CheckRendering.ps1 -AnalyzeLog <ruta>`.
 Con `-Demo` se carga la pared de referencia (`-F101Demo`), para validar también la geometría generada.
-Con la pared, además, `Finish material loaded` exige que el material de los acabados (`M_Floor101Finish`, ADR-0012)
-cargue: si faltara, las paredes caerían al material por defecto del motor y el check falla.
+Con la pared, además, `Finish material loaded` exige que carguen el material de los acabados (`M_Floor101Finish`,
+ADR-0012) y el del vidrio (`M_Floor101Glass`, ADR-0013): si faltara, las paredes caerían al material por defecto del
+motor (o los vidrios quedarían sin material) y el check falla.
+
+El vidrio es translúcido con iluminación por píxel (`TLM_SurfacePerPixelLighting`), para que refleje el cielo y el sol
+con Lumen; no proyecta sombra, así que la luz directa y la de Lumen entran por las ventanas. No hay refracción.
 
 El script cruza esos valores con mensajes propios del motor:
 

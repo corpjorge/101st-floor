@@ -1,5 +1,6 @@
 #include "F101/Scene/SceneCompiler.h"
 
+#include "F101/Geometry/CarpentryBuilder.h"
 #include "F101/Geometry/PolygonGeometry.h"
 #include "F101/Geometry/Rooms.h"
 #include "F101/Geometry/WallGeometryBuilder.h"
@@ -162,6 +163,7 @@ namespace f101::scene
 			std::vector<SceneNode> fills;
 			std::vector<SceneNode> floors;
 			std::vector<SceneNode> slabs;
+			std::vector<SceneNode> openings;
 			Scene scene;
 			for (std::size_t groupIndex = 0; groupIndex < groups.size(); ++groupIndex)
 			{
@@ -205,6 +207,28 @@ namespace f101::scene
 						cad::DefaultWallFinish);
 					node.contentHash = hashNode(node.mesh, node.finishes);
 					node.style = context && wallStyles[index] == NodeStyle::Normal ? NodeStyle::Context : wallStyles[index];
+					for (const cad::Opening& opening : wall.openings)
+					{
+						SceneNode carpentry;
+						carpentry.id = SceneNodeId{node.sourceId + "/opening/" + cad::toString(opening.id)};
+						carpentry.sourceKind = SourceKind::Opening;
+						carpentry.sourceId = cad::toString(opening.id);
+						carpentry.level = group.level;
+						carpentry.name = std::string(opening.kind == cad::OpeningKind::Door ? "Door " : "Window ") + carpentry.sourceId.substr(0, 8);
+						carpentry.mesh = geometry::buildOpeningMesh(wall, joins.footprints[k], opening);
+						if (carpentry.mesh.sections.empty())
+						{
+							continue;
+						}
+						translateZ(carpentry.mesh, dz);
+						const std::string_view frame = cad::resolveFinish(opening.finish, cad::Surface::Carpentry);
+						carpentry.finishes = sectionFinishes(carpentry.mesh,
+							{{geometry::carpentry_slots::Hardware, cad::HardwareFinish}, {geometry::carpentry_slots::Glass, cad::DefaultGlazingFinish}},
+							frame);
+						carpentry.contentHash = hashNode(carpentry.mesh, carpentry.finishes);
+						carpentry.style = node.style; // with its wall: selected, previewed, dimmed
+						openings.push_back(std::move(carpentry));
+					}
 					wallNodes[index] = std::move(node);
 				}
 				for (const geometry::JointFill& fill : joins.fills)
@@ -259,7 +283,7 @@ namespace f101::scene
 				}
 			}
 
-			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size());
+			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size());
 			for (std::optional<SceneNode>& node : wallNodes)
 			{
 				if (node)
@@ -267,7 +291,7 @@ namespace f101::scene
 					scene.nodes.push_back(std::move(*node));
 				}
 			}
-			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs})
+			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs, &openings})
 			{
 				for (SceneNode& node : *group)
 				{

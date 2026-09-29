@@ -278,4 +278,112 @@ namespace f101::geometry
 		}
 		return joins;
 	}
+
+	std::vector<cad::AxisSpan> wallObstructions(const cad::Project& levelWalls, const cad::Wall& wall)
+	{
+		const WallJoins joins = solveWallJoins(levelWalls);
+		const cad::PlanPoint start = toPlan(wall.start);
+		const cad::PlanPoint axis = axisDirection(wall);
+		const cad::PlanPoint left = leftOf(axis);
+		const double length = wall.lengthMm();
+		const double half = static_cast<double>(wall.thicknessMm) / 2.0;
+		auto along = [&](cad::PlanPoint p) { return dot2(sub(p, start), axis); };
+		auto across = [&](cad::PlanPoint p) { return dot2(sub(p, start), left); };
+
+		std::vector<std::pair<double, double>> spans;
+		// The ends, up to where both long faces start: mitres and cuts at other walls.
+		WallFootprint own = plainFootprint(wall);
+		for (std::size_t index = 0; index < levelWalls.walls.size(); ++index)
+		{
+			if (levelWalls.walls[index].id == wall.id)
+			{
+				own = joins.footprints[index];
+			}
+		}
+		const double faceStart = std::max(along(own.startLeft), along(own.startRight));
+		const double faceEnd = std::min(along(own.endLeft), along(own.endRight));
+		if (faceStart > 0.0)
+		{
+			spans.emplace_back(0.0, faceStart);
+		}
+		if (faceEnd < length)
+		{
+			spans.emplace_back(faceEnd, length);
+		}
+
+		// Other walls reaching into this wall's band (T joints, crossings, walls alongside): their footprint clipped to
+		// the band, as a span along the axis. Walls meeting at an end fall within the end spans.
+		const double band = half + 1.0; // a wall cut at this wall's face touches the band
+		for (std::size_t index = 0; index < levelWalls.walls.size(); ++index)
+		{
+			if (levelWalls.walls[index].id == wall.id)
+			{
+				continue;
+			}
+			const WallFootprint& other = joins.footprints[index];
+			std::vector<cad::PlanPoint> polygon; // (along, across)
+			for (const cad::PlanPoint& corner : {other.startRight, other.endRight, other.endLeft, other.startLeft})
+			{
+				polygon.push_back(cad::PlanPoint{along(corner), across(corner)});
+			}
+			for (const double sign : {1.0, -1.0})
+			{
+				// Keep sign * across <= band (Sutherland-Hodgman).
+				std::vector<cad::PlanPoint> clipped;
+				for (std::size_t i = 0; i < polygon.size(); ++i)
+				{
+					const cad::PlanPoint& a = polygon[i];
+					const cad::PlanPoint& b = polygon[(i + 1) % polygon.size()];
+					const double da = sign * a.y_mm - band;
+					const double db = sign * b.y_mm - band;
+					if (da <= 0.0)
+					{
+						clipped.push_back(a);
+					}
+					if ((da < 0.0 && db > 0.0) || (da > 0.0 && db < 0.0))
+					{
+						clipped.push_back(add(a, scale(sub(b, a), da / (da - db))));
+					}
+				}
+				polygon = std::move(clipped);
+			}
+			if (polygon.empty())
+			{
+				continue;
+			}
+			double low = std::numeric_limits<double>::infinity();
+			double high = -std::numeric_limits<double>::infinity();
+			for (const cad::PlanPoint& p : polygon)
+			{
+				low = std::min(low, p.x_mm);
+				high = std::max(high, p.x_mm);
+			}
+			if (high > 0.0 && low < length)
+			{
+				spans.emplace_back(std::max(0.0, low), std::min(length, high));
+			}
+		}
+
+		// Whole millimetres, rounded outwards, merged.
+		std::sort(spans.begin(), spans.end());
+		std::vector<cad::AxisSpan> merged;
+		for (const auto& [low, high] : spans)
+		{
+			const cad::AxisSpan span{static_cast<std::int64_t>(std::floor(low)), static_cast<std::int64_t>(std::ceil(high))};
+			if (!merged.empty() && span.fromMm <= merged.back().toMm)
+			{
+				merged.back().toMm = std::max(merged.back().toMm, span.toMm);
+			}
+			else
+			{
+				merged.push_back(span);
+			}
+		}
+		return merged;
+	}
+
+	cad::WallObstructions makeWallObstructions()
+	{
+		return [](const cad::Project& levelWalls, const cad::Wall& wall) { return wallObstructions(levelWalls, wall); };
+	}
 }

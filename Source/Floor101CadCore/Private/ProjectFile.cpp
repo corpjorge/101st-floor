@@ -132,6 +132,14 @@ namespace f101::cad
 				}
 				*target = value.value();
 			}
+			if (const auto finish = object.find("finish"); finish != object.end()) // schema 5
+			{
+				if (!finish->is_string())
+				{
+					return formatError(where + ".finish must be a string");
+				}
+				opening.finish = finish->get<std::string>();
+			}
 			return opening;
 		}
 
@@ -340,6 +348,10 @@ namespace f101::cad
 					item["widthMm"] = opening.widthMm;
 					item["heightMm"] = opening.heightMm;
 					item["sillMm"] = opening.sillMm;
+					if (!opening.finish.empty())
+					{
+						item["finish"] = opening.finish;
+					}
 					openings.push_back(std::move(item));
 				}
 				entry["openings"] = std::move(openings);

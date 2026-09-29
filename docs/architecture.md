@@ -1,6 +1,6 @@
 # Arquitectura
 
-Estado: **aprobada (Fase D, 2026-09-28); MVP 5 implementado.** Decisiones importantes en `docs/adr/`.
+Estado: **aprobada (Fase D, 2026-09-28); MVP 6 implementado.** Decisiones importantes en `docs/adr/`.
 
 ## Principio
 
@@ -33,11 +33,11 @@ Unreal). Ver ADR-0002.
 | Módulo | Tipo | Namespace | Depende de | Contenido |
 |---|---|---|---|---|
 | `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController`, `project.json` |
-| `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`), `WallGeometryBuilder` sobre huellas, polígonos y prismas, habitaciones (`detectRooms`) y suelos; más adelante huecos, techos |
+| `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`) y tramos que ocupan en cada muro (`wallObstructions`), `WallGeometryBuilder` sobre huellas (con huecos), carpintería de huecos (`buildOpeningMesh`), polígonos y prismas, habitaciones (`detectRooms`), suelos y forjados |
 | `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos y habitaciones), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos; con `ViewOverlay` que compila el proyecto como quedaría); más adelante materiales portables, luces, cámaras, `SceneDiff` |
 | `Floor101UnrealAdapter` | Unreal | — | SceneModel, Engine, GeometryFramework | reconciliación `Scene` → actores con `UDynamicMeshComponent` (hash + estilo); estilos de vista con materiales tintados; conversión de unidades y ejes en ambos sentidos; tests de integración |
 | `Floor101` | Unreal, módulo principal | — | CadCore, SceneModel, UnrealAdapter, Slate | aplicación: `UFloor101DocumentSubsystem` (posee `Document` y `EditController` de cada mundo; guardar/abrir), entrada (`UFloor101GameViewportClient`), cámara orbital, game mode, overlay Slate `SFloor101Overlay`, comandos de consola `f101.*`, `RenderCheck` |
-| `Floor101Editor` | Unreal, **solo editor** | — | Floor101, CadCore, ToolsetRegistry | herramientas de desarrollo: toolset MCP `Floor101DocumentToolset` (paredes en mm, deshacer/rehacer, guardar/abrir; actúa en PIE si está activo). Nunca entra en el juego |
+| `Floor101Editor` | Unreal, **solo editor** | — | Floor101, CadCore, ToolsetRegistry | herramientas de desarrollo: toolset MCP `Floor101DocumentToolset` (plantas, paredes en mm, huecos, acabados, deshacer/rehacer, guardar/abrir; actúa en PIE si está activo) y el commandlet que genera los materiales. Nunca entra en el juego |
 
 La dirección de dependencias se hace cumplir en compilación: un módulo solo ve las cabeceras de sus dependencias
 declaradas (UBT y CMake), y UBT tampoco enlaza dependencias transitivas. Por ejemplo, el adaptador no puede llamar a
@@ -72,17 +72,19 @@ Reglas del C++ puro (para compilar idéntico dentro de Unreal, ver ADR-0002):
   la escena produce los mismos IDs, y eso permite reconciliar actores de Unreal, calcular un `SceneDiff` y, en el futuro,
   reimportar en Twinmotion sin perder el trabajo artístico.
 
-## Flujo de un cambio (MVP 2–5)
+## Flujo de un cambio (MVP 2–6)
 
 ```
 clic / tecla / texto en el viewport                     // UFloor101GameViewportClient: rayo en mm, MapKey, caracteres
   → UFloor101DocumentSubsystem::Edit(acción)            // mensaje de estado para la UI
   → EditController (CAD Core)                           // planta activa (rayo bajado a su cota), modo, selección,
-                                                        // WallTool, huecos, arrastre de esquinas, snapping
-  → Document::execute(comando)                          // valida, aplica y registra la transacción (ADR-0006);
+                                                        // WallTool, huecos, arrastre de esquinas y huecos, snapping
+  → Document::execute(comando)                          // valida (huecos: también contra las uniones, ADR-0013),
+                                                        // aplica y registra la transacción (ADR-0006);
                                                         // el ChangeSet se cuenta, sin recompilar a mitad de acción
   → compileScene(project, overlay)                      // al terminar Edit: proyecto como quedaría, planta a planta:
-                                                        // uniones, habitaciones, suelos y forjados (ADR-0009, 0011)
+                                                        // uniones, habitaciones, suelos, forjados y carpintería
+                                                        // (ADR-0009, 0011, 0013)
   → FFloor101SceneReconciler::Reconcile(scene)          // mismo actor por SceneNodeId; malla regenerada, escala 1;
                                                         // estilo por materiales tintados
 ```
@@ -111,7 +113,8 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
   regenera.
 - **Materiales (ADR-0012):** cada sección de un nodo lleva su acabado; `UFloor101FinishLibrary` crea una instancia de
   `M_Floor101Finish` (generado desde código por `Scripts/GenerateAssets.ps1`) y una textura sintetizada por acabado. Los
-  estilos de vista tiñen el mismo material.
+  estilos de vista tiñen el mismo material. Los acabados translúcidos (vidrio, ADR-0013) usan `M_Floor101Glass`, generado
+  igual.
 
 ## Uniones y habitaciones (MVP 2, ADR-0009)
 
@@ -155,10 +158,22 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 - **Unreal:** un único material base generado por un commandlet; una instancia por acabado, compartida.
 - **`project.json` esquema 4** (`finishes` por muro, `roomFinishes`).
 
-## Interacción y UI (MVP 1–5, ADR-0008)
+## Carpintería y vidrio (MVP 6, ADR-0013)
+
+- **Derivada del hueco:** marco centrado en el grueso del muro; puertas con hoja cerrada y manillas; ventanas con
+  travesaño, vidrio y montante si son anchas. Un nodo de escena por hueco; nada nuevo se guarda salvo el acabado.
+- **Acabado por hueco:** `Opening::finish` (lacado blanco por defecto, maderas, aluminio antracita); el vidrio es un
+  acabado translúcido del catálogo (`opacity`) que Unreal pinta con `M_Floor101Glass`.
+- **Uniones:** el Geometry Engine da los tramos de cada muro ocupados por los muros que se le unen (ingletes, T,
+  cruces) y el `Document` los recibe inyectados: añadir, mover o ensanchar un hueco sobre ellos se rechaza.
+- **Ratón:** las herramientas de hueco lo colocan en el tramo libre más cercano; un hueco seleccionado se arrastra
+  (mover) o se estira por sus asas (ancho), con vista previa y un solo cambio deshacible.
+- **`project.json` esquema 5** (`finish` por hueco).
+
+## Interacción y UI (MVP 1–6, ADR-0008)
 
 - **Lógica en el núcleo:** `EditController` (modos Seleccionar/Muro/Puerta/Ventana/Pintar, selección de muros, huecos
-  y habitaciones, arrastre de esquinas, propiedades, acabados, deshacer/rehacer) y `WallTool` (clic, vista previa,
+  y habitaciones, arrastre de esquinas y de huecos, propiedades, acabados, deshacer/rehacer) y `WallTool` (clic, vista previa,
   longitud escrita, Enter) viven en el CAD Core y se prueban sin Unreal. Las habitaciones se localizan con un
   `RoomLocator` inyectado desde el Geometry Engine. El snapping también: extremos, eje de otro muro (T; donde lo cruza el ángulo), ángulo cada 15°, rejilla de
   50 mm. Si el rayo del cursor toca un muro, el punto de planta es el que queda bajo el impacto, no el suelo de detrás.
@@ -170,10 +185,11 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 - **UI:** Slate en C++ (`SFloor101Overlay`, textos en español): barra con modos, deshacer/rehacer, encuadrar, planta,
   ruta de archivo y Guardar/Abrir, y la fila de plantas (planta activa con su cota, subir, bajar, nueva planta, ver
   todas); panel de propiedades del muro seleccionado (longitud, espesor, altura, acabado de cada cara nombrada por su
-  orientación, eliminar), del hueco seleccionado (ancho, alto, antepecho, posición, eliminar), de la habitación
+  orientación, eliminar), del hueco seleccionado (ancho, alto, antepecho, posición, carpintería, eliminar), de la habitación
   seleccionada (área, suelo, techo), la paleta de Pintar o, sin selección, la planta activa (nombre, altura, forjado,
   eliminar);
-  barra de estado con ayuda contextual y errores; etiqueta junto al cursor con la longitud y lo escrito; área de cada
+  barra de estado con ayuda contextual y errores; etiqueta junto al cursor con la longitud y lo escrito (o la
+  posición y el ancho del hueco arrastrado); área de cada
   habitación sobre su suelo. La UI solo llama al subsistema; nunca toca actores.
 - **Vista:** selección (naranja), vista previa (azul) y asas (amarillo) son un `ViewOverlay` que se compila con el
   proyecto y nunca se guarda.
@@ -186,7 +202,7 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 |---|---|---|---|
 | Unitarios (sin Unreal) | CadCore, Geometry, SceneModel (`Tests/Unit/`) | CMake + Ninja (VS Build Tools) + MSVC 14.50 + **doctest** 2.5.3 (`ThirdParty/doctest`) | `Test.ps1` (segundos) |
 | Arquitectura | módulos puros sin cabeceras ni tipos de Unreal; `Build.cs` solo con `Core` y módulos puros | script + compilación CMake | `Test.ps1` |
-| Integración Unreal | adaptador (`Floor101.Adapter.*`): actor, componente, acabados (material base, textura, material por sección), bounds 355×12×240 cm, triángulos según `GetTriNormal`, regeneración a 420 cm sin escalar, estilos de vista, muro con puerta (7 secciones); interacción (`Floor101.Interaction.*`): mapa de teclas, cámara, flujo completo por el subsistema con `project.json`, habitación con suelo, área y arrastre de esquina, plantas (forjado, planta de abajo atenuada, muro dibujado en la cota de su planta, ocultar y ver todas), acabados (pintar y seleccionar habitación); toolset (`Floor101.Editor.*`) | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
+| Integración Unreal | adaptador (`Floor101.Adapter.*`): actor, componente, acabados (material base, textura, material por sección), bounds 355×12×240 cm, triángulos según `GetTriNormal`, regeneración a 420 cm sin escalar, estilos de vista, muro con puerta (7 secciones); interacción (`Floor101.Interaction.*`): mapa de teclas, cámara, flujo completo por el subsistema con `project.json`, habitación con suelo, área y arrastre de esquina, plantas (forjado, planta de abajo atenuada, muro dibujado en la cota de su planta, ocultar y ver todas), acabados (pintar y seleccionar habitación), carpintería (vidrio translúcido, rechazo en una T, arrastre, Esc); toolset (`Floor101.Editor.*`) | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
 | Render | DX12/SM6/HWRT/Lumen | `CheckRendering.ps1` | manual o en la validación de cada fase |
 | MCP | handshake, toolsets, lectura | `CheckMcp.ps1` | manual o en la validación de cada fase |
 
@@ -198,7 +214,7 @@ tests a la instalación de Unreal.
 
 `Setup.ps1` (comprobaciones de la Fase A automatizadas) · `Build.ps1` (UBT) · `Test.ps1` (unitarios → arquitectura →
 integración) · `Run.ps1` (app en `-game`) · `CreateDesktopShortcut.ps1` (acceso directo a `Run.ps1` en el escritorio) ·
-`GenerateAssets.ps1` (el material de los acabados, desde código) · `RunEditorMcp.ps1` · `CheckRendering.ps1` · `CheckMcp.ps1` ·
+`GenerateAssets.ps1` (los materiales de acabados y vidrio, desde código) · `RunEditorMcp.ps1` · `CheckRendering.ps1` · `CheckMcp.ps1` ·
 `Clean.ps1` · `Package.ps1` (cuando exista algo que empaquetar). Todos localizan motor, CMake y MSVC con
 `vswhere`/registro, nunca por `PATH` (hay un `cmake` ajeno en el `PATH` de esta máquina).
 
@@ -210,7 +226,7 @@ paredes generadas contribuyan a la GI de Lumen (cards por bounding box). Si no b
 Modo Foto (Path Tracer / Lumen máxima calidad) queda fuera del MVP 0. Nanite se reserva para assets densos (Blender); las
 paredes son geometría simple.
 
-## Estado de implementación (MVP 5, 2026-09-29)
+## Estado de implementación (MVP 6, 2026-09-29)
 
 MVP 0: los cinco módulos de producto más `Floor101Editor` y la pared de referencia 3550 → 4200 mm por todo el pipeline
 (`docs/mvp0-report.md`). MVP 1: herramienta de muro interactiva con longitud escrita, selección, borrar, longitud,
@@ -221,13 +237,15 @@ reales (`docs/mvp2-report.md`). MVP 3: puertas y ventanas como huecos del muro (
 deshacer, `project.json` esquema 2, MCP) (`docs/mvp3-report.md`). MVP 4: plantas apiladas con forjados derivados, edición
 por planta, `project.json` esquema 3 y herramientas MCP de plantas (`docs/mvp4-report.md`). MVP 5: acabados de un
 catálogo por cara de muro, suelo y techo, herramienta Pintar, texturas sintetizadas, material generado desde código y
-`project.json` esquema 4 (`docs/mvp5-report.md`). Detalle por capa:
+`project.json` esquema 4 (`docs/mvp5-report.md`). MVP 6: carpintería derivada (marcos, hojas, manillas, vidrio
+translúcido), huecos rechazados en las uniones, colocación en el tramo libre, arrastre y ancho de huecos con el ratón y
+`project.json` esquema 5 (`docs/mvp6-report.md`). Detalle por capa:
 `docs/cad-core.md`, `docs/geometry.md`, `docs/scene-model.md`, `docs/unreal-integration.md`.
 
-## Fuera del MVP 5 (la arquitectura no lo bloquea)
+## Fuera del MVP 6 (la arquitectura no lo bloquea)
 
-Escaleras y huecos en forjados, sótanos, voladizos y terrazas, cubiertas inclinadas, forjados editables, carpintería
-de puertas y ventanas (marcos, hojas, vidrio), huecos no rectangulares, validación de huecos contra las uniones,
-nombres y propiedades persistentes de habitaciones (entidad `Room`), acabados con relieve (mapas de normales), texturas
+Escaleras y huecos en forjados, sótanos, voladizos y terrazas, cubiertas inclinadas, forjados editables, tipos de
+carpintería (sentido de apertura, correderas, fijas, puertas abiertas), huecos no rectangulares, nombres y propiedades
+persistentes de habitaciones (entidad `Room`), acabados con relieve (mapas de normales), texturas
 reales y catálogo ampliable, exportadores, Asset System, vista 2D ortográfica, diálogos de archivo nativos, traducción de los
 mensajes del núcleo, reasignación de teclas, recompilación incremental para proyectos grandes.

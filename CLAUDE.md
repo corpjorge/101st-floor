@@ -18,6 +18,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Acabados: ids de un catálogo en el núcleo, por cara de muro y por clave de habitación; texturas sintetizadas en el
   Scene Model; el material base se genera desde código (`Scripts/GenerateAssets.ps1`). `project.json` esquema 4
   (ADR-0012).
+- Carpintería (marco, hoja, manillas, vidrio) derivada de cada hueco; solo se guarda su acabado (`Opening::finish`).
+  Los huecos no pueden pisar uniones (el `Document` recibe `WallObstructions` del Geometry Engine). Vidrio con
+  `M_Floor101Glass`, generado igual. `project.json` esquema 5 (ADR-0013).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
@@ -27,7 +30,8 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Tests: `.\Scripts\Test.ps1` (arquitectura + unitarios CMake, segundos); `-Integration` añade Unreal Automation.
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm,
-  esquinas, habitaciones, puertas y ventanas, acabados, vista por planta, deshacer/rehacer, guardar/abrir). Con PIE
+  esquinas, habitaciones, puertas y ventanas con su carpintería, acabados, vista por planta, deshacer/rehacer,
+  guardar/abrir). Con PIE
   activo actúa sobre el documento de PIE; si no, sobre el del editor.
 - Unreal MCP: descubrir con `list_toolsets`/`describe_toolset`, invocar con `call_tool`, verificar cada resultado.
   Commit antes de sesiones MCP largas o mutativas.

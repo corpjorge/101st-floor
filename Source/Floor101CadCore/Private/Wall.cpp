@@ -74,6 +74,10 @@ namespace f101::cad
 			{
 				return Error{ErrorCode::InvalidArgument, "Opening has no identity"};
 			}
+			if (Status valid = validateFinish(opening.finish, Surface::Carpentry); !valid)
+			{
+				return valid;
+			}
 		}
 		for (const WallSide side : {WallSide::Left, WallSide::Right})
 		{

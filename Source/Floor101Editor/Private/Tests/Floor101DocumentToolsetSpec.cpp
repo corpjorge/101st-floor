@@ -205,7 +205,13 @@ void FFloor101DocumentToolsetSpec::Define()
 			{
 				TestTrue(TEXT("for walls"), Brick->bForWalls);
 				TestFalse(TEXT("not for floors"), Brick->bForFloors);
+				TestFalse(TEXT("not for carpentry"), Brick->bForCarpentry);
 			}
+			const FFloor101FinishInfo* Walnut = Finishes.FindByPredicate([](const FFloor101FinishInfo& F) { return F.Id == TEXT("wood-walnut"); });
+			TestTrue(TEXT("walnut floors and carpentry"), Walnut && Walnut->bForFloors && Walnut->bForCarpentry && Walnut->Opacity == 1.0f);
+			const FFloor101FinishInfo* Glass = Finishes.FindByPredicate([](const FFloor101FinishInfo& F) { return F.Id == TEXT("glass-clear"); });
+			TestTrue(TEXT("glass is see-through and for no wall, floor or carpentry"),
+				Glass && Glass->Opacity < 1.0f && !Glass->bForWalls && !Glass->bForFloors && !Glass->bForCarpentry);
 
 			TArray<FString> Ids;
 			const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
@@ -389,6 +395,21 @@ void FFloor101DocumentToolsetSpec::Define()
 			ExpectRaises(TEXT("cannot change the finishes of room"),
 				[] { UFloor101DocumentToolset::SetRoomFinish(TEXT("some-room"), TEXT("brick-red"), TEXT("")); });
 			UFloor101DocumentToolset::RemoveWall(Wall.Id);
+		});
+
+		It("SetOpeningFinish changes the carpentry; AddOpening raises where another wall joins", [this]()
+		{
+			const FFloor101WallInfo Host = UFloor101DocumentToolset::AddWall(TEXT(""), 50000, 0, 56000, 0, 120, 2800);
+			const FFloor101WallInfo Tee = UFloor101DocumentToolset::AddWall(TEXT(""), 52000, 0, 52000, 3000, 100, 2800);
+			ExpectRaises(TEXT("runs into a wall joined to this one"),
+				[&Host] { UFloor101DocumentToolset::AddOpening(Host.Id, EFloor101OpeningKind::Door, 1500, 900, 2100, 0); });
+			const FFloor101OpeningInfo Door = UFloor101DocumentToolset::AddOpening(Host.Id, EFloor101OpeningKind::Door, 500, 900, 2100, 0);
+			const FFloor101OpeningInfo Oak = UFloor101DocumentToolset::SetOpeningFinish(Host.Id, Door.Id, TEXT("wood-oak"));
+			TestEqual(TEXT("oak door"), Oak.Finish, FString(TEXT("wood-oak")));
+			ExpectRaises(TEXT("cannot change opening"),
+				[&Host, &Door] { UFloor101DocumentToolset::SetOpeningFinish(Host.Id, Door.Id, TEXT("brick-red")); });
+			UFloor101DocumentToolset::RemoveWall(Tee.Id);
+			UFloor101DocumentToolset::RemoveWall(Host.Id);
 		});
 
 		It("RemoveWall raises on an unknown id", [this]()

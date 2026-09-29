@@ -102,4 +102,41 @@ namespace f101::geometry::detail
 			section.indices.insert(section.indices.end(), {base, base + i, base + i + 1});
 		}
 	}
+
+	// Box aligned with a wall: `u` along `axis` (unit, plan), `s` across it towards `left` (unit, plan), `z` up, from
+	// `origin` (plan, z = 0). Six flat faces; UVs in metres ((s, z) on the ends, (u, z) on the sides, (u, s) top and
+	// bottom).
+	inline void addWallBox(MeshData& mesh, const char* slot, cad::PlanPoint origin, cad::PlanPoint axis, cad::PlanPoint left,
+		double u0, double u1, double s0, double s1, double z0, double z1)
+	{
+		auto at = [&](double u, double s, double z)
+		{
+			const cad::PlanPoint p = add(origin, add(scale(axis, u), scale(left, s)));
+			return Vec3{p.x_mm, p.y_mm, z};
+		};
+		auto corner = [&](double u, double s, double z, double tu, double tv)
+		{
+			return Corner{at(u, s, z), Vec2{tu * MetersPerMillimeter, tv * MetersPerMillimeter}};
+		};
+		const Vec3 alongNormal{axis.x_mm, axis.y_mm, 0.0};
+		const Vec3 acrossNormal{left.x_mm, left.y_mm, 0.0};
+		// Ends (normal -axis and +axis).
+		for (const auto& [u, sign] : {std::pair{u0, -1.0}, {u1, 1.0}})
+		{
+			addQuad(mesh, slot, corner(u, s0, z0, s0, z0), corner(u, s1, z0, s1, z0), corner(u, s1, z1, s1, z1),
+				corner(u, s0, z1, s0, z1), Vec3{alongNormal.x * sign, alongNormal.y * sign, 0.0});
+		}
+		// Sides (normal -left and +left).
+		for (const auto& [s, sign] : {std::pair{s0, -1.0}, {s1, 1.0}})
+		{
+			addQuad(mesh, slot, corner(u0, s, z0, u0, z0), corner(u1, s, z0, u1, z0), corner(u1, s, z1, u1, z1),
+				corner(u0, s, z1, u0, z1), Vec3{acrossNormal.x * sign, acrossNormal.y * sign, 0.0});
+		}
+		// Bottom and top.
+		for (const auto& [z, sign] : {std::pair{z0, -1.0}, {z1, 1.0}})
+		{
+			addQuad(mesh, slot, corner(u0, s0, z, u0, s0), corner(u1, s0, z, u1, s0), corner(u1, s1, z, u1, s1),
+				corner(u0, s1, z, u0, s1), Vec3{0.0, 0.0, sign});
+		}
+	}
 }

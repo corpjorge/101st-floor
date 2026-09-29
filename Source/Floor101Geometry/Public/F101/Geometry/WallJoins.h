@@ -52,4 +52,13 @@ namespace f101::geometry
 	// A wall whose resolved ends would cross falls back to its plain footprint.
 	// Precondition: every wall passes cad::validateWallGeometry.
 	FLOOR101GEOMETRY_API WallJoins solveWallJoins(const cad::Project& project);
+
+	// Along `wall`'s axis, the spans an opening must keep clear of (ADR-0013), in whole mm rounded outwards and merged: at
+	// each end, up to where both long faces start (mitres, cuts at another wall), and wherever another wall of
+	// `levelWalls` reaches into its band (T joints, crossings, walls alongside). `wall` may differ from its copy in
+	// `levelWalls` (a change being checked): its own footprint is solved from `levelWalls`.
+	FLOOR101GEOMETRY_API std::vector<cad::AxisSpan> wallObstructions(const cad::Project& levelWalls, const cad::Wall& wall);
+
+	// For cad::Document::setWallObstructions and the editor.
+	FLOOR101GEOMETRY_API cad::WallObstructions makeWallObstructions();
 }

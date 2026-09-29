@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -90,6 +91,20 @@ namespace f101::cad
 			return levels.empty() ? LevelId() : levels.front().id;
 		}
 	};
+
+	// A stretch along a wall axis, in mm from its start.
+	struct AxisSpan
+	{
+		std::int64_t fromMm = 0;
+		std::int64_t toMm = 0;
+
+		friend bool operator==(const AxisSpan&, const AxisSpan&) = default;
+	};
+
+	// Where a wall of `levelWalls` must not have an opening because other walls join it there: the mitred ends, where
+	// another wall meets it in a T, crossings (ADR-0013). Joins are derived in the Geometry Engine, which provides this
+	// (geometry::makeWallObstructions); without it openings are only checked against the wall itself.
+	using WallObstructions = std::function<std::vector<AxisSpan>(const Project& levelWalls, const Wall& wall)>;
 
 	// Height of a level's floor above the first level's floor (the sum of the heights below it); 0 for an unknown level.
 	FLOOR101CADCORE_API std::int64_t levelElevationMm(const Project& project, const LevelId& level);

@@ -74,8 +74,11 @@ namespace
 			{TEXT("tile-white"), LOCTEXT("FinishTileWhite", "Azulejo blanco")},
 			{TEXT("screed-light"), LOCTEXT("FinishScreed", "Solado gris claro")},
 			{TEXT("tile-grey"), LOCTEXT("FinishTileGrey", "Baldosa gris")},
-			{TEXT("wood-oak"), LOCTEXT("FinishOak", "Tarima de roble")},
-			{TEXT("wood-walnut"), LOCTEXT("FinishWalnut", "Tarima de nogal")},
+			{TEXT("wood-oak"), LOCTEXT("FinishOak", "Madera de roble")}, // floorboards and doors alike
+			{TEXT("wood-walnut"), LOCTEXT("FinishWalnut", "Madera de nogal")},
+			{TEXT("lacquer-white"), LOCTEXT("FinishLacquer", "Lacado blanco")},
+			{TEXT("aluminium-anthracite"), LOCTEXT("FinishAluminium", "Aluminio antracita")},
+			{TEXT("glass-clear"), LOCTEXT("FinishGlass", "Vidrio")},
 		};
 		const FString Key = UTF8_TO_TCHAR(std::string(Id).c_str());
 		const FText* Name = Names.Find(Key);
@@ -728,6 +731,25 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+						[
+							SNew(STextBlock).Text(LOCTEXT("OpeningFinish", "Carpintería")).Font(Font(10))
+						]
+						+ SHorizontalBox::Slot().AutoWidth()
+						[
+							MakeFinishCombo(f101::cad::Surface::Carpentry,
+								[this]() -> FString
+								{
+									const std::optional<f101::cad::OpeningRef> Selected = GetSelectedOpening();
+									const std::string_view Own = Selected ? std::string_view(Selected->opening.finish) : std::string_view();
+									return UTF8_TO_TCHAR(std::string(f101::cad::resolveFinish(Own, f101::cad::Surface::Carpentry)).c_str());
+								},
+								[](EditController& Editor, const std::string& Finish) { return Editor.setOpeningFinish(Finish); })
+						]
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
 						SNew(STextBlock)
 						.Font(Font(9))
 						.ColorAndOpacity(MutedColor)
@@ -993,6 +1015,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 	TSharedRef<SVerticalBox> List = SNew(SVerticalBox);
 	for (const f101::cad::FinishInfo& Finish : f101::cad::finishCatalogue())
 	{
+		if (!Finish.allows(f101::cad::Surface::Wall) && !Finish.allows(f101::cad::Surface::Floor))
+		{
+			continue; // Pintar applies to wall faces and floors
+		}
 		const std::string Id(Finish.id);
 		FString Surfaces;
 		for (const auto& [Surface, Name] : {std::pair{f101::cad::Surface::Wall, TEXT("muros")}, {f101::cad::Surface::Floor, TEXT("suelos")},
@@ -1149,6 +1175,10 @@ FText SFloor101Overlay::GetHintText() const
 			? LOCTEXT("HintDoor", "Puerta · apunta a un muro y haz clic para colocarla · Esc o clic derecho: volver a Seleccionar")
 			: LOCTEXT("HintWindow", "Ventana · apunta a un muro y haz clic para colocarla · Esc o clic derecho: volver a Seleccionar");
 	}
+	if (Editor.isDraggingOpening())
+	{
+		return LOCTEXT("HintDraggingOpening", "Moviendo hueco · se ajusta a la rejilla y se aparta de los muros que se unen · suelta para aplicar · Esc o clic derecho: cancelar");
+	}
 	if (Editor.isDragging())
 	{
 		return LOCTEXT("HintDragging", "Moviendo esquina · los muros unidos la siguen · suelta para aplicar · Esc o clic derecho: cancelar");
@@ -1159,7 +1189,7 @@ FText SFloor101Overlay::GetHintText() const
 	}
 	if (Editor.selectedOpening())
 	{
-		return LOCTEXT("HintOpening", "Seleccionar · edita sus medidas en el panel · Supr: eliminar");
+		return LOCTEXT("HintOpening", "Seleccionar · arrastra el hueco para moverlo o sus asas para cambiar el ancho · medidas y carpintería en el panel · Supr: eliminar");
 	}
 	return Editor.selection().isNil()
 		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco o habitación · W: muros · P: puertas · O: ventanas · M: pintar · RePág/AvPág: planta")
@@ -1210,13 +1240,20 @@ FText SFloor101Overlay::GetCursorText() const
 		return FText::GetEmpty();
 	}
 	const EditController& Editor = Subsystem->GetEditController();
-	// The wall being drawn, or the selected wall whose corner is being dragged.
+	// The wall being drawn, the selected wall whose corner is being dragged, or the wall of the dragged opening.
 	const f101::cad::EditView View = Editor.view();
 	const auto Shown = std::find_if(View.previewWalls.begin(), View.previewWalls.end(),
 		[&View](const f101::cad::Wall& Wall) { return Wall.id == View.selectedWall; });
 	if (Shown == View.previewWalls.end())
 	{
 		return FText::GetEmpty();
+	}
+	if (Editor.isDraggingOpening())
+	{
+		const std::optional<f101::cad::OpeningRef> Selected = Editor.selectedOpening();
+		const f101::cad::Opening* Dragged = Selected ? Shown->findOpening(Selected->opening.id) : nullptr;
+		return Dragged ? FText::Format(LOCTEXT("CursorOpening", "Posición {0} · ancho {1}"),
+			LengthText(static_cast<double>(Dragged->offsetMm)), LengthText(static_cast<double>(Dragged->widthMm))) : FText::GetEmpty();
 	}
 	const FText Length = LengthText(Shown->lengthMm());
 	if (Editor.mode() != EditMode::Wall)

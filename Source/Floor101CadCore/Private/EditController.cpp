@@ -53,6 +53,63 @@ namespace f101::cad
 				std::llround(static_cast<double>(wall.start.y_mm) + static_cast<double>(wall.end.y_mm - wall.start.y_mm) * t)};
 		}
 
+		std::int64_t snapDown(std::int64_t value, std::int64_t grid)
+		{
+			return value >= 0 ? value / grid * grid : -((-value + grid - 1) / grid * grid);
+		}
+
+		std::int64_t snapUp(std::int64_t value, std::int64_t grid)
+		{
+			return -snapDown(-value, grid);
+		}
+
+		// The gaps of [0, length] left by `blocked` (spans sorted or not, possibly overlapping).
+		std::vector<AxisSpan> freeGaps(std::int64_t length, std::vector<AxisSpan> blocked)
+		{
+			std::sort(blocked.begin(), blocked.end(), [](const AxisSpan& a, const AxisSpan& b) { return a.fromMm < b.fromMm; });
+			std::vector<AxisSpan> gaps;
+			std::int64_t cursor = 0;
+			for (const AxisSpan& span : blocked)
+			{
+				if (span.fromMm > cursor)
+				{
+					gaps.push_back(AxisSpan{cursor, std::min(span.fromMm, length)});
+				}
+				cursor = std::max(cursor, span.toMm);
+			}
+			if (cursor < length)
+			{
+				gaps.push_back(AxisSpan{cursor, length});
+			}
+			return gaps;
+		}
+
+		// Offset of an opening `width` wide as close to `wanted` as the gaps allow, on the grid when the gap has room for
+		// it; nullopt when no gap is wide enough (ADR-0013).
+		std::optional<std::int64_t> fitOpening(double wanted, std::int64_t width, const std::vector<AxisSpan>& gaps, std::int64_t grid)
+		{
+			std::optional<std::int64_t> best;
+			for (const AxisSpan& gap : gaps)
+			{
+				const std::int64_t low = gap.fromMm;
+				const std::int64_t high = gap.toMm - width;
+				if (high < low)
+				{
+					continue;
+				}
+				const std::int64_t snapped = std::llround(wanted / static_cast<double>(grid)) * grid;
+				const std::int64_t gridLow = snapUp(low, grid);
+				const std::int64_t gridHigh = snapDown(high, grid);
+				const std::int64_t candidate = gridLow <= gridHigh ? std::clamp(snapped, gridLow, gridHigh)
+					: std::clamp(static_cast<std::int64_t>(std::llround(wanted)), low, high);
+				if (!best || std::fabs(static_cast<double>(candidate) - wanted) < std::fabs(static_cast<double>(*best) - wanted))
+				{
+					best = candidate;
+				}
+			}
+			return best;
+		}
+
 		const Opening* openingAt(const Wall& wall, double along)
 		{
 			for (const Opening& opening : wall.openings)
@@ -80,6 +137,7 @@ namespace f101::cad
 			return;
 		}
 		drag.reset();
+		openingDrag.reset();
 		tool.cancel();
 		placement.reset();
 		if (mode != EditMode::Select)
@@ -148,6 +206,10 @@ namespace f101::cad
 		{
 			updateDrag();
 		}
+		else if (openingDrag)
+		{
+			updateOpeningDrag();
+		}
 	}
 
 	void EditController::updateDrag()
@@ -190,19 +252,92 @@ namespace f101::cad
 				best = position.across;
 			}
 		}
-		const auto length = host ? static_cast<std::int64_t>(std::floor(host->lengthMm())) : 0;
-		if (!host || length < defaults.widthMm)
+		if (!host)
 		{
 			return;
 		}
-		// Centred on the pointer, its edge on the snap grid, inside the wall.
-		const std::int64_t grid = editSettings.wallTool.snap.gridMm > 0 ? editSettings.wallTool.snap.gridMm : 1;
-		const double edge = hostAlong - static_cast<double>(defaults.widthMm) / 2.0;
-		const std::int64_t offset = std::llround(edge / static_cast<double>(grid)) * grid;
+		// Centred on the pointer, its edge on the snap grid, in the free stretch of the wall nearest to it: clear of the
+		// joined walls and of the other openings (ADR-0013).
+		const auto length = static_cast<std::int64_t>(std::floor(host->lengthMm()));
+		const std::vector<AxisSpan> gaps = freeGaps(length, blockedSpans(project, *host, OpeningId()));
+		const std::optional<std::int64_t> offset =
+			fitOpening(hostAlong - static_cast<double>(defaults.widthMm) / 2.0, defaults.widthMm, gaps, gridMm());
+		if (!offset)
+		{
+			return;
+		}
 		Opening opening = defaults;
 		opening.id = OpeningId();
-		opening.offsetMm = std::clamp<std::int64_t>(offset, 0, length - defaults.widthMm);
+		opening.offsetMm = *offset;
 		placement = OpeningRef{host->id, opening};
+	}
+
+	std::int64_t EditController::gridMm() const
+	{
+		return editSettings.wallTool.snap.gridMm > 0 ? editSettings.wallTool.snap.gridMm : 1;
+	}
+
+	std::vector<AxisSpan> EditController::blockedSpans(const Project& levelWalls, const Wall& wall, const OpeningId& except) const
+	{
+		std::vector<AxisSpan> blocked = document.openingObstructions(levelWalls, wall);
+		for (const Opening& opening : wall.openings)
+		{
+			if (opening.id != except)
+			{
+				blocked.push_back(AxisSpan{opening.offsetMm, opening.offsetMm + opening.widthMm});
+			}
+		}
+		return blocked;
+	}
+
+	void EditController::updateOpeningDrag()
+	{
+		const Project project = levelProject();
+		const Wall* wall = project.findWall(openingDrag->wall);
+		const Opening* original = wall ? wall->findOpening(openingDrag->opening.id) : nullptr;
+		if (!original)
+		{
+			openingDrag.reset(); // gone under the gesture
+			return;
+		}
+		const double along = locate(*wall, *planPoint).along - openingDrag->grab;
+		const auto length = static_cast<std::int64_t>(std::floor(wall->lengthMm()));
+		const std::vector<AxisSpan> gaps = freeGaps(length, blockedSpans(project, *wall, original->id));
+		Opening moved = *original;
+		if (openingDrag->part == OpeningDrag::Part::Body)
+		{
+			const std::optional<std::int64_t> offset = fitOpening(along, original->widthMm, gaps, gridMm());
+			if (offset)
+			{
+				moved.offsetMm = *offset;
+			}
+		}
+		else
+		{
+			// An edge moves within the free stretch that holds the opening, keeping a minimum width.
+			const std::int64_t start = original->offsetMm;
+			const std::int64_t end = original->offsetMm + original->widthMm;
+			AxisSpan room{start, end};
+			for (const AxisSpan& gap : gaps)
+			{
+				if (gap.fromMm <= start && end <= gap.toMm)
+				{
+					room = gap;
+				}
+			}
+			const std::int64_t snapped = std::llround(along / static_cast<double>(gridMm())) * gridMm();
+			const std::int64_t minimum = std::min(editSettings.minOpeningWidthMm, original->widthMm);
+			if (openingDrag->part == OpeningDrag::Part::StartEdge)
+			{
+				moved.offsetMm = std::clamp(snapped, std::min(room.fromMm, end - minimum), end - minimum);
+				moved.widthMm = end - moved.offsetMm;
+			}
+			else
+			{
+				moved.widthMm = std::clamp(snapped, start + minimum, std::max(room.toMm, start + minimum)) - start;
+			}
+		}
+		openingDrag->opening = moved;
 	}
 
 	Status EditController::pointerPressed(const Ray3& sceneRay)
@@ -232,6 +367,42 @@ namespace f101::cad
 		if (currentMode == EditMode::Paint)
 		{
 			return paint(project, ray);
+		}
+
+		// The selected door or window: its edge handles resize it, the hole itself moves it (ADR-0013).
+		if (const std::optional<OpeningRef> current = selectedOpening(); current && planPoint)
+		{
+			if (const Wall* host = project.findWall(current->wall))
+			{
+				const double along = locate(*host, *planPoint).along;
+				const std::int64_t startEdge = current->opening.offsetMm;
+				const std::int64_t endEdge = current->opening.offsetMm + current->opening.widthMm;
+				const std::optional<WallHit> hit = pickWall(project, ray);
+				const bool onHole = hit && hit->wall == host->id && openingAt(*host, along) == host->findOpening(current->opening.id);
+				const auto grabBody = [&] {
+					openingDrag = OpeningDrag{host->id, current->opening, OpeningDrag::Part::Body, along - static_cast<double>(startEdge)};
+					return Status::success();
+				};
+				// Well inside the hole it moves: an oblique ray through it can go on into the far edge's post.
+				const double handleHalf = static_cast<double>(editSettings.handleSizeMm) / 2.0;
+				if (onHole && along > static_cast<double>(startEdge) + handleHalf && along < static_cast<double>(endEdge) - handleHalf)
+				{
+					return grabBody();
+				}
+				for (const auto& [part, edge] : {std::pair{OpeningDrag::Part::StartEdge, startEdge}, {OpeningDrag::Part::EndEdge, endEdge}})
+				{
+					if (intersectPost(ray, pointOnAxis(*host, edge), static_cast<double>(editSettings.handleSizeMm),
+							static_cast<double>(editSettings.handleHeightMm)))
+					{
+						openingDrag = OpeningDrag{host->id, current->opening, part, along - static_cast<double>(edge)};
+						return Status::success();
+					}
+				}
+				if (onHole)
+				{
+					return grabBody();
+				}
+			}
 		}
 
 		// A handle of the selected wall starts a drag. The endpoint only moves once the pointer moves.
@@ -291,6 +462,19 @@ namespace f101::cad
 
 	Status EditController::pointerReleased(const Ray3&)
 	{
+		if (openingDrag)
+		{
+			// Moved or resized as the last pointerMoved() left it; one undoable change, or none if it did not move.
+			const OpeningDrag finished = *openingDrag;
+			openingDrag.reset();
+			const Wall* wall = document.project().findWall(finished.wall);
+			const Opening* original = wall ? wall->findOpening(finished.opening.id) : nullptr;
+			if (!original || *original == finished.opening)
+			{
+				return Status::success();
+			}
+			return toStatus(document.execute(ChangeOpeningCommand{finished.wall, finished.opening}));
+		}
 		if (!drag)
 		{
 			return Status::success();
@@ -317,9 +501,10 @@ namespace f101::cad
 
 	void EditController::cancel()
 	{
-		if (drag)
+		if (drag || openingDrag)
 		{
 			drag.reset();
+			openingDrag.reset();
 		}
 		else if (currentMode == EditMode::Wall && tool.state() == WallTool::State::Drafting)
 		{
@@ -356,6 +541,7 @@ namespace f101::cad
 	Status EditController::deleteSelection()
 	{
 		drag.reset();
+		openingDrag.reset();
 		if (const std::optional<OpeningRef> opening = selectedOpening())
 		{
 			const Status deleted = toStatus(document.execute(DeleteOpeningCommand{opening->wall, opening->opening.id}));
@@ -382,6 +568,7 @@ namespace f101::cad
 	Status EditController::undo()
 	{
 		drag.reset();
+		openingDrag.reset();
 		tool.cancel();
 		const Status undone = document.undo();
 		if (planPoint)
@@ -395,6 +582,7 @@ namespace f101::cad
 	Status EditController::redo()
 	{
 		drag.reset();
+		openingDrag.reset();
 		tool.cancel();
 		const Status redone = document.redo();
 		if (planPoint)
@@ -408,6 +596,7 @@ namespace f101::cad
 	void EditController::reset()
 	{
 		drag.reset();
+		openingDrag.reset();
 		tool.cancel();
 		selected = WallId();
 		selectedOpeningId = OpeningId();
@@ -445,6 +634,7 @@ namespace f101::cad
 		setMode(EditMode::Select);
 		changeLevel(document.project().levelOf(*document.project().findWall(id)));
 		drag.reset();
+		openingDrag.reset();
 		selected = id;
 		selectedOpeningId = OpeningId();
 		selectedRoomKey.clear();
@@ -461,6 +651,7 @@ namespace f101::cad
 		setMode(EditMode::Select);
 		changeLevel(document.project().levelOf(*host));
 		drag.reset();
+		openingDrag.reset();
 		selected = wall;
 		selectedOpeningId = opening;
 		selectedRoomKey.clear();
@@ -470,6 +661,7 @@ namespace f101::cad
 	void EditController::clearSelection()
 	{
 		drag.reset();
+		openingDrag.reset();
 		selected = WallId();
 		selectedOpeningId = OpeningId();
 		selectedRoomKey.clear();
@@ -542,6 +734,18 @@ namespace f101::cad
 		return changeOpening(text, [](Opening& opening, std::int64_t mm) { opening.offsetMm = mm; });
 	}
 
+	Status EditController::setOpeningFinish(std::string_view finish)
+	{
+		const std::optional<OpeningRef> current = selectedOpening();
+		if (!current)
+		{
+			return nothingSelected();
+		}
+		Opening changed = current->opening;
+		changed.finish = std::string(finish);
+		return toStatus(document.execute(ChangeOpeningCommand{current->wall, changed}));
+	}
+
 	Status EditController::paint(const Project& project, const Ray3& ray)
 	{
 		// The face of the wall under the pointer (the side of its axis the ray meets it on), else the room floor.
@@ -584,6 +788,7 @@ namespace f101::cad
 	{
 		setMode(EditMode::Select);
 		drag.reset();
+		openingDrag.reset();
 		selected = WallId();
 		selectedOpeningId = OpeningId();
 		selectedRoomKey = room;
@@ -628,6 +833,7 @@ namespace f101::cad
 			return;
 		}
 		drag.reset();
+		openingDrag.reset();
 		placement.reset();
 		selected = WallId();
 		selectedOpeningId = OpeningId();
@@ -775,8 +981,20 @@ namespace f101::cad
 		{
 			const Wall& host = *project.findWall(opening->wall);
 			result.selectedWall = host.id;
-			result.handles = {pointOnAxis(host, opening->opening.offsetMm),
-				pointOnAxis(host, opening->opening.offsetMm + opening->opening.widthMm)};
+			// While it is dragged, the wall is previewed with the opening where it would go.
+			const Opening shown = openingDrag && openingDrag->opening.id == opening->opening.id ? openingDrag->opening : opening->opening;
+			if (!(shown == opening->opening))
+			{
+				Wall moved = host;
+				*std::find_if(moved.openings.begin(), moved.openings.end(), [&shown](const Opening& o) { return o.id == shown.id; }) = shown;
+				std::stable_sort(moved.openings.begin(), moved.openings.end(),
+					[](const Opening& a, const Opening& b) { return a.offsetMm < b.offsetMm; });
+				if (validateWallGeometry(moved).ok())
+				{
+					result.previewWalls.push_back(moved);
+				}
+			}
+			result.handles = {pointOnAxis(host, shown.offsetMm), pointOnAxis(host, shown.offsetMm + shown.widthMm)};
 			return result;
 		}
 		result.selectedWall = selection();

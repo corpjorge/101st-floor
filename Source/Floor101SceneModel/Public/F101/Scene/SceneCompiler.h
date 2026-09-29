@@ -33,8 +33,8 @@ namespace f101::scene
 	// Compiles the whole project into a scene, deterministically (same project, same ids, geometry and hashes):
 	// one node per wall in model order with its joins resolved ("<wall>/body"), then joint fills
 	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"), then the slab over each room ("<room key>/slab",
-	// the top band of its level). Joins and rooms are solved per level, and each level is lifted to its elevation.
-	// Scene::rooms lists the rooms with their levels.
+	// the top band of its level), then the carpentry of each opening ("<wall>/opening/<opening>", ADR-0013). Joins and
+	// rooms are solved per level, and each level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project);
 
 	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls are Preview (new ones

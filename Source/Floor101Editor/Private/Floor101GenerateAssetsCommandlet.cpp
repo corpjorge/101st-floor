@@ -19,6 +19,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogFloor101Assets, Log, All);
 namespace
 {
 	const TCHAR* FinishMaterialPackage = TEXT("/Game/Floor101/Materials/M_Floor101Finish");
+	const TCHAR* GlassMaterialPackage = TEXT("/Game/Floor101/Materials/M_Floor101Glass");
 	const TCHAR* WhiteTexturePath = TEXT("/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture");
 
 	template <typename T>
@@ -97,32 +98,61 @@ UMaterial* UFloor101GenerateAssetsCommandlet::BuildFinishMaterial(UPackage* Pack
 	return Material;
 }
 
+UMaterial* UFloor101GenerateAssetsCommandlet::BuildGlassMaterial(UPackage* Package)
+{
+	// Glass (ADR-0013): translucent, lit per pixel so it reflects; BaseColor = Tint, Opacity, Roughness. It casts no
+	// shadow, so sunlight and Lumen's light come in through windows.
+	UMaterial* Material = NewObject<UMaterial>(Package, FName(FPackageName::GetShortName(GlassMaterialPackage)),
+		RF_Public | RF_Standalone | RF_Transactional);
+	Material->BlendMode = BLEND_Translucent;
+	Material->TranslucencyLightingMode = TLM_SurfacePerPixelLighting;
+
+	UMaterialExpressionVectorParameter* Tint = AddExpression<UMaterialExpressionVectorParameter>(Material, -400, 0);
+	Tint->ParameterName = TEXT("Tint");
+	Tint->DefaultValue = FLinearColor(0.67f, 0.77f, 0.79f);
+	UMaterialExpressionScalarParameter* Opacity = AddScalar(Material, TEXT("Opacity"), 0.18f, -400, 160);
+	UMaterialExpressionScalarParameter* Roughness = AddScalar(Material, TEXT("Roughness"), 0.03f, -400, 260);
+
+	UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
+	Inputs->BaseColor.Expression = Tint;
+	Inputs->Opacity.Expression = Opacity;
+	Inputs->Roughness.Expression = Roughness;
+
+	Material->PreEditChange(nullptr);
+	Material->PostEditChange();
+	return Material;
+}
+
 int32 UFloor101GenerateAssetsCommandlet::Main(const FString& Params)
 {
-	UPackage* Package = CreatePackage(FinishMaterialPackage);
-	Package->FullyLoad();
-	if (UObject* Existing = StaticFindObject(UMaterial::StaticClass(), Package, *FPackageName::GetShortName(FinishMaterialPackage)))
+	for (const auto& [PackageName, Build] : {TPair<const TCHAR*, UMaterial* (*)(UPackage*)>{FinishMaterialPackage, &BuildFinishMaterial},
+			 {GlassMaterialPackage, &BuildGlassMaterial}})
 	{
-		// Rebuild from scratch: rename the old one out of the way.
-		Existing->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
-	}
-	UMaterial* Material = BuildFinishMaterial(Package);
-	if (!Material)
-	{
-		return 1;
-	}
-	FAssetRegistryModule::AssetCreated(Material);
-	Package->MarkPackageDirty();
+		UPackage* Package = CreatePackage(PackageName);
+		Package->FullyLoad();
+		if (UObject* Existing = StaticFindObject(UMaterial::StaticClass(), Package, *FPackageName::GetShortName(PackageName)))
+		{
+			// Rebuild from scratch: rename the old one out of the way.
+			Existing->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors | REN_NonTransactional);
+		}
+		UMaterial* Material = Build(Package);
+		if (!Material)
+		{
+			return 1;
+		}
+		FAssetRegistryModule::AssetCreated(Material);
+		Package->MarkPackageDirty();
 
-	const FString Filename = FPackageName::LongPackageNameToFilename(FinishMaterialPackage, FPackageName::GetAssetPackageExtension());
-	FSavePackageArgs SaveArgs;
-	SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
-	SaveArgs.SaveFlags = SAVE_NoError;
-	if (!UPackage::SavePackage(Package, Material, *Filename, SaveArgs))
-	{
-		UE_LOG(LogFloor101Assets, Error, TEXT("Could not save %s"), *Filename);
-		return 1;
+		const FString Filename = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
+		FSavePackageArgs SaveArgs;
+		SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
+		SaveArgs.SaveFlags = SAVE_NoError;
+		if (!UPackage::SavePackage(Package, Material, *Filename, SaveArgs))
+		{
+			UE_LOG(LogFloor101Assets, Error, TEXT("Could not save %s"), *Filename);
+			return 1;
+		}
+		UE_LOG(LogFloor101Assets, Display, TEXT("Saved %s"), *Filename);
 	}
-	UE_LOG(LogFloor101Assets, Display, TEXT("Saved %s"), *Filename);
 	return 0;
 }

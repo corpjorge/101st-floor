@@ -10,11 +10,13 @@
 DEFINE_LOG_CATEGORY_STATIC(LogFloor101Finishes, Log, All);
 
 const TCHAR* UFloor101FinishLibrary::BaseMaterialPath = TEXT("/Game/Floor101/Materials/M_Floor101Finish.M_Floor101Finish");
+const TCHAR* UFloor101FinishLibrary::GlassMaterialPath = TEXT("/Game/Floor101/Materials/M_Floor101Glass.M_Floor101Glass");
 const FName UFloor101FinishLibrary::TextureParameter(TEXT("BaseTexture"));
 const FName UFloor101FinishLibrary::TintParameter(TEXT("Tint"));
 const FName UFloor101FinishLibrary::RoughnessParameter(TEXT("Roughness"));
 const FName UFloor101FinishLibrary::RepeatUParameter(TEXT("RepeatU"));
 const FName UFloor101FinishLibrary::RepeatVParameter(TEXT("RepeatV"));
+const FName UFloor101FinishLibrary::OpacityParameter(TEXT("Opacity"));
 const FLinearColor UFloor101FinishLibrary::ContextTint(0.42f, 0.44f, 0.48f);
 
 namespace
@@ -83,6 +85,20 @@ UMaterialInterface* UFloor101FinishLibrary::GetBaseMaterial()
 	return BaseMaterial;
 }
 
+UMaterialInterface* UFloor101FinishLibrary::GetGlassMaterial()
+{
+	if (!GlassMaterial)
+	{
+		GlassMaterial = LoadObject<UMaterialInterface>(nullptr, GlassMaterialPath);
+		if (!GlassMaterial && !bReportedMissingGlass)
+		{
+			bReportedMissingGlass = true;
+			UE_LOG(LogFloor101Finishes, Error, TEXT("F101: finish material %s is missing: run Scripts/GenerateAssets.ps1"), GlassMaterialPath);
+		}
+	}
+	return GlassMaterial;
+}
+
 UMaterialInterface* UFloor101FinishLibrary::GetFinishMaterial(const FString& FinishId, bool bContext)
 {
 	const FString Key = bContext ? FinishId + TEXT("#context") : FinishId;
@@ -98,18 +114,34 @@ UMaterialInterface* UFloor101FinishLibrary::GetFinishMaterial(const FString& Fin
 		{
 			return nullptr;
 		}
-		UMaterialInstanceDynamic* Dimmed = UMaterialInstanceDynamic::Create(GetBaseMaterial(), this);
+		UMaterialInstanceDynamic* Dimmed = UMaterialInstanceDynamic::Create(Finish->Parent, this);
 		Dimmed->CopyParameterOverrides(Finish);
 		Dimmed->SetVectorParameterValue(TintParameter, ContextTint);
 		FinishMaterials.Add(Key, Dimmed);
 		return Dimmed;
+	}
+	const f101::scene::FinishLook Look = f101::scene::buildFinishLook(TCHAR_TO_UTF8(*FinishId));
+	if (Look.opacity < 1.0)
+	{
+		// See-through (glass): the translucent material, tinted with the finish colour.
+		UMaterialInterface* Glass = GetGlassMaterial();
+		if (!Glass)
+		{
+			return nullptr;
+		}
+		const std::vector<std::uint8_t>& Pixel = Look.texture.mips.back().rgba;
+		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Glass, this, FName(*(TEXT("MI_Finish_") + FinishId)));
+		Material->SetVectorParameterValue(TintParameter, FLinearColor::FromSRGBColor(FColor(Pixel[0], Pixel[1], Pixel[2])));
+		Material->SetScalarParameterValue(OpacityParameter, static_cast<float>(Look.opacity));
+		Material->SetScalarParameterValue(RoughnessParameter, static_cast<float>(Look.roughness));
+		FinishMaterials.Add(FinishId, Material);
+		return Material;
 	}
 	UMaterialInterface* Base = GetBaseMaterial();
 	if (!Base)
 	{
 		return nullptr;
 	}
-	const f101::scene::FinishLook Look = f101::scene::buildFinishLook(TCHAR_TO_UTF8(*FinishId));
 	UTexture2D* Texture = MakeTexture(Look.texture, FinishId);
 	UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this, FName(*(TEXT("MI_Finish_") + FinishId)));
 	if (Texture)

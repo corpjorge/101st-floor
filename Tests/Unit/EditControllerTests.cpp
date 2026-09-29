@@ -265,7 +265,9 @@ TEST_CASE_FIXTURE(Editing, "the door tool previews a door centred on the pointer
 	CHECK(host.openings[0].widthMm == 900);
 	CHECK(host.openings[0].heightMm == 2100);
 	CHECK(document.undoLabel() == "Add door");
-	CHECK(editor.view().previewWalls.empty()); // the same place is taken now
+	// That place is taken now: the tool offers the nearest free stretch, right next to it.
+	REQUIRE(editor.openingPlacement().has_value());
+	CHECK(editor.openingPlacement()->opening.offsetMm == 1950);
 
 	// Near the end the door is kept inside the wall; away from walls there is nothing to place.
 	editor.pointerMoved(down(3540.0, 0.0));

@@ -424,4 +424,47 @@ bool FFloor101FinishesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CarpentryInteractionTest, "Floor101.Interaction.Carpentry", TestFlags)
+bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document))
+	{
+		return false;
+	}
+	// A 6 m wall with a wall joined in a T at 2 m, and a window on it.
+	f101::cad::Document& Model = Document->GetMutableDocument();
+	const f101::cad::WallId Host = Model.addWall({0, 0}, {6000, 0}, 120, 2800).value();
+	(void)Model.addWall({2000, 0}, {2000, 3000}, 100, 2800);
+	TestFalse(TEXT("no window across the T (the subsystem checks joints)"),
+		Model.addOpening(Host, f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Window, 1500, 1200, 1200, 900}).ok());
+	const f101::cad::OpeningId Window =
+		Model.addOpening(Host, f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Window, 3000, 1200, 1200, 900}).value();
+	const FString NodeId = UTF8_TO_TCHAR((f101::cad::toString(Host) + "/opening/" + f101::cad::toString(Window)).c_str());
+	TestNotNull(TEXT("its carpentry has an actor"), FindNode(TestWorld.World, NodeId));
+
+	// Drag it 830 mm east through the subsystem, as the viewport does: one change, on the 50 mm grid.
+	TestTrue(TEXT("select it"), Document->Edit([Host, Window](EditController& Editor) { return Editor.selectOpening(Host, Window); }).ok());
+	TestTrue(TEXT("grab the hole"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(3600.0, 30.0)); }).ok());
+	Document->UpdatePointer(Down(4430.0, 30.0));
+	TestTrue(TEXT("release"), Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(4430.0, 30.0)); }).ok());
+	TestEqual(TEXT("moved on the grid"), Document->GetDocument().project().findWall(Host)->findOpening(Window)->offsetMm, int64(3850));
+	const AFloor101SceneNodeActor* Carpentry = FindNode(TestWorld.World, NodeId);
+	if (TestNotNull(TEXT("same carpentry actor"), Carpentry))
+	{
+		TestEqual(TEXT("its frame followed (385 cm)"), Carpentry->GetMeshBounds().Min.X, 385.0, 1e-6);
+	}
+
+	// Esc (the Cancel key command) in the middle of a drag: the release that follows changes nothing.
+	TestTrue(TEXT("grab it again"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(4400.0, 30.0)); }).ok());
+	Document->UpdatePointer(Down(5000.0, 30.0));
+	(void)Document->Edit([](EditController& Editor) { Editor.cancel(); return f101::Status::success(); });
+	TestFalse(TEXT("the drag is dropped"), Document->GetEditController().isDraggingOpening());
+	(void)Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(5000.0, 30.0)); });
+	TestEqual(TEXT("not moved"), Document->GetDocument().project().findWall(Host)->findOpening(Window)->offsetMm, int64(3850));
+	TestTrue(TEXT("still selected"), Document->GetEditController().selectedOpening().has_value());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

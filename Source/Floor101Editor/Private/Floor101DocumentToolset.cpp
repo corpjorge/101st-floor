@@ -95,6 +95,7 @@ namespace
 		Info.WidthMm = Opening.widthMm;
 		Info.HeightMm = Opening.heightMm;
 		Info.SillMm = Opening.sillMm;
+		Info.Finish = ToFString(Opening.finish);
 		return Info;
 	}
 
@@ -402,6 +403,33 @@ FFloor101OpeningInfo UFloor101DocumentToolset::SetOpening(const FString& WallId,
 	return ToInfo(*Subsystem->GetDocument().project().findWall(Wall)->findOpening(Id));
 }
 
+FFloor101OpeningInfo UFloor101DocumentToolset::SetOpeningFinish(const FString& WallId, const FString& OpeningId, const FString& FinishId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::WallId Wall;
+	f101::cad::OpeningId Id;
+	if (!Subsystem || !ParseWallId(WallId, Wall) || !ParseOpeningId(OpeningId, Id))
+	{
+		return {};
+	}
+	const f101::cad::Wall* Host = Subsystem->GetDocument().project().findWall(Wall);
+	const f101::cad::Opening* Current = Host ? Host->findOpening(Id) : nullptr;
+	if (!Current)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change opening %s: no such opening in wall %s"), *OpeningId, *WallId));
+		return {};
+	}
+	f101::cad::Opening Changed = *Current;
+	Changed.finish = TCHAR_TO_UTF8(*FinishId);
+	const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(f101::cad::ChangeOpeningCommand{Wall, Changed});
+	if (!Applied)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change opening %s: %s"), *OpeningId, *ToFString(Applied.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findWall(Wall)->findOpening(Id));
+}
+
 void UFloor101DocumentToolset::RemoveOpening(const FString& WallId, const FString& OpeningId)
 {
 	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
@@ -428,8 +456,10 @@ TArray<FFloor101FinishInfo> UFloor101DocumentToolset::GetFinishes()
 		Info.bForWalls = Finish.allows(f101::cad::Surface::Wall);
 		Info.bForFloors = Finish.allows(f101::cad::Surface::Floor);
 		Info.bForCeilings = Finish.allows(f101::cad::Surface::Ceiling);
+		Info.bForCarpentry = Finish.allows(f101::cad::Surface::Carpentry);
 		Info.Color = FColor(Finish.color.r, Finish.color.g, Finish.color.b);
 		Info.Roughness = static_cast<float>(Finish.roughness);
+		Info.Opacity = static_cast<float>(Finish.opacity);
 		Finishes.Add(Info);
 	}
 	return Finishes;

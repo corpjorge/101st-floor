@@ -74,11 +74,19 @@ namespace f101::geometry
 		auto at = [](const cad::PlanPoint& p, double z) { return Vec3{p.x_mm, p.y_mm, z}; };
 		auto uv = [](double u, double v) { return Vec2{u * MetersPerMillimeter, v * MetersPerMillimeter}; };
 
+		// Holes stay where both long faces exist: an opening that reaches a mitre or a cut (after a wall was moved, ADR-0013)
+		// is trimmed there, so the mesh stays closed.
+		const double faceStart = std::max(along(footprint.startLeft), along(footprint.startRight));
+		const double faceEnd = std::min(along(footprint.endLeft), along(footprint.endRight));
 		std::vector<Hole> holes;
 		for (const cad::Opening& opening : wall.openings)
 		{
-			holes.push_back(Hole{static_cast<double>(opening.offsetMm), static_cast<double>(opening.offsetMm + opening.widthMm),
-				static_cast<double>(opening.sillMm), static_cast<double>(opening.sillMm + opening.heightMm)});
+			const double u0 = std::max(static_cast<double>(opening.offsetMm), faceStart);
+			const double u1 = std::min(static_cast<double>(opening.offsetMm + opening.widthMm), faceEnd);
+			if (u0 < u1)
+			{
+				holes.push_back(Hole{u0, u1, static_cast<double>(opening.sillMm), static_cast<double>(opening.sillMm + opening.heightMm)});
+			}
 		}
 
 		MeshData mesh;

@@ -242,10 +242,10 @@ namespace f101::scene
 	{
 		if (const cad::FinishInfo* finish = cad::findFinish(finishId))
 		{
-			return FinishLook{finish->roughness, buildFinishTexture(*finish, size)};
+			return FinishLook{finish->roughness, finish->opacity, buildFinishTexture(*finish, size)};
 		}
 		cad::FinishInfo missing;
 		missing.color = cad::Rgb8{255, 0, 255};
-		return FinishLook{0.85, buildFinishTexture(missing, size)};
+		return FinishLook{0.85, 1.0, buildFinishTexture(missing, size)};
 	}
 }

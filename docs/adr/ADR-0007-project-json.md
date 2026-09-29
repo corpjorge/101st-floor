@@ -40,6 +40,8 @@ compila sin excepciones (ADR-0002), y los milímetros deben leerse de forma exac
   sola planta.
   **Esquema 4 (MVP 5, ADR-0012):** `finishes` (`left`, `right`) en los muros y `roomFinishes` por clave de habitación,
   solo si hay alguno.
+  **Esquema 5 (MVP 6, ADR-0013):** `finish` (acabado de la carpintería) en cada hueco que lo tenga; los esquemas
+  anteriores se leen con la carpintería por defecto.
 
 ## Verificación
 `Tests/Unit/ProjectFileTests.cpp`: salida exacta documentada, ida y vuelta sin pérdida (incluidos ±999.999.999 mm),

@@ -21,6 +21,8 @@ namespace f101::cad
 		Wall = 1,
 		Floor = 2,
 		Ceiling = 4,
+		Carpentry = 8, // frames and leaves of doors and windows (ADR-0013)
+		Glazing = 16,  // window panes
 	};
 
 	enum class FinishPattern
@@ -52,6 +54,7 @@ namespace f101::cad
 		std::int64_t unitWidthMm = 0; // size of one brick, tile or plank (patterns with units)
 		std::int64_t unitHeightMm = 0;
 		std::int64_t jointMm = 0;
+		double opacity = 1.0; // 1: opaque; less: see-through (glass)
 
 		bool allows(Surface surface) const { return (surfaces & static_cast<std::uint8_t>(surface)) != 0; }
 	};
@@ -59,6 +62,10 @@ namespace f101::cad
 	inline constexpr std::string_view DefaultWallFinish = "plaster-white";
 	inline constexpr std::string_view DefaultFloorFinish = "screed-light";
 	inline constexpr std::string_view DefaultCeilingFinish = "plaster-white";
+	inline constexpr std::string_view DefaultCarpentryFinish = "lacquer-white";
+	inline constexpr std::string_view DefaultGlazingFinish = "glass-clear";
+	// Door handles and other fittings (not chosen by the user).
+	inline constexpr std::string_view HardwareFinish = "aluminium-anthracite";
 
 	// Every finish, in display order.
 	FLOOR101CADCORE_API const std::vector<FinishInfo>& finishCatalogue();

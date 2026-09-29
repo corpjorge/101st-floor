@@ -370,16 +370,24 @@ namespace f101::cad
 		{
 			Opening opening = add->opening;
 			opening.id = OpeningId{newUuid()};
-			return modifyWall(model, add->wall, label, [&opening](Wall& wall)
+			Result<Transaction> added = modifyWall(model, add->wall, label, [&opening](Wall& wall)
 			{
 				wall.openings.push_back(opening);
 				sortOpenings(wall);
 				return Status::success();
 			});
+			if (added)
+			{
+				if (Status clear = checkOpeningClear(added.value(), opening.id); !clear)
+				{
+					return clear.error();
+				}
+			}
+			return added;
 		}
 		if (const auto* change = std::get_if<ChangeOpeningCommand>(&command))
 		{
-			return modifyWall(model, change->wall, label, [change](Wall& wall) -> Status
+			Result<Transaction> changed = modifyWall(model, change->wall, label, [change](Wall& wall) -> Status
 			{
 				for (Opening& opening : wall.openings)
 				{
@@ -392,6 +400,14 @@ namespace f101::cad
 				}
 				return openingNotFound(change->opening.id);
 			});
+			if (changed)
+			{
+				if (Status clear = checkOpeningClear(changed.value(), change->opening.id); !clear)
+				{
+					return clear.error();
+				}
+			}
+			return changed;
 		}
 		if (const auto* removal = std::get_if<DeleteOpeningCommand>(&command))
 		{
@@ -696,6 +712,51 @@ namespace f101::cad
 		applyChanges(model.walls, transaction.walls, forward);
 		applyChanges(model.roomFinishes, transaction.roomFinishes, forward);
 		notify(changeSetOf(transaction, forward));
+	}
+
+	std::vector<AxisSpan> Document::openingObstructions(const Project& levelWalls, const Wall& wall) const
+	{
+		return obstructions ? obstructions(levelWalls, wall) : std::vector<AxisSpan>();
+	}
+
+	Status Document::checkOpeningClear(const Transaction& transaction, const OpeningId& opening) const
+	{
+		if (!obstructions || transaction.walls.empty() || !transaction.walls.front().after)
+		{
+			return Status::success();
+		}
+		const Wall& after = *transaction.walls.front().after;
+		const Opening* checked = after.findOpening(opening);
+		if (!checked)
+		{
+			return Status::success();
+		}
+		// Only where it moves or grows: a finish change never fails because of a joint made after the opening.
+		const std::optional<Wall>& beforeWall = transaction.walls.front().before;
+		const Opening* previous = beforeWall ? beforeWall->findOpening(opening) : nullptr;
+		if (previous && previous->offsetMm == checked->offsetMm && previous->widthMm == checked->widthMm)
+		{
+			return Status::success();
+		}
+		// The level as it would be, with the changed wall.
+		Project level = wallsOnLevel(model, model.levelOf(after));
+		for (Wall& wall : level.walls)
+		{
+			if (wall.id == after.id)
+			{
+				wall = after;
+			}
+		}
+		for (const AxisSpan& span : obstructions(level, after))
+		{
+			if (checked->offsetMm < span.toMm && checked->offsetMm + checked->widthMm > span.fromMm)
+			{
+				return Error{ErrorCode::OutOfRange, std::string(checked->kind == OpeningKind::Door ? "The door" : "The window") +
+					" runs into a wall joined to this one (" + std::to_string(span.fromMm) + " to " + std::to_string(span.toMm) +
+					" mm along it)"};
+			}
+		}
+		return Status::success();
 	}
 
 	std::size_t Document::subscribe(ChangeListener listener)

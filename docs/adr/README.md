@@ -14,6 +14,7 @@
 | [0010](ADR-0010-openings.md) | Puertas y ventanas como huecos del muro; malla con mochetas; `project.json` esquema 2 | aceptado y verificado |
 | [0011](ADR-0011-levels-and-slabs.md) | Plantas apiladas con cota derivada; forjados derivados por habitación; edición por planta; `project.json` esquema 3 | aceptado y verificado |
 | [0012](ADR-0012-finishes.md) | Acabados de un catálogo por cara de muro y por habitación; texturas sintetizadas; material generado por commandlet; `project.json` esquema 4 | aceptado y verificado |
+| [0013](ADR-0013-carpentry-and-glass.md) | Carpintería derivada de cada hueco; vidrio translúcido generado; huecos rechazados en uniones; arrastre de huecos; `project.json` esquema 5 | aceptado y verificado |
 
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

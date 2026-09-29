@@ -6,6 +6,7 @@
 #include "F101/Cad/ProjectFile.h"
 #include "F101/Cad/Units.h"
 #include "F101/Geometry/Rooms.h"
+#include "F101/Geometry/WallJoins.h"
 #include "F101/Scene/SceneCompiler.h"
 #include "Floor101.h"
 #include "Floor101SceneNodeActor.h"
@@ -176,6 +177,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Document = MakePimpl<f101::cad::Document>(f101::cad::makeRandomUuidSource());
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
+	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	ListenerHandle = Document->subscribe([this](const f101::cad::ChangeSet&)
 	{
