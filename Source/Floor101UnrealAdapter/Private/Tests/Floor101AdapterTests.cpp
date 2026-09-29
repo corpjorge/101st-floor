@@ -10,6 +10,8 @@
 #include "Engine/World.h"
 #include "F101/Cad/Project.h"
 #include "F101/Scene/SceneCompiler.h"
+#include "Engine/Texture2D.h"
+#include "Floor101FinishLibrary.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
 #include "Floor101UnrealConversion.h"
@@ -213,6 +215,76 @@ bool FFloor101ViewStylesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("drawn wall and handles removed"), Plain.Removed, 3);
 	TestEqual(TEXT("wall back to 355 cm"), MeshBounds(*Wall).GetSize().X, 355.0, Tolerance);
 	TestTrue(TEXT("wall back to the default material"), Wall->GetDisplayMaterial() == DefaultMaterial);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FinishesTest, "Floor101.Adapter.Finishes", TestFlags)
+bool FFloor101FinishesTest::RunTest(const FString& Parameters)
+{
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("finish library"), Library) || !TestNotNull(TEXT("generated base material"), Library->GetBaseMaterial()))
+	{
+		return false;
+	}
+	for (const FName Parameter : {UFloor101FinishLibrary::TintParameter, UFloor101FinishLibrary::RoughnessParameter,
+			 UFloor101FinishLibrary::RepeatUParameter, UFloor101FinishLibrary::RepeatVParameter})
+	{
+		float Scalar = 0.0f;
+		FLinearColor Vector;
+		const FHashedMaterialParameterInfo Info(Parameter);
+		TestTrue(*FString::Printf(TEXT("base material has %s"), *Parameter.ToString()),
+			Library->GetBaseMaterial()->GetScalarParameterValue(Info, Scalar) || Library->GetBaseMaterial()->GetVectorParameterValue(Info, Vector));
+	}
+
+	// A wall with bricks on its left face and the default plaster on the right.
+	FTestWorld TestWorld;
+	f101::cad::Project Project;
+	const f101::cad::WallId WallId{f101::cad::Uuid{0, 1}};
+	f101::cad::Wall Wall{WallId, {0, 0}, {3550, 0}, 120, 2400};
+	Wall.finishLeft = "brick-red";
+	Project.walls.push_back(Wall);
+	FFloor101SceneReconciler Reconciler(TestWorld.World);
+	const f101::scene::Scene Scene = f101::scene::compileScene(Project);
+	Reconciler.Reconcile(Scene);
+	AFloor101SceneNodeActor* Actor = Reconciler.FindActor(f101::scene::wallBodyNodeId(WallId));
+	if (!TestNotNull(TEXT("wall actor"), Actor))
+	{
+		return false;
+	}
+	const f101::scene::SceneNode& Node = *Scene.findNode(f101::scene::wallBodyNodeId(WallId));
+	for (int32 Section = 0; Section < static_cast<int32>(Node.mesh.sections.size()); ++Section)
+	{
+		const FString Slot = UTF8_TO_TCHAR(Node.mesh.sections[Section].slot.c_str());
+		const FString Expected = Slot == TEXT("left") ? TEXT("brick-red") : TEXT("plaster-white");
+		TestTrue(*FString::Printf(TEXT("%s face shows %s"), *Slot, *Expected),
+			Actor->GetMeshComponent()->GetMaterial(Section) == Library->GetFinishMaterial(Expected));
+	}
+
+	const UMaterialInterface* Bricks = Library->GetFinishMaterial(TEXT("brick-red"));
+	UTexture2D* Texture = Library->FindFinishTexture(TEXT("brick-red"));
+	if (TestNotNull(TEXT("brick texture"), Texture))
+	{
+		TestEqual(TEXT("512 pixels"), Texture->GetSizeX(), 512);
+		TestEqual(TEXT("the whole mip chain"), Texture->GetNumMips(), 10);
+		TestTrue(TEXT("sRGB"), Texture->SRGB);
+		UTexture* Bound = nullptr;
+		TestTrue(TEXT("bound to the material"), Bricks->GetTextureParameterValue(FHashedMaterialParameterInfo(UFloor101FinishLibrary::TextureParameter), Bound));
+		TestTrue(TEXT("the brick texture"), Bound == Texture);
+	}
+	float Repeat = 0.0f;
+	TestTrue(TEXT("repeat along the wall"), Bricks->GetScalarParameterValue(FHashedMaterialParameterInfo(UFloor101FinishLibrary::RepeatUParameter), Repeat));
+	TestEqual(TEXT("four 250 mm brick modules = 1 m"), Repeat, 1.0f, 1e-5f);
+	float Roughness = 0.0f;
+	TestTrue(TEXT("roughness"), Bricks->GetScalarParameterValue(FHashedMaterialParameterInfo(UFloor101FinishLibrary::RoughnessParameter), Roughness));
+	TestEqual(TEXT("brick is matte"), Roughness, 0.9f, 1e-5f);
+	TestTrue(TEXT("one material per finish, shared"), Library->GetFinishMaterial(TEXT("brick-red")) == Bricks);
+
+	// Changing a finish updates the same actor.
+	Project.walls[0].finishLeft = "paint-sage";
+	const FFloor101ReconcileStats Repainted = Reconciler.Reconcile(f101::scene::compileScene(Project));
+	TestEqual(TEXT("a finish change updates the actor"), Repainted.Updated, 1);
+	TestTrue(TEXT("same actor"), Reconciler.FindActor(f101::scene::wallBodyNodeId(WallId)) == Actor);
+	TestTrue(TEXT("left face repainted"), Actor->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("paint-sage")));
 	return true;
 }
 

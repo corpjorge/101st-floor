@@ -57,7 +57,9 @@ Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetW
 antepecho; `GetWalls` las lista en `Openings`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
-(vacío = la primera planta); muros y habitaciones informan su `LevelId`,
+(vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`
+(acabados, ADR-0012: el catálogo; una cara de muro, izquierda o derecha de su eje; suelo y techo de una habitación por
+su clave) y sus acabados en `GetWalls` y `GetRooms`,
 `SetWallHeight`, `RemoveWall`, `Undo`/`Redo` (devuelven la etiqueta, p. ej. `Create wall`) y `SaveProject`/
 `OpenProject` (rutas absolutas), con coordenadas y dimensiones en mm enteros. **Mundo objetivo:** el de la sesión PIE
 mientras exista (lo que el usuario está editando; empieza vacío), si no el del editor. Cada cambio es un paso
@@ -83,6 +85,11 @@ en cota 2800 → 4 `AddWall` en cada planta → `GetRooms` = 2 habitaciones de 1
 arriba sin actor mientras la vista la oculta) → `SetLevel` de la planta baja a 3000: sus 4 muros pasan a 3000 y
 "Primera" sube a 3000 → `Undo` = `Change level` → `RemoveLevel` de la planta baja (con sus muros) → borrar la única
 planta que queda se rechaza → `Undo` = `Delete level` devuelve los 8 muros.
+
+Verificado (MVP 5, por el transporte MCP): `GetFinishes` → 11 acabados con sus superficies → `SetWallFinish(Left,
+"brick-red")` → poner `wood-oak` en una cara se rechaza ("The finish 'wood-oak' is not for walls") → `SetRoomFinish`
+(`tile-grey`, `concrete`) visible en `GetRooms` → `Undo` × 2 (`Change room finish`, `Change finish`) → `SaveProject`
+con `"right": "paint-sage"` en el muro.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

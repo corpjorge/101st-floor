@@ -17,6 +17,7 @@ namespace f101::scene
 		cad::LevelId activeLevel;
 		bool showAllLevels = false;
 		cad::WallId selectedWall; // nil: nothing selected
+		std::string selectedRoom; // room key whose floor is shown Selected; empty: none
 		// Walls as they would be once the current gesture is applied: a wall with the id of an existing wall replaces
 		// it (e.g. a dragged endpoint), a wall with a nil id is added (the wall being drawn). The scene is compiled
 		// from that previewed project, so joins and rooms follow the preview. Invalid walls are left out.
@@ -42,4 +43,6 @@ namespace f101::scene
 
 	// FNV-1a 64 over everything a consumer renders (positions, normals, uvs, sections).
 	FLOOR101SCENEMODEL_API std::uint64_t hashMesh(const geometry::MeshData& mesh);
+	// hashMesh plus the finish of each section: the node's contentHash.
+	FLOOR101SCENEMODEL_API std::uint64_t hashNode(const geometry::MeshData& mesh, const std::vector<std::string>& finishes);
 }

@@ -11,7 +11,7 @@ public class Floor101Editor : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "ToolsetRegistry" });
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"EditorSubsystem", "UnrealEd",
+			"EditorSubsystem", "UnrealEd", "AssetRegistry",
 			"Floor101", "Floor101CadCore", "Floor101Geometry", "Floor101SceneModel",
 		});
 	}

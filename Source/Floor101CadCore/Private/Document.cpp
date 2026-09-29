@@ -48,12 +48,17 @@ namespace f101::cad
 				[](const Opening& a, const Opening& b) { return a.offsetMm < b.offsetMm; });
 		}
 
+		// Identity of each kind of entity in a transaction.
+		const WallId& keyOf(const Wall& wall) { return wall.id; }
+		const LevelId& keyOf(const Level& level) { return level.id; }
+		const std::string& keyOf(const RoomFinish& finish) { return finish.room; }
+
 		template <typename Entity, typename Id>
 		std::optional<std::size_t> findIndex(const std::vector<Entity>& entities, const Id& id)
 		{
 			for (std::size_t index = 0; index < entities.size(); ++index)
 			{
-				if (entities[index].id == id)
+				if (keyOf(entities[index]) == id)
 				{
 					return index;
 				}
@@ -121,6 +126,10 @@ namespace f101::cad
 			ChangeSet changes;
 			sortChanges(transaction.walls, forward, changes.addedWalls, changes.modifiedWalls, changes.removedWalls);
 			sortChanges(transaction.levels, forward, changes.addedLevels, changes.modifiedLevels, changes.removedLevels);
+			for (const RoomFinishChange& change : transaction.roomFinishes)
+			{
+				changes.changedRoomFinishes.push_back(change.id);
+			}
 			return changes;
 		}
 
@@ -182,6 +191,8 @@ namespace f101::cad
 			std::string_view operator()(const AddLevelCommand&) const { return "Add level"; }
 			std::string_view operator()(const ChangeLevelCommand&) const { return "Change level"; }
 			std::string_view operator()(const DeleteLevelCommand&) const { return "Delete level"; }
+			std::string_view operator()(const SetWallFinishCommand&) const { return "Change finish"; }
+			std::string_view operator()(const SetRoomFinishCommand&) const { return "Change room finish"; }
 		};
 	}
 
@@ -237,6 +248,22 @@ namespace f101::cad
 				{
 					return Error{ErrorCode::InvalidArgument, "Duplicate opening id " + toString(opening.id)};
 				}
+			}
+		}
+		std::set<std::string> rooms;
+		for (const RoomFinish& finish : project.roomFinishes)
+		{
+			if (finish.room.empty() || !rooms.insert(finish.room).second)
+			{
+				return Error{ErrorCode::InvalidArgument, "Room finishes need a unique room key"};
+			}
+			if (Status valid = validateFinish(finish.floor, Surface::Floor); !valid)
+			{
+				return valid;
+			}
+			if (Status valid = validateFinish(finish.ceiling, Surface::Ceiling); !valid)
+			{
+				return valid;
 			}
 		}
 		return Status::success();
@@ -461,6 +488,47 @@ namespace f101::cad
 			}
 			return transaction;
 		}
+		if (const auto* finish = std::get_if<SetWallFinishCommand>(&command))
+		{
+			return modifyWall(model, finish->wall, label, [finish](Wall& wall)
+			{
+				wall.finish(finish->side) = finish->finish;
+				return Status::success();
+			});
+		}
+		if (const auto* roomFinish = std::get_if<SetRoomFinishCommand>(&command))
+		{
+			if (roomFinish->room.empty())
+			{
+				return Error{ErrorCode::InvalidArgument, "No room"};
+			}
+			if (Status valid = validateFinish(roomFinish->floor, Surface::Floor); !valid)
+			{
+				return valid.error();
+			}
+			if (Status valid = validateFinish(roomFinish->ceiling, Surface::Ceiling); !valid)
+			{
+				return valid.error();
+			}
+			const std::optional<std::size_t> index = findIndex(model.roomFinishes, roomFinish->room);
+			std::optional<RoomFinish> before;
+			if (index)
+			{
+				before = model.roomFinishes[*index];
+			}
+			std::optional<RoomFinish> after;
+			if (!roomFinish->floor.empty() || !roomFinish->ceiling.empty())
+			{
+				after = RoomFinish{roomFinish->room, roomFinish->floor, roomFinish->ceiling};
+			}
+			Transaction transaction{label, {}, {}, {}};
+			if (before != after)
+			{
+				transaction.roomFinishes.push_back(
+					RoomFinishChange{roomFinish->room, index.value_or(model.roomFinishes.size()), before, after});
+			}
+			return transaction;
+		}
 		if (const auto* thickness = std::get_if<ChangeWallThicknessCommand>(&command))
 		{
 			return modifyWall(model, thickness->wall, label, [thickness](Wall& wall)
@@ -554,6 +622,13 @@ namespace f101::cad
 		{
 			changes.addedLevels.push_back(level.id);
 		}
+		for (const Project* side : {&model, &replacement})
+		{
+			for (const RoomFinish& finish : side->roomFinishes)
+			{
+				changes.changedRoomFinishes.push_back(finish.room);
+			}
+		}
 		model = std::move(replacement);
 		undoStack.clear();
 		redoStack.clear();
@@ -619,6 +694,7 @@ namespace f101::cad
 		// Levels first: walls being restored refer to them.
 		applyChanges(model.levels, transaction.levels, forward);
 		applyChanges(model.walls, transaction.walls, forward);
+		applyChanges(model.roomFinishes, transaction.roomFinishes, forward);
 		notify(changeSetOf(transaction, forward));
 	}
 

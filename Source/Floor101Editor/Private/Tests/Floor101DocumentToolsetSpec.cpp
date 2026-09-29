@@ -195,6 +195,52 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("finishes", [this]()
+	{
+		It("lists the catalogue, paints a wall face and a room floor, and undoes it", [this]()
+		{
+			const TArray<FFloor101FinishInfo> Finishes = UFloor101DocumentToolset::GetFinishes();
+			const FFloor101FinishInfo* Brick = Finishes.FindByPredicate([](const FFloor101FinishInfo& F) { return F.Id == TEXT("brick-red"); });
+			if (TestNotNull(TEXT("brick in the catalogue"), Brick))
+			{
+				TestTrue(TEXT("for walls"), Brick->bForWalls);
+				TestFalse(TEXT("not for floors"), Brick->bForFloors);
+			}
+
+			TArray<FString> Ids;
+			const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+			for (int32 i = 0; i < 4; ++i)
+			{
+				const int64* A = Corners[i];
+				const int64* B = Corners[(i + 1) % 4];
+				Ids.Add(UFloor101DocumentToolset::AddWall(TEXT(""), A[0] + 40000, A[1], B[0] + 40000, B[1], 120, 2800).Id);
+			}
+			const FFloor101WallInfo Painted = UFloor101DocumentToolset::SetWallFinish(Ids[0], EFloor101WallSide::Left, TEXT("brick-red"));
+			TestEqual(TEXT("left face"), Painted.LeftFinish, FString(TEXT("brick-red")));
+			TestTrue(TEXT("right face default"), Painted.RightFinish.IsEmpty());
+
+			const TArray<FFloor101RoomInfo> Rooms = UFloor101DocumentToolset::GetRooms();
+			const FFloor101RoomInfo* Room = Rooms.FindByPredicate([&Ids](const FFloor101RoomInfo& R) { return R.WallIds.Contains(Ids[0]); });
+			if (TestNotNull(TEXT("room"), Room))
+			{
+				UFloor101DocumentToolset::SetRoomFinish(Room->Key, TEXT("wood-oak"), TEXT(""));
+				const TArray<FFloor101RoomInfo> After = UFloor101DocumentToolset::GetRooms();
+				const FFloor101RoomInfo* Same = After.FindByPredicate([Room](const FFloor101RoomInfo& R) { return R.Key == Room->Key; });
+				if (TestNotNull(TEXT("same room"), Same))
+				{
+					TestEqual(TEXT("oak floor"), Same->FloorFinish, FString(TEXT("wood-oak")));
+					TestTrue(TEXT("default ceiling"), Same->CeilingFinish.IsEmpty());
+				}
+				TestEqual(TEXT("undo"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change room finish")));
+			}
+			TestEqual(TEXT("undo the wall"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change finish")));
+			for (const FString& Id : Ids)
+			{
+				UFloor101DocumentToolset::RemoveWall(Id);
+			}
+		});
+	});
+
 	Describe("openings", [this]()
 	{
 		It("adds a door and a window, moves the window, and removes them", [this]()
@@ -331,6 +377,18 @@ void FFloor101DocumentToolsetSpec::Define()
 			ExpectRaises(TEXT("is not a level id"), [] { UFloor101DocumentToolset::AddWall(TEXT("x"), 0, 0, 1000, 0, 120, 2400); });
 			ExpectRaises(TEXT("wall rejected"),
 				[] { UFloor101DocumentToolset::AddWall(TEXT("00000000-0000-0000-0000-0000000000ff"), 0, 0, 1000, 0, 120, 2400); });
+		});
+
+		It("SetWallFinish and SetRoomFinish raise on finishes that are unknown or not for that surface", [this]()
+		{
+			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 1000, 0, 120, 2400);
+			ExpectRaises(TEXT("cannot change the finish of"),
+				[&Wall] { UFloor101DocumentToolset::SetWallFinish(Wall.Id, EFloor101WallSide::Right, TEXT("wood-oak")); });
+			ExpectRaises(TEXT("cannot change the finish of"),
+				[&Wall] { UFloor101DocumentToolset::SetWallFinish(Wall.Id, EFloor101WallSide::Left, TEXT("gold-leaf")); });
+			ExpectRaises(TEXT("cannot change the finishes of room"),
+				[] { UFloor101DocumentToolset::SetRoomFinish(TEXT("some-room"), TEXT("brick-red"), TEXT("")); });
+			UFloor101DocumentToolset::RemoveWall(Wall.Id);
 		});
 
 		It("RemoveWall raises on an unknown id", [this]()

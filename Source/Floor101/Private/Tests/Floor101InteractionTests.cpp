@@ -11,6 +11,7 @@
 #include "F101/Cad/EditController.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101EditingPawn.h"
+#include "Floor101FinishLibrary.h"
 #include "Floor101GameViewportClient.h"
 #include "Floor101SceneNodeActor.h"
 #include "HAL/FileManager.h"
@@ -73,6 +74,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("V: select"), Map(EKeys::V) == Command::SelectTool);
 	TestTrue(TEXT("P: door"), Map(EKeys::P) == Command::DoorTool);
 	TestTrue(TEXT("O: window"), Map(EKeys::O) == Command::WindowTool);
+	TestTrue(TEXT("M: paint"), Map(EKeys::M) == Command::PaintTool);
 	TestTrue(TEXT("Ctrl+O is still open"), Map(EKeys::O, true) == Command::Open);
 	TestTrue(TEXT("Esc: cancel"), Map(EKeys::Escape) == Command::Cancel);
 	TestTrue(TEXT("Enter: confirm"), Map(EKeys::Enter) == Command::Confirm);
@@ -337,7 +339,7 @@ bool FFloor101LevelsTest::RunTest(const FString& Parameters)
 	{
 		FLinearColor Color;
 		TestTrue(TEXT("tinted"), Dimmed->GetVectorParameterValue(FHashedMaterialParameterInfo(AFloor101SceneNodeActor::ColorParameterName), Color));
-		TestTrue(TEXT("grey"), Color.Equals(FLinearColor(0.3f, 0.32f, 0.36f), 1e-3f));
+		TestTrue(TEXT("its finish, darker"), Color.Equals(UFloor101FinishLibrary::ContextTint, 1e-3f));
 	}
 
 	// Drawing on the upper level: the ray is taken to its floor at 2800 mm and the wall stands there.
@@ -366,6 +368,59 @@ bool FFloor101LevelsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("every level"), Document->Edit([](EditController& Editor) { Editor.setShowAllLevels(true); return f101::Status::success(); }).ok());
 	TestNotNull(TEXT("upper wall shown"), Document->FindWallActor(Upper.id));
 	TestNotNull(TEXT("ground slab shown"), Document->FindRoomSlabActor(GroundRoom));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FinishesInteractionTest, "Floor101.Interaction.Finishes", TestFlags)
+bool FFloor101FinishesInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("document subsystem"), Document) || !TestNotNull(TEXT("finish library"), Library))
+	{
+		return false;
+	}
+	f101::cad::Document& Model = Document->GetMutableDocument();
+	const f101::cad::WallId South = Model.addWall({0, 0}, {4000, 0}, 120, 2800).value();
+	(void)Model.addWall({4000, 0}, {4000, 3000}, 120, 2800);
+	(void)Model.addWall({4000, 3000}, {0, 3000}, 120, 2800);
+	(void)Model.addWall({0, 3000}, {0, 0}, 120, 2800);
+
+	// Paint: the inner (north, left) face of the south wall, then the floor.
+	TestTrue(TEXT("paint mode with bricks"), Document->Edit([](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Paint);
+		return Editor.setPaintFinish("brick-red");
+	}).ok());
+	TestTrue(TEXT("paint the wall face"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(2000.0, 30.0)); }).ok());
+	TestTrue(TEXT("left face is brick"), Document->GetDocument().project().findWall(South)->finishLeft == "brick-red");
+	const AFloor101SceneNodeActor* Wall = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(South));
+	if (TestNotNull(TEXT("wall actor"), Wall))
+	{
+		TestTrue(TEXT("the actor shows the bricks"), Wall->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("brick-red")));
+	}
+	TestTrue(TEXT("oak"), Document->Edit([](EditController& Editor) { return Editor.setPaintFinish("wood-oak"); }).ok());
+	TestTrue(TEXT("paint the floor"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(2000.0, 1500.0)); }).ok());
+	const FString Room = Document->GetRooms().Num() == 1 ? Document->GetRooms()[0].Key : FString();
+	const AFloor101SceneNodeActor* Floor = Cast<AFloor101SceneNodeActor>(Document->FindRoomFloorActor(Room));
+	if (TestNotNull(TEXT("floor actor"), Floor))
+	{
+		TestTrue(TEXT("the floor shows the oak"), Floor->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("wood-oak")));
+	}
+
+	// Select the room by its floor; the floor turns orange, and its ceiling finish is set from the selection.
+	TestTrue(TEXT("select mode"), Document->Edit([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Select); return f101::Status::success(); }).ok());
+	TestTrue(TEXT("click the floor"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(2000.0, 1500.0)); }).ok());
+	TestEqual(TEXT("room selected"), FString(UTF8_TO_TCHAR(Document->GetEditController().selectedRoom().c_str())), Room);
+	if (Floor)
+	{
+		TestNotNull(TEXT("selected floor is tinted"), Cast<UMaterialInstanceDynamic>(Floor->GetDisplayMaterial()));
+		TestTrue(TEXT("not the oak any more"), Floor->GetDisplayMaterial() != Library->GetFinishMaterial(TEXT("wood-oak")));
+	}
+	TestTrue(TEXT("ceiling"), Document->Edit([](EditController& Editor) { return Editor.setSelectedRoomCeiling("wood-oak"); }).ok());
+	const f101::cad::RoomFinish* Finish = Document->GetDocument().project().findRoomFinish(TCHAR_TO_UTF8(*Room));
+	TestTrue(TEXT("floor and ceiling stored by room key"), Finish && Finish->floor == "wood-oak" && Finish->ceiling == "wood-oak");
 	return true;
 }
 

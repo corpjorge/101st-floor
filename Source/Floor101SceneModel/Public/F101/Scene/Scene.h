@@ -52,7 +52,9 @@ namespace f101::scene
 		std::string sourceId;        // UUID text of the source wall (for floors and slabs: the room key)
 		cad::LevelId level;          // level of the source (nil for markers)
 		geometry::MeshData mesh;     // scene space (mm, right-handed, Z up); node transform is identity for now
-		std::uint64_t contentHash = 0; // hash of the mesh; changes whenever the geometry changes
+		// Finish of each mesh section (same order as mesh.sections): a catalogue id, never empty (ADR-0012).
+		std::vector<std::string> finishes;
+		std::uint64_t contentHash = 0; // hash of the mesh and finishes; changes whenever what is rendered changes
 		NodeStyle style = NodeStyle::Normal;
 	};
 

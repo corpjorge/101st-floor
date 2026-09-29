@@ -107,6 +107,8 @@ namespace
 		}
 		Info.Id = ToFString(f101::cad::toString(Wall.id));
 		Info.LevelId = ToFString(f101::cad::toString(Subsystem.GetDocument().project().levelOf(Wall)));
+		Info.LeftFinish = ToFString(Wall.finishLeft);
+		Info.RightFinish = ToFString(Wall.finishRight);
 		Info.StartXMm = Wall.start.x_mm;
 		Info.StartYMm = Wall.start.y_mm;
 		Info.EndXMm = Wall.end.x_mm;
@@ -333,6 +335,11 @@ TArray<FFloor101RoomInfo> UFloor101DocumentToolset::GetRooms()
 		FFloor101RoomInfo Info;
 		Info.Key = ToFString(Room.key);
 		Info.LevelId = ToFString(f101::cad::toString(Entry.level));
+		if (const f101::cad::RoomFinish* Finish = Subsystem->GetDocument().project().findRoomFinish(Room.key))
+		{
+			Info.FloorFinish = ToFString(Finish->floor);
+			Info.CeilingFinish = ToFString(Finish->ceiling);
+		}
 		Info.AreaM2 = Room.areaMm2 / 1.0e6;
 		for (const f101::cad::WallId& Wall : Room.walls)
 		{
@@ -408,6 +415,48 @@ void UFloor101DocumentToolset::RemoveOpening(const FString& WallId, const FStrin
 	if (!Removed)
 	{
 		RaiseError(FString::Printf(TEXT("cannot remove opening %s: %s"), *OpeningId, *ToFString(Removed.error().message)));
+	}
+}
+
+TArray<FFloor101FinishInfo> UFloor101DocumentToolset::GetFinishes()
+{
+	TArray<FFloor101FinishInfo> Finishes;
+	for (const f101::cad::FinishInfo& Finish : f101::cad::finishCatalogue())
+	{
+		FFloor101FinishInfo Info;
+		Info.Id = ToFString(Finish.id);
+		Info.bForWalls = Finish.allows(f101::cad::Surface::Wall);
+		Info.bForFloors = Finish.allows(f101::cad::Surface::Floor);
+		Info.bForCeilings = Finish.allows(f101::cad::Surface::Ceiling);
+		Info.Color = FColor(Finish.color.r, Finish.color.g, Finish.color.b);
+		Info.Roughness = static_cast<float>(Finish.roughness);
+		Finishes.Add(Info);
+	}
+	return Finishes;
+}
+
+FFloor101WallInfo UFloor101DocumentToolset::SetWallFinish(const FString& WallId, EFloor101WallSide Side, const FString& FinishId)
+{
+	const f101::cad::WallSide CadSide = Side == EFloor101WallSide::Left ? f101::cad::WallSide::Left : f101::cad::WallSide::Right;
+	const std::string Finish = TCHAR_TO_UTF8(*FinishId);
+	return ChangeWall(WallId, TEXT("change the finish of"), [CadSide, &Finish](const f101::cad::WallId& Id) -> f101::cad::Command
+	{
+		return f101::cad::SetWallFinishCommand{Id, CadSide, Finish};
+	});
+}
+
+void UFloor101DocumentToolset::SetRoomFinish(const FString& RoomKey, const FString& FloorFinishId, const FString& CeilingFinishId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return;
+	}
+	const f101::Result<f101::cad::Transaction> Changed = Subsystem->GetMutableDocument().execute(f101::cad::SetRoomFinishCommand{
+		TCHAR_TO_UTF8(*RoomKey), TCHAR_TO_UTF8(*FloorFinishId), TCHAR_TO_UTF8(*CeilingFinishId)});
+	if (!Changed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change the finishes of room %s: %s"), *RoomKey, *ToFString(Changed.error().message)));
 	}
 }
 

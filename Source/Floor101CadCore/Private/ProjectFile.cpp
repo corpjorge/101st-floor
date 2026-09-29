@@ -186,6 +186,41 @@ namespace f101::cad
 			return level;
 		}
 
+		// An optional string field; `out` is left empty when it is missing.
+		Status readOptionalString(const Json& object, const char* key, const std::string& where, std::string& out)
+		{
+			const auto field = object.find(key);
+			if (field == object.end())
+			{
+				return Status::success();
+			}
+			if (!field->is_string())
+			{
+				return formatError(where + "." + key + " must be a string");
+			}
+			out = field->get<std::string>();
+			return Status::success();
+		}
+
+		Result<RoomFinish> readRoomFinish(const Json& object, std::size_t index)
+		{
+			const std::string where = "roomFinishes[" + std::to_string(index) + "]";
+			if (!object.is_object())
+			{
+				return formatError(where + " must be an object");
+			}
+			RoomFinish finish;
+			for (const auto& [key, target] : {std::pair<const char*, std::string*>{"room", &finish.room}, {"floor", &finish.floor},
+					 {"ceiling", &finish.ceiling}})
+			{
+				if (Status read = readOptionalString(object, key, where, *target); !read)
+				{
+					return read.error();
+				}
+			}
+			return finish;
+		}
+
 		// `withLevel`: schema 3, where every wall names its level.
 		Result<Wall> readWall(const Json& object, std::size_t index, bool withLevel)
 		{
@@ -250,6 +285,20 @@ namespace f101::cad
 					wall.openings.push_back(std::move(opening).value());
 				}
 			}
+			if (const auto finishes = object.find("finishes"); finishes != object.end()) // schema 4
+			{
+				if (!finishes->is_object())
+				{
+					return formatError(where + ".finishes must be an object");
+				}
+				for (const auto& [key, side] : {std::pair<const char*, WallSide>{"left", WallSide::Left}, {"right", WallSide::Right}})
+				{
+					if (Status read = readOptionalString(*finishes, key, where + ".finishes", wall.finish(side)); !read)
+					{
+						return read.error();
+					}
+				}
+			}
 			return wall;
 		}
 	}
@@ -295,6 +344,19 @@ namespace f101::cad
 				}
 				entry["openings"] = std::move(openings);
 			}
+			if (!wall.finishLeft.empty() || !wall.finishRight.empty())
+			{
+				Json finishes = Json::object();
+				if (!wall.finishLeft.empty())
+				{
+					finishes["left"] = wall.finishLeft;
+				}
+				if (!wall.finishRight.empty())
+				{
+					finishes["right"] = wall.finishRight;
+				}
+				entry["finishes"] = std::move(finishes);
+			}
 			walls.push_back(std::move(entry));
 		}
 		Json root = Json::object();
@@ -303,6 +365,25 @@ namespace f101::cad
 		root["units"] = "mm";
 		root["levels"] = std::move(levels);
 		root["walls"] = std::move(walls);
+		if (!project.roomFinishes.empty())
+		{
+			Json rooms = Json::array();
+			for (const RoomFinish& finish : project.roomFinishes)
+			{
+				Json item = Json::object();
+				item["room"] = finish.room;
+				if (!finish.floor.empty())
+				{
+					item["floor"] = finish.floor;
+				}
+				if (!finish.ceiling.empty())
+				{
+					item["ceiling"] = finish.ceiling;
+				}
+				rooms.push_back(std::move(item));
+			}
+			root["roomFinishes"] = std::move(rooms);
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -376,6 +457,22 @@ namespace f101::cad
 				return wall.error();
 			}
 			project.walls.push_back(std::move(wall).value());
+		}
+		if (const auto rooms = root.find("roomFinishes"); rooms != root.end()) // schema 4
+		{
+			if (!rooms->is_array())
+			{
+				return formatError("roomFinishes must be an array");
+			}
+			for (std::size_t index = 0; index < rooms->size(); ++index)
+			{
+				Result<RoomFinish> finish = readRoomFinish((*rooms)[index], index);
+				if (!finish)
+				{
+					return finish.error();
+				}
+				project.roomFinishes.push_back(std::move(finish).value());
+			}
 		}
 		if (!withLevels)
 		{

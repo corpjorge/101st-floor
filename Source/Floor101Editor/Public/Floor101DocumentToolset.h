@@ -12,6 +12,44 @@ enum class EFloor101OpeningKind : uint8
 	Window,
 };
 
+UENUM(BlueprintType)
+enum class EFloor101WallSide : uint8
+{
+	/** Left of the axis, looking from its start to its end. */
+	Left,
+	Right,
+};
+
+/**
+ * A finish of the catalogue: what a wall face, a floor or a ceiling can be covered with.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101FinishInfo
+{
+	GENERATED_BODY()
+
+	/** Catalogue id, e.g. "brick-red". */
+	UPROPERTY()
+	FString Id;
+
+	UPROPERTY()
+	bool bForWalls = false;
+
+	UPROPERTY()
+	bool bForFloors = false;
+
+	UPROPERTY()
+	bool bForCeilings = false;
+
+	/** Base colour (sRGB). */
+	UPROPERTY()
+	FColor Color = FColor::White;
+
+	/** 0 mirror .. 1 matte. */
+	UPROPERTY()
+	float Roughness = 0.0f;
+};
+
 /**
  * A level (floor) of the building, bottom to top. Integer millimetres.
  */
@@ -114,6 +152,13 @@ struct FFloor101WallInfo
 	UPROPERTY()
 	double LengthMm = 0.0;
 
+	/** Finish ids of its faces (left and right of the axis); empty: the default. */
+	UPROPERTY()
+	FString LeftFinish;
+
+	UPROPERTY()
+	FString RightFinish;
+
 	/** Its doors and windows, by offset. */
 	UPROPERTY()
 	TArray<FFloor101OpeningInfo> Openings;
@@ -143,6 +188,13 @@ struct FFloor101RoomInfo
 	UPROPERTY()
 	double AreaM2 = 0.0;
 
+	/** Finish ids of its floor and ceiling (underside of its slab); empty: the default. */
+	UPROPERTY()
+	FString FloorFinish;
+
+	UPROPERTY()
+	FString CeilingFinish;
+
 	/** Ids of the walls around it. */
 	UPROPERTY()
 	TArray<FString> WallIds;
@@ -153,10 +205,10 @@ struct FFloor101RoomInfo
 };
 
 /**
- * Edits the levels, walls, doors and windows of the 101st Floor document and reads the rooms they enclose: the play
- * session's document while Play-In-Editor runs, otherwise the editor world's. Every change is one undoable step and
- * regenerates the Unreal representation (transient actors). Also saves and opens project.json files. Dimensions are
- * integer millimetres; wall coordinates are relative to their level's floor.
+ * Edits the levels, walls, doors, windows and finishes of the 101st Floor document and reads the rooms they enclose:
+ * the play session's document while Play-In-Editor runs, otherwise the editor world's. Every change is one undoable
+ * step and regenerates the Unreal representation (transient actors). Also saves and opens project.json files.
+ * Dimensions are integer millimetres; wall coordinates are relative to their level's floor.
  */
 UCLASS(BlueprintType, MinimalAPI)
 class UFloor101DocumentToolset : public UToolsetDefinition
@@ -272,6 +324,28 @@ public:
 
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveOpening(const FString& WallId, const FString& OpeningId);
+
+	/**
+	 * Returns the finish catalogue.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101FinishInfo> GetFinishes();
+
+	/**
+	 * Sets the finish of one face of a wall.
+	 * @param FinishId A catalogue id that allows walls; empty restores the default.
+	 * @return The updated wall.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101WallInfo SetWallFinish(const FString& WallId, EFloor101WallSide Side, const FString& FinishId);
+
+	/**
+	 * Sets the floor and ceiling finishes of a room (GetRooms Key). They stay with the room while its key does.
+	 * @param FloorFinishId Empty for the default.
+	 * @param CeilingFinishId Empty for the default.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void SetRoomFinish(const FString& RoomKey, const FString& FloorFinishId, const FString& CeilingFinishId);
 
 	/**
 	 * Removes a wall and its actor.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "F101/Cad/Export.h"
+#include "F101/Cad/Finishes.h"
 #include "F101/Cad/Geometry2D.h"
 #include "F101/Cad/Id.h"
 #include "F101/Cad/Result.h"
@@ -34,6 +35,13 @@ namespace f101::cad
 		friend bool operator==(const Opening&, const Opening&) = default;
 	};
 
+	// The long faces of a wall, seen along its axis from start to end.
+	enum class WallSide
+	{
+		Left,
+		Right,
+	};
+
 	// Parametric straight wall. The axis runs from start to end; the thickness is centred on the axis. Its geometry is
 	// local to its level (z = 0 at the level's floor).
 	// Geometry is always regenerated from these parameters, never stored or scaled.
@@ -46,11 +54,16 @@ namespace f101::cad
 		std::int64_t heightMm = 0;
 		std::vector<Opening> openings; // sorted by offset, never overlapping
 		LevelId level; // the floor it stands on (ADR-0011); its base is that level's elevation
+		FinishId finishLeft;  // finish of the left face (ADR-0012); empty: the default wall finish
+		FinishId finishRight;
 
 		friend bool operator==(const Wall&, const Wall&) = default;
 
 		Segment2D axis() const { return Segment2D{start, end}; }
 		double lengthMm() const { return axis().lengthMm(); }
+
+		const FinishId& finish(WallSide side) const { return side == WallSide::Left ? finishLeft : finishRight; }
+		FinishId& finish(WallSide side) { return side == WallSide::Left ? finishLeft : finishRight; }
 
 		const Opening* findOpening(const OpeningId& opening) const
 		{
@@ -65,7 +78,8 @@ namespace f101::cad
 		}
 	};
 
-	// Invariants every wall in a project satisfies: identities (wall and openings) plus validateWallGeometry.
+	// Invariants every wall in a project satisfies: identities (wall and openings), finishes for walls, plus
+	// validateWallGeometry.
 	FLOOR101CADCORE_API Status validateWall(const Wall& wall);
 	// Non-degenerate axis, positive dimensions, model range, and openings that fit: inside the length, below the top
 	// (at least a lintel of 1 mm), doors on the floor, sorted by offset and not overlapping. Enough to build geometry

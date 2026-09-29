@@ -94,6 +94,22 @@ namespace f101::cad
 		OpeningId opening;
 	};
 
+	// Sets the finish of one face of a wall (ADR-0012); empty restores the default.
+	struct SetWallFinishCommand
+	{
+		WallId wall;
+		WallSide side = WallSide::Left;
+		FinishId finish;
+	};
+
+	// Sets the floor and ceiling finishes of a room, by room key; both empty removes the room's own finishes.
+	struct SetRoomFinishCommand
+	{
+		std::string room;
+		FinishId floor;
+		FinishId ceiling;
+	};
+
 	// Adds a level on top of the others (a new id is assigned).
 	struct AddLevelCommand
 	{
@@ -117,7 +133,8 @@ namespace f101::cad
 
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
-		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand>;
+		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
+		SetRoomFinishCommand>;
 
 	// Short name for undo/redo UI, e.g. "Create wall".
 	FLOOR101CADCORE_API std::string_view commandLabel(const Command& command);
@@ -141,14 +158,24 @@ namespace f101::cad
 		std::optional<Level> after;
 	};
 
+	// Same for the finishes of a room, keyed by room key.
+	struct RoomFinishChange
+	{
+		std::string id; // room key
+		std::size_t index = 0;
+		std::optional<RoomFinish> before;
+		std::optional<RoomFinish> after;
+	};
+
 	// A validated, reversible edit (ADR-0006): undo applies the `before` states, redo the `after` states.
 	struct Transaction
 	{
 		std::string label;
 		std::vector<WallChange> walls;
 		std::vector<LevelChange> levels;
+		std::vector<RoomFinishChange> roomFinishes;
 
-		bool empty() const { return walls.empty() && levels.empty(); }
+		bool empty() const { return walls.empty() && levels.empty() && roomFinishes.empty(); }
 	};
 
 	// Entities affected by one applied transaction (forward, undo or redo).
@@ -160,6 +187,7 @@ namespace f101::cad
 		std::vector<LevelId> addedLevels;
 		std::vector<LevelId> modifiedLevels;
 		std::vector<LevelId> removedLevels;
+		std::vector<std::string> changedRoomFinishes; // room keys
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;

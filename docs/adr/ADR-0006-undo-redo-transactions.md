@@ -21,6 +21,7 @@ escena, el actor de Unreal y, en el futuro, la sincronización con Twinmotion.
   entonces aplica. Un comando rechazado no toca el proyecto ni el historial; uno que no cambia nada no se registra.
   Desde el MVP 4 (ADR-0011) una transacción también guarda estados de planta (`LevelChange`); al aplicar van primero
   las plantas y luego los muros, que se refieren a ellas.
+  Desde el MVP 5 (ADR-0012) también guarda estados de acabado de habitación (`RoomFinishChange`, por clave).
 - `undo()` aplica los `before`, `redo()` los `after`, y ambos notifican el `ChangeSet` correspondiente. Un comando
   nuevo vacía la pila de rehacer. `replaceProject` (cargar un archivo) limpia el historial.
 - `ChangeWallLengthCommand` conserva el inicio y la dirección y cuantiza el final a milímetros enteros (ADR-0001). En

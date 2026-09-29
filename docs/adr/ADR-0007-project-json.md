@@ -38,6 +38,8 @@ compila sin excepciones (ADR-0002), y los milímetros deben leerse de forma exac
   alguno; los archivos v1 se leen sin cambios.
   **Esquema 3 (MVP 4, ADR-0011):** `levels` y la planta (`level`) de cada muro; los archivos v1 y v2 se leen en una
   sola planta.
+  **Esquema 4 (MVP 5, ADR-0012):** `finishes` (`left`, `right`) en los muros y `roomFinishes` por clave de habitación,
+  solo si hay alguno.
 
 ## Verificación
 `Tests/Unit/ProjectFileTests.cpp`: salida exacta documentada, ida y vuelta sin pérdida (incluidos ±999.999.999 mm),

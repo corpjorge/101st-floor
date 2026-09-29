@@ -59,7 +59,7 @@ TEST_CASE("writes the documented, deterministic format")
 	CHECK(writeProjectJson(project) ==
 		"{\n"
 		"  \"format\": \"101st-floor-project\",\n"
-		"  \"schemaVersion\": 3,\n"
+		"  \"schemaVersion\": 4,\n"
 		"  \"units\": \"mm\",\n"
 		"  \"levels\": [\n"
 		"    {\n"
@@ -125,7 +125,7 @@ TEST_CASE("rejects files that are not valid 101st Floor projects")
 
 TEST_CASE("a project from a newer schema version is refused, not misread")
 {
-	CHECK(readError(R"({"format":"101st-floor-project","schemaVersion":4,"units":"mm","walls":[]})") == ErrorCode::InvalidArgument);
+	CHECK(readError(R"({"format":"101st-floor-project","schemaVersion":5,"units":"mm","walls":[]})") == ErrorCode::InvalidArgument);
 }
 
 TEST_CASE("millimetres must be integers inside the model range")
@@ -210,8 +210,8 @@ TEST_CASE("files before schema 3 load onto one level as tall as their tallest wa
 		{
 			CHECK(wall.level == level.id);
 		}
-		// Saved again, it is a schema 3 file with that level.
-		CHECK(writeProjectJson(loaded.value()).find("\"schemaVersion\": 3") != std::string::npos);
+		// Saved again, it is a current schema file with that level.
+		CHECK(writeProjectJson(loaded.value()).find("\"schemaVersion\": " + std::to_string(ProjectSchemaVersion)) != std::string::npos);
 	}
 	const Result<Project> empty = readProjectJson(minimalJson("[]"));
 	REQUIRE(empty.ok());

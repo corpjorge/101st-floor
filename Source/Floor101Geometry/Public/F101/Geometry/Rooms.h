@@ -2,6 +2,7 @@
 
 #include "F101/Cad/Geometry2D.h"
 #include "F101/Cad/Id.h"
+#include "F101/Cad/EditController.h"
 #include "F101/Cad/Project.h"
 #include "F101/Geometry/MeshData.h"
 
@@ -29,6 +30,9 @@ namespace f101::geometry
 	// and a group of walls standing free inside a room does not cut a hole in it. Sorted by key.
 	// Precondition: every wall passes cad::validateWallGeometry.
 	FLOOR101GEOMETRY_API std::vector<Room> detectRooms(const cad::Project& project);
+
+	// For cad::EditController: the key of the room of `levelWalls` whose floor contains the point.
+	FLOOR101GEOMETRY_API cad::RoomLocator makeRoomLocator();
 
 	inline constexpr double FloorThicknessMm = 10.0;
 	namespace floor_slots

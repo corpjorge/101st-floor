@@ -30,7 +30,8 @@ TEST_CASE_FIXTURE(ReferenceProject, "the reference project compiles to one wall 
 	CHECK(node.level == document.project().levels[0].id);
 	CHECK(node.name == "Wall 00000000");
 	CHECK(node.mesh.vertexCount() == 24);
-	CHECK(node.contentHash == hashMesh(node.mesh));
+	CHECK(node.contentHash == hashNode(node.mesh, node.finishes));
+	CHECK(node.finishes == std::vector<std::string>(6, "plaster-white")); // every face: the default wall finish
 	CHECK(scene.findNode(node.id) == &node);
 	CHECK(scene.findNode(SceneNodeId{"missing"}) == nullptr);
 }

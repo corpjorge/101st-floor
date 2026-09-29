@@ -13,6 +13,7 @@
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -58,6 +59,47 @@ namespace
 		case f101::cad::SnapKind::Grid: return LOCTEXT("SnapGrid", "rejilla");
 		default: return FText::GetEmpty();
 		}
+	}
+
+	// Display name of a finish (ADR-0012); the catalogue ids stay in English.
+	FText FinishName(std::string_view Id)
+	{
+		static const TMap<FString, FText> Names{
+			{TEXT("plaster-white"), LOCTEXT("FinishPlaster", "Enlucido blanco")},
+			{TEXT("paint-sand"), LOCTEXT("FinishSand", "Pintura arena")},
+			{TEXT("paint-sage"), LOCTEXT("FinishSage", "Pintura verde salvia")},
+			{TEXT("paint-slate"), LOCTEXT("FinishSlate", "Pintura gris azulado")},
+			{TEXT("brick-red"), LOCTEXT("FinishBrick", "Ladrillo visto")},
+			{TEXT("concrete"), LOCTEXT("FinishConcrete", "Hormigón visto")},
+			{TEXT("tile-white"), LOCTEXT("FinishTileWhite", "Azulejo blanco")},
+			{TEXT("screed-light"), LOCTEXT("FinishScreed", "Solado gris claro")},
+			{TEXT("tile-grey"), LOCTEXT("FinishTileGrey", "Baldosa gris")},
+			{TEXT("wood-oak"), LOCTEXT("FinishOak", "Tarima de roble")},
+			{TEXT("wood-walnut"), LOCTEXT("FinishWalnut", "Tarima de nogal")},
+		};
+		const FString Key = UTF8_TO_TCHAR(std::string(Id).c_str());
+		const FText* Name = Names.Find(Key);
+		return Name ? *Name : FText::FromString(Key);
+	}
+
+	FLinearColor FinishSwatch(std::string_view Id)
+	{
+		const f101::cad::FinishInfo* Finish = f101::cad::findFinish(Id);
+		return Finish ? FLinearColor::FromSRGBColor(FColor(Finish->color.r, Finish->color.g, Finish->color.b)) : FLinearColor(1.0f, 0.0f, 1.0f);
+	}
+
+	// Where a wall face looks, as a compass point (plan: +x east, +y north).
+	FText FaceDirection(const f101::cad::Wall& Wall, f101::cad::WallSide Side)
+	{
+		const double Ax = static_cast<double>(Wall.end.x_mm - Wall.start.x_mm);
+		const double Ay = static_cast<double>(Wall.end.y_mm - Wall.start.y_mm);
+		const double Sign = Side == f101::cad::WallSide::Left ? 1.0 : -1.0;
+		const double Degrees = FMath::RadiansToDegrees(FMath::Atan2(Ax * Sign, -Ay * Sign)); // the face normal, from east
+		static const FText Points[8] = {LOCTEXT("East", "este"), LOCTEXT("NorthEast", "noreste"), LOCTEXT("North", "norte"),
+			LOCTEXT("NorthWest", "noroeste"), LOCTEXT("West", "oeste"), LOCTEXT("SouthWest", "suroeste"), LOCTEXT("South", "sur"),
+			LOCTEXT("SouthEast", "sureste")};
+		const int32 Sector = static_cast<int32>(FMath::RoundToDouble(FMath::Fmod(Degrees + 360.0, 360.0) / 45.0)) % 8;
+		return FText::Format(LOCTEXT("Face", "Cara {0}"), Points[Sector]);
 	}
 
 	// "Planta baja", "Planta 1"... unless the level has a name of its own.
@@ -314,6 +356,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
 			[
 				ModeButton(LOCTEXT("Window", "Ventana (O)"), LOCTEXT("WindowTip", "Coloca una ventana de 120 × 120 cm a 90 cm del suelo: clic sobre un muro"), EditMode::Window)
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				ModeButton(LOCTEXT("Paint", "Pintar (M)"), LOCTEXT("PaintTip", "Aplica un acabado: clic en una cara de muro o en el suelo de una habitación"), EditMode::Paint)
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 2.0f, 2.0f, 2.0f)
 			[
@@ -601,7 +647,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 		.WidthOverride(260.0f)
 		.Visibility_Lambda([this]()
 		{
-			return GetSelectedWall() || GetSelectedOpening() || IsLevelPanelShown() ? EVisibility::Visible : EVisibility::Collapsed;
+			const UFloor101DocumentSubsystem* S = Document.Get();
+			const bool bPainting = S && S->GetEditController().mode() == EditMode::Paint;
+			return GetSelectedWall() || GetSelectedOpening() || GetSelectedRoom() || IsLevelPanelShown() || bPainting ? EVisibility::Visible
+				: EVisibility::Collapsed;
 		})
 		[
 			Panel(
@@ -628,6 +677,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					[
 						MakePropertyRow(LOCTEXT("Height", "Altura"),
 							WallValue([](const f101::cad::Wall& Wall) { return static_cast<double>(Wall.heightMm); }), &EditController::setSelectionHeight)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
+					[
+						MakeWallFaceRow(f101::cad::WallSide::Left)
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+					[
+						MakeWallFaceRow(f101::cad::WallSide::Right)
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight()
@@ -682,6 +739,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				[
 					MakeLevelSection()
 				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeRoomSection()
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakePaintPalette()
+				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 				[
 					SNew(STextBlock)
@@ -693,7 +758,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				[
 					SNew(SButton)
 					.IsFocusable(false)
-					.Visibility_Lambda([this]() { return IsLevelPanelShown() ? EVisibility::Collapsed : EVisibility::Visible; })
+					.Visibility_Lambda([this]() { return GetSelectedWall() || GetSelectedOpening() ? EVisibility::Visible : EVisibility::Collapsed; })
 					.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteSelection(); }); })
 					[
 						SNew(STextBlock).Text(LOCTEXT("Delete", "Eliminar (Supr)")).Font(Font(10))
@@ -712,7 +777,7 @@ bool SFloor101Overlay::IsLevelPanelShown() const
 {
 	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
 	return Subsystem && Subsystem->GetEditController().mode() == EditMode::Select && !GetSelectedWall() && !GetSelectedOpening() &&
-		GetActiveLevel();
+		!GetSelectedRoom() && GetActiveLevel();
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
@@ -827,6 +892,238 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 		];
 }
 
+const FFloor101RoomView* SFloor101Overlay::GetSelectedRoom() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	if (!Subsystem || Subsystem->GetEditController().selectedRoom().empty())
+	{
+		return nullptr;
+	}
+	const FString Key = UTF8_TO_TCHAR(Subsystem->GetEditController().selectedRoom().c_str());
+	return Subsystem->GetRooms().FindByPredicate([&Key](const FFloor101RoomView& Room) { return Room.Key == Key; });
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface, TFunction<FString()> Current,
+	TFunction<f101::Status(f101::cad::EditController&, const std::string&)> Apply)
+{
+	TArray<TSharedPtr<FString>>& Options = FinishOptions.FindOrAdd(static_cast<uint8>(Surface));
+	if (Options.IsEmpty())
+	{
+		for (const f101::cad::FinishInfo& Finish : f101::cad::finishCatalogue())
+		{
+			if (Finish.allows(Surface))
+			{
+				Options.Add(MakeShared<FString>(UTF8_TO_TCHAR(std::string(Finish.id).c_str())));
+			}
+		}
+	}
+	auto Row = [](const FString& Id)
+	{
+		const std::string Utf8 = TCHAR_TO_UTF8(*Id);
+		return SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+			[
+				SNew(SBorder)
+				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+				.BorderBackgroundColor(FinishSwatch(Utf8))
+				.Padding(FMargin(7.0f, 7.0f))
+			]
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(FinishName(Utf8)).Font(Font(9))
+			];
+	};
+
+	return SNew(SBox)
+		.WidthOverride(150.0f)
+		[
+			SNew(SComboBox<TSharedPtr<FString>>)
+			.IsFocusable(false)
+			.OptionsSource(&Options)
+			.OnGenerateWidget_Lambda([Row](TSharedPtr<FString> Id) { return Row(*Id); })
+			.OnSelectionChanged_Lambda([this, Apply](TSharedPtr<FString> Id, ESelectInfo::Type Info)
+			{
+				if (Id && Info != ESelectInfo::Direct)
+				{
+					const std::string Finish = TCHAR_TO_UTF8(**Id);
+					(void)Run([&Apply, &Finish](EditController& Editor) { return Apply(Editor, Finish); });
+				}
+			})
+			[
+				SNew(SBox)
+				[
+					// The current finish, re-read every frame (undo, another tool...).
+					SNew(STextBlock)
+					.Font(Font(9))
+					.Text_Lambda([Current]() { return FinishName(TCHAR_TO_UTF8(*Current())); })
+					.ColorAndOpacity(FLinearColor::White)
+				]
+			]
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeWallFaceRow(f101::cad::WallSide Side)
+{
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Font(Font(10))
+			.Text_Lambda([this, Side]()
+			{
+				const f101::cad::Wall* Wall = GetSelectedWall();
+				return Wall ? FaceDirection(*Wall, Side) : FText::GetEmpty();
+			})
+		]
+		+ SHorizontalBox::Slot().AutoWidth()
+		[
+			MakeFinishCombo(f101::cad::Surface::Wall,
+				[this, Side]() -> FString
+				{
+					const f101::cad::Wall* Wall = GetSelectedWall();
+					const std::string_view Own = Wall ? std::string_view(Wall->finish(Side)) : std::string_view();
+					return UTF8_TO_TCHAR(std::string(f101::cad::resolveFinish(Own, f101::cad::Surface::Wall)).c_str());
+				},
+				[Side](EditController& Editor, const std::string& Finish) { return Editor.setWallFinish(Side, Finish); })
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
+{
+	TSharedRef<SVerticalBox> List = SNew(SVerticalBox);
+	for (const f101::cad::FinishInfo& Finish : f101::cad::finishCatalogue())
+	{
+		const std::string Id(Finish.id);
+		FString Surfaces;
+		for (const auto& [Surface, Name] : {std::pair{f101::cad::Surface::Wall, TEXT("muros")}, {f101::cad::Surface::Floor, TEXT("suelos")},
+				 {f101::cad::Surface::Ceiling, TEXT("techos")}})
+		{
+			if (Finish.allows(Surface))
+			{
+				Surfaces += (Surfaces.IsEmpty() ? TEXT("") : TEXT(", ")) + FString(Name);
+			}
+		}
+		List->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(FText::Format(LOCTEXT("FinishFor", "Para {0}"), FText::FromString(Surfaces)))
+			.ButtonColorAndOpacity_Lambda([this, Id]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				return S && S->GetEditController().paintFinish() == Id ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor(0.35f, 0.35f, 0.38f));
+			})
+			.OnClicked_Lambda([this, Id]() { return Run([&Id](EditController& Editor) { return Editor.setPaintFinish(Id); }); })
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 8.0f, 0.0f)
+				[
+					SNew(SBorder)
+					.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+					.BorderBackgroundColor(FinishSwatch(Id))
+					.Padding(FMargin(9.0f, 8.0f))
+				]
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Text(FinishName(Id)).Font(Font(10))
+				]
+			]
+		];
+	}
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([this]()
+		{
+			const UFloor101DocumentSubsystem* S = Document.Get();
+			return S && S->GetEditController().mode() == EditMode::Paint ? EVisibility::Visible : EVisibility::Collapsed;
+		})
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("PaintTitle", "Pintar: elige el acabado")).Font(Font(11, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			List
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("PaintHint", "Clic en una cara de muro o en el suelo de una habitación. El techo se elige al seleccionar la habitación."))
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
+{
+	auto RoomFinish = [this](bool bFloor)
+	{
+		return [this, bFloor]() -> FString
+		{
+			const UFloor101DocumentSubsystem* S = Document.Get();
+			if (!S)
+			{
+				return FString();
+			}
+			const std::string& Key = S->GetEditController().selectedRoom();
+			const f101::cad::RoomFinish* Finish = S->GetDocument().project().findRoomFinish(Key);
+			const std::string_view Own = Finish ? std::string_view(bFloor ? Finish->floor : Finish->ceiling) : std::string_view();
+			return UTF8_TO_TCHAR(std::string(f101::cad::resolveFinish(Own, bFloor ? f101::cad::Surface::Floor : f101::cad::Surface::Ceiling)).c_str());
+		};
+	};
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([this]() { return GetSelectedRoom() ? EVisibility::Visible : EVisibility::Collapsed; })
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(11, true))
+			.Text_Lambda([this]()
+			{
+				FNumberFormattingOptions TwoDecimals;
+				TwoDecimals.SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
+				const FFloor101RoomView* Room = GetSelectedRoom();
+				return Room ? FText::Format(LOCTEXT("SelectedRoom", "Habitación seleccionada · {0} m²"), FText::AsNumber(Room->AreaM2, &TwoDecimals))
+					: FText::GetEmpty();
+			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(LOCTEXT("RoomFloor", "Suelo")).Font(Font(10))
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				MakeFinishCombo(f101::cad::Surface::Floor, RoomFinish(true),
+					[](EditController& Editor, const std::string& Finish) { return Editor.setSelectedRoomFloor(Finish); })
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(LOCTEXT("RoomCeiling", "Techo")).Font(Font(10))
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				MakeFinishCombo(f101::cad::Surface::Ceiling, RoomFinish(false),
+					[](EditController& Editor, const std::string& Finish) { return Editor.setSelectedRoomCeiling(Finish); })
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("RoomHint", "El techo es la cara inferior del forjado: se ve desde dentro de la habitación con \"Ver todas\"."))
+		];
+}
+
 FText SFloor101Overlay::GetHintText() const
 {
 	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
@@ -841,6 +1138,11 @@ FText SFloor101Overlay::GetHintText() const
 			? LOCTEXT("HintDrafting", "Muro · mueve el cursor o escribe la longitud (sin unidad = cm) · Enter o clic: crear · cerca de un muro se une a él · Esc o clic derecho: terminar")
 			: LOCTEXT("HintWallIdle", "Muro · clic: inicio del muro (en un extremo o sobre un muro para unirlo) · Esc o clic derecho: volver a Seleccionar");
 	}
+	if (Editor.mode() == EditMode::Paint)
+	{
+		return FText::Format(LOCTEXT("HintPaint", "Pintar con {0} · clic en una cara de muro o en el suelo de una habitación · Esc o clic derecho: volver a Seleccionar"),
+			FinishName(Editor.paintFinish()));
+	}
 	if (Editor.mode() == EditMode::Door || Editor.mode() == EditMode::Window)
 	{
 		return Editor.mode() == EditMode::Door
@@ -851,12 +1153,16 @@ FText SFloor101Overlay::GetHintText() const
 	{
 		return LOCTEXT("HintDragging", "Moviendo esquina · los muros unidos la siguen · suelta para aplicar · Esc o clic derecho: cancelar");
 	}
+	if (!Editor.selectedRoom().empty())
+	{
+		return LOCTEXT("HintRoom", "Seleccionar · elige el suelo y el techo de la habitación en el panel");
+	}
 	if (Editor.selectedOpening())
 	{
 		return LOCTEXT("HintOpening", "Seleccionar · edita sus medidas en el panel · Supr: eliminar");
 	}
 	return Editor.selection().isNil()
-		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, puerta o ventana · W: muros · P: puertas · O: ventanas · RePág/AvPág: planta")
+		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco o habitación · W: muros · P: puertas · O: ventanas · M: pintar · RePág/AvPág: planta")
 		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 

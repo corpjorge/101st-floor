@@ -29,7 +29,7 @@ public:
 	UDynamicMeshComponent* GetMeshComponent() const { return MeshComponent; }
 	const FString& GetSceneNodeId() const { return SceneNodeId; }
 
-	// Material shown by every section: the default one, or a tinted instance for the node's style.
+	// Material of the first section: its finish, or the tinted base material of the node's view style.
 	UMaterialInterface* GetDisplayMaterial() const;
 
 	// World-space bounds of the generated mesh, in centimetres.

@@ -86,6 +86,7 @@ namespace f101::cad
 		{
 			selected = WallId();
 			selectedOpeningId = OpeningId();
+			selectedRoomKey.clear();
 		}
 		currentMode = mode;
 		if (planPoint)
@@ -228,6 +229,10 @@ namespace f101::cad
 			updatePlacement();
 			return added;
 		}
+		if (currentMode == EditMode::Paint)
+		{
+			return paint(project, ray);
+		}
 
 		// A handle of the selected wall starts a drag. The endpoint only moves once the pointer moves.
 		const WallId current = selection();
@@ -263,9 +268,10 @@ namespace f101::cad
 			}
 		}
 
-		// A wall, or the opening in it where the pointer is along the wall.
+		// A wall, or the opening in it where the pointer is along the wall; else the room whose floor is under the pointer.
 		selected = WallId();
 		selectedOpeningId = OpeningId();
+		selectedRoomKey.clear();
 		if (const std::optional<WallHit> hit = pickWall(project, ray))
 		{
 			selected = hit->wall;
@@ -275,6 +281,10 @@ namespace f101::cad
 			{
 				selectedOpeningId = opening->id;
 			}
+		}
+		else if (planPoint && roomLocator)
+		{
+			selectedRoomKey = roomLocator(project, *planPoint).value_or(std::string());
 		}
 		return Status::success();
 	}
@@ -323,6 +333,7 @@ namespace f101::cad
 		{
 			selected = WallId();
 			selectedOpeningId = OpeningId();
+			selectedRoomKey.clear();
 		}
 	}
 
@@ -400,6 +411,7 @@ namespace f101::cad
 		tool.cancel();
 		selected = WallId();
 		selectedOpeningId = OpeningId();
+		selectedRoomKey.clear();
 		if (planPoint)
 		{
 			tool.pointerMoved(*planPoint);
@@ -435,6 +447,7 @@ namespace f101::cad
 		drag.reset();
 		selected = id;
 		selectedOpeningId = OpeningId();
+		selectedRoomKey.clear();
 		return Status::success();
 	}
 
@@ -450,6 +463,7 @@ namespace f101::cad
 		drag.reset();
 		selected = wall;
 		selectedOpeningId = opening;
+		selectedRoomKey.clear();
 		return Status::success();
 	}
 
@@ -458,6 +472,7 @@ namespace f101::cad
 		drag.reset();
 		selected = WallId();
 		selectedOpeningId = OpeningId();
+		selectedRoomKey.clear();
 	}
 
 	Status EditController::changeSelection(std::string_view text, Command (*makeCommand)(const WallId&, std::int64_t))
@@ -527,6 +542,85 @@ namespace f101::cad
 		return changeOpening(text, [](Opening& opening, std::int64_t mm) { opening.offsetMm = mm; });
 	}
 
+	Status EditController::paint(const Project& project, const Ray3& ray)
+	{
+		// The face of the wall under the pointer (the side of its axis the ray meets it on), else the room floor.
+		if (const std::optional<WallHit> hit = pickWall(project, ray))
+		{
+			const Wall& wall = *project.findWall(hit->wall);
+			const double px = ray.originX + ray.directionX * hit->distance - static_cast<double>(wall.start.x_mm);
+			const double py = ray.originY + ray.directionY * hit->distance - static_cast<double>(wall.start.y_mm);
+			const double ax = static_cast<double>(wall.end.x_mm - wall.start.x_mm);
+			const double ay = static_cast<double>(wall.end.y_mm - wall.start.y_mm);
+			const WallSide side = ax * py - ay * px >= 0.0 ? WallSide::Left : WallSide::Right;
+			return toStatus(document.execute(SetWallFinishCommand{wall.id, side, editSettings.paintFinish}));
+		}
+		const std::optional<std::string> room = planPoint && roomLocator ? roomLocator(project, *planPoint) : std::nullopt;
+		if (!room)
+		{
+			return Error{ErrorCode::InvalidArgument, "Point at a wall or at the floor of a room"};
+		}
+		const RoomFinish* current = document.project().findRoomFinish(*room);
+		return toStatus(document.execute(SetRoomFinishCommand{*room, editSettings.paintFinish, current ? current->ceiling : FinishId()}));
+	}
+
+	Status EditController::setPaintFinish(std::string_view finish)
+	{
+		if (!findFinish(finish))
+		{
+			return Error{ErrorCode::NotFound, "Unknown finish '" + std::string(finish) + "'"};
+		}
+		editSettings.paintFinish = std::string(finish);
+		return Status::success();
+	}
+
+	const std::string& EditController::selectedRoom() const
+	{
+		static const std::string none;
+		return currentMode == EditMode::Select ? selectedRoomKey : none;
+	}
+
+	Status EditController::selectRoom(const std::string& room)
+	{
+		setMode(EditMode::Select);
+		drag.reset();
+		selected = WallId();
+		selectedOpeningId = OpeningId();
+		selectedRoomKey = room;
+		return Status::success();
+	}
+
+	Status EditController::setRoomFinishes(std::string_view floor, std::string_view ceiling)
+	{
+		if (selectedRoom().empty())
+		{
+			return nothingSelected();
+		}
+		return toStatus(document.execute(SetRoomFinishCommand{selectedRoomKey, std::string(floor), std::string(ceiling)}));
+	}
+
+	Status EditController::setSelectedRoomFloor(std::string_view finish)
+	{
+		const RoomFinish* current = document.project().findRoomFinish(selectedRoomKey);
+		return setRoomFinishes(finish, current ? std::string_view(current->ceiling) : std::string_view());
+	}
+
+	Status EditController::setSelectedRoomCeiling(std::string_view finish)
+	{
+		const RoomFinish* current = document.project().findRoomFinish(selectedRoomKey);
+		return setRoomFinishes(current ? std::string_view(current->floor) : std::string_view(), finish);
+	}
+
+	Status EditController::setWallFinish(WallSide side, std::string_view finish)
+	{
+		const WallId current = selection();
+		if (current.isNil())
+		{
+			return nothingSelected();
+		}
+		return toStatus(document.execute(SetWallFinishCommand{current, side, std::string(finish)}));
+	}
+
 	void EditController::changeLevel(const LevelId& level)
 	{
 		if (level == activeLevel())
@@ -537,6 +631,7 @@ namespace f101::cad
 		placement.reset();
 		selected = WallId();
 		selectedOpeningId = OpeningId();
+		selectedRoomKey.clear();
 		tool.setLevel(level);
 		planPoint.reset(); // it was measured on the other level; the next pointer move sets it again
 	}
@@ -643,6 +738,7 @@ namespace f101::cad
 		EditView result;
 		result.activeLevel = activeLevel();
 		result.showAllLevels = allLevels;
+		result.selectedRoom = selectedRoom();
 		const Project& project = document.project();
 		if (currentMode == EditMode::Wall)
 		{

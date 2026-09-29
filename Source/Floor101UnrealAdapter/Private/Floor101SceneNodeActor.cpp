@@ -2,16 +2,17 @@
 
 #include "Components/DynamicMeshComponent.h"
 #include "F101/Scene/Scene.h"
+#include "Floor101FinishLibrary.h"
 #include "Floor101UnrealConversion.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
-const FName AFloor101SceneNodeActor::ColorParameterName(TEXT("Color"));
+const FName AFloor101SceneNodeActor::ColorParameterName(TEXT("Tint"));
 
 namespace
 {
-	// View-state colours (linear). Normal nodes use the untinted default material.
+	// View-state colours (linear) tinting the base material. Normal nodes show their finishes (ADR-0012).
 	FLinearColor StyleColor(f101::scene::NodeStyle Style)
 	{
 		switch (Style)
@@ -33,7 +34,8 @@ AFloor101SceneNodeActor::AFloor101SceneNodeActor()
 	MeshComponent->SetEnableRaytracing(true);
 	RootComponent = MeshComponent;
 
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	// Hard reference so the generated material is cooked with the game (it is also in DirectoriesToAlwaysCook).
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(UFloor101FinishLibrary::BaseMaterialPath);
 	DefaultMaterial = Material.Object;
 }
 
@@ -79,7 +81,19 @@ void AFloor101SceneNodeActor::ApplyNode(const f101::scene::SceneNode& Node)
 
 	MeshComponent->SetMesh(Floor101::Conversion::ToDynamicMesh(Node.mesh));
 
+	// Normal nodes show the finish of each section, Context ones the same finishes darker; other view styles tint the
+	// whole node.
+	UFloor101FinishLibrary* Finishes = UFloor101FinishLibrary::Get();
 	TArray<UMaterialInterface*> Materials;
-	Materials.Init(GetStyleMaterial(static_cast<uint8>(Node.style)), static_cast<int32>(Node.mesh.sections.size()));
+	for (std::size_t Section = 0; Section < Node.mesh.sections.size(); ++Section)
+	{
+		UMaterialInterface* Material = nullptr;
+		const bool bContext = Node.style == f101::scene::NodeStyle::Context;
+		if ((Node.style == f101::scene::NodeStyle::Normal || bContext) && Finishes && Section < Node.finishes.size())
+		{
+			Material = Finishes->GetFinishMaterial(UTF8_TO_TCHAR(Node.finishes[Section].c_str()), bContext);
+		}
+		Materials.Add(Material ? Material : GetStyleMaterial(static_cast<uint8>(Node.style)));
+	}
 	MeshComponent->ConfigureMaterialSet(Materials);
 }

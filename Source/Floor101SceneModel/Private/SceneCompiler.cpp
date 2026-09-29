@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <string_view>
+#include <utility>
 #include <string>
 
 namespace f101::scene
@@ -66,6 +68,17 @@ namespace f101::scene
 		return hash;
 	}
 
+	std::uint64_t hashNode(const geometry::MeshData& mesh, const std::vector<std::string>& finishes)
+	{
+		std::uint64_t hash = hashMesh(mesh);
+		for (const std::string& finish : finishes)
+		{
+			hashBytes(hash, finish.data(), finish.size());
+			hashBytes(hash, "|", 1);
+		}
+		return hash;
+	}
+
 	namespace
 	{
 		// "11.17 m2" (floor area rounded to 0.01 m2).
@@ -74,6 +87,27 @@ namespace f101::scene
 			const long long hundredths = std::llround(areaMm2 / 10'000.0);
 			const std::string cents = std::to_string(hundredths % 100);
 			return std::to_string(hundredths / 100) + "." + (cents.size() < 2 ? "0" + cents : cents) + " m2";
+		}
+
+		// The finish of each section of a mesh: `special` for the named slot, `rest` for the others.
+		std::vector<std::string> sectionFinishes(const geometry::MeshData& mesh,
+			std::initializer_list<std::pair<std::string_view, std::string_view>> special, std::string_view rest)
+		{
+			std::vector<std::string> finishes;
+			finishes.reserve(mesh.sections.size());
+			for (const geometry::MeshSection& section : mesh.sections)
+			{
+				std::string_view finish = rest;
+				for (const auto& [slot, value] : special)
+				{
+					if (section.slot == slot)
+					{
+						finish = value;
+					}
+				}
+				finishes.emplace_back(finish);
+			}
+			return finishes;
 		}
 
 		void translateZ(geometry::MeshData& mesh, double dz)
@@ -112,9 +146,10 @@ namespace f101::scene
 
 		// Walls (with their node ids and styles), joint fills, room floors and slabs of a project, level by level: joins
 		// and rooms never mix levels, and each level's geometry is lifted to its elevation. `activeLevel` (with
-		// `showAll` false) hides the levels above it and its own slabs and dims the levels below it.
+		// `showAll` false) hides the levels above it and its own slabs and dims the levels below it. Each section gets its
+		// finish (ADR-0012); the floor of `selectedRoom` is Selected.
 		Scene compileProject(const cad::Project& project, const std::vector<SceneNodeId>& wallIds,
-			const std::vector<NodeStyle>& wallStyles, const cad::LevelId& activeLevel, bool showAll)
+			const std::vector<NodeStyle>& wallStyles, const cad::LevelId& activeLevel, bool showAll, const std::string& selectedRoom)
 		{
 			const std::vector<LevelGroup> groups = levelGroups(project);
 			std::optional<std::size_t> active;
@@ -164,7 +199,11 @@ namespace f101::scene
 					node.name = "Wall " + node.sourceId.substr(0, 8);
 					node.mesh = geometry::buildWallMesh(wall, joins.footprints[k]);
 					translateZ(node.mesh, dz);
-					node.contentHash = hashMesh(node.mesh);
+					node.finishes = sectionFinishes(node.mesh,
+						{{geometry::wall_slots::Left, cad::resolveFinish(wall.finishLeft, cad::Surface::Wall)},
+							{geometry::wall_slots::Right, cad::resolveFinish(wall.finishRight, cad::Surface::Wall)}},
+						cad::DefaultWallFinish);
+					node.contentHash = hashNode(node.mesh, node.finishes);
 					node.style = context && wallStyles[index] == NodeStyle::Normal ? NodeStyle::Context : wallStyles[index];
 					wallNodes[index] = std::move(node);
 				}
@@ -177,12 +216,14 @@ namespace f101::scene
 					node.id = SceneNodeId{node.sourceId + (fill.atStart ? "/joint-start" : "/joint-end")};
 					node.name = "Joint " + node.sourceId.substr(0, 8);
 					node.mesh = geometry::buildPrismMesh(fill.outline, dz, dz + static_cast<double>(fill.heightMm));
-					node.contentHash = hashMesh(node.mesh);
+					node.finishes = sectionFinishes(node.mesh, {}, cad::DefaultWallFinish);
+					node.contentHash = hashNode(node.mesh, node.finishes);
 					node.style = context ? NodeStyle::Context : NodeStyle::Normal;
 					fills.push_back(std::move(node));
 				}
 				for (const geometry::Room& room : rooms)
 				{
+					const cad::RoomFinish* finish = project.findRoomFinish(room.key);
 					SceneNode floor;
 					floor.id = SceneNodeId{room.key + "/floor"};
 					floor.sourceKind = SourceKind::Room;
@@ -191,8 +232,11 @@ namespace f101::scene
 					floor.name = "Room " + areaText(room.areaMm2);
 					floor.mesh = geometry::buildFloorMesh(room);
 					translateZ(floor.mesh, dz);
-					floor.contentHash = hashMesh(floor.mesh);
-					floor.style = context ? NodeStyle::Context : NodeStyle::Normal;
+					const std::string_view floorFinish = finish ? std::string_view(finish->floor) : std::string_view();
+					const std::string_view ceilingFinish = finish ? std::string_view(finish->ceiling) : std::string_view();
+					floor.finishes = sectionFinishes(floor.mesh, {}, cad::resolveFinish(floorFinish, cad::Surface::Floor));
+					floor.contentHash = hashNode(floor.mesh, floor.finishes);
+					floor.style = context ? NodeStyle::Context : (room.key == selectedRoom ? NodeStyle::Selected : NodeStyle::Normal);
 					floors.push_back(std::move(floor));
 					if (withSlabs)
 					{
@@ -204,7 +248,10 @@ namespace f101::scene
 						slab.level = group.level;
 						slab.name = "Slab " + areaText(room.areaMm2);
 						slab.mesh = geometry::buildSlabMesh(room, top - static_cast<double>(group.info->slabThicknessMm), top);
-						slab.contentHash = hashMesh(slab.mesh);
+						slab.finishes = sectionFinishes(slab.mesh,
+							{{geometry::slab_slots::Ceiling, cad::resolveFinish(ceilingFinish, cad::Surface::Ceiling)}},
+							cad::DefaultWallFinish);
+						slab.contentHash = hashNode(slab.mesh, slab.finishes);
 						slab.style = context ? NodeStyle::Context : NodeStyle::Normal;
 						slabs.push_back(std::move(slab));
 					}
@@ -238,7 +285,7 @@ namespace f101::scene
 		{
 			ids.push_back(wallBodyNodeId(wall.id));
 		}
-		return compileProject(project, ids, std::vector<NodeStyle>(project.walls.size(), NodeStyle::Normal), cad::LevelId(), true);
+		return compileProject(project, ids, std::vector<NodeStyle>(project.walls.size(), NodeStyle::Normal), cad::LevelId(), true, std::string());
 	}
 
 	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay)
@@ -274,7 +321,7 @@ namespace f101::scene
 			styles.push_back(NodeStyle::Preview);
 		}
 
-		Scene scene = compileProject(previewed, ids, styles, overlay.activeLevel, overlay.showAllLevels);
+		Scene scene = compileProject(previewed, ids, styles, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom);
 		// Handles stand on the level being edited.
 		const double markerElevation = static_cast<double>(cad::levelElevationMm(project, overlay.activeLevel));
 		for (std::size_t index = 0; index < overlay.markers.size(); ++index)
@@ -295,7 +342,8 @@ namespace f101::scene
 			node.mesh = geometry::buildWallMesh(post);
 			translateZ(node.mesh, markerElevation);
 			node.level = overlay.activeLevel;
-			node.contentHash = hashMesh(node.mesh);
+			node.finishes = sectionFinishes(node.mesh, {}, cad::DefaultWallFinish);
+			node.contentHash = hashNode(node.mesh, node.finishes);
 			node.style = NodeStyle::Handle;
 			scene.nodes.push_back(std::move(node));
 		}

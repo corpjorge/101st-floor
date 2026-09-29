@@ -348,6 +348,21 @@ namespace f101::geometry
 		return buildPrismMesh(room.outline, 0.0, FloorThicknessMm, PrismSlots{floor_slots::Top, floor_slots::Side, floor_slots::Bottom});
 	}
 
+	cad::RoomLocator makeRoomLocator()
+	{
+		return [](const cad::Project& levelWalls, cad::PlanPoint point) -> std::optional<std::string>
+		{
+			for (const Room& room : detectRooms(levelWalls))
+			{
+				if (containsPoint(room.outline, point))
+				{
+					return room.key;
+				}
+			}
+			return std::nullopt;
+		};
+	}
+
 	MeshData buildSlabMesh(const Room& room, double bottomZ, double topZ)
 	{
 		return buildPrismMesh(room.outline, bottomZ, topZ, PrismSlots{slab_slots::Top, slab_slots::Side, slab_slots::Ceiling});

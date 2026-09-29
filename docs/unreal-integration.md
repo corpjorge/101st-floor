@@ -9,10 +9,15 @@
   material por sección. **Conserva el orden de los triángulos**: el espejo y la convención de Unreal
   (`VectorUtil::Normal` = `edge2 × edge1`) se compensan.
 - `AFloor101SceneNodeActor`: `UCLASS(Transient, NotPlaceable)`, raíz `UDynamicMeshComponent` con ray tracing activado,
-  material por defecto `/Engine/BasicShapes/BasicShapeMaterial` (referencia dura, se cocina con el juego), etiqueta
-  `f101.node:<SceneNodeId>`. Estilos de vista: `Selected` (naranja), `Preview` (azul), `Handle` (amarillo) y `Context` (gris: plantas de abajo) con una
-  `UMaterialInstanceDynamic` por estilo sobre el parámetro `Color` del material por defecto. Muros, `JointFill`,
+  material base `/Game/Floor101/Materials/M_Floor101Finish` (referencia dura y `DirectoriesToAlwaysCook`), etiqueta
+  `f101.node:<SceneNodeId>`. Cada sección muestra su acabado (ADR-0012); los estilos de vista `Selected` (naranja),
+  `Preview` (azul) y `Handle` (amarillo) tiñen el material base con su parámetro `Tint`, y `Context` (plantas de abajo)
+  muestra los acabados oscurecidos. Muros, `JointFill`,
   suelos y forjados de habitación son nodos como cualquier otro.
+- `UFloor101FinishLibrary` (subsistema de motor): una `UMaterialInstanceDynamic` de `M_Floor101Finish` por acabado,
+  con la textura sintetizada por el Scene Model (`UTexture2D` transitoria sRGB con todos sus mips), la rugosidad y la
+  repetición en metros (`BaseTexture`, `Roughness`, `RepeatU`, `RepeatV`). Se crean al primer uso y se comparten entre
+  actores y mundos. Si el material base falta, registra un error (`CheckRendering` falla).
 - `FFloor101SceneReconciler`: por `SceneNodeId`, crea, actualiza (si cambió el `contentHash` **o** el estilo) o destruye
   actores. Nunca escala: la escala sigue en 1.
 
@@ -48,22 +53,23 @@ Desarrollo:
 ## Controles
 | Entrada | Acción |
 |---|---|
-| clic izquierdo | Seleccionar: elige un muro, una puerta o una ventana (clic en el hueco) o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Muro: inicio / crear (sobre un extremo o un muro se une a él). Puerta / Ventana: coloca el hueco en el muro señalado (centrado en el cursor, borde en la rejilla de 50 mm); el modo sigue activo para colocar más |
-| W / P / O / V | herramienta Muro / Puerta / Ventana / Seleccionar (Ctrl+O sigue siendo abrir) |
+| clic izquierdo | Seleccionar: elige un muro, una puerta o una ventana (clic en el hueco), una habitación (clic en su suelo) o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Muro: inicio / crear (sobre un extremo o un muro se une a él). Pintar: aplica el acabado de la paleta a la cara del muro que toca el cursor o al suelo de la habitación. Puerta / Ventana: coloca el hueco en el muro señalado (centrado en el cursor, borde en la rejilla de 50 mm); el modo sigue activo para colocar más |
+| W / P / O / M / V | herramienta Muro / Puerta / Ventana / Pintar / Seleccionar (Ctrl+O sigue siendo abrir) |
 | escribir `355`, `3.55 m`, `3550 mm` | longitud del muro que se dibuja (sin unidad = cm); Retroceso borra |
 | Enter | crea el muro previsualizado |
-| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta o Ventana, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
+| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta, Ventana o Pintar, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
 | Supr | elimina el muro o el hueco seleccionado |
 | RePág / AvPág | editar la planta de arriba / de abajo (la cámara la sigue) |
 | L | ver todas las plantas con sus forjados, o solo la activa y, atenuadas, las de abajo |
 | fila de plantas | subir, bajar, "+ Nueva planta" (encima de todas, igual que la de arriba, y pasa a editarla), "Ver todas (L)" |
-| panel de propiedades | muro: longitud, espesor, altura; puerta o ventana: ancho, alto, antepecho (ventanas) y posición (desde el inicio del muro hasta el borde del hueco); sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
+| panel de propiedades | muro: longitud, espesor, altura y el acabado de cada cara ("Cara norte"...); habitación: suelo y techo; en Pintar, la paleta de acabados; puerta o ventana: ancho, alto, antepecho (ventanas) y posición (desde el inicio del muro hasta el borde del hueco); sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
 | Ctrl+Z / Ctrl+Y o Ctrl+Shift+Z | deshacer / rehacer |
 | Ctrl+S / Ctrl+O | guardar / abrir el archivo actual (o el de por defecto) |
 | derecho arrastrando / central arrastrando / rueda / F / T | orbitar / desplazar / zoom / encuadrar todo / vista en planta (norte arriba) |
 
 ## Herramientas de editor (`Source/Floor101Editor`, solo editor)
 Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetLevels`, `AddLevel`, `SetLevel`, `RemoveLevel`, `SetLevelView`,
+`GetFinishes`, `SetWallFinish`, `SetRoomFinish`,
 `GetWalls`, `AddWall` (en una planta), `SetWallEnd`, `SetWallLength`, `MoveCorner`, `GetRooms`,
 `SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `RemoveOpening`, `RemoveWall`, `Undo`, `Redo`,
 `SaveProject`, `OpenProject`, en mm enteros. Los muros de plantas que la vista oculta no tienen actor (`SetLevelView`
@@ -72,10 +78,12 @@ inspeccionarlo con `ActorTools`. Se registra desde un `UEditorSubsystem` que dep
 porque `RegisterToolsetClass` no hace nada si el registro aún no está listo. Ver `docs/unreal-mcp.md`.
 
 ## Tests de integración
-`Floor101.Adapter.*` (conversión, pared de referencia, estilos de vista, muro con puerta: 36 triángulos y 7 secciones), `Floor101.Interaction.*` (mapa de teclas,
+`Floor101.Adapter.*` (conversión, pared de referencia, estilos de vista, acabados: material base, material por sección,
+textura con mips, repetición y rugosidad, muro con puerta: 36 triángulos y 7 secciones), `Floor101.Interaction.*` (mapa de teclas,
 cámara, flujo completo por el subsistema: dibujar con longitud escrita, seleccionar, propiedades, deshacer, errores,
 guardar y abrir con ruta no ASCII; habitación cerrada con suelo, área y arrastre de esquina con área en vivo; plantas: forjado entre muros, planta de abajo
-atenuada, muro dibujado en la cota de su planta, ocultar y "Ver todas") y
+atenuada, muro dibujado en la cota de su planta, ocultar y "Ver todas"; acabados: pintar una cara y un suelo,
+seleccionar la habitación y su techo) y
 `Floor101.Editor.DocumentToolset.*` (cada herramienta y cada error).
 `Test.ps1 -Integration` los ejecuta en un editor headless; también se pueden lanzar por MCP.
 

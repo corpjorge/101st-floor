@@ -5,6 +5,7 @@
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/ProjectFile.h"
 #include "F101/Cad/Units.h"
+#include "F101/Geometry/Rooms.h"
 #include "F101/Scene/SceneCompiler.h"
 #include "Floor101.h"
 #include "Floor101SceneNodeActor.h"
@@ -174,6 +175,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Super::Initialize(Collection);
 	Document = MakePimpl<f101::cad::Document>(f101::cad::makeRandomUuidSource());
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
+	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	ListenerHandle = Document->subscribe([this](const f101::cad::ChangeSet&)
 	{
@@ -361,6 +363,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.markerHeightMm = Editor->settings().handleHeightMm;
 	Overlay.activeLevel = View.activeLevel;
 	Overlay.showAllLevels = View.showAllLevels;
+	Overlay.selectedRoom = View.selectedRoom;
 
 	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);

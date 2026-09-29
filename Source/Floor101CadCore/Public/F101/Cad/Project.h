@@ -1,21 +1,35 @@
 #pragma once
 
 #include "F101/Cad/Export.h"
+#include "F101/Cad/Finishes.h"
 #include "F101/Cad/Level.h"
 #include "F101/Cad/Wall.h"
 
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace f101::cad
 {
+	// Finishes of a room (ADR-0012). Rooms are derived (ADR-0009), so their finishes are kept by room key: they stay
+	// with the room while its key does (while its lowest-id wall bounds it). Empty: the surface's default.
+	struct RoomFinish
+	{
+		std::string room; // geometry::Room::key
+		FinishId floor;
+		FinishId ceiling; // underside of the slab over the room
+
+		friend bool operator==(const RoomFinish&, const RoomFinish&) = default;
+	};
+
 	// The editable architectural model: the source of truth of 101st Floor.
 	struct Project
 	{
 		std::vector<Level> levels; // bottom to top; a valid project has at least one
 		std::vector<Wall> walls;   // creation order
+		std::vector<RoomFinish> roomFinishes; // only rooms with a finish of their own
 
 		const Wall* findWall(const WallId& id) const
 		{
@@ -24,6 +38,18 @@ namespace f101::cad
 				if (wall.id == id)
 				{
 					return &wall;
+				}
+			}
+			return nullptr;
+		}
+
+		const RoomFinish* findRoomFinish(const std::string& room) const
+		{
+			for (const RoomFinish& finish : roomFinishes)
+			{
+				if (finish.room == room)
+				{
+					return &finish;
 				}
 			}
 			return nullptr;

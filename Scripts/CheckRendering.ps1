@@ -152,6 +152,9 @@ Add-Check 'Lumen scene cards' ($(if ($statsStart -ge 0) { 'INFO' } else { 'WARN'
 $wallLine = Get-LogLine 'F101: wall .* -> actor '
 if ($Demo -or $wallLine) {
     Pass-If 'Reference wall rendered' ([bool]$wallLine) ($(if ($wallLine) { ($wallLine -replace '^.*F101: ', '').Trim() } else { 'no F101 wall in the log' }))
+    # The finish material (ADR-0012) must load: without it walls would fall back to the engine default material.
+    $missingFinish = Get-LogLine 'F101: finish material .* is missing|Failed to find /Game/Floor101/'
+    Pass-If 'Finish material loaded' (-not $missingFinish) ($(if ($missingFinish) { ($missingFinish -replace '^.*(F101: |Failed)', '$1').Trim() } else { '/Game/Floor101/Materials/M_Floor101Finish' }))
 }
 
 $gpuAvg = if ($state['gpu_time'] -match 'avg=([\d.]+)ms') { [double]$Matches[1] } else { [double]::NaN }

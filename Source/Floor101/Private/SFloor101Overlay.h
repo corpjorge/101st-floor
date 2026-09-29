@@ -6,6 +6,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 class UFloor101DocumentSubsystem;
+struct FFloor101RoomView;
 class UFloor101GameViewportClient;
 
 // Editing UI drawn over the game viewport (ADR-0008): toolbar with the levels, properties of the selection (or of the
@@ -29,6 +30,13 @@ private:
 	TSharedRef<SWidget> MakeLevelRow();
 	// Name, height and slab of the active level, and a button to delete it.
 	TSharedRef<SWidget> MakeLevelSection();
+	// Finishes (ADR-0012): a drop-down of the finishes a surface allows, the Paint palette and the selected room.
+	TSharedRef<SWidget> MakeFinishCombo(f101::cad::Surface Surface, TFunction<FString()> Current,
+		TFunction<f101::Status(f101::cad::EditController&, const std::string&)> Apply);
+	TSharedRef<SWidget> MakePaintPalette();
+	// A face of the selected wall ("Cara norte") and its finish.
+	TSharedRef<SWidget> MakeWallFaceRow(f101::cad::WallSide Side);
+	TSharedRef<SWidget> MakeRoomSection();
 	TSharedRef<SWidget> MakePropertiesPanel();
 	// A length property: the value shown (mm, unset = nothing selected) and the controller call that sets it.
 	TSharedRef<SWidget> MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter);
@@ -41,6 +49,8 @@ private:
 	std::optional<f101::cad::OpeningRef> GetSelectedOpening() const;
 	// The active level, shown in the panel when nothing is selected (Select mode).
 	const f101::cad::Level* GetActiveLevel() const;
+	// The selected room as shown (active level), or null.
+	const FFloor101RoomView* GetSelectedRoom() const;
 	bool IsLevelPanelShown() const;
 	FText GetHintText() const;
 	FText GetCursorText() const;
@@ -50,4 +60,6 @@ private:
 	TWeakObjectPtr<UFloor101GameViewportClient> ViewportClient;
 	FString PathText;
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
+	// Finish ids each surface allows, for the drop-downs (kept alive for SComboBox).
+	TMap<uint8, TArray<TSharedPtr<FString>>> FinishOptions;
 };

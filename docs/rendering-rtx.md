@@ -38,6 +38,8 @@ Los valores replican lo que el asistente de proyectos de UE 5.8.3 escribe para u
 
 Para re-analizar un log sin relanzar el motor: `.\Scripts\CheckRendering.ps1 -AnalyzeLog <ruta>`.
 Con `-Demo` se carga la pared de referencia (`-F101Demo`), para validar también la geometría generada.
+Con la pared, además, `Finish material loaded` exige que el material de los acabados (`M_Floor101Finish`, ADR-0012)
+cargue: si faltara, las paredes caerían al material por defecto del motor y el check falla.
 
 El script cruza esos valores con mensajes propios del motor:
 

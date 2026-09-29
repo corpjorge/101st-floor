@@ -8,7 +8,9 @@
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace f101::cad
@@ -19,6 +21,7 @@ namespace f101::cad
 		Wall,
 		Door,
 		Window,
+		Paint, // applies EditSettings::paintFinish to a wall face or a room floor (ADR-0012)
 	};
 
 	struct EditSettings
@@ -32,7 +35,14 @@ namespace f101::cad
 		Opening door{OpeningId{}, OpeningKind::Door, 0, 900, 2100, 0};
 		Opening window{OpeningId{}, OpeningKind::Window, 0, 1200, 1200, 900};
 		double openingToleranceMm = 150.0;
+		// What the Paint mode applies.
+		FinishId paintFinish = "paint-sand";
 	};
+
+	// The room whose floor contains a plan point, among one level's walls: its key (geometry::Room::key), or nullopt.
+	// Rooms are derived in the Geometry Engine, which provides one (geometry::makeRoomLocator); without it rooms cannot be
+	// picked.
+	using RoomLocator = std::function<std::optional<std::string>(const Project& levelWalls, PlanPoint point)>;
 
 	// A door or window with its host wall.
 	struct OpeningRef
@@ -46,6 +56,7 @@ namespace f101::cad
 	{
 		LevelId activeLevel;        // the level being edited
 		bool showAllLevels = false; // false: the levels above are hidden and the active one has no ceiling
+		std::string selectedRoom;   // room key; empty: none
 		WallId selectedWall; // nil: none
 		// Walls as the gesture would leave them: the wall being drawn (nil id), or every wall at a dragged corner
 		// (their own ids). The application shows the project as if they were applied.
@@ -62,6 +73,8 @@ namespace f101::cad
 	// Wall mode: WallTool (click, move, type a length, Enter).
 	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid);
 	// a click adds it. In Select mode a click on a wall where it has an opening selects that opening.
+	// Paint mode: a click on a wall paints the face it hits (the side of the axis); elsewhere, the floor of the room under
+	// the pointer. In Select mode a click on a room floor (not on a wall) selects the room.
 	// Levels (ADR-0011): everything happens on the active level. Pointer rays are taken to that level's elevation, and
 	// picking, snapping, handles and corner moves only see its walls. Changing level drops the selection and any gesture.
 	class EditController
@@ -120,6 +133,18 @@ namespace f101::cad
 		// nullopt when it meets neither (e.g. looking at the sky).
 		const std::optional<PlanPoint>& pointerOnPlan() const { return planPoint; }
 
+		// Finishes (ADR-0012).
+		void setRoomLocator(RoomLocator locator) { roomLocator = std::move(locator); }
+		const FinishId& paintFinish() const { return editSettings.paintFinish; }
+		FLOOR101CADCORE_API Status setPaintFinish(std::string_view finish);
+		// Selected room key (Select mode); empty if none. Whether the room still exists is up to the rooms of the scene.
+		FLOOR101CADCORE_API const std::string& selectedRoom() const;
+		FLOOR101CADCORE_API Status selectRoom(const std::string& room);
+		FLOOR101CADCORE_API Status setSelectedRoomFloor(std::string_view finish);
+		FLOOR101CADCORE_API Status setSelectedRoomCeiling(std::string_view finish);
+		// A face of the selected wall; an empty finish restores the default.
+		FLOOR101CADCORE_API Status setWallFinish(WallSide side, std::string_view finish);
+
 		// The level being edited: the chosen one while it exists (an undo can remove it), else the first.
 		FLOOR101CADCORE_API LevelId activeLevel() const;
 		FLOOR101CADCORE_API Status setActiveLevel(const LevelId& level);
@@ -164,6 +189,8 @@ namespace f101::cad
 		// The project with only the active level's walls.
 		Project levelProject() const;
 		void changeLevel(const LevelId& level);
+		Status paint(const Project& levelWalls, const Ray3& ray);
+		Status setRoomFinishes(std::string_view floor, std::string_view ceiling);
 		Status changeActiveLevel(const std::function<Status(Level&)>& edit);
 
 		Document& document;
@@ -176,5 +203,7 @@ namespace f101::cad
 		std::optional<OpeningRef> placement;
 		std::optional<PlanPoint> planPoint;
 		bool allLevels = false;
+		std::string selectedRoomKey;
+		RoomLocator roomLocator;
 	};
 }
