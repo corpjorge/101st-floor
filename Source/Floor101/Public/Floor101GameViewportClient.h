@@ -31,6 +31,9 @@ enum class EFloor101KeyCommand : uint8
 	Delete,
 	Frame,
 	TopView,
+	LevelUp,
+	LevelDown,
+	AllLevels,
 };
 
 // Translates raw input into editing calls (ADR-0008): the cursor becomes a ray in scene space for the edit controller,
@@ -39,7 +42,8 @@ enum class EFloor101KeyCommand : uint8
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
 // Keys: W wall, P door, O window, V select, Enter, Esc, Backspace, Delete, F frame all, T plan view,
-// Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo, Ctrl+S save, Ctrl+O open.
+// Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo, Ctrl+S save, Ctrl+O open.
+// The camera follows the edited level: its focus moves up or down with the level's elevation.
 UCLASS()
 class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient
 {
@@ -51,7 +55,7 @@ public:
 	virtual bool InputAxis(const FInputKeyEventArgs& EventArgs) override;
 	virtual bool InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character) override;
 
-	// Frames every wall of the document (or the origin if there are none).
+	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
 	void FrameProject();
 	// Plan view (AFloor101EditingPawn::TopView).
 	void ShowTopView();
@@ -74,4 +78,6 @@ private:
 	bool bPanning = false;
 	// A right click that barely moved cancels, like Esc (in PIE the editor keeps Esc to stop playing).
 	double RightDragPixels = 0.0;
+	// Elevation of the edited level the camera last followed (mm); unset until the first tick with a document.
+	TOptional<double> FollowedElevationMm;
 };

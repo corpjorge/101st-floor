@@ -23,6 +23,35 @@ namespace f101::cad
 	{
 	}
 
+	void WallTool::setLevel(const LevelId& newLevel)
+	{
+		if (newLevel != level)
+		{
+			level = newLevel;
+			cancel();
+		}
+	}
+
+	LevelId WallTool::targetLevel() const
+	{
+		const Project& project = document.project();
+		if (project.findLevel(level))
+		{
+			return level;
+		}
+		return project.levels.empty() ? LevelId() : project.levels.front().id;
+	}
+
+	std::int64_t WallTool::wallHeightMm() const
+	{
+		if (toolSettings.heightMm > 0)
+		{
+			return toolSettings.heightMm;
+		}
+		const Level* target = document.project().findLevel(targetLevel());
+		return target ? target->wallHeightMm() : DefaultLevelHeightMm;
+	}
+
 	void WallTool::pointerMoved(PlanPoint newCursor)
 	{
 		cursor = newCursor;
@@ -31,7 +60,7 @@ namespace f101::cad
 
 	void WallTool::update()
 	{
-		const Project& project = document.project();
+		const Project project = snapReference(document.project(), targetLevel());
 		textError.clear();
 		if (currentState == State::Idle)
 		{
@@ -75,7 +104,9 @@ namespace f101::cad
 		{
 			return std::nullopt;
 		}
-		return Wall{WallId{}, start, hover, toolSettings.thicknessMm, toolSettings.heightMm};
+		Wall wall{WallId{}, start, hover, toolSettings.thicknessMm, wallHeightMm()};
+		wall.level = targetLevel();
+		return wall;
 	}
 
 	Result<WallId> WallTool::commit()
@@ -93,7 +124,8 @@ namespace f101::cad
 		{
 			return Error{ErrorCode::InvalidArgument, "Move the cursor or type a length"};
 		}
-		const Result<Transaction> applied = document.execute(CreateWallCommand{draft->start, draft->end, draft->thicknessMm, draft->heightMm});
+		const Result<Transaction> applied = document.execute(
+			CreateWallCommand{draft->start, draft->end, draft->thicknessMm, draft->heightMm, draft->level});
 		if (!applied)
 		{
 			return applied.error();

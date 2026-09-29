@@ -82,6 +82,12 @@ void AFloor101EditingPawn::TopView()
 	ApplyView();
 }
 
+void AFloor101EditingPawn::RaiseFocus(double DeltaCm)
+{
+	Focus.Z += DeltaCm;
+	ApplyView();
+}
+
 void AFloor101EditingPawn::ApplyView()
 {
 	const FRotator View(Pitch, Yaw, 0.0);

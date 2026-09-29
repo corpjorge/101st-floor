@@ -12,12 +12,16 @@ namespace f101::scene
 	// compile the project without it.
 	struct ViewOverlay
 	{
+		// The level being edited (ADR-0011). Unless showAllLevels, the levels above it are left out, it shows no slabs (so
+		// its rooms can be seen from above) and the levels below it are Context. Nil: every level, slabs included.
+		cad::LevelId activeLevel;
+		bool showAllLevels = false;
 		cad::WallId selectedWall; // nil: nothing selected
 		// Walls as they would be once the current gesture is applied: a wall with the id of an existing wall replaces
 		// it (e.g. a dragged endpoint), a wall with a nil id is added (the wall being drawn). The scene is compiled
 		// from that previewed project, so joins and rooms follow the preview. Invalid walls are left out.
 		std::vector<cad::Wall> previewWalls;
-		std::vector<cad::Point2D> markers; // e.g. draggable endpoint handles
+		std::vector<cad::Point2D> markers; // e.g. draggable endpoint handles, on the active level
 		std::int64_t markerSizeMm = 240;
 		std::int64_t markerHeightMm = 2500;
 	};
@@ -27,7 +31,9 @@ namespace f101::scene
 
 	// Compiles the whole project into a scene, deterministically (same project, same ids, geometry and hashes):
 	// one node per wall in model order with its joins resolved ("<wall>/body"), then joint fills
-	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"); Scene::rooms lists those rooms.
+	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"), then the slab over each room ("<room key>/slab",
+	// the top band of its level). Joins and rooms are solved per level, and each level is lifted to its elevation.
+	// Scene::rooms lists the rooms with their levels.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project);
 
 	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls are Preview (new ones

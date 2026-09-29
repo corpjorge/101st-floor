@@ -28,6 +28,8 @@ public:
 	void Frame(const FBox& Box);
 	// Plan view: looking straight down (as far as the orbit allows) with north (scene +Y) up. Keeps focus and distance.
 	void TopView();
+	// Moves the focus (and the camera with it) up by DeltaCm; e.g. to follow the edited level.
+	void RaiseFocus(double DeltaCm);
 
 	UCameraComponent* GetCamera() const { return Camera; }
 	const FVector& GetFocus() const { return Focus; }

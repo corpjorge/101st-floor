@@ -4,6 +4,7 @@
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
 #include "F101/Geometry/Rooms.h"
+#include "F101/Scene/SceneCompiler.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -43,6 +44,36 @@ namespace
 		return true;
 	}
 
+	// Empty text is the nil id (the lowest level, for the commands that accept it).
+	bool ParseLevelId(const FString& Text, f101::cad::LevelId& OutId)
+	{
+		if (Text.IsEmpty())
+		{
+			OutId = f101::cad::LevelId();
+			return true;
+		}
+		const f101::Result<f101::cad::Uuid> Parsed = f101::cad::parseUuid(TCHAR_TO_UTF8(*Text));
+		if (!Parsed)
+		{
+			RaiseError(FString::Printf(TEXT("'%s' is not a level id: %s"), *Text, *ToFString(Parsed.error().message)));
+			return false;
+		}
+		OutId = f101::cad::LevelId{Parsed.value()};
+		return true;
+	}
+
+	FFloor101LevelInfo ToInfo(const f101::cad::Project& Project, const f101::cad::Level& Level)
+	{
+		FFloor101LevelInfo Info;
+		Info.Id = ToFString(f101::cad::toString(Level.id));
+		Info.Name = ToFString(Level.name);
+		Info.Index = static_cast<int32>(Project.levelIndex(Level.id).value_or(0));
+		Info.ElevationMm = f101::cad::levelElevationMm(Project, Level.id);
+		Info.HeightMm = Level.heightMm;
+		Info.SlabThicknessMm = Level.slabThicknessMm;
+		return Info;
+	}
+
 	bool ParseOpeningId(const FString& Text, f101::cad::OpeningId& OutId)
 	{
 		const f101::Result<f101::cad::Uuid> Parsed = f101::cad::parseUuid(TCHAR_TO_UTF8(*Text));
@@ -75,6 +106,7 @@ namespace
 			Info.Openings.Add(ToInfo(Opening));
 		}
 		Info.Id = ToFString(f101::cad::toString(Wall.id));
+		Info.LevelId = ToFString(f101::cad::toString(Subsystem.GetDocument().project().levelOf(Wall)));
 		Info.StartXMm = Wall.start.x_mm;
 		Info.StartYMm = Wall.start.y_mm;
 		Info.EndXMm = Wall.end.x_mm;
@@ -116,21 +148,113 @@ namespace
 	}
 }
 
-TArray<FFloor101WallInfo> UFloor101DocumentToolset::GetWalls()
+TArray<FFloor101LevelInfo> UFloor101DocumentToolset::GetLevels()
 {
 	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
-	return Subsystem ? AllWalls(*Subsystem) : TArray<FFloor101WallInfo>();
+	TArray<FFloor101LevelInfo> Levels;
+	if (Subsystem)
+	{
+		const f101::cad::Project& Project = Subsystem->GetDocument().project();
+		for (const f101::cad::Level& Level : Project.levels)
+		{
+			Levels.Add(ToInfo(Project, Level));
+		}
+	}
+	return Levels;
 }
 
-FFloor101WallInfo UFloor101DocumentToolset::AddWall(int64 StartXMm, int64 StartYMm, int64 EndXMm, int64 EndYMm, int64 ThicknessMm, int64 HeightMm)
+FFloor101LevelInfo UFloor101DocumentToolset::AddLevel(const FString& Name, int64 HeightMm, int64 SlabThicknessMm)
 {
 	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
 	if (!Subsystem)
 	{
 		return {};
 	}
+	const f101::Result<f101::cad::Transaction> Added = Subsystem->GetMutableDocument().execute(
+		f101::cad::AddLevelCommand{HeightMm, SlabThicknessMm, TCHAR_TO_UTF8(*Name)});
+	if (!Added)
+	{
+		RaiseError(FString::Printf(TEXT("level rejected: %s"), *ToFString(Added.error().message)));
+		return {};
+	}
+	const f101::cad::Project& Project = Subsystem->GetDocument().project();
+	return ToInfo(Project, *Project.findLevel(Added.value().levels.front().id));
+}
+
+FFloor101LevelInfo UFloor101DocumentToolset::SetLevel(const FString& LevelId, const FString& Name, int64 HeightMm, int64 SlabThicknessMm)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Id;
+	if (!Subsystem || !ParseLevelId(LevelId, Id))
+	{
+		return {};
+	}
+	const f101::Result<f101::cad::Transaction> Changed = Subsystem->GetMutableDocument().execute(
+		f101::cad::ChangeLevelCommand{f101::cad::Level{Id, TCHAR_TO_UTF8(*Name), HeightMm, SlabThicknessMm}});
+	if (!Changed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change level %s: %s"), *LevelId, *ToFString(Changed.error().message)));
+		return {};
+	}
+	const f101::cad::Project& Project = Subsystem->GetDocument().project();
+	return ToInfo(Project, *Project.findLevel(Id));
+}
+
+void UFloor101DocumentToolset::RemoveLevel(const FString& LevelId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Id;
+	if (!Subsystem || !ParseLevelId(LevelId, Id))
+	{
+		return;
+	}
+	const f101::Result<f101::cad::Transaction> Removed = Subsystem->GetMutableDocument().execute(f101::cad::DeleteLevelCommand{Id});
+	if (!Removed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot remove level %s: %s"), *LevelId, *ToFString(Removed.error().message)));
+	}
+}
+
+void UFloor101DocumentToolset::SetLevelView(const FString& LevelId, bool bShowAllLevels)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Id;
+	if (!Subsystem || !ParseLevelId(LevelId, Id))
+	{
+		return;
+	}
+	if (Id.isNil())
+	{
+		Id = Subsystem->GetDocument().project().levels.front().id;
+	}
+	const f101::Status Shown = Subsystem->Edit([&Id, bShowAllLevels](f101::cad::EditController& Editor)
+	{
+		Editor.setShowAllLevels(bShowAllLevels);
+		return Editor.setActiveLevel(Id);
+	});
+	if (!Shown)
+	{
+		RaiseError(FString::Printf(TEXT("cannot show level %s: %s"), *LevelId, *ToFString(Shown.error().message)));
+	}
+}
+
+TArray<FFloor101WallInfo> UFloor101DocumentToolset::GetWalls()
+{
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	return Subsystem ? AllWalls(*Subsystem) : TArray<FFloor101WallInfo>();
+}
+
+FFloor101WallInfo UFloor101DocumentToolset::AddWall(const FString& LevelId, int64 StartXMm, int64 StartYMm, int64 EndXMm, int64 EndYMm,
+	int64 ThicknessMm, int64 HeightMm)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Level;
+	if (!Subsystem || !ParseLevelId(LevelId, Level))
+	{
+		return {};
+	}
 	const f101::Result<f101::cad::WallId> Added = Subsystem->GetMutableDocument().addWall(
-		{StartXMm, StartYMm}, {EndXMm, EndYMm}, ThicknessMm, HeightMm);
+		{StartXMm, StartYMm}, {EndXMm, EndYMm}, ThicknessMm, HeightMm, Level);
 	if (!Added)
 	{
 		RaiseError(FString::Printf(TEXT("wall rejected: %s"), *ToFString(Added.error().message)));
@@ -171,15 +295,16 @@ FFloor101WallInfo UFloor101DocumentToolset::SetWallHeight(const FString& WallId,
 	});
 }
 
-TArray<FFloor101WallInfo> UFloor101DocumentToolset::MoveCorner(int64 FromXMm, int64 FromYMm, int64 ToXMm, int64 ToYMm)
+TArray<FFloor101WallInfo> UFloor101DocumentToolset::MoveCorner(const FString& LevelId, int64 FromXMm, int64 FromYMm, int64 ToXMm, int64 ToYMm)
 {
 	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
-	if (!Subsystem)
+	f101::cad::LevelId Level;
+	if (!Subsystem || !ParseLevelId(LevelId, Level))
 	{
 		return {};
 	}
 	const f101::Result<f101::cad::Transaction> Moved =
-		Subsystem->GetMutableDocument().execute(f101::cad::MoveJointCommand{{FromXMm, FromYMm}, {ToXMm, ToYMm}});
+		Subsystem->GetMutableDocument().execute(f101::cad::MoveJointCommand{{FromXMm, FromYMm}, {ToXMm, ToYMm}, Level});
 	if (!Moved)
 	{
 		RaiseError(FString::Printf(TEXT("cannot move the corner at (%lld, %lld): %s"), FromXMm, FromYMm, *ToFString(Moved.error().message)));
@@ -201,10 +326,13 @@ TArray<FFloor101RoomInfo> UFloor101DocumentToolset::GetRooms()
 		return {};
 	}
 	TArray<FFloor101RoomInfo> Rooms;
-	for (const f101::geometry::Room& Room : f101::geometry::detectRooms(Subsystem->GetDocument().project()))
+	// Rooms are solved per level, as in the scene.
+	for (const f101::scene::SceneRoom& Entry : f101::scene::compileScene(Subsystem->GetDocument().project()).rooms)
 	{
+		const f101::geometry::Room& Room = Entry.room;
 		FFloor101RoomInfo Info;
 		Info.Key = ToFString(Room.key);
+		Info.LevelId = ToFString(f101::cad::toString(Entry.level));
 		Info.AreaM2 = Room.areaMm2 / 1.0e6;
 		for (const f101::cad::WallId& Wall : Room.walls)
 		{

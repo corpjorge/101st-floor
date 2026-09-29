@@ -71,7 +71,9 @@ public:
 	AActor* FindWallActor(const f101::cad::WallId& Id) const;
 	// Transient actor of a room's floor, or null.
 	AActor* FindRoomFloorActor(const FString& RoomKey) const;
-	// Rooms of the scene as last shown (following the current gesture), sorted by key.
+	// Transient actor of the slab over a room, or null (e.g. while its level is being edited, or hidden).
+	AActor* FindRoomSlabActor(const FString& RoomKey) const;
+	// Rooms of the edited level (of every level when all are shown) as last shown, following the current gesture.
 	const TArray<FFloor101RoomView>& GetRooms() const { return Rooms; }
 
 	// MVP 0 reference wall: (0,0) -> (3550,0) mm, 120 mm thick, 2400 mm high. No-op if already loaded.

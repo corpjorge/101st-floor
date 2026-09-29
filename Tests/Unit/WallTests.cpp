@@ -32,7 +32,8 @@ TEST_CASE_FIXTURE(ReferenceWall, "reference wall: 3550 x 120 x 2400 mm with a pe
 	CHECK(wall().heightMm == 2400);
 	CHECK(wall().start == Point2D{0, 0});
 	CHECK(wall().end == Point2D{3550, 0});
-	CHECK(toString(id) == "00000000-0000-0000-0000-000000000001");
+	CHECK(toString(id) == "00000000-0000-0000-0000-000000000002"); // 1: the ground level of the new document
+	CHECK(wall().level == document.project().levels[0].id);
 	CHECK(document.project().walls.size() == 1);
 }
 

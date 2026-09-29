@@ -3,6 +3,7 @@
 #include "F101/Cad/Document.h"
 #include "F101/Cad/Units.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iterator>
 #include <system_error>
@@ -134,7 +135,59 @@ namespace f101::cad
 			return opening;
 		}
 
-		Result<Wall> readWall(const Json& object, std::size_t index)
+		// A UUID string field.
+		Result<Uuid> readUuidField(const Json& object, const char* key, const std::string& where)
+		{
+			const auto field = object.find(key);
+			if (field == object.end() || !field->is_string())
+			{
+				return formatError(where + "." + key + " must be a UUID string");
+			}
+			const Result<Uuid> uuid = parseUuid(field->get_ref<const std::string&>());
+			if (!uuid)
+			{
+				return formatError(where + "." + key + ": " + uuid.error().message);
+			}
+			return uuid;
+		}
+
+		Result<Level> readLevel(const Json& object, std::size_t index)
+		{
+			const std::string where = "levels[" + std::to_string(index) + "]";
+			if (!object.is_object())
+			{
+				return formatError(where + " must be an object");
+			}
+			const Result<Uuid> uuid = readUuidField(object, "id", where);
+			if (!uuid)
+			{
+				return uuid.error();
+			}
+			Level level;
+			level.id = LevelId{uuid.value()};
+			if (const auto name = object.find("name"); name != object.end())
+			{
+				if (!name->is_string())
+				{
+					return formatError(where + ".name must be a string");
+				}
+				level.name = name->get<std::string>();
+			}
+			for (const auto& [key, target] : {std::pair<const char*, std::int64_t*>{"heightMm", &level.heightMm},
+					 {"slabThicknessMm", &level.slabThicknessMm}})
+			{
+				const Result<std::int64_t> value = readMillimetersField(object, key, where);
+				if (!value)
+				{
+					return value.error();
+				}
+				*target = value.value();
+			}
+			return level;
+		}
+
+		// `withLevel`: schema 3, where every wall names its level.
+		Result<Wall> readWall(const Json& object, std::size_t index, bool withLevel)
 		{
 			const std::string where = "walls[" + std::to_string(index) + "]";
 			if (!object.is_object())
@@ -172,6 +225,15 @@ namespace f101::cad
 				return height.error();
 			}
 			Wall wall{WallId{uuid.value()}, start.value(), end.value(), thickness.value(), height.value()};
+			if (withLevel)
+			{
+				const Result<Uuid> level = readUuidField(object, "level", where);
+				if (!level)
+				{
+					return level.error();
+				}
+				wall.level = LevelId{level.value()};
+			}
 			if (const auto openings = object.find("openings"); openings != object.end()) // schema 2
 			{
 				if (!openings->is_array())
@@ -194,11 +256,25 @@ namespace f101::cad
 
 	std::string writeProjectJson(const Project& project)
 	{
+		Json levels = Json::array();
+		for (const Level& level : project.levels)
+		{
+			Json entry = Json::object();
+			entry["id"] = toString(level.id);
+			if (!level.name.empty())
+			{
+				entry["name"] = level.name;
+			}
+			entry["heightMm"] = level.heightMm;
+			entry["slabThicknessMm"] = level.slabThicknessMm;
+			levels.push_back(std::move(entry));
+		}
 		Json walls = Json::array();
 		for (const Wall& wall : project.walls)
 		{
 			Json entry = Json::object();
 			entry["id"] = toString(wall.id);
+			entry["level"] = toString(wall.level);
 			entry["start"] = toJson(wall.start);
 			entry["end"] = toJson(wall.end);
 			entry["thicknessMm"] = wall.thicknessMm;
@@ -225,6 +301,7 @@ namespace f101::cad
 		root["format"] = std::string(ProjectFormatName);
 		root["schemaVersion"] = ProjectSchemaVersion;
 		root["units"] = "mm";
+		root["levels"] = std::move(levels);
 		root["walls"] = std::move(walls);
 		return root.dump(2) + "\n";
 	}
@@ -271,16 +348,54 @@ namespace f101::cad
 			return formatError("walls must be an array");
 		}
 
+		const bool withLevels = schemaVersion >= 3;
 		Project project;
+		if (withLevels)
+		{
+			const auto levels = root.find("levels");
+			if (levels == root.end() || !levels->is_array())
+			{
+				return formatError("levels must be an array");
+			}
+			for (std::size_t index = 0; index < levels->size(); ++index)
+			{
+				Result<Level> level = readLevel((*levels)[index], index);
+				if (!level)
+				{
+					return level.error();
+				}
+				project.levels.push_back(std::move(level).value());
+			}
+		}
 		project.walls.reserve(walls->size());
 		for (std::size_t index = 0; index < walls->size(); ++index)
 		{
-			Result<Wall> wall = readWall((*walls)[index], index);
+			Result<Wall> wall = readWall((*walls)[index], index, withLevels);
 			if (!wall)
 			{
 				return wall.error();
 			}
 			project.walls.push_back(std::move(wall).value());
+		}
+		if (!withLevels)
+		{
+			// One level as tall as the tallest wall (at least 2 mm, so a slab fits), holding every wall.
+			Level level{LevelId{LegacyLevelUuid}};
+			level.heightMm = 2;
+			for (const Wall& wall : project.walls)
+			{
+				level.heightMm = std::max(level.heightMm, wall.heightMm);
+			}
+			if (project.walls.empty())
+			{
+				level.heightMm = DefaultLevelHeightMm;
+			}
+			level.slabThicknessMm = std::min(DefaultSlabThicknessMm, level.heightMm / 2);
+			project.levels.push_back(level);
+			for (Wall& wall : project.walls)
+			{
+				wall.level = level.id;
+			}
 		}
 		if (Status valid = validateProject(project); !valid)
 		{

@@ -54,7 +54,10 @@ Con *tool search* activo (default, `bEnableToolSearch=true`) el servidor expone 
 Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetWallLength`, `SetWallThickness`,
 `MoveCorner` (mueve todos los extremos de una esquina), `GetRooms` (habitaciones con área neta en m², muros y suelo),
 `AddOpening`/`SetOpening`/`RemoveOpening` (puertas y ventanas: posición desde el inicio del muro, ancho, alto,
-antepecho; `GetWalls` las lista en `Openings`),
+antepecho; `GetWalls` las lista en `Openings`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
+altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
+mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
+(vacío = la primera planta); muros y habitaciones informan su `LevelId`,
 `SetWallHeight`, `RemoveWall`, `Undo`/`Redo` (devuelven la etiqueta, p. ej. `Create wall`) y `SaveProject`/
 `OpenProject` (rutas absolutas), con coordenadas y dimensiones en mm enteros. **Mundo objetivo:** el de la sesión PIE
 mientras exista (lo que el usuario está editando; empieza vacío), si no el del editor. Cada cambio es un paso
@@ -74,6 +77,12 @@ Verificado (MVP 3, por el transporte MCP): `OpenProject` de un archivo de esquem
 (puerta de 900 × 2100 en 300 mm) → otra puerta en 2000 mm rechazada con "The door overlaps another opening" →
 `SetOpening` (ventana a 1500 mm de ancho, antepecho 1000) → `RemoveOpening` → `Undo` × 2 (`Delete opening`,
 `Change opening`) → la ventana vuelve a 1300 × 1200 con antepecho 900.
+
+Verificado (MVP 4, por el transporte MCP): `GetLevels` → planta baja (0, 2800, 250) → `AddLevel("Primera", 3000, 300)`
+en cota 2800 → 4 `AddWall` en cada planta → `GetRooms` = 2 habitaciones de 11,1744 m², cada una con su `LevelId` (la de
+arriba sin actor mientras la vista la oculta) → `SetLevel` de la planta baja a 3000: sus 4 muros pasan a 3000 y
+"Primera" sube a 3000 → `Undo` = `Change level` → `RemoveLevel` de la planta baja (con sus muros) → borrar la única
+planta que queda se rechaza → `Undo` = `Delete level` devuelve los 8 muros.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

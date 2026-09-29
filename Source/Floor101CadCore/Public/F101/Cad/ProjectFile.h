@@ -12,8 +12,12 @@
 namespace f101::cad
 {
 	inline constexpr std::string_view ProjectFormatName = "101st-floor-project";
-	// 1: walls. 2: walls with openings (doors, windows). Older versions are read as they are.
-	inline constexpr int ProjectSchemaVersion = 2;
+	// 1: walls. 2: walls with openings (doors, windows). 3: levels, every wall on one (ADR-0011).
+	inline constexpr int ProjectSchemaVersion = 3;
+
+	// Files before schema 3 have no levels: their walls are read onto one level with this id
+	// (f1010000-0000-4000-8000-000000000001), as tall as the tallest wall so the derived slabs stay inside the walls.
+	inline constexpr Uuid LegacyLevelUuid{0xf101'0000'0000'4000ull, 0x8000'0000'0000'0001ull};
 
 	// Deterministic, human-readable JSON (fixed key order, 2-space indentation, trailing newline).
 	FLOOR101CADCORE_API std::string writeProjectJson(const Project& project);

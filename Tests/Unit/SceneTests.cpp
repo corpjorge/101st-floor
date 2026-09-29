@@ -23,10 +23,11 @@ TEST_CASE_FIXTURE(ReferenceProject, "the reference project compiles to one wall 
 	const Scene scene = compileScene(document.project());
 	REQUIRE(scene.nodes.size() == 1);
 	const SceneNode& node = scene.nodes[0];
-	CHECK(node.id.value == "00000000-0000-0000-0000-000000000001/body");
+	CHECK(node.id.value == "00000000-0000-0000-0000-000000000002/body"); // id 1 is the ground level
 	CHECK(node.id == wallBodyNodeId(wallId));
 	CHECK(node.sourceKind == SourceKind::Wall);
-	CHECK(node.sourceId == "00000000-0000-0000-0000-000000000001");
+	CHECK(node.sourceId == "00000000-0000-0000-0000-000000000002");
+	CHECK(node.level == document.project().levels[0].id);
 	CHECK(node.name == "Wall 00000000");
 	CHECK(node.mesh.vertexCount() == 24);
 	CHECK(node.contentHash == hashMesh(node.mesh));
@@ -100,7 +101,7 @@ TEST_CASE_FIXTURE(ReferenceProject, "a previewed wall replaces the wall with its
 	CHECK(document.project().walls[0].end == cad::Point2D{3550, 0});
 }
 
-TEST_CASE("walls come first, then joint fills, then the floors of the rooms they enclose")
+TEST_CASE("walls come first, then joint fills, then the floors of the rooms they enclose, then their slabs")
 {
 	cad::Document document{cad::makeSequentialUuidSource()};
 	for (const auto& [start, end] : std::vector<std::pair<cad::Point2D, cad::Point2D>>{
@@ -110,24 +111,32 @@ TEST_CASE("walls come first, then joint fills, then the floors of the rooms they
 		REQUIRE(document.addWall(start, end, 120, 2400).ok());
 	}
 	const Scene scene = compileScene(document.project());
-	REQUIRE(scene.nodes.size() == 7 + 1 + 3);
+	REQUIRE(scene.nodes.size() == 7 + 1 + 3 + 3);
 	const SceneNode& joint = scene.nodes[7];
 	CHECK(joint.sourceKind == SourceKind::Joint);
-	CHECK(joint.id.value == "00000000-0000-0000-0000-000000000005/joint-end"); // three ends meet at (2000, 1500)
+	CHECK(joint.id.value == "00000000-0000-0000-0000-000000000006/joint-end"); // three ends meet at (2000, 1500); id 1 is the level
 	CHECK(geometry::computeBounds(joint.mesh).max.z == 2400.0);
 	REQUIRE(scene.rooms.size() == 3);
 	for (std::size_t i = 0; i < 3; ++i)
 	{
 		const SceneNode& floor = scene.nodes[8 + i];
 		CHECK(floor.sourceKind == SourceKind::Room);
-		CHECK(floor.id.value == scene.rooms[i].key + "/floor");
-		CHECK(floor.sourceId == scene.rooms[i].key);
+		CHECK(floor.id.value == scene.rooms[i].room.key + "/floor");
+		CHECK(floor.sourceId == scene.rooms[i].room.key);
 		CHECK(geometry::computeBounds(floor.mesh).max.z == geometry::FloorThicknessMm);
+		CHECK(scene.rooms[i].level == document.project().levels[0].id);
+		CHECK(scene.rooms[i].elevationMm == 0);
+		// The slab over it fills the top band of the level: 2800 mm high, 250 mm thick.
+		const SceneNode& slab = scene.nodes[11 + i];
+		CHECK(slab.sourceKind == SourceKind::Slab);
+		CHECK(slab.id.value == scene.rooms[i].room.key + "/slab");
+		CHECK(geometry::computeBounds(slab.mesh).min.z == 2550.0);
+		CHECK(geometry::computeBounds(slab.mesh).max.z == 2800.0);
 	}
 	double total = 0.0;
-	for (const geometry::Room& room : scene.rooms)
+	for (const SceneRoom& room : scene.rooms)
 	{
-		total += room.areaMm2;
+		total += room.room.areaMm2;
 	}
 	CHECK(total == doctest::Approx(1880.0 * 2880.0 + 2 * 1880.0 * 1380.0));
 	CHECK(compileScene(document.project()).nodes[10].contentHash == scene.nodes[10].contentHash); // deterministic

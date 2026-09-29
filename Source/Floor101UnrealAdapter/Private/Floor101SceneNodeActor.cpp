@@ -19,6 +19,7 @@ namespace
 		case f101::scene::NodeStyle::Selected: return FLinearColor(1.0f, 0.42f, 0.08f);
 		case f101::scene::NodeStyle::Preview: return FLinearColor(0.22f, 0.58f, 1.0f);
 		case f101::scene::NodeStyle::Handle: return FLinearColor(1.0f, 0.85f, 0.1f);
+		case f101::scene::NodeStyle::Context: return FLinearColor(0.3f, 0.32f, 0.36f); // levels below the edited one
 		default: return FLinearColor::White;
 		}
 	}

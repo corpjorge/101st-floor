@@ -51,6 +51,7 @@ add_executable(Floor101UnitTests
 	WallJoinTests.cpp
 	PolygonGeometryTests.cpp
 	RoomTests.cpp
+	LevelTests.cpp
 )
 target_include_directories(Floor101UnitTests SYSTEM PRIVATE "${F101_ROOT}/ThirdParty/doctest")
 # No exceptions, like Unreal (a failed REQUIRE aborts the run). Real std headers instead of doctest's forward

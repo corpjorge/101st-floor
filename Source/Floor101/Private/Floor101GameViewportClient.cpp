@@ -92,8 +92,20 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 		}
 	}
 
-	// The ray changes when the cursor or the camera moves; only then is the view recomputed.
+	// The camera follows the edited level up and down (a new level, Page Up/Down, a selection on another level...).
 	UFloor101DocumentSubsystem* Document = GetEditingTarget();
+	if (Document)
+	{
+		const f101::cad::EditController& Editor = Document->GetEditController();
+		const double Elevation = static_cast<double>(f101::cad::levelElevationMm(Document->GetDocument().project(), Editor.activeLevel()));
+		if (AFloor101EditingPawn* Pawn = GetEditingPawn(); Pawn && FollowedElevationMm.IsSet() && Elevation != FollowedElevationMm.GetValue())
+		{
+			Pawn->RaiseFocus((Elevation - FollowedElevationMm.GetValue()) / 10.0);
+		}
+		FollowedElevationMm = Elevation;
+	}
+
+	// The ray changes when the cursor or the camera moves; only then is the view recomputed.
 	f101::cad::Ray3 Ray;
 	if (Document && GetCursorRay(Ray))
 	{
@@ -227,6 +239,9 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::Delete) { return EFloor101KeyCommand::Delete; }
 	if (Key == EKeys::F) { return EFloor101KeyCommand::Frame; }
 	if (Key == EKeys::T) { return EFloor101KeyCommand::TopView; }
+	if (Key == EKeys::PageUp) { return EFloor101KeyCommand::LevelUp; }
+	if (Key == EKeys::PageDown) { return EFloor101KeyCommand::LevelDown; }
+	if (Key == EKeys::L) { return EFloor101KeyCommand::AllLevels; }
 	return EFloor101KeyCommand::None;
 }
 
@@ -259,6 +274,11 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	case EFloor101KeyCommand::Delete: Edit([](EditController& Editor) { return Editor.deleteSelection(); }); break;
 	case EFloor101KeyCommand::Frame: FrameProject(); break;
 	case EFloor101KeyCommand::TopView: ShowTopView(); break;
+	case EFloor101KeyCommand::LevelUp: Edit([](EditController& Editor) { return Editor.levelUp(); }); break;
+	case EFloor101KeyCommand::LevelDown: Edit([](EditController& Editor) { return Editor.levelDown(); }); break;
+	case EFloor101KeyCommand::AllLevels:
+		Edit(Always([](EditController& Editor) { Editor.setShowAllLevels(!Editor.showsAllLevels()); }));
+		break;
 	}
 	return true;
 }
@@ -292,17 +312,29 @@ void UFloor101GameViewportClient::FrameProject()
 	{
 		return;
 	}
+	const f101::cad::Project& Project = Document->GetDocument().project();
+	const f101::cad::EditController& Editor = Document->GetEditController();
+	const std::size_t Active = Project.levelIndex(Editor.activeLevel()).value_or(0);
 	FBox Bounds(ForceInit);
-	for (const f101::cad::Wall& Wall : Document->GetDocument().project().walls)
+	for (const f101::cad::Wall& Wall : Project.walls)
 	{
-		Bounds += ScenePoint(Wall.start, 0.0);
-		Bounds += ScenePoint(Wall.end, static_cast<double>(Wall.heightMm));
-		Bounds += ScenePoint(Wall.start, static_cast<double>(Wall.heightMm));
-		Bounds += ScenePoint(Wall.end, 0.0);
+		const f101::cad::LevelId Level = Project.levelOf(Wall);
+		if (!Editor.showsAllLevels() && Project.levelIndex(Level).value_or(0) > Active)
+		{
+			continue; // hidden above the edited level
+		}
+		const double Base = static_cast<double>(f101::cad::levelElevationMm(Project, Level));
+		const double Top = Base + static_cast<double>(Wall.heightMm);
+		Bounds += ScenePoint(Wall.start, Base);
+		Bounds += ScenePoint(Wall.end, Top);
+		Bounds += ScenePoint(Wall.start, Top);
+		Bounds += ScenePoint(Wall.end, Base);
 	}
 	if (!Bounds.IsValid)
 	{
-		Bounds = FBox(FVector(-500.0, -500.0, 0.0), FVector(500.0, 500.0, 250.0));
+		// Around the origin, on the edited level.
+		const double Base = static_cast<double>(f101::cad::levelElevationMm(Project, Editor.activeLevel())) / 10.0;
+		Bounds = FBox(FVector(-500.0, -500.0, Base), FVector(500.0, 500.0, Base + 250.0));
 	}
 	Pawn->Frame(Bounds);
 }

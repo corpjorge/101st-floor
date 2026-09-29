@@ -22,22 +22,48 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "No opening with id " + toString(id)};
 		}
 
+		Error levelNotFound(const LevelId& id)
+		{
+			return Error{ErrorCode::NotFound, "No level with id " + toString(id)};
+		}
+
+		// A command's level: the named one, or the first level when nil.
+		Result<LevelId> resolveLevel(const Project& project, const LevelId& level)
+		{
+			if (level.isNil())
+			{
+				F101_ASSERT(!project.levels.empty());
+				return project.levels.front().id;
+			}
+			if (!project.findLevel(level))
+			{
+				return levelNotFound(level);
+			}
+			return level;
+		}
+
 		void sortOpenings(Wall& wall)
 		{
 			std::stable_sort(wall.openings.begin(), wall.openings.end(),
 				[](const Opening& a, const Opening& b) { return a.offsetMm < b.offsetMm; });
 		}
 
-		std::optional<std::size_t> findWallIndex(const Project& project, const WallId& id)
+		template <typename Entity, typename Id>
+		std::optional<std::size_t> findIndex(const std::vector<Entity>& entities, const Id& id)
 		{
-			for (std::size_t index = 0; index < project.walls.size(); ++index)
+			for (std::size_t index = 0; index < entities.size(); ++index)
 			{
-				if (project.walls[index].id == id)
+				if (entities[index].id == id)
 				{
 					return index;
 				}
 			}
 			return std::nullopt;
+		}
+
+		std::optional<std::size_t> findWallIndex(const Project& project, const WallId& id)
+		{
+			return findIndex(project.walls, id);
 		}
 
 		// Transaction that replaces an existing wall with an edited copy (validated).
@@ -59,7 +85,7 @@ namespace f101::cad
 			{
 				return valid.error();
 			}
-			Transaction transaction{std::move(label), {}};
+			Transaction transaction{std::move(label), {}, {}};
 			if (!(after == before))
 			{
 				transaction.walls.push_back(WallChange{id, *index, before, after});
@@ -67,27 +93,75 @@ namespace f101::cad
 			return transaction;
 		}
 
-		ChangeSet changeSetOf(const Transaction& transaction, bool forward)
+		template <typename Change, typename Id>
+		void sortChanges(const std::vector<Change>& transactionChanges, bool forward, std::vector<Id>& added,
+			std::vector<Id>& modified, std::vector<Id>& removed)
 		{
-			ChangeSet changes;
-			for (const WallChange& change : transaction.walls)
+			for (const Change& change : transactionChanges)
 			{
 				const bool existedBefore = forward ? change.before.has_value() : change.after.has_value();
 				const bool existsAfter = forward ? change.after.has_value() : change.before.has_value();
 				if (!existedBefore && existsAfter)
 				{
-					changes.addedWalls.push_back(change.id);
+					added.push_back(change.id);
 				}
 				else if (existedBefore && !existsAfter)
 				{
-					changes.removedWalls.push_back(change.id);
+					removed.push_back(change.id);
 				}
 				else
 				{
-					changes.modifiedWalls.push_back(change.id);
+					modified.push_back(change.id);
 				}
 			}
+		}
+
+		ChangeSet changeSetOf(const Transaction& transaction, bool forward)
+		{
+			ChangeSet changes;
+			sortChanges(transaction.walls, forward, changes.addedWalls, changes.modifiedWalls, changes.removedWalls);
+			sortChanges(transaction.levels, forward, changes.addedLevels, changes.modifiedLevels, changes.removedLevels);
 			return changes;
+		}
+
+		// Applies one entity kind of a transaction: removals first (from the back), then insertions/replacements in index
+		// order, so indices stay valid.
+		template <typename Entity, typename Change>
+		void applyChanges(std::vector<Entity>& entities, const std::vector<Change>& changes, bool forward)
+		{
+			std::vector<const Change*> ordered;
+			for (const Change& change : changes)
+			{
+				ordered.push_back(&change);
+			}
+			std::sort(ordered.begin(), ordered.end(), [](const Change* a, const Change* b) { return a->index < b->index; });
+
+			for (auto it = ordered.rbegin(); it != ordered.rend(); ++it)
+			{
+				if (!(forward ? (*it)->after : (*it)->before))
+				{
+					const std::optional<std::size_t> index = findIndex(entities, (*it)->id);
+					F101_ASSERT(index.has_value());
+					entities.erase(entities.begin() + static_cast<std::ptrdiff_t>(*index));
+				}
+			}
+			for (const Change* change : ordered)
+			{
+				const auto& target = forward ? change->after : change->before;
+				if (!target)
+				{
+					continue;
+				}
+				if (const std::optional<std::size_t> index = findIndex(entities, change->id))
+				{
+					entities[*index] = *target;
+				}
+				else
+				{
+					const std::size_t position = std::min(change->index, entities.size());
+					entities.insert(entities.begin() + static_cast<std::ptrdiff_t>(position), *target);
+				}
+			}
 		}
 
 		struct CommandLabeler
@@ -105,6 +179,9 @@ namespace f101::cad
 			}
 			std::string_view operator()(const ChangeOpeningCommand&) const { return "Change opening"; }
 			std::string_view operator()(const DeleteOpeningCommand&) const { return "Delete opening"; }
+			std::string_view operator()(const AddLevelCommand&) const { return "Add level"; }
+			std::string_view operator()(const ChangeLevelCommand&) const { return "Change level"; }
+			std::string_view operator()(const DeleteLevelCommand&) const { return "Delete level"; }
 		};
 	}
 
@@ -115,6 +192,29 @@ namespace f101::cad
 
 	Status validateProject(const Project& project)
 	{
+		if (project.levels.empty())
+		{
+			return Error{ErrorCode::InvalidArgument, "A project needs at least one level"};
+		}
+		std::set<LevelId> levelIds;
+		std::int64_t top = 0;
+		for (const Level& level : project.levels)
+		{
+			if (Status valid = validateLevel(level); !valid)
+			{
+				return valid;
+			}
+			if (!levelIds.insert(level.id).second)
+			{
+				return Error{ErrorCode::InvalidArgument, "Duplicate level id " + toString(level.id)};
+			}
+			top += level.heightMm; // no overflow: each height is at most MaxAbsMillimeters and top stays below it
+			if (top > MaxAbsMillimeters)
+			{
+				return Error{ErrorCode::OutOfRange, "The levels are taller than the model range"};
+			}
+		}
+
 		std::set<WallId> ids;
 		std::set<OpeningId> openingIds;
 		for (const Wall& wall : project.walls)
@@ -122,6 +222,10 @@ namespace f101::cad
 			if (Status valid = validateWall(wall); !valid)
 			{
 				return valid;
+			}
+			if (!project.findLevel(wall.level))
+			{
+				return Error{ErrorCode::InvalidArgument, "Wall " + toString(wall.id) + " is not on a level of the project"};
 			}
 			if (!ids.insert(wall.id).second)
 			{
@@ -142,6 +246,7 @@ namespace f101::cad
 		: newUuid(std::move(newUuidSource))
 	{
 		F101_ASSERT(static_cast<bool>(newUuid));
+		model.levels.push_back(Level{LevelId{newUuid()}});
 	}
 
 	Result<Transaction> Document::buildTransaction(const Command& command)
@@ -150,13 +255,19 @@ namespace f101::cad
 
 		if (const auto* create = std::get_if<CreateWallCommand>(&command))
 		{
-			const Wall wall{WallId{newUuid()}, create->start, create->end, create->thicknessMm, create->heightMm};
+			const Result<LevelId> level = resolveLevel(model, create->level);
+			if (!level)
+			{
+				return level.error();
+			}
+			Wall wall{WallId{newUuid()}, create->start, create->end, create->thicknessMm, create->heightMm};
+			wall.level = level.value();
 			if (Status valid = validateWall(wall); !valid)
 			{
 				return valid.error();
 			}
 			F101_ASSERT(!findWallIndex(model, wall.id).has_value());
-			return Transaction{label, {WallChange{wall.id, model.walls.size(), std::nullopt, wall}}};
+			return Transaction{label, {WallChange{wall.id, model.walls.size(), std::nullopt, wall}}, {}};
 		}
 		if (const auto* remove = std::get_if<DeleteWallCommand>(&command))
 		{
@@ -165,7 +276,7 @@ namespace f101::cad
 			{
 				return wallNotFound(remove->wall);
 			}
-			return Transaction{label, {WallChange{remove->wall, *index, model.walls[*index], std::nullopt}}};
+			return Transaction{label, {WallChange{remove->wall, *index, model.walls[*index], std::nullopt}}, {}};
 		}
 		if (const auto* move = std::get_if<MoveWallEndpointCommand>(&command))
 		{
@@ -177,12 +288,17 @@ namespace f101::cad
 		}
 		if (const auto* joint = std::get_if<MoveJointCommand>(&command))
 		{
-			Transaction transaction{label, {}};
+			const Result<LevelId> level = resolveLevel(model, joint->level);
+			if (!level)
+			{
+				return level.error();
+			}
+			Transaction transaction{label, {}, {}};
 			bool found = false;
 			for (std::size_t index = 0; index < model.walls.size(); ++index)
 			{
 				const Wall& before = model.walls[index];
-				if (before.start != joint->from && before.end != joint->from)
+				if (before.level != level.value() || (before.start != joint->from && before.end != joint->from))
 				{
 					continue;
 				}
@@ -264,6 +380,87 @@ namespace f101::cad
 				return Status::success();
 			});
 		}
+		if (const auto* add = std::get_if<AddLevelCommand>(&command))
+		{
+			const Level level{LevelId{newUuid()}, add->name, add->heightMm, add->slabThicknessMm};
+			if (Status valid = validateLevel(level); !valid)
+			{
+				return valid.error();
+			}
+			Project after = model;
+			after.levels.push_back(level);
+			if (Status valid = validateProject(after); !valid)
+			{
+				return valid.error(); // e.g. the building would leave the model range
+			}
+			return Transaction{label, {}, {LevelChange{level.id, model.levels.size(), std::nullopt, level}}};
+		}
+		if (const auto* change = std::get_if<ChangeLevelCommand>(&command))
+		{
+			const std::optional<std::size_t> index = model.levelIndex(change->level.id);
+			if (!index)
+			{
+				return levelNotFound(change->level.id);
+			}
+			if (Status valid = validateLevel(change->level); !valid)
+			{
+				return valid.error();
+			}
+			Project after = model;
+			after.levels[*index] = change->level;
+			if (Status valid = validateProject(after); !valid)
+			{
+				return valid.error();
+			}
+			Transaction transaction{label, {}, {}};
+			if (change->level == model.levels[*index])
+			{
+				return transaction;
+			}
+			const Level& before = model.levels[*index];
+			transaction.levels.push_back(LevelChange{change->level.id, *index, before, change->level});
+			// Walls as tall as the level (floor to floor) stay so: they follow its new height. Other walls keep theirs.
+			if (change->level.heightMm != before.heightMm)
+			{
+				for (std::size_t wall = 0; wall < model.walls.size(); ++wall)
+				{
+					const Wall& current = model.walls[wall];
+					if (current.level != before.id || current.heightMm != before.heightMm)
+					{
+						continue;
+					}
+					Wall followed = current;
+					followed.heightMm = change->level.heightMm;
+					if (Status valid = validateWall(followed); !valid)
+					{
+						return valid.error(); // e.g. a window that no longer fits under the top
+					}
+					transaction.walls.push_back(WallChange{current.id, wall, current, followed});
+				}
+			}
+			return transaction;
+		}
+		if (const auto* removal = std::get_if<DeleteLevelCommand>(&command))
+		{
+			const std::optional<std::size_t> index = model.levelIndex(removal->level);
+			if (!index)
+			{
+				return levelNotFound(removal->level);
+			}
+			if (model.levels.size() == 1)
+			{
+				return Error{ErrorCode::InvalidArgument, "The last level cannot be deleted"};
+			}
+			Transaction transaction{label, {}, {LevelChange{removal->level, *index, model.levels[*index], std::nullopt}}};
+			for (std::size_t wall = 0; wall < model.walls.size(); ++wall)
+			{
+				if (model.walls[wall].level == removal->level)
+				{
+					transaction.walls.push_back(WallChange{model.walls[wall].id, wall, model.walls[wall], std::nullopt});
+				}
+			}
+			return transaction;
+		}
 		if (const auto* thickness = std::get_if<ChangeWallThicknessCommand>(&command))
 		{
 			return modifyWall(model, thickness->wall, label, [thickness](Wall& wall)
@@ -288,7 +485,7 @@ namespace f101::cad
 			return built;
 		}
 		const Transaction& transaction = built.value();
-		if (transaction.walls.empty())
+		if (transaction.empty())
 		{
 			return built; // nothing changes: no history entry, no notification
 		}
@@ -349,6 +546,14 @@ namespace f101::cad
 		{
 			changes.addedWalls.push_back(wall.id);
 		}
+		for (const Level& level : model.levels)
+		{
+			changes.removedLevels.push_back(level.id);
+		}
+		for (const Level& level : replacement.levels)
+		{
+			changes.addedLevels.push_back(level.id);
+		}
 		model = std::move(replacement);
 		undoStack.clear();
 		redoStack.clear();
@@ -356,9 +561,10 @@ namespace f101::cad
 		return Status::success();
 	}
 
-	Result<WallId> Document::addWall(Point2D start, Point2D end, std::int64_t thicknessMm, std::int64_t heightMm)
+	Result<WallId> Document::addWall(Point2D start, Point2D end, std::int64_t thicknessMm, std::int64_t heightMm,
+		const LevelId& level)
 	{
-		const Result<Transaction> applied = execute(CreateWallCommand{start, end, thicknessMm, heightMm});
+		const Result<Transaction> applied = execute(CreateWallCommand{start, end, thicknessMm, heightMm, level});
 		if (!applied)
 		{
 			return applied.error();
@@ -398,43 +604,21 @@ namespace f101::cad
 		return Error{ErrorCode::NotFound, "Opening not added"};
 	}
 
+	Result<LevelId> Document::addLevel(std::int64_t heightMm, std::int64_t slabThicknessMm)
+	{
+		const Result<Transaction> applied = execute(AddLevelCommand{heightMm, slabThicknessMm, {}});
+		if (!applied)
+		{
+			return applied.error();
+		}
+		return applied.value().levels.front().id;
+	}
+
 	void Document::apply(const Transaction& transaction, bool forward)
 	{
-		// Removals first (from the back), then insertions/replacements in index order, so indices stay valid.
-		std::vector<const WallChange*> ordered;
-		for (const WallChange& change : transaction.walls)
-		{
-			ordered.push_back(&change);
-		}
-		std::sort(ordered.begin(), ordered.end(), [](const WallChange* a, const WallChange* b) { return a->index < b->index; });
-
-		for (auto it = ordered.rbegin(); it != ordered.rend(); ++it)
-		{
-			const std::optional<Wall>& target = forward ? (*it)->after : (*it)->before;
-			if (!target)
-			{
-				const std::optional<std::size_t> index = findWallIndex(model, (*it)->id);
-				F101_ASSERT(index.has_value());
-				model.walls.erase(model.walls.begin() + static_cast<std::ptrdiff_t>(*index));
-			}
-		}
-		for (const WallChange* change : ordered)
-		{
-			const std::optional<Wall>& target = forward ? change->after : change->before;
-			if (!target)
-			{
-				continue;
-			}
-			if (const std::optional<std::size_t> index = findWallIndex(model, change->id))
-			{
-				model.walls[*index] = *target;
-			}
-			else
-			{
-				const std::size_t position = std::min(change->index, model.walls.size());
-				model.walls.insert(model.walls.begin() + static_cast<std::ptrdiff_t>(position), *target);
-			}
-		}
+		// Levels first: walls being restored refer to them.
+		applyChanges(model.levels, transaction.levels, forward);
+		applyChanges(model.walls, transaction.walls, forward);
 		notify(changeSetOf(transaction, forward));
 	}
 

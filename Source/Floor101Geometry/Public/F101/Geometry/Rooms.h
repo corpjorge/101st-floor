@@ -40,4 +40,15 @@ namespace f101::geometry
 
 	// Floor slab of a room: from z = 0 to FloorThicknessMm, over its outline.
 	FLOOR101GEOMETRY_API MeshData buildFloorMesh(const Room& room);
+
+	namespace slab_slots
+	{
+		inline constexpr const char* Ceiling = "ceiling"; // underside, seen from the room below
+		inline constexpr const char* Side = "slab_edge";
+		inline constexpr const char* Top = "slab_top";
+	}
+
+	// Structural slab over a room (ADR-0011), between two heights (mm), over the same outline as its floor: it fits
+	// between the walls that run up to the next level.
+	FLOOR101GEOMETRY_API MeshData buildSlabMesh(const Room& room, double bottomZ, double topZ);
 }

@@ -10,9 +10,9 @@
   (`VectorUtil::Normal` = `edge2 × edge1`) se compensan.
 - `AFloor101SceneNodeActor`: `UCLASS(Transient, NotPlaceable)`, raíz `UDynamicMeshComponent` con ray tracing activado,
   material por defecto `/Engine/BasicShapes/BasicShapeMaterial` (referencia dura, se cocina con el juego), etiqueta
-  `f101.node:<SceneNodeId>`. Estilos de vista: `Selected` (naranja), `Preview` (azul) y `Handle` (amarillo) con una
-  `UMaterialInstanceDynamic` por estilo sobre el parámetro `Color` del material por defecto. Muros, `JointFill` y
-  suelos de habitación son nodos como cualquier otro.
+  `f101.node:<SceneNodeId>`. Estilos de vista: `Selected` (naranja), `Preview` (azul), `Handle` (amarillo) y `Context` (gris: plantas de abajo) con una
+  `UMaterialInstanceDynamic` por estilo sobre el parámetro `Color` del material por defecto. Muros, `JointFill`,
+  suelos y forjados de habitación son nodos como cualquier otro.
 - `FFloor101SceneReconciler`: por `SceneNodeId`, crea, actualiza (si cambió el `contentHash` **o** el estilo) o destruye
   actores. Nunca escala: la escala sigue en 1.
 
@@ -24,17 +24,20 @@
   `compileScene(project, overlay)` → `Reconcile`, con log `F101: scene resync in X ms`, el estado de cada muro y cada
   habitación (`F101: room <clave> area=…`); los refrescos de vista van a `Verbose`. Dentro de `Edit` el listener del
   documento no recompila: se hace una sola vez al final, con la vista del controlador ya actualizada (si no, el muro
-  recién creado aparecería también como vista previa). `GetRooms()` da el área y la posición de etiqueta de cada
-  habitación de la última escena (siguen al gesto en curso); `FindRoomFloorActor(clave)` su suelo.
+  recién creado aparecería también como vista previa). `GetRooms()` da el área y la posición de etiqueta (a la cota de
+  su planta) de cada habitación de la planta activa, o de todas con "Ver todas" (siguen al gesto en curso);
+  `FindRoomFloorActor(clave)` y `FindRoomSlabActor(clave)` su suelo y su forjado.
 - `UFloor101GameViewportClient` (`GameViewportClientClassName`): cursor → rayo de escena (deproyección +
   `ToScenePosition`), `MapKey` (función pura del mapa de teclas), caracteres → longitud escrita, rueda por
   `MouseWheelAxis`. Con la consola abierta todo va al motor. Registra cada tecla en `VeryVerbose`
   (`-LogCmds="LogFloor101 VeryVerbose"`).
 - `AFloor101EditingPawn`: cámara orbital sin colisión (foco, guiñada, cabeceo entre −89° y −5°, distancia 0,5–2000 m);
-  `Frame` encuadra con margen usando el campo de visión vertical; `TopView` es la vista en planta (−89°, norte arriba).
+  `Frame` encuadra con margen usando el campo de visión vertical; `TopView` es la vista en planta (−89°, norte arriba);
+  `RaiseFocus` sube o baja el foco: el viewport client lo usa para que la cámara siga la cota de la planta activa, y
+  "Encuadrar" solo mira las plantas visibles.
 - `AFloor101GameMode` (`GlobalDefaultGameMode`) + `AFloor101PlayerController`: cursor visible, modo de entrada juego y
-  UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta y Ventana, panel de propiedades del muro o del
-  hueco seleccionado, barra de estado, etiqueta del cursor y el área de cada habitación proyectada sobre su suelo).
+  UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta y Ventana y fila de plantas, panel de
+  propiedades del muro o del hueco seleccionado o, sin selección, de la planta activa, barra de estado, etiqueta del cursor y el área de cada habitación proyectada sobre su suelo).
 
 Desarrollo:
 - `-F101Demo` carga la pared de referencia al empezar el juego (`Run.ps1`, `CheckRendering.ps1 -Demo`).
@@ -51,23 +54,28 @@ Desarrollo:
 | Enter | crea el muro previsualizado |
 | Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta o Ventana, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
 | Supr | elimina el muro o el hueco seleccionado |
-| panel de propiedades | muro: longitud, espesor, altura; puerta o ventana: ancho, alto, antepecho (ventanas) y posición (desde el inicio del muro hasta el borde del hueco). Sin unidad = cm; Enter aplica |
+| RePág / AvPág | editar la planta de arriba / de abajo (la cámara la sigue) |
+| L | ver todas las plantas con sus forjados, o solo la activa y, atenuadas, las de abajo |
+| fila de plantas | subir, bajar, "+ Nueva planta" (encima de todas, igual que la de arriba, y pasa a editarla), "Ver todas (L)" |
+| panel de propiedades | muro: longitud, espesor, altura; puerta o ventana: ancho, alto, antepecho (ventanas) y posición (desde el inicio del muro hasta el borde del hueco); sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
 | Ctrl+Z / Ctrl+Y o Ctrl+Shift+Z | deshacer / rehacer |
 | Ctrl+S / Ctrl+O | guardar / abrir el archivo actual (o el de por defecto) |
 | derecho arrastrando / central arrastrando / rueda / F / T | orbitar / desplazar / zoom / encuadrar todo / vista en planta (norte arriba) |
 
 ## Herramientas de editor (`Source/Floor101Editor`, solo editor)
-Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetWalls`, `AddWall`, `SetWallEnd`, `SetWallLength`, `MoveCorner`, `GetRooms`,
+Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetLevels`, `AddLevel`, `SetLevel`, `RemoveLevel`, `SetLevelView`,
+`GetWalls`, `AddWall` (en una planta), `SetWallEnd`, `SetWallLength`, `MoveCorner`, `GetRooms`,
 `SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `RemoveOpening`, `RemoveWall`, `Undo`, `Redo`,
-`SaveProject`, `OpenProject`, en mm enteros. Actúa
-sobre el documento de la sesión PIE mientras existe y, si no, sobre el del mundo del editor. Devuelve el actor para
+`SaveProject`, `OpenProject`, en mm enteros. Los muros de plantas que la vista oculta no tienen actor (`SetLevelView`
+elige planta y "ver todas"). Actúa sobre el documento de la sesión PIE mientras existe y, si no, sobre el del mundo del editor. Devuelve el actor para
 inspeccionarlo con `ActorTools`. Se registra desde un `UEditorSubsystem` que depende de `UToolsetRegistrySubsystem`,
 porque `RegisterToolsetClass` no hace nada si el registro aún no está listo. Ver `docs/unreal-mcp.md`.
 
 ## Tests de integración
 `Floor101.Adapter.*` (conversión, pared de referencia, estilos de vista, muro con puerta: 36 triángulos y 7 secciones), `Floor101.Interaction.*` (mapa de teclas,
 cámara, flujo completo por el subsistema: dibujar con longitud escrita, seleccionar, propiedades, deshacer, errores,
-guardar y abrir con ruta no ASCII; habitación cerrada con suelo, área y arrastre de esquina con área en vivo) y
+guardar y abrir con ruta no ASCII; habitación cerrada con suelo, área y arrastre de esquina con área en vivo; plantas: forjado entre muros, planta de abajo
+atenuada, muro dibujado en la cota de su planta, ocultar y "Ver todas") y
 `Floor101.Editor.DocumentToolset.*` (cada herramienta y cada error).
 `Test.ps1 -Integration` los ejecuta en un editor headless; también se pueden lanzar por MCP.
 

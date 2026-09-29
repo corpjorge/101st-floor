@@ -79,6 +79,9 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Delete: delete"), Map(EKeys::Delete) == Command::Delete);
 	TestTrue(TEXT("F: frame"), Map(EKeys::F) == Command::Frame);
 	TestTrue(TEXT("T: plan view"), Map(EKeys::T) == Command::TopView);
+	TestTrue(TEXT("Page Up: level up"), Map(EKeys::PageUp) == Command::LevelUp);
+	TestTrue(TEXT("Page Down: level down"), Map(EKeys::PageDown) == Command::LevelDown);
+	TestTrue(TEXT("L: every level"), Map(EKeys::L) == Command::AllLevels);
 	TestTrue(TEXT("Backspace: backspace"), Map(EKeys::BackSpace) == Command::Backspace);
 	TestTrue(TEXT("Ctrl+Z: undo"), Map(EKeys::Z, true) == Command::Undo);
 	TestTrue(TEXT("Ctrl+Shift+Z: redo"), Map(EKeys::Z, true, true) == Command::Redo);
@@ -289,6 +292,80 @@ bool FFloor101RoomsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("the applied room is the previewed one"), Document->GetRooms()[0].AreaM2, TrapezoidM2, 1e-6);
 	TestTrue(TEXT("undo"), Document->Edit([](EditController& Editor) { return Editor.undo(); }).ok());
 	TestEqual(TEXT("area back"), Document->GetRooms()[0].AreaM2, 3.88 * 2.88, 1e-9);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LevelsTest, "Floor101.Interaction.Levels", TestFlags)
+bool FFloor101LevelsTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document))
+	{
+		return false;
+	}
+	// A 4 x 3 m room on the ground floor (2800 mm floor to floor, 250 mm slab).
+	f101::cad::Document& Model = Document->GetMutableDocument();
+	const f101::cad::WallId South = Model.addWall({0, 0}, {4000, 0}, 120, 2800).value();
+	(void)Model.addWall({4000, 0}, {4000, 3000}, 120, 2800);
+	(void)Model.addWall({4000, 3000}, {0, 3000}, 120, 2800);
+	(void)Model.addWall({0, 3000}, {0, 0}, 120, 2800);
+	if (!TestEqual(TEXT("a room on the ground floor"), Document->GetRooms().Num(), 1))
+	{
+		return false;
+	}
+	const FString GroundRoom = Document->GetRooms()[0].Key;
+	TestNull(TEXT("no slab over the level being edited"), Document->FindRoomSlabActor(GroundRoom));
+
+	// A new level: it becomes the edited one and the ground floor turns into context with its slab.
+	TestTrue(TEXT("add a level"), Document->Edit([](EditController& Editor) { return Editor.addLevel(); }).ok());
+	const f101::cad::Project& Project = Document->GetDocument().project();
+	TestEqual(TEXT("two levels"), static_cast<int32>(Project.levels.size()), 2);
+	TestTrue(TEXT("the new level is edited"), Document->GetEditController().activeLevel() == Project.levels[1].id);
+	TestTrue(TEXT("its rooms, none yet, are the ones listed"), Document->GetRooms().IsEmpty());
+	const AFloor101SceneNodeActor* Slab = Cast<AFloor101SceneNodeActor>(Document->FindRoomSlabActor(GroundRoom));
+	if (TestNotNull(TEXT("slab over the ground floor room"), Slab))
+	{
+		const FBox Bounds = Slab->GetMeshBounds();
+		TestEqual(TEXT("slab bottom 255 cm"), Bounds.Min.Z, 255.0, 1e-6);
+		TestEqual(TEXT("slab top 280 cm"), Bounds.Max.Z, 280.0, 1e-6);
+		TestEqual(TEXT("between the walls: 388 cm"), Bounds.GetSize().X, 388.0, 1e-6);
+	}
+	const AFloor101SceneNodeActor* SouthWall = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(South));
+	const UMaterialInstanceDynamic* Dimmed = SouthWall ? Cast<UMaterialInstanceDynamic>(SouthWall->GetDisplayMaterial()) : nullptr;
+	if (TestNotNull(TEXT("the level below is dimmed"), Dimmed))
+	{
+		FLinearColor Color;
+		TestTrue(TEXT("tinted"), Dimmed->GetVectorParameterValue(FHashedMaterialParameterInfo(AFloor101SceneNodeActor::ColorParameterName), Color));
+		TestTrue(TEXT("grey"), Color.Equals(FLinearColor(0.3f, 0.32f, 0.36f), 1e-3f));
+	}
+
+	// Drawing on the upper level: the ray is taken to its floor at 2800 mm and the wall stands there.
+	TestTrue(TEXT("wall tool"), Document->Edit([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Wall); return f101::Status::success(); }).ok());
+	TestTrue(TEXT("start"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(0.0, 0.0)); }).ok());
+	Document->UpdatePointer(Down(3990.0, 12.0));
+	TestTrue(TEXT("create"), Document->Edit([](EditController& Editor) { return Editor.confirm(); }).ok());
+	const f101::cad::Wall& Upper = Project.walls.back();
+	TestTrue(TEXT("on the upper level"), Upper.level == Project.levels[1].id);
+	TestEqual(TEXT("as tall as its level"), Upper.heightMm, int64(2800));
+	const AFloor101SceneNodeActor* UpperActor = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Upper.id));
+	if (TestNotNull(TEXT("upper wall actor"), UpperActor))
+	{
+		TestEqual(TEXT("stands at 280 cm"), UpperActor->GetMeshBounds().Min.Z, 280.0, 1e-6);
+	}
+
+	// Back to the ground floor: the level above is hidden, the ground slabs too; every level shows them all.
+	TestTrue(TEXT("level down"), Document->Edit([](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Select);
+		return Editor.levelDown();
+	}).ok());
+	TestNull(TEXT("upper wall hidden"), Document->FindWallActor(Upper.id));
+	TestNull(TEXT("ground slab hidden"), Document->FindRoomSlabActor(GroundRoom));
+	TestEqual(TEXT("the ground room is listed again"), Document->GetRooms().Num(), 1);
+	TestTrue(TEXT("every level"), Document->Edit([](EditController& Editor) { Editor.setShowAllLevels(true); return f101::Status::success(); }).ok());
+	TestNotNull(TEXT("upper wall shown"), Document->FindWallActor(Upper.id));
+	TestNotNull(TEXT("ground slab shown"), Document->FindRoomSlabActor(GroundRoom));
 	return true;
 }
 

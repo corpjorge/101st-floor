@@ -36,6 +36,8 @@ compila sin excepciones (ADR-0002), y los milímetros deben leerse de forma exac
 - Niveles, habitaciones, huecos y materiales llegarán en versiones de esquema posteriores, con migración desde v1.
   **Esquema 2 (MVP 3, ADR-0010):** cada muro puede llevar `openings` (puertas y ventanas), escrito solo si hay
   alguno; los archivos v1 se leen sin cambios.
+  **Esquema 3 (MVP 4, ADR-0011):** `levels` y la planta (`level`) de cada muro; los archivos v1 y v2 se leen en una
+  sola planta.
 
 ## Verificación
 `Tests/Unit/ProjectFileTests.cpp`: salida exacta documentada, ida y vuelta sin pérdida (incluidos ±999.999.999 mm),

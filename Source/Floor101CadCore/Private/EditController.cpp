@@ -95,10 +95,27 @@ namespace f101::cad
 		}
 	}
 
+	LevelId EditController::activeLevel() const
+	{
+		return tool.targetLevel(); // the chosen level while it exists, else the first
+	}
+
+	Project EditController::levelProject() const
+	{
+		return wallsOnLevel(document.project(), activeLevel());
+	}
+
+	Ray3 EditController::toLevel(const Ray3& ray) const
+	{
+		Ray3 local = ray;
+		local.originZ -= static_cast<double>(levelElevationMm(document.project(), activeLevel()));
+		return local;
+	}
+
 	std::optional<PlanPoint> EditController::planPointOf(const Ray3& ray, const std::vector<WallId>& ignoreWalls) const
 	{
 		// Pointing at a wall (its top or a face) means that spot of the plan, not the floor behind it.
-		if (const std::optional<WallHit> hit = pickWall(document.project(), ray, ignoreWalls))
+		if (const std::optional<WallHit> hit = pickWall(levelProject(), ray, ignoreWalls))
 		{
 			return PlanPoint{ray.originX + ray.directionX * hit->distance, ray.originY + ray.directionY * hit->distance};
 		}
@@ -106,6 +123,11 @@ namespace f101::cad
 	}
 
 	void EditController::pointerMoved(const Ray3& ray)
+	{
+		movePointer(toLevel(ray));
+	}
+
+	void EditController::movePointer(const Ray3& ray)
 	{
 		// While dragging a corner its own walls are not targets: they are what moves.
 		planPoint = planPointOf(ray, drag ? drag->joined : std::vector<WallId>{});
@@ -129,7 +151,7 @@ namespace f101::cad
 
 	void EditController::updateDrag()
 	{
-		const Project& project = document.project();
+		const Project project = levelProject();
 		const Wall* wall = project.findWall(drag->wall);
 		if (!wall)
 		{
@@ -139,7 +161,8 @@ namespace f101::cad
 		// Angle and length snap relative to the fixed end; other walls' endpoints attract.
 		const Point2D fixed = endpointOf(*wall, opposite(drag->endpoint));
 		const PlanPoint cursor{planPoint->x_mm + drag->grabOffset.x_mm, planPoint->y_mm + drag->grabOffset.y_mm};
-		drag->position = snapFromAnchor(project, fixed, cursor, editSettings.wallTool.snap, drag->joined).point;
+		const Project reference = snapReference(document.project(), activeLevel()); // the level below guides too (stacking)
+		drag->position = snapFromAnchor(reference, fixed, cursor, editSettings.wallTool.snap, drag->joined).point;
 	}
 
 	void EditController::updatePlacement()
@@ -154,7 +177,8 @@ namespace f101::cad
 		const Wall* host = nullptr;
 		double hostAlong = 0.0;
 		double best = std::numeric_limits<double>::infinity();
-		for (const Wall& wall : document.project().walls)
+		const Project project = levelProject();
+		for (const Wall& wall : project.walls)
 		{
 			const AxisPosition position = locate(wall, *planPoint);
 			const double reach = static_cast<double>(wall.thicknessMm) / 2.0 + editSettings.openingToleranceMm;
@@ -180,9 +204,11 @@ namespace f101::cad
 		placement = OpeningRef{host->id, opening};
 	}
 
-	Status EditController::pointerPressed(const Ray3& ray)
+	Status EditController::pointerPressed(const Ray3& sceneRay)
 	{
-		pointerMoved(ray);
+		const Ray3 ray = toLevel(sceneRay);
+		movePointer(ray);
+		const Project project = levelProject();
 		if (currentMode == EditMode::Wall)
 		{
 			if (!planPoint)
@@ -205,7 +231,7 @@ namespace f101::cad
 
 		// A handle of the selected wall starts a drag. The endpoint only moves once the pointer moves.
 		const WallId current = selection();
-		if (const Wall* wall = current.isNil() ? nullptr : document.project().findWall(current))
+		if (const Wall* wall = current.isNil() ? nullptr : project.findWall(current))
 		{
 			std::optional<double> nearest;
 			for (const WallEndpoint endpoint : {WallEndpoint::Start, WallEndpoint::End})
@@ -220,7 +246,7 @@ namespace f101::cad
 			}
 			if (drag)
 			{
-				for (const Wall& other : document.project().walls)
+				for (const Wall& other : project.walls)
 				{
 					if (other.start == drag->origin || other.end == drag->origin)
 					{
@@ -240,10 +266,10 @@ namespace f101::cad
 		// A wall, or the opening in it where the pointer is along the wall.
 		selected = WallId();
 		selectedOpeningId = OpeningId();
-		if (const std::optional<WallHit> hit = pickWall(document.project(), ray))
+		if (const std::optional<WallHit> hit = pickWall(project, ray))
 		{
 			selected = hit->wall;
-			const Wall& wall = *document.project().findWall(hit->wall);
+			const Wall& wall = *project.findWall(hit->wall);
 			const PlanPoint where{ray.originX + ray.directionX * hit->distance, ray.originY + ray.directionY * hit->distance};
 			if (const Opening* opening = openingAt(wall, locate(wall, where).along))
 			{
@@ -264,7 +290,7 @@ namespace f101::cad
 		drag.reset();
 		if (finished.joined.size() > 1)
 		{
-			return toStatus(document.execute(MoveJointCommand{finished.origin, finished.position}));
+			return toStatus(document.execute(MoveJointCommand{finished.origin, finished.position, activeLevel()}));
 		}
 		return toStatus(document.execute(MoveWallEndpointCommand{finished.wall, finished.endpoint, finished.position}));
 	}
@@ -405,6 +431,7 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "Wall not found: " + toString(id)};
 		}
 		setMode(EditMode::Select);
+		changeLevel(document.project().levelOf(*document.project().findWall(id)));
 		drag.reset();
 		selected = id;
 		selectedOpeningId = OpeningId();
@@ -419,6 +446,7 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "Opening not found: " + toString(opening)};
 		}
 		setMode(EditMode::Select);
+		changeLevel(document.project().levelOf(*host));
 		drag.reset();
 		selected = wall;
 		selectedOpeningId = opening;
@@ -499,9 +527,122 @@ namespace f101::cad
 		return changeOpening(text, [](Opening& opening, std::int64_t mm) { opening.offsetMm = mm; });
 	}
 
+	void EditController::changeLevel(const LevelId& level)
+	{
+		if (level == activeLevel())
+		{
+			return;
+		}
+		drag.reset();
+		placement.reset();
+		selected = WallId();
+		selectedOpeningId = OpeningId();
+		tool.setLevel(level);
+		planPoint.reset(); // it was measured on the other level; the next pointer move sets it again
+	}
+
+	Status EditController::setActiveLevel(const LevelId& level)
+	{
+		if (!document.project().findLevel(level))
+		{
+			return Error{ErrorCode::NotFound, "No level with id " + toString(level)};
+		}
+		changeLevel(level);
+		return Status::success();
+	}
+
+	Status EditController::levelUp()
+	{
+		const Project& project = document.project();
+		const std::size_t index = project.levelIndex(activeLevel()).value_or(0);
+		if (index + 1 >= project.levels.size())
+		{
+			return Error{ErrorCode::OutOfRange, "This is the top level"};
+		}
+		changeLevel(project.levels[index + 1].id);
+		return Status::success();
+	}
+
+	Status EditController::levelDown()
+	{
+		const Project& project = document.project();
+		const std::size_t index = project.levelIndex(activeLevel()).value_or(0);
+		if (index == 0)
+		{
+			return Error{ErrorCode::OutOfRange, "This is the lowest level"};
+		}
+		changeLevel(project.levels[index - 1].id);
+		return Status::success();
+	}
+
+	Status EditController::addLevel()
+	{
+		// Like the level below it: same height and slab.
+		const Level& top = document.project().levels.back();
+		const Result<Transaction> added = document.execute(AddLevelCommand{top.heightMm, top.slabThicknessMm, {}});
+		if (!added)
+		{
+			return added.error();
+		}
+		changeLevel(added.value().levels.front().id);
+		return Status::success();
+	}
+
+	Status EditController::deleteActiveLevel()
+	{
+		const Project& project = document.project();
+		const std::size_t index = project.levelIndex(activeLevel()).value_or(0);
+		const LevelId below = index > 0 ? project.levels[index - 1].id : LevelId();
+		const Status deleted = toStatus(document.execute(DeleteLevelCommand{activeLevel()}));
+		if (deleted)
+		{
+			changeLevel(below.isNil() ? document.project().levels.front().id : below);
+		}
+		return deleted;
+	}
+
+	Status EditController::changeActiveLevel(const std::function<Status(Level&)>& edit)
+	{
+		const Level* current = document.project().findLevel(activeLevel());
+		F101_ASSERT(current != nullptr);
+		Level changed = *current;
+		if (Status edited = edit(changed); !edited)
+		{
+			return edited;
+		}
+		return toStatus(document.execute(ChangeLevelCommand{changed}));
+	}
+
+	Status EditController::setLevelHeight(std::string_view text)
+	{
+		const Result<std::int64_t> value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value)
+		{
+			return value.error();
+		}
+		return changeActiveLevel([&value](Level& level) { level.heightMm = value.value(); return Status::success(); });
+	}
+
+	Status EditController::setLevelSlabThickness(std::string_view text)
+	{
+		const Result<std::int64_t> value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value)
+		{
+			return value.error();
+		}
+		return changeActiveLevel([&value](Level& level) { level.slabThicknessMm = value.value(); return Status::success(); });
+	}
+
+	Status EditController::setLevelName(std::string_view text)
+	{
+		return changeActiveLevel([text](Level& level) { level.name = std::string(text); return Status::success(); });
+	}
+
 	EditView EditController::view() const
 	{
 		EditView result;
+		result.activeLevel = activeLevel();
+		result.showAllLevels = allLevels;
 		const Project& project = document.project();
 		if (currentMode == EditMode::Wall)
 		{

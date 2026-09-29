@@ -60,6 +60,27 @@ namespace
 		}
 	}
 
+	// "Planta baja", "Planta 1"... unless the level has a name of its own.
+	FText LevelName(const f101::cad::Project& Project, const f101::cad::LevelId& Level)
+	{
+		const std::size_t Index = Project.levelIndex(Level).value_or(0);
+		const f101::cad::Level* Found = Project.findLevel(Level);
+		if (Found && !Found->name.empty())
+		{
+			return FText::FromString(UTF8_TO_TCHAR(Found->name.c_str()));
+		}
+		return Index == 0 ? LOCTEXT("GroundFloor", "Planta baja") : FText::Format(LOCTEXT("FloorN", "Planta {0}"), FText::AsNumber(static_cast<int32>(Index)));
+	}
+
+	// "+2,80 m" (elevation in metres, two decimals, current culture).
+	FText ElevationText(std::int64_t Millimeters)
+	{
+		FNumberFormattingOptions TwoDecimals;
+		TwoDecimals.SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
+		return FText::Format(LOCTEXT("Elevation", "{0}{1} m"), Millimeters >= 0 ? FText::FromString(TEXT("+")) : FText::GetEmpty(),
+			FText::AsNumber(static_cast<double>(Millimeters) / 1000.0, &TwoDecimals));
+	}
+
 	TSharedRef<SWidget> Panel(const TSharedRef<SWidget>& Content)
 	{
 		return SNew(SBorder)
@@ -401,7 +422,101 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 						return FReply::Handled();
 					}))
 			]
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0.0f, 6.0f, 0.0f, 0.0f)
+		[
+			MakeLevelRow()
 		]);
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
+{
+	auto LevelButton = [](const FText& Label, const FText& ToolTip, TAttribute<bool> Enabled, FOnClicked OnClicked)
+	{
+		return SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(ToolTip)
+			.IsEnabled(Enabled)
+			.OnClicked(OnClicked)
+			[
+				SNew(STextBlock).Text(Label).Font(Font(10))
+			];
+	};
+	auto ActiveIndex = [this]() -> std::size_t
+	{
+		const UFloor101DocumentSubsystem* S = Document.Get();
+		return S ? S->GetDocument().project().levelIndex(S->GetEditController().activeLevel()).value_or(0) : 0;
+	};
+	auto LevelCount = [this]() -> std::size_t
+	{
+		const UFloor101DocumentSubsystem* S = Document.Get();
+		return S ? S->GetDocument().project().levels.size() : 0;
+	};
+
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("LevelLabel", "Planta")).Font(Font(10))
+		]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 8.0f, 0.0f)
+		[
+			SNew(SBox)
+			.MinDesiredWidth(170.0f)
+			[
+				SNew(STextBlock)
+				.Font(Font(10, true))
+				.Text_Lambda([this]()
+				{
+					const UFloor101DocumentSubsystem* S = Document.Get();
+					if (!S)
+					{
+						return FText::GetEmpty();
+					}
+					const f101::cad::Project& Project = S->GetDocument().project();
+					const f101::cad::LevelId Level = S->GetEditController().activeLevel();
+					return FText::Format(LOCTEXT("ActiveLevel", "{0}  ({1})"), LevelName(Project, Level),
+						ElevationText(f101::cad::levelElevationMm(Project, Level)));
+				})
+			]
+		]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+		[
+			LevelButton(LOCTEXT("LevelUp", "▲ Subir"), LOCTEXT("LevelUpTip", "Editar la planta de arriba (RePág)"),
+				TAttribute<bool>::CreateLambda([ActiveIndex, LevelCount]() { return ActiveIndex() + 1 < LevelCount(); }),
+				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.levelUp(); }); }))
+		]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+		[
+			LevelButton(LOCTEXT("LevelDown", "▼ Bajar"), LOCTEXT("LevelDownTip", "Editar la planta de abajo (AvPág)"),
+				TAttribute<bool>::CreateLambda([ActiveIndex]() { return ActiveIndex() > 0; }),
+				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.levelDown(); }); }))
+		]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+		[
+			LevelButton(LOCTEXT("AddLevel", "+ Nueva planta"),
+				LOCTEXT("AddLevelTip", "Añade una planta encima de todas, igual que la de arriba, y pasa a editarla"), true,
+				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.addLevel(); }); }))
+		]
+		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f, 2.0f, 0.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(LOCTEXT("AllLevelsTip", "Muestra todas las plantas con sus forjados; si no, solo la que editas y, atenuadas, las de abajo (L)"))
+			.ButtonColorAndOpacity_Lambda([this]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				return S && S->GetEditController().showsAllLevels() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+			})
+			.OnClicked_Lambda([this]()
+			{
+				return Run([](EditController& Editor) { Editor.setShowAllLevels(!Editor.showsAllLevels()); return f101::Status::success(); });
+			})
+			[
+				SNew(STextBlock).Text(LOCTEXT("AllLevels", "Ver todas (L)")).Font(Font(10))
+			]
+		];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter)
@@ -484,7 +599,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 
 	return SNew(SBox)
 		.WidthOverride(260.0f)
-		.Visibility_Lambda([this]() { return GetSelectedWall() || GetSelectedOpening() ? EVisibility::Visible : EVisibility::Collapsed; })
+		.Visibility_Lambda([this]()
+		{
+			return GetSelectedWall() || GetSelectedOpening() || IsLevelPanelShown() ? EVisibility::Visible : EVisibility::Collapsed;
+		})
 		[
 			Panel(
 				SNew(SVerticalBox)
@@ -560,6 +678,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 						.AutoWrapText(true)
 					]
 				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeLevelSection()
+				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 				[
 					SNew(STextBlock)
@@ -571,11 +693,137 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				[
 					SNew(SButton)
 					.IsFocusable(false)
+					.Visibility_Lambda([this]() { return IsLevelPanelShown() ? EVisibility::Collapsed : EVisibility::Visible; })
 					.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteSelection(); }); })
 					[
 						SNew(STextBlock).Text(LOCTEXT("Delete", "Eliminar (Supr)")).Font(Font(10))
 					]
 				])
+		];
+}
+
+const f101::cad::Level* SFloor101Overlay::GetActiveLevel() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	return Subsystem ? Subsystem->GetDocument().project().findLevel(Subsystem->GetEditController().activeLevel()) : nullptr;
+}
+
+bool SFloor101Overlay::IsLevelPanelShown() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	return Subsystem && Subsystem->GetEditController().mode() == EditMode::Select && !GetSelectedWall() && !GetSelectedOpening() &&
+		GetActiveLevel();
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
+{
+	auto LevelValue = [this](std::int64_t f101::cad::Level::* Field)
+	{
+		return [this, Field]() -> TOptional<double>
+		{
+			const f101::cad::Level* Level = GetActiveLevel();
+			return Level ? TOptional<double>(static_cast<double>(Level->*Field)) : TOptional<double>();
+		};
+	};
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([this]() { return IsLevelPanelShown() ? EVisibility::Visible : EVisibility::Collapsed; })
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(11, true))
+			.Text_Lambda([this]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				return S ? FText::Format(LOCTEXT("ActiveLevelTitle", "Planta: {0}"),
+					LevelName(S->GetDocument().project(), S->GetEditController().activeLevel())) : FText::GetEmpty();
+			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(LOCTEXT("LevelName", "Nombre")).Font(Font(10))
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SBox)
+				.WidthOverride(120.0f)
+				[
+					SNew(SEditableTextBox)
+					.Font(Font(10))
+					.SelectAllTextWhenFocused(true)
+					.HintText_Lambda([this]()
+					{
+						const UFloor101DocumentSubsystem* S = Document.Get();
+						return S ? LevelName(S->GetDocument().project(), S->GetEditController().activeLevel()) : FText::GetEmpty();
+					})
+					.Text_Lambda([this]()
+					{
+						const f101::cad::Level* Level = GetActiveLevel();
+						return Level ? FText::FromString(UTF8_TO_TCHAR(Level->name.c_str())) : FText::GetEmpty();
+					})
+					.OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type Commit)
+					{
+						const f101::cad::Level* Level = GetActiveLevel();
+						const FString Typed = Text.ToString().TrimStartAndEnd();
+						if (Commit != ETextCommit::OnCleared && Level && Typed != UTF8_TO_TCHAR(Level->name.c_str()))
+						{
+							if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
+							{
+								(void)Subsystem->Edit([&Typed](EditController& Editor) { return Editor.setLevelName(TCHAR_TO_UTF8(*Typed)); });
+							}
+						}
+						if (Commit == ETextCommit::OnEnter)
+						{
+							FSlateApplication::Get().SetAllUserFocusToGameViewport();
+						}
+					})
+				]
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakePropertyRow(LOCTEXT("LevelHeight", "Altura de planta"), LevelValue(&f101::cad::Level::heightMm), &EditController::setLevelHeight)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakePropertyRow(LOCTEXT("LevelSlab", "Forjado"), LevelValue(&f101::cad::Level::slabThicknessMm),
+				&EditController::setLevelSlabThickness)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text_Lambda([this]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				const f101::cad::Level* Level = GetActiveLevel();
+				if (!S || !Level)
+				{
+					return FText::GetEmpty();
+				}
+				return FText::Format(LOCTEXT("LevelInfo", "Cota {0} · altura libre {1}. Los muros nuevos suben hasta la planta de arriba."),
+					ElevationText(f101::cad::levelElevationMm(S->GetDocument().project(), Level->id)), LengthText(static_cast<double>(Level->clearHeightMm())));
+			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 8.0f, 0.0f, 0.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(LOCTEXT("DeleteLevelTip", "Elimina esta planta y sus muros (se puede deshacer)"))
+			.IsEnabled_Lambda([this]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				return S && S->GetDocument().project().levels.size() > 1;
+			})
+			.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteActiveLevel(); }); })
+			[
+				SNew(STextBlock).Text(LOCTEXT("DeleteLevel", "Eliminar planta")).Font(Font(10))
+			]
 		];
 }
 
@@ -608,7 +856,7 @@ FText SFloor101Overlay::GetHintText() const
 		return LOCTEXT("HintOpening", "Seleccionar · edita sus medidas en el panel · Supr: eliminar");
 	}
 	return Editor.selection().isNil()
-		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, puerta o ventana · W: muros · P: puertas · O: ventanas")
+		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, puerta o ventana · W: muros · P: puertas · O: ventanas · RePág/AvPág: planta")
 		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 

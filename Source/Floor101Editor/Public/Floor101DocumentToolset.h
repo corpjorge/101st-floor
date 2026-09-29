@@ -13,6 +13,39 @@ enum class EFloor101OpeningKind : uint8
 };
 
 /**
+ * A level (floor) of the building, bottom to top. Integer millimetres.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101LevelInfo
+{
+	GENERATED_BODY()
+
+	/** Persistent level id (UUID). */
+	UPROPERTY()
+	FString Id;
+
+	/** Empty: the UI shows "Planta baja", "Planta 1"... */
+	UPROPERTY()
+	FString Name;
+
+	/** 0 for the lowest level. */
+	UPROPERTY()
+	int32 Index = 0;
+
+	/** Floor height above the lowest level's floor; derived from the heights below. */
+	UPROPERTY()
+	int64 ElevationMm = 0;
+
+	/** Floor to floor. */
+	UPROPERTY()
+	int64 HeightMm = 0;
+
+	/** Slab at the top of the level: the ceiling of its rooms and the floor of the next level. */
+	UPROPERTY()
+	int64 SlabThicknessMm = 0;
+};
+
+/**
  * A door or window: a rectangular hole through its wall. Integer millimetres.
  */
 USTRUCT(BlueprintType)
@@ -53,6 +86,10 @@ struct FFloor101WallInfo
 	/** Persistent wall id (UUID). */
 	UPROPERTY()
 	FString Id;
+
+	/** Level it stands on; its coordinates are relative to that level's floor. */
+	UPROPERTY()
+	FString LevelId;
 
 	UPROPERTY()
 	int64 StartXMm = 0;
@@ -98,6 +135,10 @@ struct FFloor101RoomInfo
 	UPROPERTY()
 	FString Key;
 
+	/** Level it is on. */
+	UPROPERTY()
+	FString LevelId;
+
 	/** Net floor area inside the walls, in square metres. */
 	UPROPERTY()
 	double AreaM2 = 0.0;
@@ -112,9 +153,10 @@ struct FFloor101RoomInfo
 };
 
 /**
- * Edits the walls of the 101st Floor document and reads the rooms they enclose: the play session's document while
- * Play-In-Editor runs, otherwise the editor world's. Every change is one undoable step and regenerates the Unreal
- * representation (transient actors). Also saves and opens project.json files. Dimensions are integer millimetres.
+ * Edits the levels, walls, doors and windows of the 101st Floor document and reads the rooms they enclose: the play
+ * session's document while Play-In-Editor runs, otherwise the editor world's. Every change is one undoable step and
+ * regenerates the Unreal representation (transient actors). Also saves and opens project.json files. Dimensions are
+ * integer millimetres; wall coordinates are relative to their level's floor.
  */
 UCLASS(BlueprintType, MinimalAPI)
 class UFloor101DocumentToolset : public UToolsetDefinition
@@ -129,11 +171,48 @@ public:
 	static TArray<FFloor101WallInfo> GetWalls();
 
 	/**
+	 * Returns the levels, bottom to top.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101LevelInfo> GetLevels();
+
+	/**
+	 * Adds a level on top of the others.
+	 * @param Name Empty for the default name.
+	 * @return The new level.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101LevelInfo AddLevel(const FString& Name, int64 HeightMm, int64 SlabThicknessMm);
+
+	/**
+	 * Renames or resizes a level; the levels above move with its height. Walls keep their own heights.
+	 * @return The updated level.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101LevelInfo SetLevel(const FString& LevelId, const FString& Name, int64 HeightMm, int64 SlabThicknessMm);
+
+	/**
+	 * Removes a level and all its walls; the levels above move down. The last level cannot be removed.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void RemoveLevel(const FString& LevelId);
+
+	/**
+	 * Chooses what the target world shows, like the level controls of the UI: the edited level and the ones below it
+	 * (dimmed, the edited one without its slabs), or every level with its slabs. Walls on hidden levels have no actor.
+	 * @param LevelId Level to edit; empty for the lowest level.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void SetLevelView(const FString& LevelId, bool bShowAllLevels);
+
+	/**
 	 * Adds a straight wall from start to end.
+	 * @param LevelId Level it stands on; empty for the lowest level.
 	 * @return The new wall.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
-	static FFloor101WallInfo AddWall(int64 StartXMm, int64 StartYMm, int64 EndXMm, int64 EndYMm, int64 ThicknessMm, int64 HeightMm);
+	static FFloor101WallInfo AddWall(const FString& LevelId, int64 StartXMm, int64 StartYMm, int64 EndXMm, int64 EndYMm,
+		int64 ThicknessMm, int64 HeightMm);
 
 	/**
 	 * Moves the end point of a wall; its geometry is regenerated, never scaled.
@@ -162,14 +241,15 @@ public:
 	static FFloor101WallInfo SetWallHeight(const FString& WallId, int64 HeightMm);
 
 	/**
-	 * Moves a corner: every wall end at (FromXMm, FromYMm) goes to (ToXMm, ToYMm), as one undoable step.
+	 * Moves a corner: every wall end of the level at (FromXMm, FromYMm) goes to (ToXMm, ToYMm), as one undoable step.
+	 * @param LevelId Empty for the lowest level.
 	 * @return The moved walls.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
-	static TArray<FFloor101WallInfo> MoveCorner(int64 FromXMm, int64 FromYMm, int64 ToXMm, int64 ToYMm);
+	static TArray<FFloor101WallInfo> MoveCorner(const FString& LevelId, int64 FromXMm, int64 FromYMm, int64 ToXMm, int64 ToYMm);
 
 	/**
-	 * Returns the rooms the walls enclose, with their net floor areas.
+	 * Returns the rooms the walls of each level enclose, with their net floor areas.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static TArray<FFloor101RoomInfo> GetRooms();

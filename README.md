@@ -3,17 +3,18 @@
 Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
 modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
 
-> Estado: **MVP 3 completo** ([informe](docs/mvp3-report.md); [MVP 2](docs/mvp2-report.md), [MVP 1](docs/mvp1-report.md),
-> [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas
-> limpias en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de esquinas compartidas,
-> puertas y ventanas como huecos reales del muro, selección, propiedades, deshacer/rehacer y `project.json`, sobre
-> Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro probado sin Unreal. Siguiente MVP: pendiente de decisión.
+> Estado: **MVP 4 completo** ([informe](docs/mvp4-report.md); [MVP 3](docs/mvp3-report.md), [MVP 2](docs/mvp2-report.md),
+> [MVP 1](docs/mvp1-report.md), [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud
+> escrita, Enter), esquinas limpias en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de
+> esquinas compartidas, puertas y ventanas como huecos reales del muro, varias plantas con forjados, selección,
+> propiedades, deshacer/rehacer y `project.json`, sobre Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro
+> probado sin Unreal. Siguiente MVP: pendiente de decisión.
 
 ## Controles
 W: muro · P: puerta · O: ventana · V: seleccionar · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
 Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+O: guardar / abrir · Esc o clic derecho: cancelar ·
 arrastrar un asa amarilla: mover la esquina · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
-F: encuadrar · T: vista en planta. Detalle en
+F: encuadrar · T: vista en planta · RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detalle en
 [docs/unreal-integration.md](docs/unreal-integration.md#controles).
 
 ## Requisitos
@@ -27,6 +28,7 @@ git clone https://github.com/corpjorge/101st-floor.git; cd 101st-floor
 .\Scripts\Build.ps1            # compila Floor101Editor (Win64 Development)
 .\Scripts\Test.ps1             # arquitectura + tests unitarios sin Unreal (-Integration: + Unreal Automation)
 .\Scripts\Run.ps1              # abre 101st Floor con la pared de referencia (-Demo:$false: documento vacío)
+.\Scripts\CreateDesktopShortcut.ps1  # acceso directo "101st Floor" en el escritorio que ejecuta Run.ps1
 .\Scripts\CheckRendering.ps1   # valida DX12, SM6, GPU, ray tracing, Lumen HWRT, VSM, Nanite desde los logs
 .\Scripts\RunEditorMcp.ps1     # abre Unreal Editor con el servidor MCP (desarrollo con Claude Code)
 .\Scripts\CheckMcp.ps1         # prueba de humo del MCP (handshake, toolsets, operación read-only)

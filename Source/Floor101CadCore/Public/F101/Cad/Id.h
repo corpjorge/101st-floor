@@ -54,4 +54,7 @@ namespace f101::cad
 
 	struct OpeningTag;
 	using OpeningId = TypedId<OpeningTag>;
+
+	struct LevelTag;
+	using LevelId = TypedId<LevelTag>;
 }

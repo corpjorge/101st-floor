@@ -122,7 +122,9 @@ TEST_CASE_FIXTURE(Editing, "the properties of the selection take typed lengths")
 	CHECK(editor.setSelectionLength("abc").error().code == ErrorCode::ParseError);
 	CHECK_FALSE(editor.setSelectionThickness("0").ok());
 	CHECK_FALSE(editor.setSelectionHeight("-10").ok());
-	CHECK(document.project().walls[0] == Wall{wall, {0, 0}, {4200, 0}, 150, 2700});
+	Wall expected{wall, {0, 0}, {4200, 0}, 150, 2700};
+	expected.level = editor.activeLevel();
+	CHECK(document.project().walls[0] == expected);
 
 	REQUIRE(editor.undo().ok());
 	CHECK(document.project().walls[0].heightMm == 2400);

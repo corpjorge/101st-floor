@@ -15,7 +15,7 @@ namespace f101::cad
 	struct WallToolSettings
 	{
 		std::int64_t thicknessMm = 120;
-		std::int64_t heightMm = 2400;
+		std::int64_t heightMm = 0; // 0: the level's wall height (Level::wallHeightMm)
 		LengthUnit inputUnit = LengthUnit::Centimeter; // unit of a typed length without suffix
 		SnapSettings snap;
 	};
@@ -37,6 +37,14 @@ namespace f101::cad
 
 		State state() const { return currentState; }
 		const WallToolSettings& settings() const { return toolSettings; }
+
+		// Level the walls are drawn on (nil: the first one). Snapping sees the walls of that level and of the one below it
+		// (snapReference). Changing it stops drafting.
+		FLOOR101CADCORE_API void setLevel(const LevelId& level);
+		// The level walls are created on: the chosen one if it exists, else the first.
+		FLOOR101CADCORE_API LevelId targetLevel() const;
+		// Height of the walls it creates: WallToolSettings::heightMm, or the target level's wall height.
+		FLOOR101CADCORE_API std::int64_t wallHeightMm() const;
 
 		// Updates the snapped hover point (Idle) or the preview wall (Drafting).
 		FLOOR101CADCORE_API void pointerMoved(PlanPoint cursor);
@@ -66,6 +74,7 @@ namespace f101::cad
 
 		Document& document;
 		WallToolSettings toolSettings;
+		LevelId level;
 		State currentState = State::Idle;
 		PlanPoint cursor;
 		Point2D start;

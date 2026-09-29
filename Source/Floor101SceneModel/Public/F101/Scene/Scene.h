@@ -30,6 +30,7 @@ namespace f101::scene
 		Wall,
 		Joint,  // fill at the centre of a junction of three or more walls
 		Room,   // floor of a room
+		Slab,   // structural slab over a room (its ceiling; the floor of the level above)
 		Marker,
 	};
 
@@ -40,6 +41,7 @@ namespace f101::scene
 		Selected,
 		Preview,
 		Handle,
+		Context, // a level below the one being edited: shown dimmed, for reference
 	};
 
 	struct SceneNode
@@ -47,17 +49,26 @@ namespace f101::scene
 		SceneNodeId id;
 		std::string name;            // human readable, e.g. "Wall 3f2a9c1e"
 		SourceKind sourceKind = SourceKind::Wall;
-		std::string sourceId;        // UUID text of the source wall (for floors: the room key)
+		std::string sourceId;        // UUID text of the source wall (for floors and slabs: the room key)
+		cad::LevelId level;          // level of the source (nil for markers)
 		geometry::MeshData mesh;     // scene space (mm, right-handed, Z up); node transform is identity for now
 		std::uint64_t contentHash = 0; // hash of the mesh; changes whenever the geometry changes
 		NodeStyle style = NodeStyle::Normal;
+	};
+
+	// A room with the level it is on. The room geometry is local to the level; its floor is at elevationMm.
+	struct SceneRoom
+	{
+		geometry::Room room;
+		cad::LevelId level;
+		std::int64_t elevationMm = 0;
 	};
 
 	struct Scene
 	{
 		std::vector<SceneNode> nodes;
 		// The rooms whose floors are among the nodes ("<room key>/floor"): areas and label points for views.
-		std::vector<geometry::Room> rooms;
+		std::vector<SceneRoom> rooms;
 
 		const SceneNode* findNode(const SceneNodeId& id) const
 		{

@@ -304,6 +304,11 @@ AActor* UFloor101DocumentSubsystem::FindRoomFloorActor(const FString& RoomKey) c
 	return Reconciler->FindActor(f101::scene::SceneNodeId{std::string(TCHAR_TO_UTF8(*RoomKey)) + "/floor"});
 }
 
+AActor* UFloor101DocumentSubsystem::FindRoomSlabActor(const FString& RoomKey) const
+{
+	return Reconciler->FindActor(f101::scene::SceneNodeId{std::string(TCHAR_TO_UTF8(*RoomKey)) + "/slab"});
+}
+
 void UFloor101DocumentSubsystem::LoadReferenceWall()
 {
 	if (!ReferenceWallId.isNil() && Document->project().findWall(ReferenceWallId))
@@ -354,16 +359,24 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.markers = View.handles;
 	Overlay.markerSizeMm = Editor->settings().handleSizeMm;
 	Overlay.markerHeightMm = Editor->settings().handleHeightMm;
+	Overlay.activeLevel = View.activeLevel;
+	Overlay.showAllLevels = View.showAllLevels;
 
 	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);
 
-	// Labels sit on the floor of each room (preview included, so they follow a gesture live).
+	// Labels sit on the floor of each room of the edited level, or of every level when all are shown (preview included,
+	// so they follow a gesture live).
 	Rooms.Reset(static_cast<int32>(Scene.rooms.size()));
-	for (const f101::geometry::Room& Room : Scene.rooms)
+	for (const f101::scene::SceneRoom& Entry : Scene.rooms)
 	{
-		const FVector Label = FVector(Floor101::Conversion::ToUnrealPosition(
-			{Room.labelPoint.x_mm, Room.labelPoint.y_mm, f101::geometry::FloorThicknessMm}));
+		if (!View.showAllLevels && Entry.level != View.activeLevel)
+		{
+			continue;
+		}
+		const f101::geometry::Room& Room = Entry.room;
+		const FVector Label = FVector(Floor101::Conversion::ToUnrealPosition({Room.labelPoint.x_mm, Room.labelPoint.y_mm,
+			static_cast<double>(Entry.elevationMm) + f101::geometry::FloorThicknessMm}));
 		Rooms.Add(FFloor101RoomView{UTF8_TO_TCHAR(Room.key.c_str()), Label, Room.areaMm2 / 1.0e6});
 	}
 	if (bDocumentChanged)

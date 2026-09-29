@@ -6,6 +6,7 @@
 #include "F101/Cad/WallTool.h"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -43,6 +44,8 @@ namespace f101::cad
 	// What the view shows on top of the project. Not saved; the application maps it to scene::ViewOverlay.
 	struct EditView
 	{
+		LevelId activeLevel;        // the level being edited
+		bool showAllLevels = false; // false: the levels above are hidden and the active one has no ceiling
 		WallId selectedWall; // nil: none
 		// Walls as the gesture would leave them: the wall being drawn (nil id), or every wall at a dragged corner
 		// (their own ids). The application shows the project as if they were applied.
@@ -59,6 +62,8 @@ namespace f101::cad
 	// Wall mode: WallTool (click, move, type a length, Enter).
 	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid);
 	// a click adds it. In Select mode a click on a wall where it has an opening selects that opening.
+	// Levels (ADR-0011): everything happens on the active level. Pointer rays are taken to that level's elevation, and
+	// picking, snapping, handles and corner moves only see its walls. Changing level drops the selection and any gesture.
 	class EditController
 	{
 	public:
@@ -115,6 +120,22 @@ namespace f101::cad
 		// nullopt when it meets neither (e.g. looking at the sky).
 		const std::optional<PlanPoint>& pointerOnPlan() const { return planPoint; }
 
+		// The level being edited: the chosen one while it exists (an undo can remove it), else the first.
+		FLOOR101CADCORE_API LevelId activeLevel() const;
+		FLOOR101CADCORE_API Status setActiveLevel(const LevelId& level);
+		FLOOR101CADCORE_API Status levelUp();
+		FLOOR101CADCORE_API Status levelDown();
+		// Adds a level on top, as tall as the current top one with the same slab, and makes it active.
+		FLOOR101CADCORE_API Status addLevel();
+		// Deletes the active level with its walls (one undoable step); the level below becomes active.
+		FLOOR101CADCORE_API Status deleteActiveLevel();
+		// Property edits of the active level; lengths typed like the wall tool input.
+		FLOOR101CADCORE_API Status setLevelHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setLevelSlabThickness(std::string_view text);
+		FLOOR101CADCORE_API Status setLevelName(std::string_view text);
+		bool showsAllLevels() const { return allLevels; }
+		void setShowAllLevels(bool show) { allLevels = show; }
+
 		FLOOR101CADCORE_API EditView view() const;
 
 	private:
@@ -136,6 +157,14 @@ namespace f101::cad
 		void updatePlacement();
 		bool isOpeningMode() const { return currentMode == EditMode::Door || currentMode == EditMode::Window; }
 		std::optional<PlanPoint> planPointOf(const Ray3& ray, const std::vector<WallId>& ignoreWalls) const;
+		// Pointer handling with a ray already in the active level's space.
+		void movePointer(const Ray3& ray);
+		// The scene ray moved down to the active level (its floor at z = 0).
+		Ray3 toLevel(const Ray3& ray) const;
+		// The project with only the active level's walls.
+		Project levelProject() const;
+		void changeLevel(const LevelId& level);
+		Status changeActiveLevel(const std::function<Status(Level&)>& edit);
 
 		Document& document;
 		EditSettings editSettings;
@@ -146,5 +175,6 @@ namespace f101::cad
 		std::optional<EndpointDrag> drag;
 		std::optional<OpeningRef> placement;
 		std::optional<PlanPoint> planPoint;
+		bool allLevels = false;
 	};
 }

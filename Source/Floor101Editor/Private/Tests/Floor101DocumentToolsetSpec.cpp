@@ -43,7 +43,7 @@ void FFloor101DocumentToolsetSpec::Define()
 	{
 		It("adds the reference wall, regenerates it from 3550 to 4200 mm in the same actor, and removes it", [this]()
 		{
-			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 3550, 0, 120, 2400);
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 3550, 0, 120, 2400);
 			TestEqual(TEXT("length"), Added.LengthMm, 3550.0);
 			TestEqual(TEXT("thickness"), Added.ThicknessMm, int64(120));
 			TestEqual(TEXT("height"), Added.HeightMm, int64(2400));
@@ -69,7 +69,7 @@ void FFloor101DocumentToolsetSpec::Define()
 	{
 		It("changes length, thickness and height, each regenerating the same actor", [this]()
 		{
-			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 3550, 0, 120, 2400);
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 3550, 0, 120, 2400);
 			const FFloor101WallInfo Longer = UFloor101DocumentToolset::SetWallLength(Added.Id, 4200);
 			TestEqual(TEXT("end moved along the axis"), Longer.EndXMm, int64(4200));
 			const FFloor101WallInfo Thicker = UFloor101DocumentToolset::SetWallThickness(Added.Id, 150);
@@ -95,7 +95,7 @@ void FFloor101DocumentToolsetSpec::Define()
 			{
 				const int64* A = Corners[i];
 				const int64* B = Corners[(i + 1) % 4];
-				Ids.Add(UFloor101DocumentToolset::AddWall(A[0] + 20000, A[1], B[0] + 20000, B[1], 120, 2400).Id);
+				Ids.Add(UFloor101DocumentToolset::AddWall(TEXT(""), A[0] + 20000, A[1], B[0] + 20000, B[1], 120, 2400).Id);
 			}
 			const TArray<FFloor101RoomInfo> Rooms = UFloor101DocumentToolset::GetRooms();
 			const FFloor101RoomInfo* Room = Rooms.FindByPredicate([&Ids](const FFloor101RoomInfo& R) { return R.WallIds.Contains(Ids[0]); });
@@ -106,7 +106,7 @@ void FFloor101DocumentToolsetSpec::Define()
 				TestNotNull(TEXT("floor actor"), Room->FloorActor.Get());
 			}
 
-			const TArray<FFloor101WallInfo> Moved = UFloor101DocumentToolset::MoveCorner(24000, 0, 24500, 0);
+			const TArray<FFloor101WallInfo> Moved = UFloor101DocumentToolset::MoveCorner(TEXT(""), 24000, 0, 24500, 0);
 			TestEqual(TEXT("both walls at the corner moved"), Moved.Num(), 2);
 			for (const FFloor101WallInfo& Wall : Moved)
 			{
@@ -120,11 +120,86 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("levels", [this]()
+	{
+		It("stacks a level, lifts its walls, solves its rooms apart, and removes it with its walls", [this]()
+		{
+			const TArray<FFloor101LevelInfo> Before = UFloor101DocumentToolset::GetLevels();
+			if (!TestEqual(TEXT("one level to start with"), Before.Num(), 1))
+			{
+				return;
+			}
+			const FFloor101LevelInfo Ground = Before[0];
+			TestEqual(TEXT("ground at 0"), Ground.ElevationMm, int64(0));
+
+			const FFloor101LevelInfo Upper = UFloor101DocumentToolset::AddLevel(TEXT("Primera"), 3000, 300);
+			TestEqual(TEXT("on top"), Upper.Index, 1);
+			TestEqual(TEXT("elevation = ground height"), Upper.ElevationMm, Ground.HeightMm);
+			TestEqual(TEXT("name"), Upper.Name, FString(TEXT("Primera")));
+
+			// The same 4 x 3 m room on both levels: two rooms, one per level.
+			TArray<FString> Ids;
+			const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+			for (const FString& Level : {Ground.Id, Upper.Id})
+			{
+				for (int32 i = 0; i < 4; ++i)
+				{
+					const int64* A = Corners[i];
+					const int64* B = Corners[(i + 1) % 4];
+					Ids.Add(UFloor101DocumentToolset::AddWall(Level, A[0] + 30000, A[1], B[0] + 30000, B[1], 120, 2800).Id);
+				}
+			}
+			const TArray<FFloor101RoomInfo> Rooms = UFloor101DocumentToolset::GetRooms().FilterByPredicate(
+				[&Ids](const FFloor101RoomInfo& Room) { return Room.WallIds.Contains(Ids[0]) || Room.WallIds.Contains(Ids[4]); });
+			if (TestEqual(TEXT("a room per level"), Rooms.Num(), 2))
+			{
+				TestNotEqual(TEXT("on different levels"), Rooms[0].LevelId, Rooms[1].LevelId);
+			}
+
+			// Upper walls only have actors when the view shows their level.
+			const TArray<FFloor101WallInfo> Hidden = UFloor101DocumentToolset::GetWalls();
+			const FFloor101WallInfo* UpperWall = Hidden.FindByPredicate([&Ids](const FFloor101WallInfo& Wall) { return Wall.Id == Ids[4]; });
+			if (TestNotNull(TEXT("upper wall"), UpperWall))
+			{
+				TestEqual(TEXT("on the upper level"), UpperWall->LevelId, Upper.Id);
+				TestNull(TEXT("hidden above the edited level"), UpperWall->Actor.Get());
+			}
+			UFloor101DocumentToolset::SetLevelView(Upper.Id, false);
+			const TArray<FFloor101WallInfo> Walls = UFloor101DocumentToolset::GetWalls();
+			const FFloor101WallInfo* Shown = Walls.FindByPredicate([&Ids](const FFloor101WallInfo& Wall) { return Wall.Id == Ids[4]; });
+			if (TestNotNull(TEXT("upper wall"), Shown) && TestNotNull(TEXT("actor once its level is shown"), Shown->Actor.Get()))
+			{
+				FVector Origin;
+				FVector Extent;
+				Shown->Actor->GetActorBounds(false, Origin, Extent);
+				TestEqual(TEXT("stands on the upper level (cm)"), Origin.Z - Extent.Z, static_cast<double>(Ground.HeightMm) / 10.0, 0.01);
+			}
+
+			// A taller ground floor lifts the level above; removing the upper level removes its walls, undo restores them.
+			const FFloor101LevelInfo Taller = UFloor101DocumentToolset::SetLevel(Ground.Id, TEXT(""), 3200, 250);
+			TestEqual(TEXT("taller"), Taller.HeightMm, int64(3200));
+			TestEqual(TEXT("upper lifted"), UFloor101DocumentToolset::GetLevels()[1].ElevationMm, int64(3200));
+			UFloor101DocumentToolset::RemoveLevel(Upper.Id);
+			TestEqual(TEXT("one level left"), UFloor101DocumentToolset::GetLevels().Num(), 1);
+			TestFalse(TEXT("its walls went with it"), HasWall(Ids[4]));
+			TestEqual(TEXT("one undo step"), UFloor101DocumentToolset::Undo(), FString(TEXT("Delete level")));
+			TestTrue(TEXT("walls back"), HasWall(Ids[4]));
+
+			UFloor101DocumentToolset::SetLevelView(TEXT(""), false);
+			UFloor101DocumentToolset::RemoveLevel(Upper.Id);
+			UFloor101DocumentToolset::SetLevel(Ground.Id, Ground.Name, Ground.HeightMm, Ground.SlabThicknessMm);
+			for (int32 i = 0; i < 4; ++i)
+			{
+				UFloor101DocumentToolset::RemoveWall(Ids[i]);
+			}
+		});
+	});
+
 	Describe("openings", [this]()
 	{
 		It("adds a door and a window, moves the window, and removes them", [this]()
 		{
-			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(0, 0, 4000, 0, 120, 2400);
+			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 4000, 0, 120, 2400);
 			const FFloor101OpeningInfo Door = UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Door, 300, 900, 2100, 0);
 			TestFalse(TEXT("door id"), Door.Id.IsEmpty());
 			const FFloor101OpeningInfo Window = UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Window, 2000, 1200, 1200, 900);
@@ -150,7 +225,7 @@ void FFloor101DocumentToolsetSpec::Define()
 	{
 		It("undoes and redoes a change, returning what it was", [this]()
 		{
-			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 3550, 0, 120, 2400);
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 3550, 0, 120, 2400);
 			TestEqual(TEXT("undo label"), UFloor101DocumentToolset::Undo(), FString(TEXT("Create wall")));
 			TestFalse(TEXT("undone"), HasWall(Added.Id));
 			TestEqual(TEXT("redo label"), UFloor101DocumentToolset::Redo(), FString(TEXT("Create wall")));
@@ -163,7 +238,7 @@ void FFloor101DocumentToolsetSpec::Define()
 		{
 			const FString Path = FPaths::ConvertRelativePathToFull(
 				FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Toolset"), TEXT("project.json")));
-			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 3550, 0, 120, 2400);
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 3550, 0, 120, 2400);
 			UFloor101DocumentToolset::SaveProject(Path);
 			TestTrue(TEXT("file written"), IFileManager::Get().FileExists(*Path));
 			UFloor101DocumentToolset::RemoveWall(Added.Id);
@@ -179,7 +254,7 @@ void FFloor101DocumentToolsetSpec::Define()
 	{
 		It("AddWall raises on a degenerate wall", [this]()
 		{
-			ExpectRaises(TEXT("wall rejected"), [] { UFloor101DocumentToolset::AddWall(0, 0, 0, 0, 120, 2400); });
+			ExpectRaises(TEXT("wall rejected"), [] { UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 0, 0, 120, 2400); });
 		});
 
 		It("SetWallEnd raises on a malformed id", [this]()
@@ -195,14 +270,14 @@ void FFloor101DocumentToolsetSpec::Define()
 
 		It("SetWallEnd raises when the end would coincide with the start", [this]()
 		{
-			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 1000, 0, 120, 2400);
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 1000, 0, 120, 2400);
 			ExpectRaises(TEXT("cannot move the end"), [&Added] { UFloor101DocumentToolset::SetWallEnd(Added.Id, 0, 0); });
 			UFloor101DocumentToolset::RemoveWall(Added.Id);
 		});
 
 		It("SetWallLength, SetWallThickness and SetWallHeight raise on non-positive values", [this]()
 		{
-			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(0, 0, 1000, 0, 120, 2400);
+			const FFloor101WallInfo Added = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 1000, 0, 120, 2400);
 			ExpectRaises(TEXT("cannot change the length"), [&Added] { UFloor101DocumentToolset::SetWallLength(Added.Id, 0); });
 			ExpectRaises(TEXT("cannot change the thickness"), [&Added] { UFloor101DocumentToolset::SetWallThickness(Added.Id, 0); });
 			ExpectRaises(TEXT("cannot change the height"), [&Added] { UFloor101DocumentToolset::SetWallHeight(Added.Id, -1); });
@@ -227,7 +302,7 @@ void FFloor101DocumentToolsetSpec::Define()
 
 		It("AddOpening, SetOpening and RemoveOpening raise when the opening does not fit or does not exist", [this]()
 		{
-			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(0, 0, 2000, 0, 120, 2400);
+			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(TEXT(""), 0, 0, 2000, 0, 120, 2400);
 			ExpectRaises(TEXT("cannot add the opening"),
 				[&Wall] { UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Door, 1500, 900, 2100, 0); });
 			ExpectRaises(TEXT("cannot add the opening"),
@@ -243,7 +318,19 @@ void FFloor101DocumentToolsetSpec::Define()
 
 		It("MoveCorner raises when no wall ends at the point", [this]()
 		{
-			ExpectRaises(TEXT("cannot move the corner"), [] { UFloor101DocumentToolset::MoveCorner(-777, -777, 0, 0); });
+			ExpectRaises(TEXT("cannot move the corner"), [] { UFloor101DocumentToolset::MoveCorner(TEXT(""), -777, -777, 0, 0); });
+		});
+
+		It("the level tools raise on invalid levels, unknown ids and the last level", [this]()
+		{
+			const FString Ground = UFloor101DocumentToolset::GetLevels()[0].Id;
+			ExpectRaises(TEXT("level rejected"), [] { UFloor101DocumentToolset::AddLevel(TEXT(""), 2800, 2800); });
+			ExpectRaises(TEXT("cannot change level"),
+				[] { UFloor101DocumentToolset::SetLevel(TEXT("00000000-0000-0000-0000-0000000000ff"), TEXT(""), 2800, 250); });
+			ExpectRaises(TEXT("cannot remove level"), [&Ground] { UFloor101DocumentToolset::RemoveLevel(Ground); });
+			ExpectRaises(TEXT("is not a level id"), [] { UFloor101DocumentToolset::AddWall(TEXT("x"), 0, 0, 1000, 0, 120, 2400); });
+			ExpectRaises(TEXT("wall rejected"),
+				[] { UFloor101DocumentToolset::AddWall(TEXT("00000000-0000-0000-0000-0000000000ff"), 0, 0, 1000, 0, 120, 2400); });
 		});
 
 		It("RemoveWall raises on an unknown id", [this]()

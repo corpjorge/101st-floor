@@ -142,13 +142,21 @@ TEST_CASE_FIXTURE(TwoWalls, "replaceProject validates, notifies and clears the h
 {
 	Project loaded;
 	loaded.walls.push_back(Wall{WallId{Uuid{0, 77}}, {0, 0}, {1000, 0}, 100, 2500});
+	CHECK(document.replaceProject(loaded).error().code == ErrorCode::InvalidArgument); // no level
+	CHECK(changes.empty());
+	loaded.levels.push_back(Level{LevelId{Uuid{0, 78}}});
+	CHECK(document.replaceProject(loaded).error().code == ErrorCode::InvalidArgument); // the wall is on no level of it
+	loaded.walls[0].level = loaded.levels[0].id;
 	REQUIRE(document.replaceProject(loaded).ok());
 	CHECK(document.project().walls.size() == 1);
 	CHECK_FALSE(document.canUndo());
 	CHECK(changes.back().removedWalls.size() == 2);
 	CHECK(changes.back().addedWalls == std::vector<WallId>{WallId{Uuid{0, 77}}});
+	CHECK(changes.back().removedLevels.size() == 1);
+	CHECK(changes.back().addedLevels == std::vector<LevelId>{LevelId{Uuid{0, 78}}});
 
 	Project duplicate;
+	duplicate.levels = loaded.levels;
 	duplicate.walls.push_back(loaded.walls[0]);
 	duplicate.walls.push_back(loaded.walls[0]);
 	CHECK(document.replaceProject(duplicate).error().code == ErrorCode::InvalidArgument);

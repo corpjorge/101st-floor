@@ -34,7 +34,8 @@ namespace f101::cad
 		friend bool operator==(const Opening&, const Opening&) = default;
 	};
 
-	// Parametric straight wall. The axis runs from start to end; the thickness is centred on the axis.
+	// Parametric straight wall. The axis runs from start to end; the thickness is centred on the axis. Its geometry is
+	// local to its level (z = 0 at the level's floor).
 	// Geometry is always regenerated from these parameters, never stored or scaled.
 	struct Wall
 	{
@@ -44,6 +45,7 @@ namespace f101::cad
 		std::int64_t thicknessMm = 0;
 		std::int64_t heightMm = 0;
 		std::vector<Opening> openings; // sorted by offset, never overlapping
+		LevelId level; // the floor it stands on (ADR-0011); its base is that level's elevation
 
 		friend bool operator==(const Wall&, const Wall&) = default;
 

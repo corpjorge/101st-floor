@@ -29,7 +29,10 @@ TEST_CASE_FIXTURE(Drawing, "master prompt §19: click, move, type a length, Ente
 	{
 		CAPTURE(typed);
 		Document fresh{makeSequentialUuidSource()};
-		WallTool wallTool{fresh, WallToolSettings{}};
+		WallToolSettings settings;
+		settings.heightMm = 2400; // the reference wall; by default walls take their level's height (2800)
+		WallTool wallTool{fresh, settings};
+		CHECK(WallTool(fresh, WallToolSettings{}).wallHeightMm() == 2800);
 
 		REQUIRE(wallTool.click({0.0, 0.0}).ok());               // 2. initial click
 		CHECK(wallTool.state() == WallTool::State::Drafting);
