@@ -37,6 +37,14 @@ namespace f101::cad
 		return Point2D{point.x_mm + offset.dx_mm, point.y_mm + offset.dy_mm};
 	}
 
+	// Continuous plan position in millimetres: the cursor, or derived geometry (joins, rooms) before any rounding.
+	// Snapping and quantizeMillimeters turn it into an exact model point.
+	struct PlanPoint
+	{
+		double x_mm = 0.0;
+		double y_mm = 0.0;
+	};
+
 	struct Segment2D
 	{
 		Point2D start;

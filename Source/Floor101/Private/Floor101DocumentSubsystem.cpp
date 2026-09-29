@@ -9,6 +9,7 @@
 #include "Floor101.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
+#include "Floor101SceneSpace.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformProcess.h"
@@ -177,7 +178,10 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	ListenerHandle = Document->subscribe([this](const f101::cad::ChangeSet&)
 	{
 		++ChangeCount;
-		Resync(true);
+		if (!bInEdit)
+		{
+			Resync(true); // changed outside an edit (console, MCP toolset, file): show it now
+		}
 	});
 }
 
@@ -205,9 +209,12 @@ void UFloor101DocumentSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 f101::Status UFloor101DocumentSubsystem::Edit(TFunctionRef<f101::Status(f101::cad::EditController&)> Action)
 {
-	// Document changes already resynced through the listener, but the view state may have changed after that
-	// (e.g. the selection is cleared once the deletion succeeded), so the view is always refreshed at the end.
+	// One resync once the action is over: while it runs, the controller's view state is not final (e.g. the wall
+	// just created is still the tool's preview), so a resync from the document listener would show both.
+	const uint64 ChangesBefore = ChangeCount;
+	bInEdit = true;
 	const f101::Status Result = Action(*Editor);
+	bInEdit = false;
 	if (Result)
 	{
 		SetStatus(FText::GetEmpty(), false);
@@ -216,7 +223,7 @@ f101::Status UFloor101DocumentSubsystem::Edit(TFunctionRef<f101::Status(f101::ca
 	{
 		SetStatus(ToText(Result.error().message), true);
 	}
-	Resync(false);
+	Resync(ChangeCount != ChangesBefore);
 	return Result;
 }
 
@@ -292,6 +299,11 @@ AActor* UFloor101DocumentSubsystem::FindWallActor(const f101::cad::WallId& Id) c
 	return Reconciler->FindActor(f101::scene::wallBodyNodeId(Id));
 }
 
+AActor* UFloor101DocumentSubsystem::FindRoomFloorActor(const FString& RoomKey) const
+{
+	return Reconciler->FindActor(f101::scene::SceneNodeId{std::string(TCHAR_TO_UTF8(*RoomKey)) + "/floor"});
+}
+
 void UFloor101DocumentSubsystem::LoadReferenceWall()
 {
 	if (!ReferenceWallId.isNil() && Document->project().findWall(ReferenceWallId))
@@ -338,14 +350,22 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	const f101::cad::EditView View = Editor->view();
 	f101::scene::ViewOverlay Overlay;
 	Overlay.selectedWall = View.selectedWall;
-	Overlay.hiddenWall = View.hiddenWall;
-	Overlay.preview = View.preview;
+	Overlay.previewWalls = View.previewWalls;
 	Overlay.markers = View.handles;
 	Overlay.markerSizeMm = Editor->settings().handleSizeMm;
 	Overlay.markerHeightMm = Editor->settings().handleHeightMm;
 
 	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);
+
+	// Labels sit on the floor of each room (preview included, so they follow a gesture live).
+	Rooms.Reset(static_cast<int32>(Scene.rooms.size()));
+	for (const f101::geometry::Room& Room : Scene.rooms)
+	{
+		const FVector Label = FVector(Floor101::Conversion::ToUnrealPosition(
+			{Room.labelPoint.x_mm, Room.labelPoint.y_mm, f101::geometry::FloorThicknessMm}));
+		Rooms.Add(FFloor101RoomView{UTF8_TO_TCHAR(Room.key.c_str()), Label, Room.areaMm2 / 1.0e6});
+	}
 	if (bDocumentChanged)
 	{
 		UE_LOG(LogFloor101, Display, TEXT("F101: scene resync in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
@@ -373,6 +393,12 @@ void UFloor101DocumentSubsystem::LogStatus() const
 	if (Document->project().walls.empty())
 	{
 		UE_LOG(LogFloor101, Display, TEXT("F101: document has no walls"));
+	}
+	for (const FFloor101RoomView& Room : Rooms)
+	{
+		const AActor* Floor = FindRoomFloorActor(Room.Key);
+		UE_LOG(LogFloor101, Display, TEXT("F101: room %s area=%.4f m2 -> floor %s"), *Room.Key, Room.AreaM2,
+			Floor ? *Floor->GetName() : TEXT("<none>"));
 	}
 }
 

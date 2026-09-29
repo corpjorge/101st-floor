@@ -18,6 +18,14 @@ namespace f101::cad
 	struct Ray3;
 }
 
+// A room as the UI shows it: where its label goes and its net floor area.
+struct FFloor101RoomView
+{
+	FString Key;           // f101::geometry::Room::key
+	FVector LabelLocation; // on the floor, Unreal space (cm)
+	double AreaM2 = 0.0;
+};
+
 // Owns the document edited in a world and keeps the world's representation in sync with it:
 // document change -> scene compilation -> Unreal adapter reconciliation (docs/architecture.md, "Flujo de un cambio").
 // Also owns the interactive editing state (selection, tools; ADR-0008), shown on top of the document.
@@ -61,6 +69,10 @@ public:
 
 	// Transient actor representing the wall, or null if it has none.
 	AActor* FindWallActor(const f101::cad::WallId& Id) const;
+	// Transient actor of a room's floor, or null.
+	AActor* FindRoomFloorActor(const FString& RoomKey) const;
+	// Rooms of the scene as last shown (following the current gesture), sorted by key.
+	const TArray<FFloor101RoomView>& GetRooms() const { return Rooms; }
 
 	// MVP 0 reference wall: (0,0) -> (3550,0) mm, 120 mm thick, 2400 mm high. No-op if already loaded.
 	void LoadReferenceWall();
@@ -86,4 +98,6 @@ private:
 	FString ProjectPath;
 	uint64 ChangeCount = 0;
 	uint64 SavedChangeCount = 0;
+	bool bInEdit = false; // inside Edit(): the document listener leaves the resync to Edit()
+	TArray<FFloor101RoomView> Rooms;
 };

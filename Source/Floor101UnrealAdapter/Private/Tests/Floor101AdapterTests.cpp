@@ -166,23 +166,27 @@ bool FFloor101ViewStylesTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("tint is orange"), Color.R > 0.9f && Color.B < 0.2f);
 	}
 
-	Overlay.hiddenWall = WallId;
-	Overlay.preview = f101::cad::Wall{f101::cad::WallId{}, {0, 0}, {4200, 0}, 120, 2400};
+	// A gesture previews walls: the dragged wall is replaced in place (same actor, preview tint, joined to the new
+	// wall at the corner) and the wall being drawn is added.
+	Overlay.previewWalls = {f101::cad::Wall{WallId, {0, 0}, {4200, 0}, 120, 2400},
+		f101::cad::Wall{f101::cad::WallId{}, {4200, 0}, {4200, 3000}, 120, 2400}};
 	Overlay.markers = {{0, 0}, {4200, 0}};
 	const FFloor101ReconcileStats Dragging = Reconciler.Reconcile(f101::scene::compileScene(Project, Overlay));
-	TestEqual(TEXT("preview and two handles created"), Dragging.Created, 3);
-	TestTrue(TEXT("dragged wall hidden"), Wall->IsHidden());
-	AFloor101SceneNodeActor* Preview = Reconciler.FindActor(f101::scene::SceneNodeId{"preview/wall"});
-	if (TestNotNull(TEXT("preview actor"), Preview))
+	TestEqual(TEXT("drawn wall and two handles created"), Dragging.Created, 3);
+	TestTrue(TEXT("the dragged wall keeps its actor"), Reconciler.FindActor(f101::scene::wallBodyNodeId(WallId)) == Wall);
+	TestEqual(TEXT("dragged wall reaches the mitred outer corner (426 cm)"), MeshBounds(*Wall).GetSize().X, 426.0, Tolerance);
+	TestNotNull(TEXT("dragged wall is tinted as a preview"), Cast<UMaterialInstanceDynamic>(Wall->GetDisplayMaterial()));
+	AFloor101SceneNodeActor* Drawn = Reconciler.FindActor(f101::scene::SceneNodeId{"preview/wall/0"});
+	if (TestNotNull(TEXT("drawn wall actor"), Drawn))
 	{
-		TestEqual(TEXT("preview is 420 cm"), MeshBounds(*Preview).GetSize().X, 420.0, Tolerance);
-		TestNotNull(TEXT("preview is tinted"), Cast<UMaterialInstanceDynamic>(Preview->GetDisplayMaterial()));
+		TestEqual(TEXT("drawn wall from the outer corner to 3000 mm (306 cm)"), MeshBounds(*Drawn).GetSize().Y, 306.0, Tolerance);
+		TestNotNull(TEXT("drawn wall is tinted"), Cast<UMaterialInstanceDynamic>(Drawn->GetDisplayMaterial()));
 	}
 	TestNotNull(TEXT("handle actor"), Reconciler.FindActor(f101::scene::SceneNodeId{"marker/1"}));
 
 	const FFloor101ReconcileStats Plain = Reconciler.Reconcile(f101::scene::compileScene(Project, f101::scene::ViewOverlay{}));
-	TestEqual(TEXT("preview and handles removed"), Plain.Removed, 3);
-	TestFalse(TEXT("wall visible again"), Wall->IsHidden());
+	TestEqual(TEXT("drawn wall and handles removed"), Plain.Removed, 3);
+	TestEqual(TEXT("wall back to 355 cm"), MeshBounds(*Wall).GetSize().X, 355.0, Tolerance);
 	TestTrue(TEXT("wall back to the default material"), Wall->GetDisplayMaterial() == DefaultMaterial);
 	return true;
 }

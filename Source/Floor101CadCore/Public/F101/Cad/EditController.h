@@ -29,9 +29,10 @@ namespace f101::cad
 	// What the view shows on top of the project. Not saved; the application maps it to scene::ViewOverlay.
 	struct EditView
 	{
-		WallId selectedWall;         // nil: none
-		WallId hiddenWall;           // the original of a wall whose endpoint is being dragged
-		std::optional<Wall> preview; // the wall being drawn, or the dragged wall's new shape
+		WallId selectedWall; // nil: none
+		// Walls as the gesture would leave them: the wall being drawn (nil id), or every wall at a dragged corner
+		// (their own ids). The application shows the project as if they were applied.
+		std::vector<Wall> previewWalls;
 		std::vector<Point2D> handles;
 	};
 
@@ -40,7 +41,8 @@ namespace f101::cad
 	// one undoable command; a failed call leaves the document unchanged and returns why.
 	//
 	// Select mode: a click picks a wall (or clears the selection); dragging a handle of the selected wall moves that
-	// endpoint (MoveWallEndpointCommand on release). Wall mode: WallTool (click, move, type a length, Enter).
+	// corner: every wall ending there follows (MoveJointCommand on release; MoveWallEndpointCommand for a free end).
+	// Wall mode: WallTool (click, move, type a length, Enter).
 	class EditController
 	{
 	public:
@@ -81,8 +83,9 @@ namespace f101::cad
 		const WallTool& wallTool() const { return tool; }
 		const EditSettings& settings() const { return editSettings; }
 		bool isDragging() const { return drag.has_value(); }
-		// Last cursor position on the floor; nullopt when the pointer is off the floor (e.g. looking at the sky).
-		const std::optional<PlanPoint>& pointerOnFloor() const { return floorPoint; }
+		// Last cursor position in plan: under the point where the pointer ray meets a wall, else where it meets the floor;
+		// nullopt when it meets neither (e.g. looking at the sky).
+		const std::optional<PlanPoint>& pointerOnPlan() const { return planPoint; }
 
 		FLOOR101CADCORE_API EditView view() const;
 
@@ -91,12 +94,16 @@ namespace f101::cad
 		{
 			WallId wall;
 			WallEndpoint endpoint = WallEndpoint::End;
-			Point2D position;
+			Point2D origin;              // where the endpoint was
+			Point2D position;            // where it goes
+			std::vector<WallId> joined;  // every wall with an end at `origin` (the corner moves as one)
+			PlanPoint grabOffset;        // origin minus the pointer at the press: the corner keeps its offset
 		};
 
 		// Parses `text` as a length and applies the command built from it to the selected wall.
 		Status changeSelection(std::string_view text, Command (*makeCommand)(const WallId&, std::int64_t));
 		void updateDrag();
+		std::optional<PlanPoint> planPointOf(const Ray3& ray, const std::vector<WallId>& ignoreWalls) const;
 
 		Document& document;
 		EditSettings editSettings;
@@ -104,6 +111,6 @@ namespace f101::cad
 		EditMode currentMode = EditMode::Select;
 		WallId selected;
 		std::optional<EndpointDrag> drag;
-		std::optional<PlanPoint> floorPoint;
+		std::optional<PlanPoint> planPoint;
 	};
 }

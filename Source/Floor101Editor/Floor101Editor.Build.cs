@@ -12,7 +12,7 @@ public class Floor101Editor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"EditorSubsystem", "UnrealEd",
-			"Floor101", "Floor101CadCore",
+			"Floor101", "Floor101CadCore", "Floor101Geometry",
 		});
 	}
 }

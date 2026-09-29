@@ -74,6 +74,14 @@ void AFloor101EditingPawn::Frame(const FBox& Box)
 	ApplyView();
 }
 
+void AFloor101EditingPawn::TopView()
+{
+	// Unreal yaw -90 looks along -Y, which is scene north (the Y mirror of ADR-0003): north ends up at the top.
+	Yaw = -90.0;
+	Pitch = MinPitch;
+	ApplyView();
+}
+
 void AFloor101EditingPawn::ApplyView()
 {
 	const FRotator View(Pitch, Yaw, 0.0);

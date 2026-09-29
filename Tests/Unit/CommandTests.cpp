@@ -163,3 +163,36 @@ TEST_CASE("command labels")
 	CHECK(commandLabel(ChangeWallThicknessCommand{}) == "Change wall thickness");
 	CHECK(commandLabel(ChangeWallHeightCommand{}) == "Change wall height");
 }
+
+TEST_CASE("moving a corner moves every wall that ends there, as one undoable step")
+{
+	Document document{makeSequentialUuidSource()};
+	const WallId south = document.addWall({0, 0}, {4000, 0}, 120, 2400).value();
+	const WallId east = document.addWall({4000, 0}, {4000, 3000}, 120, 2400).value();
+	const WallId other = document.addWall({0, 5000}, {3000, 5000}, 120, 2400).value();
+
+	const Result<Transaction> moved = document.execute(MoveJointCommand{{4000, 0}, {4500, -200}});
+	REQUIRE(moved.ok());
+	CHECK(moved.value().label == "Move corner");
+	CHECK(moved.value().walls.size() == 2);
+	CHECK(document.project().findWall(south)->end == Point2D{4500, -200});
+	CHECK(document.project().findWall(east)->start == Point2D{4500, -200});
+	CHECK(document.project().findWall(other)->start == Point2D{0, 5000});
+
+	REQUIRE(document.undo().ok());
+	CHECK(document.project().findWall(south)->end == Point2D{4000, 0});
+	CHECK(document.project().findWall(east)->start == Point2D{4000, 0});
+}
+
+TEST_CASE("a corner move that would collapse a wall, or finds no wall end, changes nothing")
+{
+	Document document{makeSequentialUuidSource()};
+	const WallId south = document.addWall({0, 0}, {4000, 0}, 120, 2400).value();
+	REQUIRE(document.addWall({4000, 0}, {4000, 3000}, 120, 2400).ok());
+	CHECK_FALSE(document.execute(MoveJointCommand{{4000, 0}, {0, 0}}).ok()); // the south wall would have no length
+	CHECK(document.project().findWall(south)->end == Point2D{4000, 0});
+	const Result<Transaction> missing = document.execute(MoveJointCommand{{123, 456}, {0, 0}});
+	REQUIRE_FALSE(missing.ok());
+	CHECK(missing.error().code == ErrorCode::NotFound);
+	CHECK(document.execute(MoveJointCommand{{4000, 0}, {4000, 0}}).value().walls.empty()); // no-op
+}

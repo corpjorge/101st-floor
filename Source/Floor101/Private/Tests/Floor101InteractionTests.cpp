@@ -75,6 +75,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Enter: confirm"), Map(EKeys::Enter) == Command::Confirm);
 	TestTrue(TEXT("Delete: delete"), Map(EKeys::Delete) == Command::Delete);
 	TestTrue(TEXT("F: frame"), Map(EKeys::F) == Command::Frame);
+	TestTrue(TEXT("T: plan view"), Map(EKeys::T) == Command::TopView);
 	TestTrue(TEXT("Backspace: backspace"), Map(EKeys::BackSpace) == Command::Backspace);
 	TestTrue(TEXT("Ctrl+Z: undo"), Map(EKeys::Z, true) == Command::Undo);
 	TestTrue(TEXT("Ctrl+Shift+Z: redo"), Map(EKeys::Z, true, true) == Command::Redo);
@@ -129,6 +130,14 @@ bool FFloor101CameraPawnTest::RunTest(const FString& Parameters)
 	const FVector Moved = Pawn->GetFocus() - Focus;
 	TestTrue(TEXT("dragging right moves the focus left"), FVector::DotProduct(Moved, FRotationMatrix(Rotation).GetUnitAxis(EAxis::Y)) < 0.0);
 	TestEqual(TEXT("panning never rotates"), Pawn->GetActorRotation(), Rotation, 1e-3f);
+
+	const FVector KeptFocus = Pawn->GetFocus();
+	Pawn->TopView();
+	const FRotationMatrix Plan(Pawn->GetActorRotation());
+	TestTrue(TEXT("plan view looks (almost) straight down"), Plan.GetUnitAxis(EAxis::X).Z < -0.999);
+	TestTrue(TEXT("north (scene +Y = Unreal -Y) is up on screen"), Plan.GetUnitAxis(EAxis::Z).Y < -0.99);
+	TestTrue(TEXT("east (+X) is right on screen"), Plan.GetUnitAxis(EAxis::Y).X > 0.99);
+	TestEqual(TEXT("plan view keeps the focus"), Pawn->GetFocus(), KeptFocus, 1e-3f);
 	return true;
 }
 
@@ -151,7 +160,7 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	(void)Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(12.0, -18.0)); });
 	Document->UpdatePointer(Down(2987.0, 23.0));
 	(void)Document->Edit([](EditController& Editor) { Editor.appendText("355"); return f101::Status::success(); });
-	AFloor101SceneNodeActor* Preview = FindNode(World, TEXT("preview/wall"));
+	AFloor101SceneNodeActor* Preview = FindNode(World, TEXT("preview/wall/0"));
 	if (TestNotNull(TEXT("preview actor while drawing"), Preview))
 	{
 		TestEqual(TEXT("preview follows the typed length"), Preview->GetMeshBounds().GetSize().X, 355.0, Tolerance);
@@ -216,6 +225,67 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("a missing file is an error"), Document->OpenProject(Path + TEXT(".missing")).ok());
 	TestTrue(TEXT("the failed open keeps the document"), Project.walls.size() == 1);
 	IFileManager::Get().Delete(*Path, false, true, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoomsTest, "Floor101.Interaction.Rooms", TestFlags)
+bool FFloor101RoomsTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document))
+	{
+		return false;
+	}
+	// 4 x 3 m on the wall axes, 120 mm walls: 3.88 x 2.88 m inside.
+	f101::cad::Document& Model = Document->GetMutableDocument();
+	const f101::cad::WallId South = Model.addWall({0, 0}, {4000, 0}, 120, 2400).value();
+	const f101::cad::WallId East = Model.addWall({4000, 0}, {4000, 3000}, 120, 2400).value();
+	TestTrue(TEXT("an open L encloses nothing"), Document->GetRooms().IsEmpty());
+	(void)Model.addWall({4000, 3000}, {0, 3000}, 120, 2400);
+	(void)Model.addWall({0, 3000}, {0, 0}, 120, 2400);
+
+	if (!TestEqual(TEXT("closing the walls makes a room"), Document->GetRooms().Num(), 1))
+	{
+		return false;
+	}
+	const FFloor101RoomView Room = Document->GetRooms()[0];
+	TestEqual(TEXT("net area 3.88 x 2.88 m"), Room.AreaM2, 3.88 * 2.88, 1e-9);
+	TestEqual(TEXT("label at the middle of the floor (x)"), Room.LabelLocation.X, 200.0, 1e-6);
+	TestEqual(TEXT("label at the middle of the floor (y mirrored)"), Room.LabelLocation.Y, -150.0, 1e-6);
+	const AFloor101SceneNodeActor* Floor = Cast<AFloor101SceneNodeActor>(Document->FindRoomFloorActor(Room.Key));
+	if (TestNotNull(TEXT("floor actor"), Floor))
+	{
+		const FVector Size = Floor->GetMeshBounds().GetSize();
+		TestEqual(TEXT("floor 388 cm"), Size.X, 388.0, 1e-6);
+		TestEqual(TEXT("floor 288 cm"), Size.Y, 288.0, 1e-6);
+		TestEqual(TEXT("floor 1 cm thick"), Size.Z, 1.0, 1e-6);
+	}
+	const AFloor101SceneNodeActor* SouthWall = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(South));
+	if (TestNotNull(TEXT("south wall actor"), SouthWall))
+	{
+		TestEqual(TEXT("mitred corners: the wall reaches both outer corners (412 cm)"), SouthWall->GetMeshBounds().GetSize().X, 412.0, 1e-6);
+	}
+
+	// Dragging the south-east corner: the room follows while dragging, and both walls move as one step.
+	(void)Document->Edit([&South](EditController& Editor) { return Editor.select(South); });
+	TestTrue(TEXT("press on the corner handle"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(4000.0, 0.0)); }).ok());
+	Document->UpdatePointer(Down(4510.0, 10.0));
+	// The east wall turns diagonal: the floor is a trapezoid 2.88 m high, 4.369172 m wide at the bottom and
+	// 3.889172 m at the top (inner faces 60 mm in from each axis).
+	constexpr double TrapezoidM2 = 11.89201644;
+	if (TestEqual(TEXT("one room while dragging"), Document->GetRooms().Num(), 1))
+	{
+		TestEqual(TEXT("its area follows the preview"), Document->GetRooms()[0].AreaM2, TrapezoidM2, 1e-6);
+	}
+	TestTrue(TEXT("release"), Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(4510.0, 10.0)); }).ok());
+	const f101::cad::Project& Project = Document->GetDocument().project();
+	TestTrue(TEXT("south wall moved"), Project.findWall(South)->end == f101::cad::Point2D{4500, 0});
+	TestTrue(TEXT("east wall followed"), Project.findWall(East)->start == f101::cad::Point2D{4500, 0});
+	TestEqual(TEXT("same room key"), Document->GetRooms()[0].Key, Room.Key);
+	TestEqual(TEXT("the applied room is the previewed one"), Document->GetRooms()[0].AreaM2, TrapezoidM2, 1e-6);
+	TestTrue(TEXT("undo"), Document->Edit([](EditController& Editor) { return Editor.undo(); }).ok());
+	TestEqual(TEXT("area back"), Document->GetRooms()[0].AreaM2, 3.88 * 2.88, 1e-9);
 	return true;
 }
 

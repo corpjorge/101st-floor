@@ -76,7 +76,6 @@ void AFloor101SceneNodeActor::ApplyNode(const f101::scene::SceneNode& Node)
 	SetActorLabel(UTF8_TO_TCHAR(Node.name.c_str()));
 #endif
 
-	SetActorHiddenInGame(Node.style == f101::scene::NodeStyle::Hidden);
 	MeshComponent->SetMesh(Floor101::Conversion::ToDynamicMesh(Node.mesh));
 
 	TArray<UMaterialInterface*> Materials;

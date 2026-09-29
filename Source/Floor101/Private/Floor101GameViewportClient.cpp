@@ -224,6 +224,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::Enter) { return EFloor101KeyCommand::Confirm; }
 	if (Key == EKeys::Delete) { return EFloor101KeyCommand::Delete; }
 	if (Key == EKeys::F) { return EFloor101KeyCommand::Frame; }
+	if (Key == EKeys::T) { return EFloor101KeyCommand::TopView; }
 	return EFloor101KeyCommand::None;
 }
 
@@ -253,6 +254,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	case EFloor101KeyCommand::Confirm: Edit([](EditController& Editor) { return Editor.confirm(); }); break;
 	case EFloor101KeyCommand::Delete: Edit([](EditController& Editor) { return Editor.deleteSelection(); }); break;
 	case EFloor101KeyCommand::Frame: FrameProject(); break;
+	case EFloor101KeyCommand::TopView: ShowTopView(); break;
 	}
 	return true;
 }
@@ -299,4 +301,12 @@ void UFloor101GameViewportClient::FrameProject()
 		Bounds = FBox(FVector(-500.0, -500.0, 0.0), FVector(500.0, 500.0, 250.0));
 	}
 	Pawn->Frame(Bounds);
+}
+
+void UFloor101GameViewportClient::ShowTopView()
+{
+	if (AFloor101EditingPawn* Pawn = GetEditingPawn())
+	{
+		Pawn->TopView();
+	}
 }

@@ -1,76 +1,33 @@
 #include "F101/Geometry/WallGeometryBuilder.h"
 
 #include "F101/Cad/Assert.h"
-
-#include <utility>
+#include "MeshBuilding.h"
 
 namespace f101::geometry
 {
-	namespace
-	{
-		constexpr double MetersPerMillimeter = 0.001;
-
-		Vec3 subtract(const Vec3& a, const Vec3& b)
-		{
-			return Vec3{a.x - b.x, a.y - b.y, a.z - b.z};
-		}
-
-		Vec3 cross(const Vec3& a, const Vec3& b)
-		{
-			return Vec3{a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
-		}
-
-		double dot(const Vec3& a, const Vec3& b)
-		{
-			return a.x * b.x + a.y * b.y + a.z * b.z;
-		}
-
-		struct Corner
-		{
-			Vec3 position;
-			Vec2 uv;
-		};
-
-		// Appends a planar quad from its corners in perimeter order (either direction) and its outward normal.
-		// The winding is derived from the normal, so every face is counter-clockwise seen from outside by construction.
-		void addQuad(MeshData& mesh, const char* slot, Corner a, Corner b, Corner c, Corner d, const Vec3& normal)
-		{
-			if (dot(cross(subtract(b.position, a.position), subtract(c.position, a.position)), normal) < 0.0)
-			{
-				std::swap(b, d);
-			}
-			const auto base = static_cast<std::uint32_t>(mesh.positions.size());
-			for (const Corner& corner : {a, b, c, d})
-			{
-				mesh.positions.push_back(corner.position);
-				mesh.normals.push_back(normal);
-				mesh.uvs.push_back(corner.uv);
-			}
-			mesh.sections.push_back(MeshSection{slot, {base, base + 1, base + 2, base, base + 2, base + 3}});
-		}
-	}
+	using namespace detail;
 
 	MeshData buildWallMesh(const cad::Wall& wall)
 	{
+		return buildWallMesh(wall, plainFootprint(wall));
+	}
+
+	MeshData buildWallMesh(const cad::Wall& wall, const WallFootprint& footprint)
+	{
 		F101_ASSERT(cad::validateWallGeometry(wall).ok());
 
-		const double length = wall.lengthMm();
 		const double height = static_cast<double>(wall.heightMm);
 		const double half = static_cast<double>(wall.thicknessMm) / 2.0;
-		const double startX = static_cast<double>(wall.start.x_mm);
-		const double startY = static_cast<double>(wall.start.y_mm);
-		// Unit axis direction and its left-hand normal in plan view.
-		const double axisX = (static_cast<double>(wall.end.x_mm) - startX) / length;
-		const double axisY = (static_cast<double>(wall.end.y_mm) - startY) / length;
-		const double leftX = -axisY;
-		const double leftY = axisX;
+		const cad::PlanPoint start = toPlan(wall.start);
+		const cad::PlanPoint axisVector = sub(toPlan(wall.end), start);
+		const cad::PlanPoint axis = scale(axisVector, 1.0 / length2(axisVector));
+		const cad::PlanPoint left = leftOf(axis);
 
-		// Point at a distance along the axis, offset sideways (+ = left) and at height z. All in mm.
-		auto corner = [&](double along, double side, double z, double u, double v)
-		{
-			return Corner{Vec3{startX + axisX * along + leftX * side, startY + axisY * along + leftY * side, z},
-				Vec2{u * MetersPerMillimeter, v * MetersPerMillimeter}};
-		};
+		// Position along the axis from the start and sideways offset (+ = left), in mm.
+		auto along = [&](const cad::PlanPoint& p) { return dot2(sub(p, start), axis); };
+		auto across = [&](const cad::PlanPoint& p) { return dot2(sub(p, start), left); };
+		auto at = [](const cad::PlanPoint& p, double z) { return Vec3{p.x_mm, p.y_mm, z}; };
+		auto uv = [](double u, double v) { return Vec2{u * MetersPerMillimeter, v * MetersPerMillimeter}; };
 
 		MeshData mesh;
 		mesh.positions.reserve(24);
@@ -78,35 +35,44 @@ namespace f101::geometry
 		mesh.uvs.reserve(24);
 		mesh.sections.reserve(6);
 
-		// Long faces: u along the axis, v up.
-		addQuad(mesh, wall_slots::Left,
-			corner(0, half, 0, 0, 0), corner(length, half, 0, length, 0),
-			corner(length, half, height, length, height), corner(0, half, height, 0, height),
-			Vec3{leftX, leftY, 0.0});
-		addQuad(mesh, wall_slots::Right,
-			corner(0, -half, 0, 0, 0), corner(length, -half, 0, length, 0),
-			corner(length, -half, height, length, height), corner(0, -half, height, 0, height),
-			Vec3{-leftX, -leftY, 0.0});
+		// Long faces: u along the axis, v up. They stay parallel to the axis whatever the ends look like.
+		auto longFace = [&](const char* slot, const cad::PlanPoint& from, const cad::PlanPoint& to, const cad::PlanPoint& normal)
+		{
+			addQuad(mesh, slot,
+				Corner{at(from, 0), uv(along(from), 0)}, Corner{at(to, 0), uv(along(to), 0)},
+				Corner{at(to, height), uv(along(to), height)}, Corner{at(from, height), uv(along(from), height)},
+				Vec3{normal.x_mm, normal.y_mm, 0.0});
+		};
+		longFace(wall_slots::Left, footprint.startLeft, footprint.endLeft, left);
+		longFace(wall_slots::Right, footprint.startRight, footprint.endRight, scale(left, -1.0));
 
-		// Top and bottom: u along the axis, v across the thickness.
-		addQuad(mesh, wall_slots::Top,
-			corner(0, half, height, 0, 2 * half), corner(length, half, height, length, 2 * half),
-			corner(length, -half, height, length, 0), corner(0, -half, height, 0, 0),
-			Vec3{0.0, 0.0, 1.0});
-		addQuad(mesh, wall_slots::Bottom,
-			corner(0, half, 0, 0, 2 * half), corner(length, half, 0, length, 2 * half),
-			corner(length, -half, 0, length, 0), corner(0, -half, 0, 0, 0),
-			Vec3{0.0, 0.0, -1.0});
+		// Top and bottom: u along the axis, v across the thickness (0 on the right edge).
+		auto flatFace = [&](const char* slot, double z, double normalZ)
+		{
+			auto corner = [&](const cad::PlanPoint& p) { return Corner{at(p, z), uv(along(p), across(p) + half)}; };
+			addQuad(mesh, slot, corner(footprint.startLeft), corner(footprint.endLeft), corner(footprint.endRight),
+				corner(footprint.startRight), Vec3{0.0, 0.0, normalZ});
+		};
+		flatFace(wall_slots::Top, height, 1.0);
+		flatFace(wall_slots::Bottom, 0.0, -1.0);
 
-		// End caps: u across the thickness, v up.
-		addQuad(mesh, wall_slots::Start,
-			corner(0, half, 0, 2 * half, 0), corner(0, -half, 0, 0, 0),
-			corner(0, -half, height, 0, height), corner(0, half, height, 2 * half, height),
-			Vec3{-axisX, -axisY, 0.0});
-		addQuad(mesh, wall_slots::End,
-			corner(length, half, 0, 2 * half, 0), corner(length, -half, 0, 0, 0),
-			corner(length, -half, height, 0, height), corner(length, half, height, 2 * half, height),
-			Vec3{axisX, axisY, 0.0});
+		// End caps (square, mitred or cut at another wall): u from the right corner, v up; outward along the axis.
+		auto cap = [&](const char* slot, const cad::PlanPoint& right, const cad::PlanPoint& capLeft, double outward)
+		{
+			const cad::PlanPoint edge = sub(capLeft, right);
+			const double width = length2(edge);
+			cad::PlanPoint normal = scale(cad::PlanPoint{edge.y_mm, -edge.x_mm}, 1.0 / width);
+			if (dot2(normal, axis) * outward < 0.0)
+			{
+				normal = scale(normal, -1.0);
+			}
+			addQuad(mesh, slot,
+				Corner{at(capLeft, 0), uv(width, 0)}, Corner{at(right, 0), uv(0, 0)},
+				Corner{at(right, height), uv(0, height)}, Corner{at(capLeft, height), uv(width, height)},
+				Vec3{normal.x_mm, normal.y_mm, 0.0});
+		};
+		cap(wall_slots::Start, footprint.startRight, footprint.startLeft, -1.0);
+		cap(wall_slots::End, footprint.endRight, footprint.endLeft, 1.0);
 
 		return mesh;
 	}

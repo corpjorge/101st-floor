@@ -46,9 +46,34 @@ struct FFloor101WallInfo
 };
 
 /**
- * Edits the walls of the 101st Floor document: the play session's while Play-In-Editor runs, otherwise the editor
- * world's. Every change is one undoable step and regenerates the Unreal representation (transient actors). Also saves
- * and opens project.json files. Dimensions are integer millimetres.
+ * A room: a region closed by walls. Derived from the walls, never stored.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101RoomInfo
+{
+	GENERATED_BODY()
+
+	/** Stable while the room keeps its lowest-id wall: that wall's id, the side of it and which segment of it. */
+	UPROPERTY()
+	FString Key;
+
+	/** Net floor area inside the walls, in square metres. */
+	UPROPERTY()
+	double AreaM2 = 0.0;
+
+	/** Ids of the walls around it. */
+	UPROPERTY()
+	TArray<FString> WallIds;
+
+	/** Transient actor of its floor slab in the target world. */
+	UPROPERTY()
+	TObjectPtr<AActor> FloorActor;
+};
+
+/**
+ * Edits the walls of the 101st Floor document and reads the rooms they enclose: the play session's document while
+ * Play-In-Editor runs, otherwise the editor world's. Every change is one undoable step and regenerates the Unreal
+ * representation (transient actors). Also saves and opens project.json files. Dimensions are integer millimetres.
  */
 UCLASS(BlueprintType, MinimalAPI)
 class UFloor101DocumentToolset : public UToolsetDefinition
@@ -94,6 +119,19 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static FFloor101WallInfo SetWallHeight(const FString& WallId, int64 HeightMm);
+
+	/**
+	 * Moves a corner: every wall end at (FromXMm, FromYMm) goes to (ToXMm, ToYMm), as one undoable step.
+	 * @return The moved walls.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101WallInfo> MoveCorner(int64 FromXMm, int64 FromYMm, int64 ToXMm, int64 ToYMm);
+
+	/**
+	 * Returns the rooms the walls enclose, with their net floor areas.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101RoomInfo> GetRooms();
 
 	/**
 	 * Removes a wall and its actor.

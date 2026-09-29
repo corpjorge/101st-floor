@@ -47,22 +47,33 @@ namespace f101::cad
 			selected = WallId();
 		}
 		currentMode = mode;
-		if (floorPoint)
+		if (planPoint)
 		{
-			tool.pointerMoved(*floorPoint);
+			tool.pointerMoved(*planPoint);
 		}
+	}
+
+	std::optional<PlanPoint> EditController::planPointOf(const Ray3& ray, const std::vector<WallId>& ignoreWalls) const
+	{
+		// Pointing at a wall (its top or a face) means that spot of the plan, not the floor behind it.
+		if (const std::optional<WallHit> hit = pickWall(document.project(), ray, ignoreWalls))
+		{
+			return PlanPoint{ray.originX + ray.directionX * hit->distance, ray.originY + ray.directionY * hit->distance};
+		}
+		return intersectFloor(ray);
 	}
 
 	void EditController::pointerMoved(const Ray3& ray)
 	{
-		floorPoint = intersectFloor(ray);
-		if (!floorPoint)
+		// While dragging a corner its own walls are not targets: they are what moves.
+		planPoint = planPointOf(ray, drag ? drag->joined : std::vector<WallId>{});
+		if (!planPoint)
 		{
 			return; // off the floor: keep the last preview
 		}
 		if (currentMode == EditMode::Wall)
 		{
-			tool.pointerMoved(*floorPoint);
+			tool.pointerMoved(*planPoint);
 		}
 		else if (drag)
 		{
@@ -81,7 +92,8 @@ namespace f101::cad
 		}
 		// Angle and length snap relative to the fixed end; other walls' endpoints attract.
 		const Point2D fixed = endpointOf(*wall, opposite(drag->endpoint));
-		drag->position = snapFromAnchor(project, fixed, *floorPoint, editSettings.wallTool.snap, drag->wall).point;
+		const PlanPoint cursor{planPoint->x_mm + drag->grabOffset.x_mm, planPoint->y_mm + drag->grabOffset.y_mm};
+		drag->position = snapFromAnchor(project, fixed, cursor, editSettings.wallTool.snap, drag->joined).point;
 	}
 
 	Status EditController::pointerPressed(const Ray3& ray)
@@ -89,11 +101,11 @@ namespace f101::cad
 		pointerMoved(ray);
 		if (currentMode == EditMode::Wall)
 		{
-			if (!floorPoint)
+			if (!planPoint)
 			{
 				return Error{ErrorCode::InvalidArgument, "Point at the floor to draw"};
 			}
-			const Result<std::optional<WallId>> clicked = tool.click(*floorPoint);
+			const Result<std::optional<WallId>> clicked = tool.click(*planPoint);
 			return clicked ? Status::success() : Status(clicked.error());
 		}
 
@@ -109,11 +121,24 @@ namespace f101::cad
 				if (hit && (!nearest || *hit < *nearest))
 				{
 					nearest = hit;
-					drag = EndpointDrag{current, endpoint, endpointOf(*wall, endpoint)};
+					drag = EndpointDrag{current, endpoint, endpointOf(*wall, endpoint), endpointOf(*wall, endpoint), {}, {}};
 				}
 			}
 			if (drag)
 			{
+				for (const Wall& other : document.project().walls)
+				{
+					if (other.start == drag->origin || other.end == drag->origin)
+					{
+						drag->joined.push_back(other.id);
+					}
+				}
+				// Handles are grabbed anywhere up their height: keep that offset, measured as the drag will measure.
+				if (const std::optional<PlanPoint> grabbed = planPointOf(ray, drag->joined))
+				{
+					drag->grabOffset = PlanPoint{static_cast<double>(drag->origin.x_mm) - grabbed->x_mm,
+						static_cast<double>(drag->origin.y_mm) - grabbed->y_mm};
+				}
 				return Status::success();
 			}
 		}
@@ -132,6 +157,10 @@ namespace f101::cad
 		// The position comes from the last pointerMoved(); releasing never moves the endpoint by itself.
 		const EndpointDrag finished = *drag;
 		drag.reset();
+		if (finished.joined.size() > 1)
+		{
+			return toStatus(document.execute(MoveJointCommand{finished.origin, finished.position}));
+		}
 		return toStatus(document.execute(MoveWallEndpointCommand{finished.wall, finished.endpoint, finished.position}));
 	}
 
@@ -205,9 +234,9 @@ namespace f101::cad
 		drag.reset();
 		tool.cancel();
 		const Status undone = document.undo();
-		if (floorPoint)
+		if (planPoint)
 		{
-			tool.pointerMoved(*floorPoint);
+			tool.pointerMoved(*planPoint);
 		}
 		return undone;
 	}
@@ -217,9 +246,9 @@ namespace f101::cad
 		drag.reset();
 		tool.cancel();
 		const Status redone = document.redo();
-		if (floorPoint)
+		if (planPoint)
 		{
-			tool.pointerMoved(*floorPoint);
+			tool.pointerMoved(*planPoint);
 		}
 		return redone;
 	}
@@ -229,9 +258,9 @@ namespace f101::cad
 		drag.reset();
 		tool.cancel();
 		selected = WallId();
-		if (floorPoint)
+		if (planPoint)
 		{
-			tool.pointerMoved(*floorPoint);
+			tool.pointerMoved(*planPoint);
 		}
 	}
 
@@ -299,8 +328,11 @@ namespace f101::cad
 		const Project& project = document.project();
 		if (currentMode == EditMode::Wall)
 		{
-			result.preview = tool.preview();
-			if (floorPoint)
+			if (const std::optional<Wall> preview = tool.preview())
+			{
+				result.previewWalls.push_back(*preview);
+			}
+			if (planPoint)
 			{
 				result.handles.push_back(tool.hoverPoint());
 			}
@@ -313,17 +345,19 @@ namespace f101::cad
 		{
 			return result;
 		}
+		result.handles = {wall->start, wall->end};
 		if (drag && drag->wall == result.selectedWall)
 		{
-			Wall moved = *wall;
-			(drag->endpoint == WallEndpoint::Start ? moved.start : moved.end) = drag->position;
-			result.hiddenWall = wall->id;
-			result.preview = moved;
-			result.handles = {moved.start, moved.end};
-		}
-		else
-		{
-			result.handles = {wall->start, wall->end};
+			for (const WallId& id : drag->joined)
+			{
+				if (const Wall* joinedWall = project.findWall(id))
+				{
+					Wall moved = *joinedWall;
+					(moved.start == drag->origin ? moved.start : moved.end) = drag->position;
+					result.previewWalls.push_back(moved);
+				}
+			}
+			(drag->endpoint == WallEndpoint::Start ? result.handles[0] : result.handles[1]) = drag->position;
 		}
 		return result;
 	}

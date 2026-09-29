@@ -2,6 +2,7 @@
 
 #include "F101/Cad/Wall.h"
 #include "F101/Geometry/MeshData.h"
+#include "F101/Geometry/WallJoins.h"
 
 namespace f101::geometry
 {
@@ -17,7 +18,12 @@ namespace f101::geometry
 		inline constexpr const char* End = "end";
 	}
 
-	// Closed box for a straight wall: centred on its axis, from floor (z = 0) to its height. Flat-shaded, 24 vertices,
-	// 12 triangles, one section per face. Precondition: cad::validateWallGeometry(wall) succeeds (the id is not used).
+	// Closed prism for a straight wall over its footprint, from the floor (z = 0) to its height. Flat-shaded,
+	// 24 vertices, 12 triangles, one section per face. With plainFootprint(wall) it is the box centred on the axis;
+	// with a resolved footprint (solveWallJoins) the end faces are mitred or cut at another wall.
+	// Precondition: cad::validateWallGeometry(wall) succeeds (the id is not used).
+	FLOOR101GEOMETRY_API MeshData buildWallMesh(const cad::Wall& wall, const WallFootprint& footprint);
+
+	// buildWallMesh(wall, plainFootprint(wall)): the wall on its own.
 	FLOOR101GEOMETRY_API MeshData buildWallMesh(const cad::Wall& wall);
 }

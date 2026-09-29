@@ -85,6 +85,41 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("corners and rooms", [this]()
+	{
+		It("closes a room, reports its net area and floor, and moves a shared corner as one step", [this]()
+		{
+			TArray<FString> Ids;
+			const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+			for (int32 i = 0; i < 4; ++i)
+			{
+				const int64* A = Corners[i];
+				const int64* B = Corners[(i + 1) % 4];
+				Ids.Add(UFloor101DocumentToolset::AddWall(A[0] + 20000, A[1], B[0] + 20000, B[1], 120, 2400).Id);
+			}
+			const TArray<FFloor101RoomInfo> Rooms = UFloor101DocumentToolset::GetRooms();
+			const FFloor101RoomInfo* Room = Rooms.FindByPredicate([&Ids](const FFloor101RoomInfo& R) { return R.WallIds.Contains(Ids[0]); });
+			if (TestNotNull(TEXT("room found"), Room))
+			{
+				TestEqual(TEXT("net area 3.88 x 2.88 m"), Room->AreaM2, 3.88 * 2.88, 1e-9);
+				TestEqual(TEXT("four walls"), Room->WallIds.Num(), 4);
+				TestNotNull(TEXT("floor actor"), Room->FloorActor.Get());
+			}
+
+			const TArray<FFloor101WallInfo> Moved = UFloor101DocumentToolset::MoveCorner(24000, 0, 24500, 0);
+			TestEqual(TEXT("both walls at the corner moved"), Moved.Num(), 2);
+			for (const FFloor101WallInfo& Wall : Moved)
+			{
+				TestTrue(TEXT("an end at the new corner"), (Wall.EndXMm == 24500 && Wall.EndYMm == 0) || (Wall.StartXMm == 24500 && Wall.StartYMm == 0));
+			}
+			TestEqual(TEXT("one undo step"), UFloor101DocumentToolset::Undo(), FString(TEXT("Move corner")));
+			for (const FString& Id : Ids)
+			{
+				UFloor101DocumentToolset::RemoveWall(Id);
+			}
+		});
+	});
+
 	Describe("history and files", [this]()
 	{
 		It("undoes and redoes a change, returning what it was", [this]()
@@ -162,6 +197,11 @@ void FFloor101DocumentToolsetSpec::Define()
 				FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Toolset"), TEXT("missing.json")));
 			AddExpectedMessagePlain(TEXT("F101: Cannot open"), ELogVerbosity::Warning); // the status message
 			ExpectRaises(TEXT("cannot open"), [&Path] { UFloor101DocumentToolset::OpenProject(Path); });
+		});
+
+		It("MoveCorner raises when no wall ends at the point", [this]()
+		{
+			ExpectRaises(TEXT("cannot move the corner"), [] { UFloor101DocumentToolset::MoveCorner(-777, -777, 0, 0); });
 		});
 
 		It("RemoveWall raises on an unknown id", [this]()

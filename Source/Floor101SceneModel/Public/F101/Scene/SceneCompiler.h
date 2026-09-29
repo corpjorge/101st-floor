@@ -3,7 +3,7 @@
 #include "F101/Cad/Project.h"
 #include "F101/Scene/Scene.h"
 
-#include <optional>
+#include <cstdint>
 #include <vector>
 
 namespace f101::scene
@@ -12,10 +12,12 @@ namespace f101::scene
 	// compile the project without it.
 	struct ViewOverlay
 	{
-		cad::WallId selectedWall;             // nil: nothing selected
-		cad::WallId hiddenWall;               // nil: none (e.g. the original of a wall whose endpoint is being dragged)
-		std::optional<cad::Wall> preview;     // e.g. the wall being drawn; its id is not used
-		std::vector<cad::Point2D> markers;    // e.g. draggable endpoint handles
+		cad::WallId selectedWall; // nil: nothing selected
+		// Walls as they would be once the current gesture is applied: a wall with the id of an existing wall replaces
+		// it (e.g. a dragged endpoint), a wall with a nil id is added (the wall being drawn). The scene is compiled
+		// from that previewed project, so joins and rooms follow the preview. Invalid walls are left out.
+		std::vector<cad::Wall> previewWalls;
+		std::vector<cad::Point2D> markers; // e.g. draggable endpoint handles
 		std::int64_t markerSizeMm = 240;
 		std::int64_t markerHeightMm = 2500;
 	};
@@ -23,12 +25,13 @@ namespace f101::scene
 	// Node carrying the body geometry of a wall.
 	FLOOR101SCENEMODEL_API SceneNodeId wallBodyNodeId(const cad::WallId& id);
 
-	// Compiles the whole project into a scene: one node per wall, in model order. Deterministic: the same project
-	// always produces the same scene (ids, geometry and hashes).
+	// Compiles the whole project into a scene, deterministically (same project, same ids, geometry and hashes):
+	// one node per wall in model order with its joins resolved ("<wall>/body"), then joint fills
+	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"); Scene::rooms lists those rooms.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project);
 
-	// compileScene(project) plus the overlay: Selected/Hidden styles on wall nodes, a "preview/wall" node (Preview) and
-	// "marker/<index>" nodes (Handle). A preview that is not a valid wall is left out.
+	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls are Preview (new ones
+	// get the ids "preview/wall/<index>"), the selected wall is Selected, and markers are "marker/<index>" (Handle).
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ViewOverlay& overlay);
 
 	// FNV-1a 64 over everything a consumer renders (positions, normals, uvs, sections).

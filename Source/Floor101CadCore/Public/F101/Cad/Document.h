@@ -43,6 +43,14 @@ namespace f101::cad
 		Point2D position;
 	};
 
+	// Moves every wall end at `from` to `to`, so a corner shared by several walls moves as one. Rejected if no wall
+	// ends at `from` or if a moved wall would become invalid.
+	struct MoveJointCommand
+	{
+		Point2D from;
+		Point2D to;
+	};
+
 	// Keeps the start point and the direction; the new end is quantized to integer millimetres, so on a diagonal wall
 	// the resulting length can differ from the requested one by less than 0.5 mm (see pointAtDistance).
 	struct ChangeWallLengthCommand
@@ -63,8 +71,8 @@ namespace f101::cad
 		std::int64_t heightMm = 0;
 	};
 
-	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, ChangeWallLengthCommand,
-		ChangeWallThicknessCommand, ChangeWallHeightCommand>;
+	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
+		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand>;
 
 	// Short name for undo/redo UI, e.g. "Create wall".
 	FLOOR101CADCORE_API std::string_view commandLabel(const Command& command);

@@ -27,6 +27,8 @@ nada se configura a mano en el editor (todo reproducible desde Git) y el snappin
 - **Vista**: el overlay es estado de vista, nunca se guarda. `compileScene(project, overlay)` añade estilos
   (`Selected`, `Preview`, `Handle`, `Hidden`) y nodos `preview/wall` y `marker/<i>`. El adaptador aplica los estilos con
   instancias dinámicas del material por defecto (parámetro `Color`) y el reconciliador compara hash **y** estilo.
+  (MVP 2, ADR-0009: la vista previa pasa a ser el proyecto como quedaría —`previewWalls`, nodos `preview/wall/<i>`— y
+  el estilo `Hidden` desaparece.)
 - **Unreal traduce, no decide**: `UFloor101GameViewportClient` convierte el cursor en rayo (deproyección +
   `ToScenePosition`), las teclas en comandos (`MapKey`, función pura) y los caracteres en texto de la herramienta.
   `UFloor101DocumentSubsystem::Edit` ejecuta cada acción, refresca la vista y guarda el mensaje de estado.

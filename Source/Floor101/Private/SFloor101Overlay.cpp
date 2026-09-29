@@ -1,10 +1,16 @@
 #include "SFloor101Overlay.h"
 
+#include "Engine/GameViewportClient.h"
+#include "Engine/LocalPlayer.h"
+#include "Engine/World.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/Units.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101GameViewportClient.h"
+#include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "GameFramework/PlayerController.h"
+#include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -12,8 +18,11 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SConstraintCanvas.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SLeafWidget.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
+
+#include <algorithm>
 
 #define LOCTEXT_NAMESPACE "Floor101Overlay"
 
@@ -26,6 +35,7 @@ namespace
 	const FLinearColor ActiveButtonColor(1.0f, 0.5f, 0.12f);
 	const FLinearColor ErrorColor(1.0f, 0.4f, 0.35f);
 	const FLinearColor MutedColor(0.7f, 0.7f, 0.72f);
+	const FLinearColor RoomLabelColor(0.05f, 0.18f, 0.3f, 0.85f);
 	const FVector2D CursorLabelOffset(18.0, 18.0);
 
 	FSlateFontInfo Font(int32 Size, bool bBold = false)
@@ -43,6 +53,7 @@ namespace
 		switch (Kind)
 		{
 		case f101::cad::SnapKind::Endpoint: return LOCTEXT("SnapEndpoint", "extremo");
+		case f101::cad::SnapKind::Wall: return LOCTEXT("SnapWall", "muro");
 		case f101::cad::SnapKind::Angle: return LOCTEXT("SnapAngle", "ángulo");
 		case f101::cad::SnapKind::Grid: return LOCTEXT("SnapGrid", "rejilla");
 		default: return FText::GetEmpty();
@@ -61,6 +72,75 @@ namespace
 	}
 }
 
+// Net area of each room, drawn where its floor label point projects on screen. Repainted every frame.
+class SFloor101RoomLabels : public SLeafWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SFloor101RoomLabels) {}
+		SLATE_ARGUMENT(TWeakObjectPtr<UFloor101DocumentSubsystem>, Document)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs)
+	{
+		Document = InArgs._Document;
+		ForceVolatile(true);
+	}
+
+	virtual FVector2D ComputeDesiredSize(float) const override
+	{
+		return FVector2D::ZeroVector;
+	}
+
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+		FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override
+	{
+		const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+		const UWorld* World = Subsystem ? Subsystem->GetWorld() : nullptr;
+		const APlayerController* Controller = World ? World->GetFirstPlayerController() : nullptr;
+		const ULocalPlayer* Player = Controller ? Controller->GetLocalPlayer() : nullptr;
+		if (!Player || !Player->ViewportClient || Subsystem->GetRooms().IsEmpty())
+		{
+			return LayerId;
+		}
+		FVector2D ViewportPixels;
+		Player->ViewportClient->GetViewportSize(ViewportPixels);
+		const FVector2D LocalSize = AllottedGeometry.GetLocalSize();
+		if (ViewportPixels.X <= 0.0 || ViewportPixels.Y <= 0.0)
+		{
+			return LayerId;
+		}
+		const FVector2D PixelsToLocal = LocalSize / ViewportPixels;
+
+		FNumberFormattingOptions TwoDecimals;
+		TwoDecimals.SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
+		const FSlateFontInfo LabelFont = Font(11, true);
+		const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		const FSlateBrush* Background = FCoreStyle::Get().GetBrush("WhiteBrush");
+		const FVector2D Padding(6.0, 3.0);
+		for (const FFloor101RoomView& Room : Subsystem->GetRooms())
+		{
+			FVector2D Screen;
+			if (!Controller->ProjectWorldLocationToScreen(Room.LabelLocation, Screen, true))
+			{
+				continue; // behind the camera
+			}
+			const FText Text = FText::Format(LOCTEXT("RoomArea", "{0} m²"), FText::AsNumber(Room.AreaM2, &TwoDecimals));
+			const FVector2D TextSize = Measure->Measure(Text, LabelFont);
+			const FVector2D BoxSize = TextSize + Padding * 2.0;
+			const FVector2D TopLeft = Screen * PixelsToLocal - BoxSize / 2.0;
+			FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(BoxSize, FSlateLayoutTransform(TopLeft)),
+				Background, ESlateDrawEffect::None, RoomLabelColor);
+			FSlateDrawElement::MakeText(OutDrawElements, LayerId + 1,
+				AllottedGeometry.ToPaintGeometry(TextSize, FSlateLayoutTransform(TopLeft + Padding)), Text, LabelFont,
+				ESlateDrawEffect::None, FLinearColor::White);
+		}
+		return LayerId + 1;
+	}
+
+private:
+	TWeakObjectPtr<UFloor101DocumentSubsystem> Document;
+};
+
 void SFloor101Overlay::Construct(const FArguments& InArgs)
 {
 	Document = InArgs._Document;
@@ -72,6 +152,12 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 	[
 		SNew(SOverlay)
 		.Visibility(EVisibility::SelfHitTestInvisible)
+		+ SOverlay::Slot()
+		[
+			SNew(SFloor101RoomLabels)
+			.Visibility(EVisibility::HitTestInvisible)
+			.Document(Document)
+		]
 		+ SOverlay::Slot()
 		[
 			SNew(SConstraintCanvas)
@@ -232,6 +318,19 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 						if (UFloor101GameViewportClient* Client = ViewportClient.Get())
 						{
 							Client->FrameProject();
+						}
+						FSlateApplication::Get().SetAllUserFocusToGameViewport();
+						return FReply::Handled();
+					}))
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				ActionButton(LOCTEXT("TopView", "Planta (T)"), LOCTEXT("TopViewTip", "Vista desde arriba, con el norte hacia arriba"), true,
+					FOnClicked::CreateLambda([this]()
+					{
+						if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+						{
+							Client->ShowTopView();
 						}
 						FSlateApplication::Get().SetAllUserFocusToGameViewport();
 						return FReply::Handled();
@@ -400,16 +499,16 @@ FText SFloor101Overlay::GetHintText() const
 	if (Editor.mode() == EditMode::Wall)
 	{
 		return Editor.wallTool().state() == f101::cad::WallTool::State::Drafting
-			? LOCTEXT("HintDrafting", "Muro · mueve el cursor o escribe la longitud (sin unidad = cm) · Enter o clic: crear · Esc o clic derecho: terminar")
-			: LOCTEXT("HintWallIdle", "Muro · clic: inicio del muro · Esc o clic derecho: volver a Seleccionar");
+			? LOCTEXT("HintDrafting", "Muro · mueve el cursor o escribe la longitud (sin unidad = cm) · Enter o clic: crear · cerca de un muro se une a él · Esc o clic derecho: terminar")
+			: LOCTEXT("HintWallIdle", "Muro · clic: inicio del muro (en un extremo o sobre un muro para unirlo) · Esc o clic derecho: volver a Seleccionar");
 	}
 	if (Editor.isDragging())
 	{
-		return LOCTEXT("HintDragging", "Moviendo extremo · suelta para aplicar · Esc o clic derecho: cancelar");
+		return LOCTEXT("HintDragging", "Moviendo esquina · los muros unidos la siguen · suelta para aplicar · Esc o clic derecho: cancelar");
 	}
 	return Editor.selection().isNil()
 		? LOCTEXT("HintSelect", "Seleccionar · clic: seleccionar muro · W: dibujar muros")
-		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover el extremo · Supr: eliminar");
+		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
@@ -456,12 +555,15 @@ FText SFloor101Overlay::GetCursorText() const
 		return FText::GetEmpty();
 	}
 	const EditController& Editor = Subsystem->GetEditController();
+	// The wall being drawn, or the selected wall whose corner is being dragged.
 	const f101::cad::EditView View = Editor.view();
-	if (!View.preview)
+	const auto Shown = std::find_if(View.previewWalls.begin(), View.previewWalls.end(),
+		[&View](const f101::cad::Wall& Wall) { return Wall.id == View.selectedWall; });
+	if (Shown == View.previewWalls.end())
 	{
 		return FText::GetEmpty();
 	}
-	const FText Length = LengthText(View.preview->lengthMm());
+	const FText Length = LengthText(Shown->lengthMm());
 	if (Editor.mode() != EditMode::Wall)
 	{
 		return Length; // endpoint drag

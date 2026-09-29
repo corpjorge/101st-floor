@@ -3,6 +3,7 @@
 #include "Editor.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
+#include "F101/Geometry/Rooms.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -140,6 +141,51 @@ FFloor101WallInfo UFloor101DocumentToolset::SetWallHeight(const FString& WallId,
 	{
 		return f101::cad::ChangeWallHeightCommand{Id, HeightMm};
 	});
+}
+
+TArray<FFloor101WallInfo> UFloor101DocumentToolset::MoveCorner(int64 FromXMm, int64 FromYMm, int64 ToXMm, int64 ToYMm)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return {};
+	}
+	const f101::Result<f101::cad::Transaction> Moved =
+		Subsystem->GetMutableDocument().execute(f101::cad::MoveJointCommand{{FromXMm, FromYMm}, {ToXMm, ToYMm}});
+	if (!Moved)
+	{
+		RaiseError(FString::Printf(TEXT("cannot move the corner at (%lld, %lld): %s"), FromXMm, FromYMm, *ToFString(Moved.error().message)));
+		return {};
+	}
+	TArray<FFloor101WallInfo> Walls;
+	for (const f101::cad::WallChange& Change : Moved.value().walls)
+	{
+		Walls.Add(ToInfo(*Subsystem->GetDocument().project().findWall(Change.id), *Subsystem));
+	}
+	return Walls;
+}
+
+TArray<FFloor101RoomInfo> UFloor101DocumentToolset::GetRooms()
+{
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return {};
+	}
+	TArray<FFloor101RoomInfo> Rooms;
+	for (const f101::geometry::Room& Room : f101::geometry::detectRooms(Subsystem->GetDocument().project()))
+	{
+		FFloor101RoomInfo Info;
+		Info.Key = ToFString(Room.key);
+		Info.AreaM2 = Room.areaMm2 / 1.0e6;
+		for (const f101::cad::WallId& Wall : Room.walls)
+		{
+			Info.WallIds.Add(ToFString(f101::cad::toString(Wall)));
+		}
+		Info.FloorActor = Subsystem->FindRoomFloorActor(Info.Key);
+		Rooms.Add(MoveTemp(Info));
+	}
+	return Rooms;
 }
 
 void UFloor101DocumentToolset::RemoveWall(const FString& WallId)

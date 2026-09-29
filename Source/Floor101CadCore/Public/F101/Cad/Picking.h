@@ -5,6 +5,7 @@
 #include "F101/Cad/Snapping.h"
 
 #include <optional>
+#include <vector>
 
 // Geometric queries used by interaction (selection, cursor on the floor). Engine-independent: callers convert their
 // screen ray to scene space first (millimetres, right-handed, Z up).
@@ -26,8 +27,10 @@ namespace f101::cad
 		double distance = 0.0; // along the ray, in units of the ray direction's length
 	};
 
-	// Nearest wall whose solid (axis-centred box from floor to height) the ray enters in front of its origin.
-	FLOOR101CADCORE_API std::optional<WallHit> pickWall(const Project& project, const Ray3& ray);
+	// Nearest wall whose solid (axis-centred box from floor to height) the ray enters in front of its origin. Walls in
+	// `ignoreWalls` are skipped.
+	FLOOR101CADCORE_API std::optional<WallHit> pickWall(const Project& project, const Ray3& ray,
+		const std::vector<WallId>& ignoreWalls = {});
 
 	// Entry distance of the ray into an axis-aligned square post centred on `center` (e.g. an endpoint handle), from the
 	// floor to `heightMm`, `sizeMm` wide; nullopt if it misses.

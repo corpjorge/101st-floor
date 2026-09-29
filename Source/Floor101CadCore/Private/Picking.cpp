@@ -50,11 +50,15 @@ namespace f101::cad
 		}
 	}
 
-	std::optional<WallHit> pickWall(const Project& project, const Ray3& ray)
+	std::optional<WallHit> pickWall(const Project& project, const Ray3& ray, const std::vector<WallId>& ignoreWalls)
 	{
 		std::optional<WallHit> nearest;
 		for (const Wall& wall : project.walls)
 		{
+			if (std::find(ignoreWalls.begin(), ignoreWalls.end(), wall.id) != ignoreWalls.end())
+			{
+				continue;
+			}
 			if (const std::optional<double> distance = intersectWall(wall, ray))
 			{
 				if (!nearest || *distance < nearest->distance)

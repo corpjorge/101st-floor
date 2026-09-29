@@ -7,22 +7,17 @@
 #include "F101/Cad/Result.h"
 
 #include <cstdint>
+#include <vector>
 
 // Snapping belongs to the CAD core, not to the renderer (master prompt §20).
 namespace f101::cad
 {
-	// Continuous plan position (e.g. the cursor) in millimetres. Snapping turns it into an exact model point.
-	struct PlanPoint
-	{
-		double x_mm = 0.0;
-		double y_mm = 0.0;
-	};
-
 	struct SnapSettings
 	{
 		std::int64_t gridMm = 50;           // 0 disables the grid
 		double angleStepDegrees = 15.0;     // 0 disables angle snapping; 15 covers 0/15/30/45/90 degrees
 		double endpointToleranceMm = 150.0; // radius around existing wall endpoints; 0 disables
+		double wallToleranceMm = 150.0;     // distance to a wall axis that snaps onto it (T junctions); 0 disables
 	};
 
 	enum class SnapKind
@@ -30,6 +25,7 @@ namespace f101::cad
 		Free,
 		Grid,
 		Endpoint,
+		Wall, // onto another wall's axis
 		Angle,
 	};
 
@@ -42,15 +38,17 @@ namespace f101::cad
 		PlanPoint constrained;
 	};
 
-	// Snaps a free point (a wall start, a dragged endpoint): the nearest existing wall endpoint within tolerance,
-	// otherwise the grid. Endpoints of `ignoreWall` are skipped.
+	// Snaps a free point (e.g. a wall start): the nearest existing wall endpoint within tolerance, else the nearest point
+	// on a wall's axis within tolerance, else the grid. Walls in `ignoreWalls` are skipped.
 	FLOOR101CADCORE_API SnapResult snapPoint(const Project& project, PlanPoint cursor, const SnapSettings& settings,
-		const WallId& ignoreWall = {});
+		const std::vector<WallId>& ignoreWalls = {});
 
 	// Snaps the second point of a segment that starts at `anchor`: an existing endpoint within tolerance (other than the
-	// anchor), otherwise the direction is rounded to the angle step and the length to the grid.
+	// anchor); else a wall's axis within tolerance, where the angle-snapped direction crosses it if that is near the
+	// cursor, otherwise at its nearest point; else the direction is rounded to the angle step and the length to the
+	// grid. Walls in `ignoreWalls` are skipped, and so is any wall whose body holds the anchor.
 	FLOOR101CADCORE_API SnapResult snapFromAnchor(const Project& project, Point2D anchor, PlanPoint cursor,
-		const SnapSettings& settings, const WallId& ignoreWall = {});
+		const SnapSettings& settings, const std::vector<WallId>& ignoreWalls = {});
 
 	// Point at `lengthMm` from `anchor` in the direction of `toward` (+X if toward == anchor), in whole millimetres.
 	// Exact along the axes. Otherwise, of the four millimetre points around the exact one, the one whose distance to the

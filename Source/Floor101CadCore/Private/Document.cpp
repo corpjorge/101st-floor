@@ -84,6 +84,7 @@ namespace f101::cad
 			std::string_view operator()(const CreateWallCommand&) const { return "Create wall"; }
 			std::string_view operator()(const DeleteWallCommand&) const { return "Delete wall"; }
 			std::string_view operator()(const MoveWallEndpointCommand&) const { return "Move wall endpoint"; }
+			std::string_view operator()(const MoveJointCommand&) const { return "Move corner"; }
 			std::string_view operator()(const ChangeWallLengthCommand&) const { return "Change wall length"; }
 			std::string_view operator()(const ChangeWallThicknessCommand&) const { return "Change wall thickness"; }
 			std::string_view operator()(const ChangeWallHeightCommand&) const { return "Change wall height"; }
@@ -148,6 +149,36 @@ namespace f101::cad
 				(move->endpoint == WallEndpoint::Start ? wall.start : wall.end) = move->position;
 				return Status::success();
 			});
+		}
+		if (const auto* joint = std::get_if<MoveJointCommand>(&command))
+		{
+			Transaction transaction{label, {}};
+			bool found = false;
+			for (std::size_t index = 0; index < model.walls.size(); ++index)
+			{
+				const Wall& before = model.walls[index];
+				if (before.start != joint->from && before.end != joint->from)
+				{
+					continue;
+				}
+				found = true;
+				Wall after = before;
+				(after.start == joint->from ? after.start : after.end) = joint->to;
+				if (Status valid = validateWall(after); !valid)
+				{
+					return valid.error();
+				}
+				if (!(after == before))
+				{
+					transaction.walls.push_back(WallChange{before.id, index, before, after});
+				}
+			}
+			if (!found)
+			{
+				return Error{ErrorCode::NotFound, "No wall ends at (" + std::to_string(joint->from.x_mm) + ", " +
+					std::to_string(joint->from.y_mm) + ") mm"};
+			}
+			return transaction;
 		}
 		if (const auto* length = std::get_if<ChangeWallLengthCommand>(&command))
 		{

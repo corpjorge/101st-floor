@@ -1,17 +1,29 @@
 # Geometry Engine (`Source/Floor101Geometry`, `f101::geometry`)
 
-Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se regenera.
+Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se regenera (ADR-0009).
 
 - `MeshData`: posiciones y normales en mm (`double`, escena dextrógira, Z arriba), UV en metros (1,0 = 1000 mm) e
   índices agrupados en `MeshSection` por slot de material. Triángulos en sentido antihorario vistos desde el lado al que
   apunta su normal.
-- `buildWallMesh(wall)`: caja cerrada centrada en el eje, de z = 0 a la altura. Sombreado plano, 24 vértices,
-  12 triángulos y 6 secciones (`left`, `right`, `top`, `bottom`, `start`, `end`; izquierda y derecha respecto al eje
-  inicio → fin). El orden de cada cara se deduce de su normal (`addQuad`), así que es correcto por construcción.
+- **Uniones** (`WallJoins.h`): `solveWallJoins(project)` devuelve la huella (`WallFootprint`, cuatro esquinas en mm) de
+  cada muro y los `JointFill` de los nudos de tres o más extremos. Extremos que comparten un punto → inglete con el
+  vecino angular (L, Y, X; espesores distintos); colineales → a escuadra; extremo dentro del cuerpo de otro muro → corte
+  en su cara (T); esquina muy aguda (inglete > 4 × semiespesor) → escuadra; huella inválida → rectángulo.
+  `plainFootprint(wall)` es el rectángulo de un muro suelto.
+- **Muros** (`WallGeometryBuilder.h`): `buildWallMesh(wall, footprint)` es el prisma sobre la huella, de z = 0 a la
+  altura. Sombreado plano, 24 vértices, 12 triángulos, 6 secciones (`left`, `right`, `top`, `bottom`, `start`, `end`;
+  izquierda y derecha respecto al eje inicio → fin). Las caras largas siguen paralelas al eje; las de los extremos son
+  los ingletes o cortes. `buildWallMesh(wall)` usa la huella simple (misma malla que en el MVP 1). El orden de cada cara
+  se deduce de su normal (`addQuad`), así que es correcto por construcción.
+- **Polígonos** (`PolygonGeometry.h`): `signedArea`, `containsPoint`, `triangulatePolygon` (orejas, admite cóncavos y
+  vértices colineales) y `buildPrismMesh` (secciones superior, lateral e inferior). Sirve a los `JointFill` y a los
+  suelos.
+- **Habitaciones** (`Rooms.h`): `detectRooms(project)` → caras acotadas del grafo plano de ejes (partidos en T y cruces).
+  Cada `Room` trae el contorno del suelo (caras interiores de los muros), el área neta, un punto de etiqueta interior, sus
+  muros y una clave determinista. `buildFloorMesh(room)` → losa de 10 mm (`floor`, `floor_edge`, `floor_bottom`).
 
-Los tests (`Tests/Unit/WallGeometryTests.cpp`) comprueban: bounds exactos de 3550 × 120 × 2400 mm, normales
-unitarias hacia fuera, orden de triángulos, que la cara izquierda está a la izquierda, espesor real en paredes
-diagonales, y que al alargar la pared se regenera y no se escala (la densidad de UV se mantiene en 1 por metro).
+Tests: `WallGeometryTests.cpp` (bounds exactos de 3550 × 120 × 2400 mm, normales hacia fuera, orden de triángulos, lado
+izquierdo, espesor en diagonal, regeneración sin escalar), `WallJoinTests.cpp`, `PolygonGeometryTests.cpp` y
+`RoomTests.cpp` (casos en ADR-0009).
 
-Futuro: uniones y esquinas, huecos para puertas y ventanas, suelos y techos. Builders separados por entidad, con el
-mismo `MeshData`.
+Futuro: huecos para puertas y ventanas (sobre las huellas y los tramos de muro), techos, materiales por cara.

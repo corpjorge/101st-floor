@@ -1,6 +1,7 @@
 #pragma once
 
 #include "F101/Geometry/MeshData.h"
+#include "F101/Geometry/Rooms.h"
 
 #include <compare>
 #include <cstdint>
@@ -27,6 +28,8 @@ namespace f101::scene
 	enum class SourceKind
 	{
 		Wall,
+		Joint,  // fill at the centre of a junction of three or more walls
+		Room,   // floor of a room
 		Marker,
 	};
 
@@ -37,7 +40,6 @@ namespace f101::scene
 		Selected,
 		Preview,
 		Handle,
-		Hidden,
 	};
 
 	struct SceneNode
@@ -45,7 +47,7 @@ namespace f101::scene
 		SceneNodeId id;
 		std::string name;            // human readable, e.g. "Wall 3f2a9c1e"
 		SourceKind sourceKind = SourceKind::Wall;
-		std::string sourceId;        // UUID text of the source entity
+		std::string sourceId;        // UUID text of the source wall (for floors: the room key)
 		geometry::MeshData mesh;     // scene space (mm, right-handed, Z up); node transform is identity for now
 		std::uint64_t contentHash = 0; // hash of the mesh; changes whenever the geometry changes
 		NodeStyle style = NodeStyle::Normal;
@@ -54,6 +56,8 @@ namespace f101::scene
 	struct Scene
 	{
 		std::vector<SceneNode> nodes;
+		// The rooms whose floors are among the nodes ("<room key>/floor"): areas and label points for views.
+		std::vector<geometry::Room> rooms;
 
 		const SceneNode* findNode(const SceneNodeId& id) const
 		{

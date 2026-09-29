@@ -26,6 +26,8 @@ public:
 	void Zoom(float Steps);
 	// Looks at the box (Unreal space) from the current direction, at a distance that fits it.
 	void Frame(const FBox& Box);
+	// Plan view: looking straight down (as far as the orbit allows) with north (scene +Y) up. Keeps focus and distance.
+	void TopView();
 
 	UCameraComponent* GetCamera() const { return Camera; }
 	const FVector& GetFocus() const { return Focus; }

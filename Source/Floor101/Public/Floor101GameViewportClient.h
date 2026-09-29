@@ -28,6 +28,7 @@ enum class EFloor101KeyCommand : uint8
 	Confirm,
 	Delete,
 	Frame,
+	TopView,
 };
 
 // Translates raw input into editing calls (ADR-0008): the cursor becomes a ray in scene space for the edit controller,
@@ -35,8 +36,8 @@ enum class EFloor101KeyCommand : uint8
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
-// Keys: W wall tool, V select, Enter, Esc, Backspace, Delete, F frame all, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
-// Ctrl+S save, Ctrl+O open.
+// Keys: W wall tool, V select, Enter, Esc, Backspace, Delete, F frame all, T plan view, Ctrl+Z undo,
+// Ctrl+Y / Ctrl+Shift+Z redo, Ctrl+S save, Ctrl+O open.
 UCLASS()
 class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient
 {
@@ -50,6 +51,8 @@ public:
 
 	// Frames every wall of the document (or the origin if there are none).
 	void FrameProject();
+	// Plan view (AFloor101EditingPawn::TopView).
+	void ShowTopView();
 
 	// Keyboard map. Held keys only repeat Backspace, undo and redo; with Ctrl, only the Ctrl shortcuts apply.
 	static EFloor101KeyCommand MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat);

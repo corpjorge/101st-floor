@@ -52,6 +52,7 @@ Con *tool search* activo (default, `bEnableToolSearch=true`) el servidor expone 
 
 ## Toolset propio: `Floor101Editor.Floor101DocumentToolset`
 Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetWallLength`, `SetWallThickness`,
+`MoveCorner` (mueve todos los extremos de una esquina), `GetRooms` (habitaciones con área neta en m², muros y suelo),
 `SetWallHeight`, `RemoveWall`, `Undo`/`Redo` (devuelven la etiqueta, p. ej. `Create wall`) y `SaveProject`/
 `OpenProject` (rutas absolutas), con coordenadas y dimensiones en mm enteros. **Mundo objetivo:** el de la sesión PIE
 mientras exista (lo que el usuario está editando; empieza vacío), si no el del editor. Cada cambio es un paso
@@ -62,6 +63,10 @@ deshacible y regenera el actor; el resultado incluye su referencia para inspecci
 Verificado (MVP 1): pared en el mundo del editor → `EditorAppToolset.StartPIE` → `GetWalls` vacío (documento de PIE)
 → `AddWall` con actor en `UEDPIE_0_…` → `Undo`/`Redo` (`Create wall`) → `StopPIE` → el documento del editor conserva su
 pared.
+
+Verificado (MVP 2, por el transporte MCP con `Scripts/McpClient.ps1`): 4 `AddWall` → `GetRooms` = 1 habitación de
+11,1744 m² con su suelo → `MoveCorner(4000,0 → 4500,0)` mueve 2 muros y el área pasa a 11,8920 m² con la misma clave →
+`Undo` = `Move corner` → 11,1744 m².
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

@@ -44,16 +44,16 @@ TEST_CASE_FIXTURE(Editing, "dragging an end handle moves that endpoint in one un
 
 	editor.pointerMoved(down(4213.0, 35.0));
 	const EditView dragging = editor.view();
-	CHECK(dragging.hiddenWall == wall);
-	REQUIRE(dragging.preview.has_value());
-	CHECK(dragging.preview->end == Point2D{4200, 0}); // angle + grid snapping from the fixed start
+	REQUIRE(dragging.previewWalls.size() == 1);
+	CHECK(dragging.previewWalls[0].id == wall);
+	CHECK(dragging.previewWalls[0].end == Point2D{4200, 0}); // angle + grid snapping from the fixed start
 	CHECK(document.project().walls[0].end == Point2D{3550, 0});
 
 	REQUIRE(editor.pointerReleased(down(4213.0, 35.0)).ok());
 	CHECK_FALSE(editor.isDragging());
 	CHECK(document.project().walls[0].end == Point2D{4200, 0});
 	CHECK(document.undoLabel() == "Move wall endpoint");
-	CHECK(editor.view().hiddenWall.isNil());
+	CHECK(editor.view().previewWalls.empty());
 
 	REQUIRE(editor.undo().ok());
 	CHECK(document.project().walls[0].end == Point2D{3550, 0});
@@ -133,17 +133,17 @@ TEST_CASE_FIXTURE(Editing, "Wall mode: the snapped cursor, the typed length and 
 	editor.setMode(EditMode::Wall);
 	editor.pointerMoved(down(5012.0, 3021.0));
 	CHECK(editor.view().handles == std::vector<Point2D>{{5000, 3000}});
-	CHECK_FALSE(editor.view().preview.has_value());
+	CHECK(editor.view().previewWalls.empty());
 
 	REQUIRE(editor.pointerPressed(down(5012.0, 3021.0)).ok());
 	REQUIRE(editor.pointerReleased(down(5012.0, 3021.0)).ok());
 	editor.pointerMoved(down(5020.0, 5800.0));
-	REQUIRE(editor.view().preview.has_value());
+	REQUIRE(editor.view().previewWalls.size() == 1);
 	editor.appendText("3.55 m");
-	CHECK(editor.view().preview->end == Point2D{5000, 6550});
+	CHECK(editor.view().previewWalls[0].end == Point2D{5000, 6550});
 	editor.backspace();
 	editor.backspace(); // "3.55" -> centimetres
-	CHECK(editor.view().preview->end == Point2D{5000, 3036}); // 35.5 mm rounds half away from zero
+	CHECK(editor.view().previewWalls[0].end == Point2D{5000, 3036}); // 35.5 mm rounds half away from zero
 	editor.appendText("x");
 	CHECK(editor.wallTool().typedText() == "3.55");
 }
@@ -182,9 +182,9 @@ TEST_CASE_FIXTURE(Editing, "undo while drawing cancels the wall in progress firs
 TEST_CASE_FIXTURE(Editing, "pointing at the sky draws nothing and reports why")
 {
 	editor.setMode(EditMode::Wall);
-	const Status pressed = editor.pointerPressed(Ray3{0.0, 0.0, 1000.0, 1.0, 0.0, 0.5});
+	const Status pressed = editor.pointerPressed(Ray3{0.0, -5000.0, 1000.0, 1.0, 0.0, 0.5}); // away from the wall
 	CHECK_FALSE(pressed.ok());
-	CHECK_FALSE(editor.pointerOnFloor().has_value());
+	CHECK_FALSE(editor.pointerOnPlan().has_value());
 	CHECK(editor.view().handles.empty());
 }
 
@@ -199,4 +199,47 @@ TEST_CASE_FIXTURE(Editing, "reset drops the selection and any gesture; a vanishe
 	editor.reset();
 	CHECK(editor.selection().isNil());
 	CHECK(editor.select(WallId{Uuid{9, 9}}).error().code == ErrorCode::NotFound);
+}
+
+TEST_CASE_FIXTURE(Editing, "dragging a shared corner moves every wall at it; the preview shows them all")
+{
+	const WallId east = document.addWall({3550, 0}, {3550, 3000}, 120, 2400).value();
+	REQUIRE(editor.select(wall).ok());
+	REQUIRE(editor.pointerPressed(down(3550.0, 0.0)).ok());
+	editor.pointerMoved(down(3560.0, 20.0)); // close to the old corner: the joined walls do not pull it back
+	editor.pointerMoved(down(4012.0, 12.0));
+	const EditView dragging = editor.view();
+	REQUIRE(dragging.previewWalls.size() == 2);
+	CHECK(dragging.previewWalls[0].end == Point2D{4000, 0});
+	CHECK(dragging.previewWalls[1].start == Point2D{4000, 0});
+
+	REQUIRE(editor.pointerReleased(down(4012.0, 12.0)).ok());
+	CHECK(document.project().findWall(wall)->end == Point2D{4000, 0});
+	CHECK(document.project().findWall(east)->start == Point2D{4000, 0});
+	CHECK(document.undoLabel() == "Move corner");
+	REQUIRE(editor.undo().ok());
+	CHECK(document.project().findWall(east)->start == Point2D{3550, 0});
+}
+
+TEST_CASE_FIXTURE(Editing, "pointing at the top of a wall from an oblique view targets that wall, not the floor behind it")
+{
+	editor.setMode(EditMode::Wall);
+	// Aimed at (1000, 0) on top of the 2400 mm wall; this ray meets the floor 4.6 m further north.
+	editor.pointerMoved(Ray3{1000.0, -5000.0, 5000.0, 0.0, 5000.0, -2600.0});
+	REQUIRE(editor.pointerOnPlan().has_value());
+	CHECK(editor.pointerOnPlan()->y_mm == doctest::Approx(0.0));
+	CHECK(editor.wallTool().hoverPoint() == Point2D{1000, 0});
+	CHECK(editor.wallTool().snapKind() == SnapKind::Wall);
+}
+
+TEST_CASE_FIXTURE(Editing, "a corner grabbed high up its handle keeps that offset while dragging")
+{
+	REQUIRE(editor.select(wall).ok());
+	// Grab the end handle at its top (2500 mm) from an oblique view: the floor behind is 5 m north of the corner.
+	REQUIRE(editor.pointerPressed(Ray3{3550.0, -5000.0, 5000.0, 0.0, 5000.0, -2500.0}).ok());
+	REQUIRE(editor.isDragging());
+	// 200 mm further east at the same height.
+	editor.pointerMoved(Ray3{3550.0, -5000.0, 5000.0, 200.0, 5000.0, -2500.0});
+	REQUIRE(editor.view().previewWalls.size() == 1);
+	CHECK(editor.view().previewWalls[0].end == Point2D{3950, 0});
 }

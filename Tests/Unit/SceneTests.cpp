@@ -3,6 +3,9 @@
 #include "F101/Cad/Document.h"
 #include "F101/Scene/SceneCompiler.h"
 
+#include <utility>
+#include <vector>
+
 using namespace f101;
 using namespace f101::scene;
 
@@ -56,19 +59,22 @@ TEST_CASE_FIXTURE(ReferenceProject, "node ids are deterministic; the hash follow
 	CHECK(compileScene(document.project()).nodes[0].contentHash == first.nodes[0].contentHash);
 }
 
-TEST_CASE_FIXTURE(ReferenceProject, "the view overlay styles nodes and adds previews and markers")
+TEST_CASE_FIXTURE(ReferenceProject, "the view overlay styles nodes, adds previews joined to the project, and markers")
 {
 	ViewOverlay overlay;
 	overlay.selectedWall = wallId;
-	overlay.preview = cad::Wall{cad::WallId{}, {3550, 0}, {3550, 3000}, 120, 2400}; // no id: previews have none
+	overlay.previewWalls = {cad::Wall{cad::WallId{}, {3550, 0}, {3550, 3000}, 120, 2400}}; // a new wall: no id yet
 	overlay.markers = {{0, 0}, {3550, 0}};
 
 	const Scene scene = compileScene(document.project(), overlay);
 	REQUIRE(scene.nodes.size() == 4);
 	CHECK(scene.nodes[0].style == NodeStyle::Selected);
-	CHECK(scene.nodes[1].id.value == "preview/wall");
+	CHECK(scene.nodes[1].id.value == "preview/wall/0");
 	CHECK(scene.nodes[1].style == NodeStyle::Preview);
 	CHECK(geometry::computeBounds(scene.nodes[1].mesh).max.y == 3000.0);
+	// The preview is joined like a real wall: the L corner is mitred in both.
+	CHECK(geometry::computeBounds(scene.nodes[0].mesh).max.x == doctest::Approx(3610.0));
+	CHECK(geometry::computeBounds(scene.nodes[1].mesh).min.y == doctest::Approx(-60.0));
 	CHECK(scene.nodes[2].id.value == "marker/0");
 	CHECK(scene.nodes[3].style == NodeStyle::Handle);
 	const geometry::Bounds3 marker = geometry::computeBounds(scene.nodes[3].mesh);
@@ -81,15 +87,50 @@ TEST_CASE_FIXTURE(ReferenceProject, "the view overlay styles nodes and adds prev
 	CHECK(compileScene(document.project()).nodes[0].style == NodeStyle::Normal);
 }
 
-TEST_CASE_FIXTURE(ReferenceProject, "a hidden wall wins over its selection; invalid previews are left out")
+TEST_CASE_FIXTURE(ReferenceProject, "a previewed wall replaces the wall with its id; invalid previews are left out")
 {
 	ViewOverlay overlay;
 	overlay.selectedWall = wallId;
-	overlay.hiddenWall = wallId;
-	overlay.preview = cad::Wall{cad::WallId{}, {0, 0}, {0, 0}, 120, 2400};
+	overlay.previewWalls = {cad::Wall{wallId, {0, 0}, {4200, 0}, 120, 2400}, cad::Wall{cad::WallId{}, {0, 0}, {0, 0}, 120, 2400}};
 	const Scene scene = compileScene(document.project(), overlay);
 	REQUIRE(scene.nodes.size() == 1);
-	CHECK(scene.nodes[0].style == NodeStyle::Hidden);
+	CHECK(scene.nodes[0].id == wallBodyNodeId(wallId)); // same node, so the same actor is updated in place
+	CHECK(scene.nodes[0].style == NodeStyle::Preview);  // the preview wins over the selection
+	CHECK(geometry::computeBounds(scene.nodes[0].mesh).max.x == 4200.0);
+	CHECK(document.project().walls[0].end == cad::Point2D{3550, 0});
+}
+
+TEST_CASE("walls come first, then joint fills, then the floors of the rooms they enclose")
+{
+	cad::Document document{cad::makeSequentialUuidSource()};
+	for (const auto& [start, end] : std::vector<std::pair<cad::Point2D, cad::Point2D>>{
+			 {{0, 0}, {4000, 0}}, {{4000, 0}, {4000, 3000}}, {{4000, 3000}, {0, 3000}}, {{0, 3000}, {0, 0}},
+			 {{2000, 0}, {2000, 1500}}, {{2000, 1500}, {2000, 3000}}, {{2000, 1500}, {4000, 1500}}})
+	{
+		REQUIRE(document.addWall(start, end, 120, 2400).ok());
+	}
+	const Scene scene = compileScene(document.project());
+	REQUIRE(scene.nodes.size() == 7 + 1 + 3);
+	const SceneNode& joint = scene.nodes[7];
+	CHECK(joint.sourceKind == SourceKind::Joint);
+	CHECK(joint.id.value == "00000000-0000-0000-0000-000000000005/joint-end"); // three ends meet at (2000, 1500)
+	CHECK(geometry::computeBounds(joint.mesh).max.z == 2400.0);
+	REQUIRE(scene.rooms.size() == 3);
+	for (std::size_t i = 0; i < 3; ++i)
+	{
+		const SceneNode& floor = scene.nodes[8 + i];
+		CHECK(floor.sourceKind == SourceKind::Room);
+		CHECK(floor.id.value == scene.rooms[i].key + "/floor");
+		CHECK(floor.sourceId == scene.rooms[i].key);
+		CHECK(geometry::computeBounds(floor.mesh).max.z == geometry::FloorThicknessMm);
+	}
+	double total = 0.0;
+	for (const geometry::Room& room : scene.rooms)
+	{
+		total += room.areaMm2;
+	}
+	CHECK(total == doctest::Approx(1880.0 * 2880.0 + 2 * 1880.0 * 1380.0));
+	CHECK(compileScene(document.project()).nodes[10].contentHash == scene.nodes[10].contentHash); // deterministic
 }
 
 TEST_CASE_FIXTURE(ReferenceProject, "removing a wall removes its node")

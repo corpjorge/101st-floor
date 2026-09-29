@@ -41,7 +41,7 @@ TEST_CASE("existing endpoints win over the grid within the tolerance")
 	CHECK(far.kind == SnapKind::Grid);
 
 	// A wall never snaps to itself while one of its ends is dragged.
-	CHECK(snapPoint(project, {3500.0, 90.0}, SnapSettings{}, WallId{Uuid{0, 1}}).kind == SnapKind::Grid);
+	CHECK(snapPoint(project, {3500.0, 90.0}, SnapSettings{}, {WallId{Uuid{0, 1}}}).kind == SnapKind::Grid);
 }
 
 TEST_CASE("the second point snaps to 0/15/30/45/90 degrees with the length on the grid")
@@ -103,4 +103,32 @@ TEST_CASE("an angle snap keeps the exact direction for typed lengths")
 	const double angle = std::atan2(snapped.constrained.y_mm, snapped.constrained.x_mm) * 180.0 / std::numbers::pi;
 	CHECK(angle == doctest::Approx(75.0).epsilon(1e-12));
 	CHECK(std::fabs(std::hypot(static_cast<double>(snapped.point.x_mm), static_cast<double>(snapped.point.y_mm)) - 1200.0) < 0.5);
+}
+
+TEST_CASE("a point near a wall snaps onto its axis (T junction)")
+{
+	const Project project = oneWall();
+	const SnapResult onWall = snapPoint(project, {1234.0, 95.0}, SnapSettings{});
+	CHECK(onWall.kind == SnapKind::Wall);
+	CHECK(onWall.point == Point2D{1234, 0});
+	CHECK(snapPoint(project, {1234.0, 160.0}, SnapSettings{}).kind == SnapKind::Grid); // beyond 150 mm
+	SnapSettings noWallSnap;
+	noWallSnap.wallToleranceMm = 0.0;
+	CHECK(snapPoint(project, {1234.0, 95.0}, noWallSnap).kind == SnapKind::Grid);
+	CHECK(snapPoint(project, {1234.0, 95.0}, SnapSettings{}, {WallId{Uuid{0, 1}}}).kind == SnapKind::Grid);
+}
+
+TEST_CASE("drawing towards a wall stops on it at the snapped angle")
+{
+	const Project project = oneWall();
+	// From (1000, 3000) heading almost straight down: the 90 degree ray crosses the wall's axis at (1000, 0).
+	const SnapResult perpendicular = snapFromAnchor(project, {1000, 3000}, {1030.0, 80.0}, SnapSettings{});
+	CHECK(perpendicular.kind == SnapKind::Wall);
+	CHECK(perpendicular.point == Point2D{1000, 0});
+	// Too far from where the ray crosses, but near the wall: the nearest point on it.
+	const SnapResult nearest = snapFromAnchor(project, {1000, 3000}, {1300.0, 100.0}, SnapSettings{});
+	CHECK(nearest.kind == SnapKind::Wall);
+	CHECK(nearest.point == Point2D{1300, 0});
+	// Drawing from a point on the wall never snaps back onto the same wall.
+	CHECK(snapFromAnchor(project, {1000, 0}, {1600.0, 40.0}, SnapSettings{}).kind == SnapKind::Angle);
 }
