@@ -317,7 +317,7 @@ TEST_CASE("the swing symbol of a door lies on the floor, on the side it opens to
 	CHECK(symbol(window(OpeningOperation::Hinged, OpeningEnd::Start, WallSide::Left, 0)).sections.empty());
 }
 
-TEST_CASE("door swings are editing symbols: in the edited view on its levels, never for exporters")
+TEST_CASE("door swings are editing symbols: in the edited view on its levels, never for exporters or photos")
 {
 	Document document{makeSequentialUuidSource()};
 	const LevelId ground = document.project().levels.front().id;
@@ -346,6 +346,8 @@ TEST_CASE("door swings are editing symbols: in the edited view on its levels, ne
 
 	overlay.activeLevel = ground;
 	CHECK(scene::compileScene(document.project(), overlay).findNode(lowSwing) != nullptr);
+	overlay.symbols = false; // a clean view, e.g. a photo (ADR-0018)
+	CHECK(scene::compileScene(document.project(), overlay).findNode(lowSwing) == nullptr);
 }
 
 TEST_CASE_FIXTURE(HostWithTee, "the door tool opens towards the side the pointer is on; Space moves the hinges")
@@ -371,6 +373,39 @@ TEST_CASE_FIXTURE(HostWithTee, "the door tool opens towards the side the pointer
 	CHECK(editor.openingPlacement()->opening.operation == OpeningOperation::DoubleHinged); // the window tool's default
 	editor.setMode(EditMode::Select);
 	CHECK(editor.flip().error().code == ErrorCode::NotFound);
+}
+
+TEST_CASE_FIXTURE(HostWithTee, "the door and window tools place the type chosen for each; a door cannot be fixed")
+{
+	EditController editor{document, EditSettings{}};
+	editor.setMode(EditMode::Door);
+	editor.pointerMoved(down(2600.0, 30.0));
+	REQUIRE(editor.openingPlacement().has_value());
+	CHECK(editor.openingPlacement()->opening.offsetMm == 2150); // a hinged door, centred on the pointer
+	// A pocket door: the preview follows at once and makes room for its pocket before it (the T is at 1950..2050).
+	REQUIRE(editor.setNewOpeningOperation(OpeningKind::Door, OpeningOperation::Sliding).ok());
+	CHECK(editor.settings().door.operation == OpeningOperation::Sliding);
+	REQUIRE(editor.openingPlacement().has_value());
+	CHECK(editor.openingPlacement()->opening.operation == OpeningOperation::Sliding);
+	CHECK(editor.openingPlacement()->opening.offsetMm == 2950);
+	REQUIRE(editor.pointerPressed(down(2600.0, 30.0)).ok());
+	CHECK(document.project().findWall(host)->openings.front().operation == OpeningOperation::Sliding);
+	CHECK(editor.setNewOpeningOperation(OpeningKind::Door, OpeningOperation::Fixed).error().message == "A door cannot be fixed");
+	CHECK(editor.settings().door.operation == OpeningOperation::Sliding);
+
+	// Each kind keeps its own type; choosing one changes nothing in the project.
+	REQUIRE(editor.setNewOpeningOperation(OpeningKind::Window, OpeningOperation::Fixed).ok());
+	CHECK(document.undoLabel() == "Add door");
+	editor.setMode(EditMode::Window);
+	editor.pointerMoved(down(5000.0, 30.0));
+	REQUIRE(editor.openingPlacement().has_value());
+	CHECK(editor.openingPlacement()->opening.operation == OpeningOperation::Fixed);
+	REQUIRE(editor.pointerPressed(down(5000.0, 30.0)).ok());
+	const Opening& pane = document.project().findWall(host)->openings.back();
+	CHECK(pane.kind == OpeningKind::Window);
+	CHECK(pane.operation == OpeningOperation::Fixed);
+	CHECK(pane.openPercent == 0);
+	CHECK(editor.settings().door.operation == OpeningOperation::Sliding);
 }
 
 TEST_CASE_FIXTURE(HostWithTee, "the selected opening changes how it opens, its hinges, its side and how open it is shown")

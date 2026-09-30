@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <string>
+#include <utility>
 
 namespace f101::cad
 {
@@ -16,22 +17,54 @@ namespace f101::cad
 		}
 	}
 
+	namespace
+	{
+		constexpr std::pair<FurnitureCategory, std::string_view> FurnitureCategoryIds[] = {{FurnitureCategory::Beds, "beds"},
+			{FurnitureCategory::Seating, "seating"}, {FurnitureCategory::Sofas, "sofas"}, {FurnitureCategory::Tables, "tables"},
+			{FurnitureCategory::Storage, "storage"}, {FurnitureCategory::Kitchen, "kitchen"}, {FurnitureCategory::Bathroom, "bathroom"},
+			{FurnitureCategory::Lighting, "lighting"}, {FurnitureCategory::Decor, "decor"}};
+	}
+
+	std::string_view furnitureCategoryId(FurnitureCategory category)
+	{
+		for (const auto& [value, id] : FurnitureCategoryIds)
+		{
+			if (value == category)
+			{
+				return id;
+			}
+		}
+		return "decor";
+	}
+
+	std::optional<FurnitureCategory> parseFurnitureCategory(std::string_view id)
+	{
+		for (const auto& [value, name] : FurnitureCategoryIds)
+		{
+			if (name == id)
+			{
+				return value;
+			}
+		}
+		return std::nullopt;
+	}
+
 	const std::vector<FurnitureType>& furnitureCatalogue()
 	{
-		// id, default W D H, W range, D range, H range, against a wall, body finish.
+		// id, default W D H, W range, D range, H range, against a wall, body finish, category.
 		static const std::vector<FurnitureType> catalogue{
-			{"bed-double", 1500, 2000, 900, 1350, 1800, 1900, 2200, 600, 1300, true, "wood-oak"},
-			{"bed-single", 900, 2000, 900, 800, 1200, 1900, 2200, 600, 1300, true, "wood-oak"},
-			{"sofa", 2000, 900, 850, 1400, 3200, 800, 1100, 700, 1000, true, "fabric-grey"},
-			{"table", 1600, 900, 750, 700, 3000, 600, 1400, 650, 1100, false, "wood-oak"},
-			{"chair", 450, 500, 900, 400, 600, 400, 600, 750, 1100, false, "wood-oak"},
-			{"wardrobe", 1200, 600, 2200, 500, 3600, 450, 700, 1600, 2700, true, "lacquer-white"},
-			{"kitchen-counter", 2400, 600, 900, 600, 6000, 550, 700, 850, 950, true, "lacquer-white"},
-			{"fridge", 600, 650, 1850, 550, 950, 600, 750, 1400, 2100, true, "steel-brushed"},
-			{"toilet", 380, 700, 780, 350, 450, 600, 800, 700, 850, true, "ceramic-white"},
-			{"washbasin", 600, 460, 850, 400, 1600, 400, 600, 800, 950, true, "lacquer-white"},
-			{"bathtub", 1700, 750, 550, 1400, 1900, 700, 900, 450, 650, true, "ceramic-white"},
-			{"shower-tray", 900, 900, 40, 700, 1800, 700, 1200, 20, 120, true, "ceramic-white"},
+			{"bed-double", 1500, 2000, 900, 1350, 1800, 1900, 2200, 600, 1300, true, "wood-oak", FurnitureCategory::Beds},
+			{"bed-single", 900, 2000, 900, 800, 1200, 1900, 2200, 600, 1300, true, "wood-oak", FurnitureCategory::Beds},
+			{"sofa", 2000, 900, 850, 1400, 3200, 800, 1100, 700, 1000, true, "fabric-grey", FurnitureCategory::Sofas},
+			{"table", 1600, 900, 750, 700, 3000, 600, 1400, 650, 1100, false, "wood-oak", FurnitureCategory::Tables},
+			{"chair", 450, 500, 900, 400, 600, 400, 600, 750, 1100, false, "wood-oak", FurnitureCategory::Seating},
+			{"wardrobe", 1200, 600, 2200, 500, 3600, 450, 700, 1600, 2700, true, "lacquer-white", FurnitureCategory::Storage},
+			{"kitchen-counter", 2400, 600, 900, 600, 6000, 550, 700, 850, 950, true, "lacquer-white", FurnitureCategory::Kitchen},
+			{"fridge", 600, 650, 1850, 550, 950, 600, 750, 1400, 2100, true, "steel-brushed", FurnitureCategory::Kitchen},
+			{"toilet", 380, 700, 780, 350, 450, 600, 800, 700, 850, true, "ceramic-white", FurnitureCategory::Bathroom},
+			{"washbasin", 600, 460, 850, 400, 1600, 400, 600, 800, 950, true, "lacquer-white", FurnitureCategory::Bathroom},
+			{"bathtub", 1700, 750, 550, 1400, 1900, 700, 900, 450, 650, true, "ceramic-white", FurnitureCategory::Bathroom},
+			{"shower-tray", 900, 900, 40, 700, 1800, 700, 1200, 20, 120, true, "ceramic-white", FurnitureCategory::Bathroom},
 		};
 		return catalogue;
 	}

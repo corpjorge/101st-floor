@@ -419,6 +419,57 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("library", [this]()
+	{
+		It("lists the built-in library by category and adds an item to the project once, used like any asset", [this]()
+		{
+			const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101ToolsetLibrary")));
+			IFileManager::Get().DeleteDirectory(*Folder, false, true);
+			UFloor101DocumentToolset::SaveProject(FPaths::Combine(Folder, TEXT("project.json"))); // the assets go next to it
+
+			const TArray<FFloor101LibraryItem> Items = UFloor101DocumentToolset::GetLibrary();
+			const int32 Models = Items.FilterByPredicate([](const FFloor101LibraryItem& Item) { return Item.Kind == EFloor101AssetKind::Model; }).Num();
+			TestTrue(TEXT("50 models or more"), Models >= 50);
+			TestTrue(TEXT("14 textures or more"), Items.Num() - Models >= 14);
+			const FFloor101LibraryItem* Windsor = Items.FindByPredicate([](const FFloor101LibraryItem& Item) { return Item.Id == TEXT("chair-windsor"); });
+			if (!TestNotNull(TEXT("the Windsor chair"), Windsor))
+			{
+				return;
+			}
+			TestEqual(TEXT("a chair"), Windsor->Category, FString(TEXT("seating")));
+			TestTrue(TEXT("the catalogue's chair too"), UFloor101DocumentToolset::GetFurnitureTypes().ContainsByPredicate(
+				[](const FFloor101FurnitureTypeInfo& Type) { return Type.Id == TEXT("chair") && Type.Category == TEXT("seating"); }));
+			TestTrue(TEXT("finishes by category"), UFloor101DocumentToolset::GetFinishes().ContainsByPredicate(
+				[](const FFloor101FinishInfo& Finish) { return Finish.Id == TEXT("tile-grey") && Finish.Category == TEXT("tiles"); }));
+
+			const FFloor101AssetInfo Chair = UFloor101DocumentToolset::AddFromLibrary(TEXT("chair-windsor"));
+			TestTrue(TEXT("a model"), Chair.Kind == EFloor101AssetKind::Model);
+			TestEqual(TEXT("from the library"), Chair.Library, FString(TEXT("chair-windsor")));
+			TestEqual(TEXT("named as in the library"), Chair.Name, Windsor->Name);
+			TestTrue(TEXT("copied into the project"), FPaths::FileExists(FPaths::Combine(Folder, Chair.File)));
+			TestTrue(TEXT("readable"), Chair.Problem.IsEmpty());
+			TestEqual(TEXT("added once"), UFloor101DocumentToolset::AddFromLibrary(TEXT("chair-windsor")).Id, Chair.Id);
+			const FFloor101AssetInfo Oak = UFloor101DocumentToolset::AddFromLibrary(TEXT("photo-laminate-oak"));
+			TestTrue(TEXT("a texture"), Oak.Kind == EFloor101AssetKind::Texture);
+			TestEqual(TEXT("its real size"), Oak.TextureWidthMm, int64(1700));
+			TestEqual(TEXT("both in the project"), UFloor101DocumentToolset::GetAssets().Num(), 2);
+
+			const FFloor101FurnitureInfo Placed = UFloor101DocumentToolset::AddFurniture(TEXT(""), Chair.Ref, 140000, 0, 0, 0, 0, 0);
+			TestEqual(TEXT("placed at the model's size"), Placed.WidthMm, Chair.WidthMm);
+			TestNotNull(TEXT("its actor"), Placed.Actor.Get());
+			UFloor101DocumentToolset::RemoveFurniture(Placed.Id);
+			UFloor101DocumentToolset::RemoveAsset(Oak.Id);
+			UFloor101DocumentToolset::RemoveAsset(Chair.Id);
+			TestEqual(TEXT("none left"), UFloor101DocumentToolset::GetAssets().Num(), 0);
+		});
+
+		It("raises on an item the library does not have", [this]()
+		{
+			AddExpectedMessagePlain(TEXT("F101: The library has no item"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("The library has no item 'sofa-flying'"), [] { UFloor101DocumentToolset::AddFromLibrary(TEXT("sofa-flying")); });
+		});
+	});
+
 	Describe("history and files", [this]()
 	{
 		It("undoes and redoes a change, returning what it was", [this]()

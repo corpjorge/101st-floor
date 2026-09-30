@@ -63,7 +63,10 @@ exacta, sin snapping, con planta, centro, giro en centésimas de grado y medidas
 `bForFurniture`), `GetAssets`/`ImportAsset`/`SetTextureAsset`/`SetModelAsset`/`RemoveAsset` (assets importados, ADR-0017:
 `ImportAsset` copia una textura .png/.jpg o un modelo .glb/.gltf/.obj junto al proyecto guardado y devuelve su `Ref`,
 `asset:<uuid>`, que vale como acabado o como tipo de mueble; `AddFurniture` con un modelo usa sus medidas por defecto;
-`RemoveAsset` falla si algo lo usa), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
+`RemoveAsset` falla si algo lo usa; los assets informan `Library`), `GetLibrary`/`AddFromLibrary` (biblioteca integrada,
+ADR-0019: muebles y texturas con categoría, medidas y autor; `AddFromLibrary` copia el elemento al proyecto como asset,
+o devuelve el ya añadido, y su `Ref` vale como tipo de mueble o acabado; `GetFinishes` y `GetFurnitureTypes` informan
+`Category`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
 (vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`

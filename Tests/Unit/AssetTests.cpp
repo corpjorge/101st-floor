@@ -113,6 +113,18 @@ TEST_CASE("asset references, folders and paths stay inside the project")
 	chair.model.frontQuarterTurns = 4;
 	CHECK_FALSE(validateAsset(chair).ok());
 	CHECK(millimetersPerUnit(ModelUnit::Inch) == doctest::Approx(25.4));
+	// From the built-in library (ADR-0019): its id is lower-case letters, digits and hyphens.
+	chair = model(1);
+	chair.library = "chair-windsor-2";
+	CHECK(validateAsset(chair).ok());
+	for (const char* bad : {"Chair", "chair windsor", "silla_1", "sillón"})
+	{
+		CAPTURE(bad);
+		chair.library = bad;
+		CHECK_FALSE(validateAsset(chair).ok());
+	}
+	CHECK(isLibraryId(std::string(64, 'a')));
+	CHECK_FALSE(isLibraryId(std::string(65, 'a')));
 }
 
 TEST_CASE_FIXTURE(Library, "imported textures are finishes of the surfaces they allow; models are furniture types")
@@ -204,7 +216,7 @@ TEST_CASE_FIXTURE(Library, "assets are imported, changed and deleted as undoable
 	CHECK(document.execute(DeleteAssetCommand{AssetId{Uuid{1, 1}}}).error().code == ErrorCode::NotFound);
 }
 
-TEST_CASE_FIXTURE(Library, "project.json schema 8 saves the asset library and refuses files outside the project")
+TEST_CASE_FIXTURE(Library, "project.json saves the asset library (schema 8; the library id, 9) and refuses files outside the project")
 {
 	Asset turned = chair;
 	turned.model.unit = ModelUnit::Centimeter;
@@ -214,7 +226,7 @@ TEST_CASE_FIXTURE(Library, "project.json schema 8 saves the asset library and re
 	REQUIRE(document.execute(ChangeAssetCommand{turned}).ok());
 	REQUIRE(document.execute(SetWallFinishCommand{wall, WallSide::Left, assetRef(parquet.id)}).ok());
 	const std::string json = writeProjectJson(document.project());
-	CHECK(json.find("\"schemaVersion\": 8") != std::string::npos);
+	CHECK(json.find("\"schemaVersion\": 9") != std::string::npos);
 	CHECK(json.find("\"kind\": \"texture\"") != std::string::npos);
 	CHECK(json.find("\"surfaces\": [\n          \"floors\"\n        ]") != std::string::npos);
 	CHECK(json.find("\"unit\": \"cm\"") != std::string::npos);

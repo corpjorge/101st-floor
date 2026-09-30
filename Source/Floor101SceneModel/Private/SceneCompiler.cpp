@@ -464,8 +464,8 @@ namespace f101::scene
 			shown.furnitureStyles.push_back(NodeStyle::Preview);
 		}
 
-		Scene scene = compileProject(previewed, shown, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom, true,
-			models);
+		Scene scene = compileProject(previewed, shown, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom,
+			overlay.symbols, models);
 		// Handles stand on the level being edited.
 		const double markerElevation = static_cast<double>(cad::levelElevationMm(project, overlay.activeLevel));
 		for (std::size_t index = 0; index < overlay.markers.size(); ++index)

@@ -2,6 +2,7 @@
 
 #include "Engine/World.h"
 #include "F101/Assets/AssetImport.h"
+#include "F101/Assets/Library.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/ProjectFile.h"
@@ -14,6 +15,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Floor101.h"
 #include "Floor101FinishLibrary.h"
+#include "Floor101PathTracing.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
 #include "Floor101SceneSpace.h"
@@ -443,6 +445,67 @@ FString UFloor101DocumentSubsystem::GetAssetProblem(const f101::cad::AssetId& Id
 	return UTF8_TO_TCHAR(Models->error(Id).c_str());
 }
 
+FString UFloor101DocumentSubsystem::GetLibraryFolder()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Library")));
+}
+
+const f101::assets::Library& UFloor101DocumentSubsystem::GetLibrary()
+{
+	static const f101::assets::Library Library = []()
+	{
+		f101::Result<f101::assets::Library> Loaded = f101::assets::loadLibrary(ToFilesystemPath(GetLibraryFolder()));
+		if (!Loaded)
+		{
+			UE_LOG(LogFloor101, Error, TEXT("F101: the library in %s cannot be read: %s"), *GetLibraryFolder(),
+				UTF8_TO_TCHAR(Loaded.error().message.c_str()));
+			return f101::assets::Library{};
+		}
+		f101::assets::Library Read = std::move(Loaded).value();
+		UE_LOG(LogFloor101, Log, TEXT("F101: library: %d pieces of furniture and %d textures"), static_cast<int32>(Read.furniture.size()),
+			static_cast<int32>(Read.textures.size()));
+		return Read;
+	}();
+	return Library;
+}
+
+f101::Result<f101::cad::AssetId> UFloor101DocumentSubsystem::AddFromLibrary(const FString& ItemId)
+{
+	const std::string Id = TCHAR_TO_UTF8(*ItemId);
+	if (const f101::cad::Asset* Added = f101::assets::findLibraryAsset(Document->project(), Id))
+	{
+		return Added->id;
+	}
+	const f101::assets::Library& Library = GetLibrary();
+	const f101::assets::LibraryFurniture* Furniture = Library.findFurniture(Id);
+	const f101::assets::LibraryTexture* Texture = Furniture ? nullptr : Library.findTexture(Id);
+	if (!Furniture && !Texture)
+	{
+		const f101::Error Missing{f101::ErrorCode::NotFound, "The library has no item '" + Id + "'"};
+		SetStatus(ToText(Missing.message), true);
+		return Missing;
+	}
+	const f101::cad::AssetId AssetId{f101::cad::makeRandomUuidSource()()};
+	const std::filesystem::path LibraryFolder = ToFilesystemPath(GetLibraryFolder());
+	const std::filesystem::path ProjectFolder = ToFilesystemPath(GetProjectFolder());
+	const f101::Result<f101::assets::ImportedAsset> Imported = Furniture
+		? f101::assets::importLibraryFurniture(*Furniture, LibraryFolder, ProjectFolder, AssetId)
+		: f101::assets::importLibraryTexture(*Texture, LibraryFolder, ProjectFolder, AssetId);
+	if (!Imported)
+	{
+		SetStatus(ToText(Imported.error().message), true);
+		return Imported.error();
+	}
+	const f101::Result<f101::cad::Transaction> AddedAsset = Document->execute(f101::cad::AddAssetCommand{Imported.value().asset});
+	if (!AddedAsset)
+	{
+		SetStatus(ToText(AddedAsset.error().message), true);
+		return AddedAsset.error();
+	}
+	SetStatus(FText::Format(LOCTEXT("AddedFromLibrary", "Añadido de la biblioteca: {0}"), ToText(Imported.value().asset.name)), false);
+	return AssetId;
+}
+
 void UFloor101DocumentSubsystem::RegisterAssetFinishes()
 {
 	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
@@ -535,6 +598,44 @@ FString UFloor101DocumentSubsystem::GetDefaultPlanPath(const FString& Extension)
 		Slug.AppendChar(FChar::IsWhitespace(Character) || FCString::Strchr(TEXT("\\/:*?\"<>|"), Character) ? TEXT('-') : Character);
 	}
 	return FPaths::Combine(FPaths::GetPath(Project), FPaths::GetBaseFilename(Project) + TEXT("-") + Slug + TEXT(".") + Extension);
+}
+
+void UFloor101DocumentSubsystem::SetPhotoMode(bool bPhoto)
+{
+	if (bPhotoMode == bPhoto)
+	{
+		return;
+	}
+	bPhotoMode = bPhoto;
+	SetStatus(FText::GetEmpty(), false);
+	Resync(false);
+}
+
+FString UFloor101DocumentSubsystem::GetDefaultPhotoPath() const
+{
+	const FString Project = ProjectPath.IsEmpty() ? GetDefaultProjectPath() : ProjectPath;
+	return FPaths::Combine(FPaths::GetPath(Project),
+		FPaths::GetBaseFilename(Project) + TEXT("-foto-") + FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")) + TEXT(".png"));
+}
+
+f101::Status UFloor101DocumentSubsystem::SavePhoto(const FString& Path)
+{
+	auto Fail = [this](const std::string& Message) -> f101::Status
+	{
+		SetStatus(ToText(Message), true);
+		return f101::Error{f101::ErrorCode::InvalidArgument, Message};
+	};
+	if (!FPaths::GetExtension(Path).Equals(TEXT("png"), ESearchCase::IgnoreCase))
+	{
+		return Fail("Save the photo as .png");
+	}
+	if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), true))
+	{
+		return Fail("Cannot create the folder " + std::string(TCHAR_TO_UTF8(*FPaths::GetPath(Path))));
+	}
+	Floor101::PathTracing::RequestImage(Path);
+	SetStatus(FText::Format(LOCTEXT("PhotoSaved", "Foto guardada: {0}"), FText::FromString(Path)), false);
+	return f101::Status::success();
 }
 
 f101::Status UFloor101DocumentSubsystem::ExportPlan(const FString& Path, const f101::cad::LevelId& Level)
@@ -673,6 +774,15 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.selectedRoom = View.selectedRoom;
 	Overlay.selectedFurniture = View.selectedFurniture;
 	Overlay.previewFurniture = View.previewFurniture;
+	if (bPhotoMode)
+	{
+		// A photo shows the project as it is (ADR-0018): no selection, gesture, handles or door swings.
+		const f101::scene::ViewOverlay Levels = Overlay;
+		Overlay = f101::scene::ViewOverlay{};
+		Overlay.activeLevel = Levels.activeLevel;
+		Overlay.showAllLevels = Levels.showAllLevels;
+		Overlay.symbols = false;
+	}
 
 	// Imported assets (ADR-0017): their looks registered first, models read from the project's folder (once per file).
 	RegisterAssetFinishes();

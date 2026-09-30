@@ -26,6 +26,7 @@ namespace f101::drawing
 namespace f101::assets
 {
 	class ModelCache;
+	struct Library;
 }
 
 namespace f101::cad
@@ -105,6 +106,16 @@ public:
 	// Next to the project file (or the default one): "<file name>-<level>.<Extension>", e.g. "casa-planta-baja.svg".
 	FString GetDefaultPlanPath(const FString& Extension) const;
 
+	// Photo mode (ADR-0018): the scene is shown without editing marks (selection, previews, handles, door swings); the
+	// viewport client path traces it (UFloor101GameViewportClient::SetPhotoMode).
+	void SetPhotoMode(bool bPhoto);
+	bool IsPhotoMode() const { return bPhotoMode; }
+	// Writes the view as it is shown now to a PNG (without the UI) and says so in the status. The image is written a frame
+	// later; a photo is best saved once its samples are complete.
+	f101::Status SavePhoto(const FString& Path);
+	// Next to the project file (or the default one): "<file name>-foto-<date>-<time>.png".
+	FString GetDefaultPhotoPath() const;
+
 	// Imported assets (ADR-0017). Their files live in the project's folder (the project file's, or the default one's)
 	// under assets/<uuid>/, and move with the project when it is saved somewhere else.
 	FString GetProjectFolder() const;
@@ -120,6 +131,14 @@ public:
 	FString GetAssetFilePath(const f101::cad::Asset& Asset) const;
 	// Why an imported model cannot be shown (its pieces show as boxes); empty if it can.
 	FString GetAssetProblem(const f101::cad::AssetId& Id) const;
+
+	// The built-in library (ADR-0019): furniture and textures shipped in <project>/Library, read once per run. Empty, with
+	// an error logged, if it cannot be read.
+	static const f101::assets::Library& GetLibrary();
+	static FString GetLibraryFolder();
+	// The project's asset made from a library item (furniture or texture): the one added before, else the item copied
+	// into the project's folder and added (one undoable step), like an import.
+	f101::Result<f101::cad::AssetId> AddFromLibrary(const FString& ItemId);
 
 	// MVP 0 reference wall: (0,0) -> (3550,0) mm, 120 mm thick, 2400 mm high. No-op if already loaded.
 	void LoadReferenceWall();
@@ -144,6 +163,7 @@ private:
 	TPimplPtr<f101::drawing::PlanDrawing> PlanDrawing;
 	TPimplPtr<f101::assets::ModelCache> Models;
 	bool bPlanView = false;
+	bool bPhotoMode = false;
 	std::size_t ListenerHandle = 0;
 	f101::cad::WallId ReferenceWallId;
 

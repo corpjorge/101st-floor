@@ -1,0 +1,482 @@
+{
+  "version": 1,
+  "furniture": [
+    {
+      "id": "chair-classic",
+      "name": "Silla clásica de roble",
+      "category": "seating",
+      "file": "chair-classic.glb",
+      "thumbnail": "chair-classic.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "chair-windsor",
+      "name": "Silla Windsor",
+      "category": "seating",
+      "file": "chair-windsor.glb",
+      "thumbnail": "chair-windsor.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "chair-upholstered",
+      "name": "Silla tapizada de terciopelo",
+      "category": "seating",
+      "file": "chair-upholstered.glb",
+      "thumbnail": "chair-upholstered.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "chair-scandi",
+      "name": "Silla nórdica",
+      "category": "seating",
+      "file": "chair-scandi.glb",
+      "thumbnail": "chair-scandi.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "chair-office",
+      "name": "Silla de oficina",
+      "category": "seating",
+      "file": "chair-office.glb",
+      "thumbnail": "chair-office.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "stool-bar",
+      "name": "Taburete alto",
+      "category": "seating",
+      "file": "stool-bar.glb",
+      "thumbnail": "stool-bar.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "stool-low",
+      "name": "Taburete bajo",
+      "category": "seating",
+      "file": "stool-low.glb",
+      "thumbnail": "stool-low.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bench-oak",
+      "name": "Banco de roble",
+      "category": "seating",
+      "file": "bench-oak.glb",
+      "thumbnail": "bench-oak.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "sofa-two-seat",
+      "name": "Sofá de dos plazas",
+      "category": "sofas",
+      "file": "sofa-two-seat.glb",
+      "thumbnail": "sofa-two-seat.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "sofa-three-seat",
+      "name": "Sofá de tres plazas",
+      "category": "sofas",
+      "file": "sofa-three-seat.glb",
+      "thumbnail": "sofa-three-seat.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "sofa-corner",
+      "name": "Sofá rinconera",
+      "category": "sofas",
+      "file": "sofa-corner.glb",
+      "thumbnail": "sofa-corner.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "sofa-chaise",
+      "name": "Sofá con chaise longue",
+      "category": "sofas",
+      "file": "sofa-chaise.glb",
+      "thumbnail": "sofa-chaise.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "armchair-club",
+      "name": "Sillón club de cuero",
+      "category": "sofas",
+      "file": "armchair-club.glb",
+      "thumbnail": "armchair-club.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "armchair-lounge",
+      "name": "Butaca de lectura",
+      "category": "sofas",
+      "file": "armchair-lounge.glb",
+      "thumbnail": "armchair-lounge.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "pouf",
+      "name": "Puf",
+      "category": "sofas",
+      "file": "pouf.glb",
+      "thumbnail": "pouf.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "table-dining-rect",
+      "name": "Mesa de comedor rectangular",
+      "category": "tables",
+      "file": "table-dining-rect.glb",
+      "thumbnail": "table-dining-rect.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "table-dining-round",
+      "name": "Mesa de comedor redonda",
+      "category": "tables",
+      "file": "table-dining-round.glb",
+      "thumbnail": "table-dining-round.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "table-coffee",
+      "name": "Mesa de centro de mármol",
+      "category": "tables",
+      "file": "table-coffee.glb",
+      "thumbnail": "table-coffee.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "table-side",
+      "name": "Mesa auxiliar",
+      "category": "tables",
+      "file": "table-side.glb",
+      "thumbnail": "table-side.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "desk",
+      "name": "Escritorio con cajonera",
+      "category": "tables",
+      "file": "desk.glb",
+      "thumbnail": "desk.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "table-console",
+      "name": "Consola",
+      "category": "tables",
+      "file": "table-console.glb",
+      "thumbnail": "table-console.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bedside",
+      "name": "Mesilla de noche",
+      "category": "tables",
+      "file": "bedside.glb",
+      "thumbnail": "bedside.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bed-upholstered",
+      "name": "Cama doble tapizada",
+      "category": "beds",
+      "file": "bed-upholstered.glb",
+      "thumbnail": "bed-upholstered.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bed-king-walnut",
+      "name": "Cama king de nogal",
+      "category": "beds",
+      "file": "bed-king-walnut.glb",
+      "thumbnail": "bed-king-walnut.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bed-iron",
+      "name": "Cama individual de hierro",
+      "category": "beds",
+      "file": "bed-iron.glb",
+      "thumbnail": "bed-iron.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bunk-bed",
+      "name": "Litera",
+      "category": "beds",
+      "file": "bunk-bed.glb",
+      "thumbnail": "bunk-bed.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "crib",
+      "name": "Cuna",
+      "category": "beds",
+      "file": "crib.glb",
+      "thumbnail": "crib.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bookshelf",
+      "name": "Estantería con libros",
+      "category": "storage",
+      "file": "bookshelf.glb",
+      "thumbnail": "bookshelf.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "sideboard",
+      "name": "Aparador de nogal",
+      "category": "storage",
+      "file": "sideboard.glb",
+      "thumbnail": "sideboard.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "dresser",
+      "name": "Cómoda de tres cajones",
+      "category": "storage",
+      "file": "dresser.glb",
+      "thumbnail": "dresser.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "tv-unit",
+      "name": "Mueble de TV con televisor",
+      "category": "storage",
+      "file": "tv-unit.glb",
+      "thumbnail": "tv-unit.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "wardrobe-sliding",
+      "name": "Armario de puertas correderas",
+      "category": "storage",
+      "file": "wardrobe-sliding.glb",
+      "thumbnail": "wardrobe-sliding.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "shoe-cabinet",
+      "name": "Zapatero",
+      "category": "storage",
+      "file": "shoe-cabinet.glb",
+      "thumbnail": "shoe-cabinet.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "kitchen-island",
+      "name": "Isla de cocina con taburetes",
+      "category": "kitchen",
+      "file": "kitchen-island.glb",
+      "thumbnail": "kitchen-island.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "range-cooker",
+      "name": "Cocina con horno",
+      "category": "kitchen",
+      "file": "range-cooker.glb",
+      "thumbnail": "range-cooker.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "dishwasher",
+      "name": "Lavavajillas",
+      "category": "kitchen",
+      "file": "dishwasher.glb",
+      "thumbnail": "dishwasher.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "fridge-american",
+      "name": "Frigorífico americano",
+      "category": "kitchen",
+      "file": "fridge-american.glb",
+      "thumbnail": "fridge-american.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "bathtub-freestanding",
+      "name": "Bañera exenta",
+      "category": "bathroom",
+      "file": "bathtub-freestanding.glb",
+      "thumbnail": "bathtub-freestanding.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "vanity-double",
+      "name": "Mueble de lavabo doble con espejo",
+      "category": "bathroom",
+      "file": "vanity-double.glb",
+      "thumbnail": "vanity-double.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "toilet-wall",
+      "name": "Inodoro suspendido",
+      "category": "bathroom",
+      "file": "toilet-wall.glb",
+      "thumbnail": "toilet-wall.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "towel-radiator",
+      "name": "Radiador toallero",
+      "category": "bathroom",
+      "file": "towel-radiator.glb",
+      "thumbnail": "towel-radiator.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "lamp-arc",
+      "name": "Lámpara de pie de arco",
+      "category": "lighting",
+      "file": "lamp-arc.glb",
+      "thumbnail": "lamp-arc.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "lamp-tripod",
+      "name": "Lámpara trípode",
+      "category": "lighting",
+      "file": "lamp-tripod.glb",
+      "thumbnail": "lamp-tripod.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "lamp-globe",
+      "name": "Lámpara de pie de globo",
+      "category": "lighting",
+      "file": "lamp-globe.glb",
+      "thumbnail": "lamp-globe.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "lamp-reading",
+      "name": "Lámpara de lectura",
+      "category": "lighting",
+      "file": "lamp-reading.glb",
+      "thumbnail": "lamp-reading.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "plant-monstera",
+      "name": "Monstera en maceta",
+      "category": "decor",
+      "file": "plant-monstera.glb",
+      "thumbnail": "plant-monstera.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "plant-ficus",
+      "name": "Ficus",
+      "category": "decor",
+      "file": "plant-ficus.glb",
+      "thumbnail": "plant-ficus.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "plant-cactus",
+      "name": "Cactus",
+      "category": "decor",
+      "file": "plant-cactus.glb",
+      "thumbnail": "plant-cactus.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "rug-rect",
+      "name": "Alfombra rectangular",
+      "category": "decor",
+      "file": "rug-rect.glb",
+      "thumbnail": "rug-rect.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "rug-round",
+      "name": "Alfombra redonda",
+      "category": "decor",
+      "file": "rug-round.glb",
+      "thumbnail": "rug-round.png",
+      "againstWall": false,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "mirror-floor",
+      "name": "Espejo de pie",
+      "category": "decor",
+      "file": "mirror-floor.glb",
+      "thumbnail": "mirror-floor.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "piano-upright",
+      "name": "Piano vertical con banqueta",
+      "category": "decor",
+      "file": "piano-upright.glb",
+      "thumbnail": "piano-upright.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    },
+    {
+      "id": "fireplace",
+      "name": "Chimenea",
+      "category": "decor",
+      "file": "fireplace.glb",
+      "thumbnail": "fireplace.png",
+      "againstWall": true,
+      "credit": "101st Floor (modelado con Blender)"
+    }
+  ]
+}

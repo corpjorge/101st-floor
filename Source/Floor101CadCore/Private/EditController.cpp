@@ -279,6 +279,7 @@ namespace f101::cad
 			updatePlacement();
 			updateFurniturePlacement();
 		}
+		paintAt = mode == EditMode::Paint && pointerRay ? resolvePaintTarget(levelProject(), *pointerRay) : std::nullopt;
 	}
 
 	void EditController::clearSelected()
@@ -324,7 +325,9 @@ namespace f101::cad
 	void EditController::movePointer(const Ray3& ray)
 	{
 		// While dragging a corner its own walls are not targets: they are what moves.
+		pointerRay = ray;
 		planPoint = planPointOf(ray, drag ? drag->joined : std::vector<WallId>{});
+		paintAt = currentMode == EditMode::Paint ? resolvePaintTarget(levelProject(), ray) : std::nullopt;
 		if (!planPoint)
 		{
 			return; // off the floor: keep the last preview
@@ -1064,6 +1067,18 @@ namespace f101::cad
 		});
 	}
 
+	Status EditController::setNewOpeningOperation(OpeningKind kind, OpeningOperation operation)
+	{
+		if (kind == OpeningKind::Door && operation == OpeningOperation::Fixed)
+		{
+			return Error{ErrorCode::InvalidArgument, "A door cannot be fixed"};
+		}
+		// Placing it later also checks that everything it takes (a sliding door's pocket) fits the wall.
+		(kind == OpeningKind::Door ? editSettings.door : editSettings.window).operation = operation;
+		updatePlacement();
+		return Status::success();
+	}
+
 	Status EditController::flipOpeningHinge()
 	{
 		return editSelectedOpening([](Opening& opening) { opening.hinge = oppositeEnd(opening.hinge); });
@@ -1236,22 +1251,43 @@ namespace f101::cad
 		});
 	}
 
+	std::optional<PaintTarget> EditController::resolvePaintTarget(const Project& levelWalls, const Ray3& ray) const
+	{
+		const bool forWalls = validateFinishIn(document.project(), editSettings.paintFinish, Surface::Wall).ok();
+		const bool forFloors = validateFinishIn(document.project(), editSettings.paintFinish, Surface::Floor).ok();
+		// The face of the wall under the pointer (the side of its axis the ray meets it on)...
+		if (forWalls)
+		{
+			if (const std::optional<WallHit> hit = pickWall(levelWalls, ray))
+			{
+				const Wall& wall = *levelWalls.findWall(hit->wall);
+				const PlanPoint at{ray.originX + ray.directionX * hit->distance, ray.originY + ray.directionY * hit->distance};
+				return PaintTarget{wall.id, sideOf(wall, at), {}};
+			}
+		}
+		// ...else the floor of the room under it: a finish only for floors looks past the walls, down to the floor.
+		const std::optional<PlanPoint> floor = forFloors ? intersectFloor(ray) : std::nullopt;
+		const std::optional<std::string> room = floor && roomLocator ? roomLocator(levelWalls, *floor) : std::nullopt;
+		return room ? std::optional<PaintTarget>(PaintTarget{WallId(), WallSide::Left, *room}) : std::nullopt;
+	}
+
 	Status EditController::paint(const Project& project, const Ray3& ray)
 	{
-		// The face of the wall under the pointer (the side of its axis the ray meets it on), else the room floor.
-		if (const std::optional<WallHit> hit = pickWall(project, ray))
+		paintAt = resolvePaintTarget(project, ray);
+		if (!paintAt)
 		{
-			const Wall& wall = *project.findWall(hit->wall);
-			const WallSide side = sideOf(wall, PlanPoint{ray.originX + ray.directionX * hit->distance, ray.originY + ray.directionY * hit->distance});
-			return toStatus(document.execute(SetWallFinishCommand{wall.id, side, editSettings.paintFinish}));
+			const bool forWalls = validateFinishIn(document.project(), editSettings.paintFinish, Surface::Wall).ok();
+			const bool forFloors = validateFinishIn(document.project(), editSettings.paintFinish, Surface::Floor).ok();
+			return Error{ErrorCode::InvalidArgument, forWalls && forFloors ? "Point at a wall or at the floor of a room"
+				: forFloors ? "Point at the floor of a room: walls must close it all round"
+				: "Point at a wall: this finish is for walls"};
 		}
-		const std::optional<std::string> room = planPoint && roomLocator ? roomLocator(project, *planPoint) : std::nullopt;
-		if (!room)
+		if (!paintAt->wall.isNil())
 		{
-			return Error{ErrorCode::InvalidArgument, "Point at a wall or at the floor of a room"};
+			return toStatus(document.execute(SetWallFinishCommand{paintAt->wall, paintAt->side, editSettings.paintFinish}));
 		}
-		const RoomFinish* current = document.project().findRoomFinish(*room);
-		return toStatus(document.execute(SetRoomFinishCommand{*room, editSettings.paintFinish, current ? current->ceiling : FinishId()}));
+		const RoomFinish* current = document.project().findRoomFinish(paintAt->room);
+		return toStatus(document.execute(SetRoomFinishCommand{paintAt->room, editSettings.paintFinish, current ? current->ceiling : FinishId()}));
 	}
 
 	Status EditController::setPaintFinish(std::string_view finish)
@@ -1264,6 +1300,10 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "Unknown finish '" + std::string(finish) + "' for walls or floors"};
 		}
 		editSettings.paintFinish = std::string(finish);
+		if (currentMode == EditMode::Paint && pointerRay)
+		{
+			paintAt = resolvePaintTarget(levelProject(), *pointerRay);
+		}
 		return Status::success();
 	}
 

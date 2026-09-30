@@ -22,7 +22,8 @@ futuro.
   leída y normalizada, o nulo) que inyecta quien sabe leer archivos (en Unreal, el `ModelCache` de `Floor101Assets`). Un
   mueble cuyo tipo es un modelo usa `buildModelFurnitureMesh`; sin modelo, una caja de sus medidas.
 - `FinishTextures.h`: `buildFinishTexture` sintetiza una repetición sin costuras de un acabado (ladrillo a soga,
-  baldosas, tablas, moteado o liso) con todos sus mips y el tamaño en mm que cubre; `buildFinishLook` añade la
+  baldosas, tablas, espiga —tablas en ángulo recto que avanzan en diagonal, repetición de 2n anchos—, ajedrezado con el
+  color de acento, moteado o liso; ADR-0019) con todos sus mips y el tamaño en mm que cubre; `buildFinishLook` añade la
   rugosidad y la opacidad (menor que 1: translúcido, vidrio) y pinta de magenta un id desconocido. Deterministas: el
   mismo acabado da los mismos píxeles. `textureFromImage` convierte una imagen decodificada (ADR-0017) en textura
   repetible: lados en potencia de dos (máx. 2048), filtrado con vuelta, todos los mips y volteada para superficies (la
@@ -45,7 +46,7 @@ futuro.
   inválidos se omiten. Los muebles de las plantas de abajo llevan `Context`.
   Símbolos (ADR-0014): la escena de edición añade, al final, el arco de cada puerta abatible o de dos hojas de las plantas
   no atenuadas (`<wall uuid>/opening/<opening uuid>/swing`, `sourceKind` `Opening`, estilo `Symbol`); la de exportación
-  no los tiene.
+  no los tiene, ni la de una foto (`ViewOverlay::symbols = false`, Modo Foto, ADR-0018).
   `ViewOverlay::activeLevel` (ADR-0011): sin `showAllLevels`, las plantas de encima no se compilan, la activa no
   muestra sus forjados y las de abajo llevan estilo `Context`; las asas van en la cota de la planta activa.
   `compileScene(project)` no lleva overlay: es lo que usan los exportadores.

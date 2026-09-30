@@ -64,6 +64,7 @@ add_executable(Floor101UnitTests
 	FurnitureTests.cpp
 	AssetTests.cpp
 	AssetImportTests.cpp
+	LibraryTests.cpp
 )
 target_include_directories(Floor101UnitTests SYSTEM PRIVATE "${F101_ROOT}/ThirdParty/doctest")
 # No exceptions, like Unreal (a failed REQUIRE aborts the run). Real std headers instead of doctest's forward
@@ -75,6 +76,8 @@ target_compile_definitions(Floor101UnitTests PRIVATE
 target_link_libraries(Floor101UnitTests PRIVATE Floor101SceneModel Floor101Drawing Floor101Assets)
 # Sample assets exported by Blender (Tests/Data/Assets/make_samples.py).
 target_compile_definitions(Floor101UnitTests PRIVATE F101_TEST_DATA_DIR="${F101_ROOT}/Tests/Data")
+# The built-in library (ADR-0019), checked as shipped.
+target_compile_definitions(Floor101UnitTests PRIVATE F101_LIBRARY_DIR="${F101_ROOT}/Library")
 
 enable_testing()
 add_test(NAME Floor101UnitTests COMMAND Floor101UnitTests)

@@ -2,6 +2,8 @@
 
 #include "F101/Cad/Units.h"
 
+#include <algorithm>
+
 namespace f101::cad
 {
 	double millimetersPerUnit(ModelUnit unit)
@@ -80,11 +82,21 @@ namespace f101::cad
 		return Status::success();
 	}
 
+	bool isLibraryId(std::string_view id)
+	{
+		return !id.empty() && id.size() <= 64 &&
+			std::all_of(id.begin(), id.end(), [](char c) { return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'; });
+	}
+
 	Status validateAsset(const Asset& asset)
 	{
 		if (asset.id.isNil())
 		{
 			return Error{ErrorCode::InvalidArgument, "Asset id is nil"};
+		}
+		if (!asset.library.empty() && !isLibraryId(asset.library))
+		{
+			return Error{ErrorCode::InvalidArgument, "Library id '" + asset.library + "' must be lower-case letters, digits and hyphens"};
 		}
 		if (asset.name.empty() || asset.name.size() > MaxAssetNameBytes)
 		{

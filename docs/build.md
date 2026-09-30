@@ -43,9 +43,18 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 .\Scripts\CheckRendering.ps1 [-Demo]                  # validación de render (ver rendering-rtx.md)
 .\Scripts\RunEditorMcp.ps1 ; .\Scripts\CheckMcp.ps1   # editor + MCP (ver unreal-mcp.md)
 .\Scripts\GenerateAssets.ps1                          # regenera Content/Floor101 (materiales de acabados y vidrio) desde código
+.\Scripts\GenerateLibrary.ps1 [-Only id,…]            # regenera los muebles de Library/furniture con Blender (opcional)
 .\Scripts\Clean.ps1 [-IncludeSaved]                   # borra Binaries, Intermediate y DerivedDataCache
 ```
-`Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 1).
+`Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 1); deberá copiar `Library/` junto al ejecutable
+(ADR-0019).
+
+### Biblioteca integrada (`Library/`)
+Muebles (`.glb` + imagen `.png`) y texturas fotográficas (`.jpg`) con su `manifest.json` (ADR-0019), versionados en Git
+LFS. Los muebles salen de `Library/Source/make_furniture.py`: `.\Scripts\GenerateLibrary.ps1` lo ejecuta en Blender 4.2 o
+posterior sin interfaz (el más nuevo de `C:\Program Files\Blender Foundation`, o `-Blender`) y reescribe los archivos y
+el manifiesto; Blender solo hace falta para regenerarlos, no para compilar ni ejecutar. Las texturas son CC0 de Poly
+Haven (autor en el manifiesto). La aplicación lee la carpeta de `<proyecto>/Library` y los tests unitarios la comprueban.
 
 ### Assets generados (`Content/`)
 `Content/` solo tiene lo que genera `.\Scripts\GenerateAssets.ps1` (commandlet `Floor101GenerateAssets`, editor

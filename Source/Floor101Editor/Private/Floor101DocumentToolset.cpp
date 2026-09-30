@@ -1,6 +1,7 @@
 #include "Floor101DocumentToolset.h"
 
 #include "Editor.h"
+#include "F101/Assets/Library.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
 #include "F101/Geometry/Rooms.h"
@@ -518,6 +519,7 @@ TArray<FFloor101FinishInfo> UFloor101DocumentToolset::GetFinishes()
 	{
 		FFloor101FinishInfo Info;
 		Info.Id = ToFString(Finish.id);
+		Info.Category = ToFString(f101::cad::finishCategoryId(Finish.category));
 		Info.bForWalls = Finish.allows(f101::cad::Surface::Wall);
 		Info.bForFloors = Finish.allows(f101::cad::Surface::Floor);
 		Info.bForCeilings = Finish.allows(f101::cad::Surface::Ceiling);
@@ -571,6 +573,7 @@ TArray<FFloor101FurnitureTypeInfo> UFloor101DocumentToolset::GetFurnitureTypes()
 	{
 		FFloor101FurnitureTypeInfo Info;
 		Info.Id = ToFString(Type.id);
+		Info.Category = ToFString(f101::cad::furnitureCategoryId(Type.category));
 		Info.WidthMm = Type.widthMm;
 		Info.DepthMm = Type.depthMm;
 		Info.HeightMm = Type.heightMm;
@@ -675,6 +678,7 @@ namespace
 		Info.Kind = Asset.kind == f101::cad::AssetKind::Texture ? EFloor101AssetKind::Texture : EFloor101AssetKind::Model;
 		Info.Name = ToFString(Asset.name);
 		Info.File = ToFString(Asset.file);
+		Info.Library = ToFString(Asset.library);
 		Info.TextureWidthMm = Asset.texture.widthMm;
 		Info.TextureHeightMm = Asset.texture.heightMm;
 		Info.RoughnessPercent = Asset.texture.roughnessPercent;
@@ -805,6 +809,54 @@ void UFloor101DocumentToolset::RemoveAsset(const FString& AssetId)
 	{
 		RaiseError(FString::Printf(TEXT("cannot remove asset %s: %s"), *AssetId, *ToFString(Removed.error().message)));
 	}
+}
+
+TArray<FFloor101LibraryItem> UFloor101DocumentToolset::GetLibrary()
+{
+	const f101::assets::Library& Library = UFloor101DocumentSubsystem::GetLibrary();
+	TArray<FFloor101LibraryItem> Items;
+	for (const f101::assets::LibraryFurniture& Furniture : Library.furniture)
+	{
+		FFloor101LibraryItem Item;
+		Item.Id = ToFString(Furniture.id);
+		Item.Kind = EFloor101AssetKind::Model;
+		Item.Name = ToFString(Furniture.name);
+		Item.Category = ToFString(f101::cad::furnitureCategoryId(Furniture.category));
+		Item.Credit = ToFString(Furniture.credit);
+		Items.Add(Item);
+	}
+	for (const f101::assets::LibraryTexture& Texture : Library.textures)
+	{
+		FFloor101LibraryItem Item;
+		Item.Id = ToFString(Texture.id);
+		Item.Kind = EFloor101AssetKind::Texture;
+		Item.Name = ToFString(Texture.name);
+		Item.Category = ToFString(f101::cad::finishCategoryId(Texture.category));
+		Item.TextureWidthMm = Texture.texture.widthMm;
+		Item.TextureHeightMm = Texture.texture.heightMm;
+		Item.bForWalls = (Texture.texture.surfaces & static_cast<std::uint8_t>(f101::cad::Surface::Wall)) != 0;
+		Item.bForFloors = (Texture.texture.surfaces & static_cast<std::uint8_t>(f101::cad::Surface::Floor)) != 0;
+		Item.bForCeilings = (Texture.texture.surfaces & static_cast<std::uint8_t>(f101::cad::Surface::Ceiling)) != 0;
+		Item.Credit = ToFString(Texture.credit);
+		Items.Add(Item);
+	}
+	return Items;
+}
+
+FFloor101AssetInfo UFloor101DocumentToolset::AddFromLibrary(const FString& ItemId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return {};
+	}
+	const f101::Result<f101::cad::AssetId> Added = Subsystem->AddFromLibrary(ItemId);
+	if (!Added)
+	{
+		RaiseError(FString::Printf(TEXT("cannot add %s from the library: %s"), *ItemId, *ToFString(Added.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findAsset(Added.value()), *Subsystem);
 }
 
 FString UFloor101DocumentToolset::Undo()

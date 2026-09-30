@@ -55,6 +55,10 @@ struct FFloor101FinishInfo
 	UPROPERTY()
 	FString Id;
 
+	/** Palette group: "paint", "tiles", "wood", "stone", "textile", "joinery", "fabric" or "glass". */
+	UPROPERTY()
+	FString Category;
+
 	UPROPERTY()
 	bool bForWalls = false;
 
@@ -270,6 +274,10 @@ struct FFloor101FurnitureTypeInfo
 	UPROPERTY()
 	FString Id;
 
+	/** Palette group: "beds", "seating", "sofas", "tables", "storage", "kitchen", "bathroom", "lighting" or "decor". */
+	UPROPERTY()
+	FString Category;
+
 	/** Along its front. */
 	UPROPERTY()
 	int64 WidthMm = 0;
@@ -400,6 +408,10 @@ struct FFloor101AssetInfo
 	UPROPERTY()
 	FString File;
 
+	/** The library item it was added from (AddFromLibrary); empty if it was imported. */
+	UPROPERTY()
+	FString Library;
+
 	/** Textures: the length of wall or floor one image covers, along and across. */
 	UPROPERTY()
 	int64 TextureWidthMm = 0;
@@ -448,6 +460,50 @@ struct FFloor101AssetInfo
 	/** Why the model cannot be shown (its pieces then show as boxes); empty if it can. */
 	UPROPERTY()
 	FString Problem;
+};
+
+/**
+ * An item of the built-in library shipped with 101st Floor: a furniture model or a photographic texture, added to a
+ * project as an asset when used.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101LibraryItem
+{
+	GENERATED_BODY()
+
+	/** Library id, e.g. "chair-windsor". */
+	UPROPERTY()
+	FString Id;
+
+	UPROPERTY()
+	EFloor101AssetKind Kind = EFloor101AssetKind::Model;
+
+	UPROPERTY()
+	FString Name;
+
+	/** Models: a furniture category (FFloor101FurnitureTypeInfo::Category). Textures: a finish category (FFloor101FinishInfo::Category). */
+	UPROPERTY()
+	FString Category;
+
+	/** Textures: the length of wall or floor one image covers, along and across. */
+	UPROPERTY()
+	int64 TextureWidthMm = 0;
+
+	UPROPERTY()
+	int64 TextureHeightMm = 0;
+
+	UPROPERTY()
+	bool bForWalls = false;
+
+	UPROPERTY()
+	bool bForFloors = false;
+
+	UPROPERTY()
+	bool bForCeilings = false;
+
+	/** Author and licence. */
+	UPROPERTY()
+	FString Credit;
 };
 
 /**
@@ -700,6 +756,21 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveAsset(const FString& AssetId);
+
+	/**
+	 * Returns the built-in library: furniture models, then textures.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101LibraryItem> GetLibrary();
+
+	/**
+	 * Adds a library item to the project as an asset (its files copied into the project's folder), or returns the one
+	 * added before. Use its Ref as a furniture type or a finish.
+	 * @param ItemId A GetLibrary id.
+	 * @return The project's asset.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101AssetInfo AddFromLibrary(const FString& ItemId);
 
 	/**
 	 * Undoes the last change.

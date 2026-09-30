@@ -4,7 +4,8 @@
     by running the project and parsing engine logs. Nothing is assumed from configuration alone.
 .DESCRIPTION
     Launches Floor101 in -game mode with -F101RenderCheck (Source/Floor101/Private/RenderCheck.cpp),
-    which waits for shaders, samples frame/GPU time, logs the runtime state, runs ProfileGPU and exits.
+    which waits for shaders, samples frame/GPU time, logs the runtime state, runs ProfileGPU, path traces the view
+    (photo mode, ADR-0018) up to its samples, saves that image and exits.
     The first run compiles thousands of shaders and can take a long time; later runs use the DDC.
     Exit code 0 = every check passed.
 .EXAMPLE
@@ -21,6 +22,8 @@ param(
     [int]$TimeoutSeconds = 3600,
     # Design mode target is 30-60+ FPS; above this average GPU time the check warns.
     [double]$MaxAvgGpuMs = 33.3,
+    # Samples per pixel the path tracer must reach (photo mode, ADR-0018); 0 skips that check.
+    [int]$PathTraceSamples = 64,
     # Re-analyze an existing render check log without launching the engine.
     [string]$AnalyzeLog,
     # Load the MVP 0 reference wall (-F101Demo) so generated geometry is part of the validated frame.
@@ -40,7 +43,8 @@ function Invoke-RenderCheckRun {
         '-log', "-abslog=`"$runLog`"", '-unattended', '-nosplash', '-nosound',
         '-ExecCmds="r.ProfileGPU.ShowUI 0, r.ProfileGPU.UnicodeOutput 0"',
         '-F101RenderCheck', "-F101RenderCheckWarmupFrames=$WarmupFrames",
-        "-F101RenderCheckSampleFrames=$SampleFrames", "-F101RenderCheckTimeout=$TimeoutSeconds"
+        "-F101RenderCheckSampleFrames=$SampleFrames", "-F101RenderCheckTimeout=$TimeoutSeconds",
+        "-F101RenderCheckPathTraceSamples=$PathTraceSamples"
     )
     if ($Demo) { $arguments += '-F101Demo' }
 
@@ -155,6 +159,33 @@ if ($Demo -or $wallLine) {
     # The finish material (ADR-0012) must load: without it walls would fall back to the engine default material.
     $missingFinish = Get-LogLine 'F101: finish material .* is missing|Failed to find /Game/Floor101/'
     Pass-If 'Finish material loaded' (-not $missingFinish) ($(if ($missingFinish) { ($missingFinish -replace '^.*(F101: |Failed)', '$1').Trim() } else { '/Game/Floor101/Materials/M_Floor101Finish, M_Floor101Glass' }))
+}
+
+# Photo mode (ADR-0018): the path tracer reaches its samples and the saved image is not black.
+if ($state.ContainsKey('path_tracing_target')) {
+    $target = [int]$state['path_tracing_target']
+    $samples = if ($state['path_tracing_samples']) { [int]$state['path_tracing_samples'] } else { 0 }
+    $image = $state['path_tracing_image']
+    $brightness = [double]::NaN
+    if ($image -and (Test-Path $image)) {
+        Add-Type -AssemblyName System.Drawing
+        $bitmap = [System.Drawing.Bitmap]::FromFile($image)
+        try {
+            $sum = 0.0; $count = 0
+            for ($y = 0; $y -lt $bitmap.Height; $y += [Math]::Max(1, [int]($bitmap.Height / 40))) {
+                for ($x = 0; $x -lt $bitmap.Width; $x += [Math]::Max(1, [int]($bitmap.Width / 40))) {
+                    $sum += $bitmap.GetPixel($x, $y).GetBrightness(); $count++
+                }
+            }
+            $brightness = $sum / [Math]::Max(1, $count)
+        }
+        finally { $bitmap.Dispose() }
+    }
+    Pass-If 'Path tracing (photo mode)' (($samples -ge $target) -and ($brightness -gt 0.05)) `
+        ("samples={0}/{1} in {2}; image brightness={3:N2} {4}" -f $samples, $target, $state['path_tracing_time'], $brightness, $image)
+}
+elseif ($PathTraceSamples -gt 0) {
+    Add-Check 'Path tracing (photo mode)' 'FAIL' 'the render check did not reach the path tracing phase'
 }
 
 $gpuAvg = if ($state['gpu_time'] -match 'avg=([\d.]+)ms') { [double]$Matches[1] } else { [double]::NaN }

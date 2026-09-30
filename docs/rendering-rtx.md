@@ -21,7 +21,7 @@ Regla: ninguna opción se da por activa porque aparezca en un `.ini`; se comprue
 | `r.Shadow.Virtual.Enable` | `1` | Virtual Shadow Maps. |
 | `r.Substrate` | `True` | Sistema de materiales por defecto en proyectos nuevos de UE 5.8. |
 | Nanite | default del motor (activo) | Se usará cuando aplique (assets densos); las paredes CAD son geometría simple. |
-| Path Tracing | default del motor (`r.PathTracing=1`) | Disponible para Modo Foto; no se usa en Modo Diseño. |
+| Path Tracing | default del motor (`r.PathTracing=1`) | Modo Foto (R, ADR-0018); no se usa en Modo Diseño. |
 
 Los valores replican lo que el asistente de proyectos de UE 5.8.3 escribe para un proyecto nuevo con ray tracing
 (`GameProjectUtils.cpp`: `AddLumenConfigValues`, `AddRaytracingConfigValues`, `AddSubstrateConfigValues`,
@@ -98,4 +98,11 @@ binario del editor con `-game`).
 - El monitor virtual de Meta hace que la RTX aparezca dos veces en DXGI (adaptadores 0 y 2). El motor elige el 0.
 - UE informa "shader model 6.7" como máximo del adaptador aunque el driver expone 6.8: es el límite que consulta el
   motor, y SM6.6 (lo requerido) está cubierto.
-- Modo Foto (Path Tracer / Lumen máxima calidad) se configurará cuando se implemente; no forma parte del MVP 0.
+- Modo Foto (MVP 11, ADR-0018): R pasa el viewport del juego al path tracer (`VMI_PathTracing`) sin marcas de edición;
+  `r.PathTracing.SamplesPerPixel` según la calidad (Borrador 64, Media 256, Alta 1024), `r.PathTracing.ProgressDisplay 0`
+  (la barra del motor nunca sale en la imagen), denoiser del motor (NNEDenoiser). Los shaders del path tracer se
+  compilan la primera vez: al terminar, `InvalidatePathTracedOutput` reinicia la acumulación. La foto está lista cuando
+  la acumulación lleva 3 fotogramas en el objetivo; "Guardar imagen" escribe un PNG sin la UI junto al proyecto.
+- `CheckRendering.ps1` comprueba el Modo Foto ("Path tracing (photo mode)", `-PathTraceSamples`, 64 por defecto): las
+  muestras llegan al objetivo y la imagen no es negra. Medido el 2026-09-30: 64/64 muestras en 1,5 s a 853 × 640 con la
+  pared de referencia, brillo medio 0,62; `PathTrace-<fecha>.png` en `Saved/RenderCheck`.

@@ -39,6 +39,7 @@ enum class EFloor101KeyCommand : uint8
 	Flip, // hinges of the door or window being placed or selected to the other jamb (ADR-0014); turns furniture 90 degrees
 	      // (ADR-0016)
 	PlanView, // 2D plan on / off (ADR-0015)
+	PhotoMode, // path traced photo on / off (ADR-0018)
 };
 
 // Translates raw input into editing calls (ADR-0008): the cursor becomes a ray in scene space for the edit controller,
@@ -46,8 +47,8 @@ enum class EFloor101KeyCommand : uint8
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
-// Keys: W wall, P door, O window, M paint, V select, Enter, Esc, Backspace, Delete, F frame all, T top view, Tab 2D plan,
-// Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
+// Keys: W wall, P door, O window, M paint, A furniture, V select, Enter, Esc, Backspace, Delete, F frame all, T top view,
+// Tab 2D plan, R photo, Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
 // Ctrl+S save, Ctrl+O open.
 // The camera follows the edited level: its focus moves up or down with the level's elevation.
 UCLASS()
@@ -69,6 +70,14 @@ public:
 	// works as in 3D: the pointer rays come straight down. Off: back to the perspective view.
 	void SetPlanView(bool bPlan);
 	bool IsPlanView() const;
+	// Photo mode (ADR-0018): the view path traced, without editing marks, accumulating samples while the camera and the
+	// project stay still. The camera still moves (orbit, pan, zoom, F, T); clicks do not edit; R or Esc leave it. It leaves
+	// the 2D plan.
+	void SetPhotoMode(bool bPhoto);
+	bool IsPhotoMode() const { return bPhotoMode; }
+	// Samples per pixel the photo accumulates (64: draft .. 1024: high).
+	void SetPhotoSamples(int32 Samples);
+	int32 GetPhotoSamples() const { return PhotoSamples; }
 
 	// Keyboard map. Held keys only repeat Backspace, undo and redo; with Ctrl, only the Ctrl shortcuts apply. While a
 	// length is being typed, the letters of its units (m, cm, mm) are text, not commands.
@@ -91,4 +100,6 @@ private:
 	double RightDragPixels = 0.0;
 	// Elevation of the edited level the camera last followed (mm); unset until the first tick with a document.
 	TOptional<double> FollowedElevationMm;
+	bool bPhotoMode = false;
+	int32 PhotoSamples = 256;
 };

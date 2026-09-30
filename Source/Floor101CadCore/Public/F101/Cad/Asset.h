@@ -78,6 +78,9 @@ namespace f101::cad
 		std::string file; // the imported file, relative to the project's folder: assets/<uuid>/<file name>
 		TextureAsset texture; // for textures
 		ModelAsset model;     // for models
+		// The built-in library item it was added from (MVP 11, ADR-0019): lower-case letters, digits and hyphens; empty for
+		// the user's own imports. The same item is added once per project.
+		std::string library;
 
 		friend bool operator==(const Asset&, const Asset&) = default;
 	};
@@ -102,6 +105,9 @@ namespace f101::cad
 	// backslashes. Project files never point outside their folder.
 	FLOOR101CADCORE_API Status validateAssetPath(std::string_view file);
 	// A non-nil id, a name, its file inside its own folder (assetFolder), and settings in range: a texture's repeat in the
-	// model range, roughness 0-100 and at least one surface (not glazing); a model's quarter turns 0-3.
+	// model range, roughness 0-100 and at least one surface (not glazing); a model's quarter turns 0-3; a library id, if
+	// any, as isLibraryId.
 	FLOOR101CADCORE_API Status validateAsset(const Asset& asset);
+	// 1 to 64 lower-case letters, digits and hyphens: the ids of the built-in library's items (ADR-0019).
+	FLOOR101CADCORE_API bool isLibraryId(std::string_view id);
 }

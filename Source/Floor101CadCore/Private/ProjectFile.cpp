@@ -377,7 +377,8 @@ namespace f101::cad
 				return formatError(where + ".kind must be \"texture\" or \"model\"");
 			}
 			asset.kind = *kind == "texture" ? AssetKind::Texture : AssetKind::Model;
-			for (const auto& [key, target] : {std::pair<const char*, std::string*>{"name", &asset.name}, {"file", &asset.file}})
+			for (const auto& [key, target] : {std::pair<const char*, std::string*>{"name", &asset.name}, {"file", &asset.file},
+					 {"library", &asset.library}}) // library: schema 9, optional
 			{
 				if (Status read = readOptionalString(object, key, where, *target); !read)
 				{
@@ -689,6 +690,10 @@ namespace f101::cad
 				item["kind"] = asset.kind == AssetKind::Texture ? "texture" : "model";
 				item["name"] = asset.name;
 				item["file"] = asset.file;
+				if (!asset.library.empty())
+				{
+					item["library"] = asset.library;
+				}
 				if (asset.kind == AssetKind::Texture)
 				{
 					Json texture = Json::object();

@@ -59,6 +59,16 @@ namespace f101::cad
 		Opening opening;
 	};
 
+	// What the Paint tool would change: a face of a wall, or the floor of a room (wall nil).
+	struct PaintTarget
+	{
+		WallId wall;
+		WallSide side = WallSide::Left;
+		std::string room; // room key, when it is a floor
+
+		friend bool operator==(const PaintTarget&, const PaintTarget&) = default;
+	};
+
 	// What the view shows on top of the project. Not saved; the application maps it to scene::ViewOverlay.
 	struct EditView
 	{
@@ -84,11 +94,12 @@ namespace f101::cad
 	// Wall mode: WallTool (click, move, type a length, Enter).
 	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid) in the
 	// free stretch nearest to it, clear of the walls joined to its host and of its other openings (ADR-0013), opening
-	// towards the side of the wall the pointer is on (ADR-0014); flip() moves its hinges to the other jamb; a click adds
-	// it. In Select mode a click on a wall where it has an opening selects that opening; dragging the selected opening moves
+	// towards the side of the wall the pointer is on (ADR-0014), of the type setNewOpeningOperation chose (a sliding door
+	// with room for its pocket); flip() moves its hinges to the other jamb; a click adds it. In Select mode a click on a wall where it has an opening selects that opening; dragging the selected opening moves
 	// it along its wall, dragging one of its edge handles resizes it (one ChangeOpeningCommand on release).
 	// Paint mode: a click on a wall paints the face it hits (the side of the axis); elsewhere, the floor of the room under
-	// the pointer. In Select mode a click on a room floor (not on a wall) selects the room.
+	// the pointer. A finish only for floors looks past the walls, down to the floor. paintTarget() tells what a click would
+	// paint. In Select mode a click on a room floor (not on a wall) selects the room.
 	// Furniture mode (ADR-0016): the pointer previews a piece of the chosen type centred on it, on the snap grid; a type
 	// that goes against walls, near one, turns its back to the nearest wall face and touches it, sliding along it on the
 	// grid and stopping at the walls it would run into. Space turns the next pieces 90 degrees; a click adds one. In Select
@@ -156,6 +167,9 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status flip();
 		// Door/Window mode: what a click would add (id nil); nullopt when the pointer is not over a wall that fits it.
 		const std::optional<OpeningRef>& openingPlacement() const { return placement; }
+		// How the next doors or windows the Door and Window tools place open (settings().door / .window); the preview
+		// follows. A door cannot be fixed.
+		FLOOR101CADCORE_API Status setNewOpeningOperation(OpeningKind kind, OpeningOperation operation);
 
 		// Furniture (ADR-0016).
 		// A catalogue type for the Furniture mode.
@@ -188,6 +202,9 @@ namespace f101::cad
 		void setRoomLocator(RoomLocator locator) { roomLocator = std::move(locator); }
 		const FinishId& paintFinish() const { return editSettings.paintFinish; }
 		FLOOR101CADCORE_API Status setPaintFinish(std::string_view finish);
+		// Paint mode: what a click would paint with the chosen finish; nullopt when the pointer is over nothing it suits
+		// (e.g. a floor that no walls close into a room).
+		const std::optional<PaintTarget>& paintTarget() const { return paintAt; }
 		// Selected room key (Select mode); empty if none. Whether the room still exists is up to the rooms of the scene.
 		FLOOR101CADCORE_API const std::string& selectedRoom() const;
 		FLOOR101CADCORE_API Status selectRoom(const std::string& room);
@@ -270,6 +287,7 @@ namespace f101::cad
 		Project levelProject() const;
 		void changeLevel(const LevelId& level);
 		Status paint(const Project& levelWalls, const Ray3& ray);
+		std::optional<PaintTarget> resolvePaintTarget(const Project& levelWalls, const Ray3& ray) const;
 		Status setRoomFinishes(std::string_view floor, std::string_view ceiling);
 		Status changeActiveLevel(const std::function<Status(Level&)>& edit);
 		// Where `piece` goes for a wanted centre on the active level (snapping, ADR-0016); `freeRotation` when it does not
@@ -300,5 +318,7 @@ namespace f101::cad
 		FurnitureId selectedFurnitureId;
 		std::optional<FurnitureDrag> furnitureDrag;
 		std::optional<Furniture> furnitureAt; // Furniture mode placement
+		std::optional<PaintTarget> paintAt;  // Paint mode target
+		std::optional<Ray3> pointerRay;      // the last pointer ray, in the active level's space
 	};
 }

@@ -7,6 +7,7 @@
 #include "Floor101.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101EditingPawn.h"
+#include "Floor101PathTracing.h"
 #include "Floor101SceneSpace.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
@@ -62,6 +63,10 @@ bool UFloor101GameViewportClient::GetCursorRay(f101::cad::Ray3& OutRay) const
 void UFloor101GameViewportClient::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (bPhotoMode)
+	{
+		Floor101::PathTracing::Tick(GetWorld());
+	}
 
 	// A button released outside the window (e.g. after Alt+Tab) never reaches InputKey.
 	if (Viewport)
@@ -107,7 +112,7 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 
 	// The ray changes when the cursor or the camera moves; only then is the view recomputed.
 	f101::cad::Ray3 Ray;
-	if (Document && GetCursorRay(Ray))
+	if (Document && !bPhotoMode && GetCursorRay(Ray))
 	{
 		const FVector Origin(Ray.originX, Ray.originY, Ray.originZ);
 		const FVector Direction(Ray.directionX, Ray.directionY, Ray.directionZ);
@@ -136,6 +141,10 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 
 	if (Key == EKeys::LeftMouseButton)
 	{
+		if (bPhotoMode)
+		{
+			return true; // a photo is taken, not edited
+		}
 		f101::cad::Ray3 Ray;
 		if (GetCursorRay(Ray))
 		{
@@ -246,6 +255,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::L) { return EFloor101KeyCommand::AllLevels; }
 	if (Key == EKeys::SpaceBar) { return EFloor101KeyCommand::Flip; }
 	if (Key == EKeys::Tab) { return EFloor101KeyCommand::PlanView; }
+	if (Key == EKeys::R) { return EFloor101KeyCommand::PhotoMode; }
 	return EFloor101KeyCommand::None;
 }
 
@@ -263,7 +273,22 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 
 	const EditController& Current = Document.GetEditController();
 	const bool bTypingLength = Current.mode() == f101::cad::EditMode::Wall && Current.wallTool().state() == f101::cad::WallTool::State::Drafting;
-	switch (MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat, bTypingLength))
+	const EFloor101KeyCommand Command = MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat, bTypingLength);
+	if (bPhotoMode)
+	{
+		// Only the camera and leaving the photo: editing keys do nothing while the view is path traced.
+		switch (Command)
+		{
+		case EFloor101KeyCommand::None: return false;
+		case EFloor101KeyCommand::PhotoMode:
+		case EFloor101KeyCommand::Cancel: SetPhotoMode(false); break;
+		case EFloor101KeyCommand::Frame: FrameProject(); break;
+		case EFloor101KeyCommand::TopView: ShowTopView(); break;
+		default: break;
+		}
+		return true;
+	}
+	switch (Command)
 	{
 	case EFloor101KeyCommand::None: return false;
 	case EFloor101KeyCommand::Undo: Edit([](EditController& Editor) { return Editor.undo(); }); break;
@@ -304,6 +329,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 		break;
 	}
 	case EFloor101KeyCommand::PlanView: SetPlanView(!IsPlanView()); break;
+	case EFloor101KeyCommand::PhotoMode: SetPhotoMode(true); break;
 	}
 	return true;
 }
@@ -385,10 +411,44 @@ void UFloor101GameViewportClient::SetPlanView(bool bPlan)
 	{
 		return;
 	}
+	if (bPlan)
+	{
+		SetPhotoMode(false);
+	}
 	bDisableWorldRendering = bPlan; // the overlay paints the plan over the whole view
 	Pawn->SetPlanView(bPlan);
 	Document->SetPlanView(bPlan);
 	FrameProject();
+}
+
+void UFloor101GameViewportClient::SetPhotoMode(bool bPhoto)
+{
+	UWorld* CurrentWorld = GetWorld();
+	UFloor101DocumentSubsystem* Document = CurrentWorld ? CurrentWorld->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
+	if (!Document || bPhotoMode == bPhoto)
+	{
+		return;
+	}
+	if (bPhoto && IsPlanView())
+	{
+		SetPlanView(false);
+	}
+	bPhotoMode = bPhoto;
+	if (bPhoto)
+	{
+		Floor101::PathTracing::SetTargetSamples(PhotoSamples);
+	}
+	Floor101::PathTracing::SetEnabled(*this, bPhoto);
+	Document->SetPhotoMode(bPhoto);
+}
+
+void UFloor101GameViewportClient::SetPhotoSamples(int32 Samples)
+{
+	PhotoSamples = FMath::Clamp(Samples, 1, 65536);
+	if (bPhotoMode)
+	{
+		Floor101::PathTracing::SetTargetSamples(PhotoSamples); // the path tracer starts over with the new target
+	}
 }
 
 bool UFloor101GameViewportClient::IsPlanView() const

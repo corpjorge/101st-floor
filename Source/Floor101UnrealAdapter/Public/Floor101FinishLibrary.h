@@ -69,6 +69,9 @@ public:
 	// image or its image cannot be read.
 	UTexture2D* GetAssetFinishImage(const FString& FinishId);
 
+	// An image file as it is, for the UI (the pictures of the built-in library, ADR-0019). Read once; null if it cannot be.
+	UTexture2D* GetPicture(const FString& Path);
+
 private:
 	void ApplyAssetFinish(UMaterialInstanceDynamic* Material, const FString& FinishId, const FFloor101AssetFinish& Finish, bool bContext);
 	// The texture of an image file (cached by file and flip); a white texture when there is no image or it cannot be read.
@@ -79,6 +82,9 @@ private:
 
 	UPROPERTY()
 	TMap<FString, TObjectPtr<UTexture2D>> ImageTextures;
+
+	UPROPERTY()
+	TMap<FString, TObjectPtr<UTexture2D>> Pictures; // null: the file cannot be read
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;

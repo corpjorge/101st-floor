@@ -32,6 +32,8 @@ namespace f101::scene
 		std::vector<cad::Point2D> markers; // e.g. draggable endpoint handles, on the active level
 		std::int64_t markerSizeMm = 240;
 		std::int64_t markerHeightMm = 2500;
+		// Door swings on the floor (editing aids, ADR-0014); off for a clean view such as a photo (ADR-0018).
+		bool symbols = true;
 	};
 
 	// The meshes of imported models (ADR-0017), read from their files by the application (f101::assets). Null when a
@@ -55,8 +57,8 @@ namespace f101::scene
 	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls and furniture are Preview
 	// (new ones get the ids "preview/wall/<index>" and "preview/furniture/<index>"), the selected wall and piece are
 	// Selected, and markers are "marker/<index>" (Handle).
-	// It also draws the swing of each hinged or double door on the floor of the levels shown undimmed
-	// ("<wall>/opening/<opening>/swing", Symbol; ADR-0014), after the carpentry: an editing aid exporters never see.
+	// Unless overlay.symbols is off, it also draws the swing of each hinged or double door on the floor of the levels shown
+	// undimmed ("<wall>/opening/<opening>/swing", Symbol; ADR-0014), after the carpentry: an editing aid exporters never see.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ViewOverlay& overlay,
 		const ModelProvider& models = {});
 

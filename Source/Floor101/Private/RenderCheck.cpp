@@ -6,11 +6,14 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
+#include "Floor101PathTracing.h"
+#include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Misc/Paths.h"
 #include "RHIGlobals.h"
 #include "RHIStrings.h"
 #include "RenderUtils.h"
@@ -51,6 +54,8 @@ namespace
 		Warmup,
 		Sample,
 		Profile,
+		PathTrace, // ADR-0018: the path tracer reaches its samples and the image is written
+		PathTraceImage,
 		Done,
 	};
 
@@ -59,6 +64,8 @@ namespace
 		int32 WarmupFrames = 120;
 		int32 SampleFrames = 300;
 		int32 ProfileWaitFrames = 30;
+		int32 PathTraceSamples = 64;   // 0: skip the path tracing check
+		double PathTraceTimeoutSeconds = 300.0;
 		double TimeoutSeconds = 1800.0;
 	};
 
@@ -180,11 +187,54 @@ namespace
 			case EPhase::Profile:
 				if (++FrameCounter >= Settings.ProfileWaitFrames)
 				{
+					if (Settings.PathTraceSamples <= 0 || !GEngine->GameViewport)
+					{
+						Report(TEXT("result"), FString(TEXT("complete")));
+						Finish();
+						return false;
+					}
+					// Photo mode's renderer (ADR-0018): the view path traced until it has its samples.
+					Floor101::PathTracing::SetTargetSamples(Settings.PathTraceSamples);
+					Floor101::PathTracing::SetEnabled(*GEngine->GameViewport, true);
+					PathTraceStartSeconds = FPlatformTime::Seconds();
+					Report(TEXT("path_tracing_target"), FString::FromInt(Settings.PathTraceSamples));
+					Phase = EPhase::PathTrace;
+				}
+				break;
+
+			case EPhase::PathTrace:
+			{
+				// The path tracer's shaders compile on first use; until then the image would show placeholder materials.
+				Floor101::PathTracing::Tick(GetGameWorld());
+				const bool bCompiling = Floor101::PathTracing::GetPendingShaders() > 0;
+				const int32 Samples = bCompiling ? 0 : Floor101::PathTracing::GetAccumulatedSamples();
+				const double Elapsed = FPlatformTime::Seconds() - PathTraceStartSeconds;
+				if ((!bCompiling && Floor101::PathTracing::IsComplete()) || Elapsed > Settings.PathTraceTimeoutSeconds)
+				{
+					Report(TEXT("path_tracing_samples"), FString::FromInt(Samples));
+					Report(TEXT("path_tracing_time"), FString::Printf(TEXT("%.1fs"), Elapsed));
+					PathTraceImage = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RenderCheck"),
+						FString::Printf(TEXT("PathTrace-%s.png"), *FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")))));
+					IFileManager::Get().MakeDirectory(*FPaths::GetPath(PathTraceImage), true);
+					Floor101::PathTracing::RequestImage(PathTraceImage);
+					PathTraceStartSeconds = FPlatformTime::Seconds();
+					Phase = EPhase::PathTraceImage;
+				}
+				break;
+			}
+
+			case EPhase::PathTraceImage:
+			{
+				const bool bWritten = IFileManager::Get().FileSize(*PathTraceImage) > 0;
+				if (bWritten || FPlatformTime::Seconds() - PathTraceStartSeconds > 30.0)
+				{
+					Report(TEXT("path_tracing_image"), bWritten ? PathTraceImage : FString(TEXT("missing")));
 					Report(TEXT("result"), FString(TEXT("complete")));
 					Finish();
 					return false;
 				}
 				break;
+			}
 
 			case EPhase::Done:
 				return false;
@@ -259,6 +309,8 @@ namespace
 		EPhase Phase = EPhase::WaitForWorld;
 		double StartSeconds = 0.0;
 		double LastProgressLogSeconds = 0.0;
+		double PathTraceStartSeconds = 0.0;
+		FString PathTraceImage;
 		int32 FrameCounter = 0;
 		TArray<double> FrameTimesMs;
 		TArray<double> GpuTimesMs;
@@ -279,9 +331,10 @@ void StartIfRequested()
 	FParse::Value(FCommandLine::Get(), TEXT("F101RenderCheckWarmupFrames="), Settings.WarmupFrames);
 	FParse::Value(FCommandLine::Get(), TEXT("F101RenderCheckSampleFrames="), Settings.SampleFrames);
 	FParse::Value(FCommandLine::Get(), TEXT("F101RenderCheckTimeout="), Settings.TimeoutSeconds);
+	FParse::Value(FCommandLine::Get(), TEXT("F101RenderCheckPathTraceSamples="), Settings.PathTraceSamples);
 
-	UE_LOG(LogFloor101, Display, TEXT("F101RenderCheck: started warmup=%d samples=%d timeout=%.0fs"),
-		Settings.WarmupFrames, Settings.SampleFrames, Settings.TimeoutSeconds);
+	UE_LOG(LogFloor101, Display, TEXT("F101RenderCheck: started warmup=%d samples=%d path_tracing=%d timeout=%.0fs"),
+		Settings.WarmupFrames, Settings.SampleFrames, Settings.PathTraceSamples, Settings.TimeoutSeconds);
 
 	GRenderCheck = MakeUnique<FRenderCheck>(Settings);
 	GTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([](float)

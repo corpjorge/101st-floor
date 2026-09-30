@@ -102,6 +102,12 @@ namespace f101::scene
 		constexpr int PlankRows = 6;
 		constexpr int PlanksAcross = 3;
 
+		// Herringbone planks are this many widths long (at least 2).
+		std::int64_t herringboneRatio(const cad::FinishInfo& finish)
+		{
+			return std::max<std::int64_t>(2, std::llround(static_cast<double>(finish.unitWidthMm) / static_cast<double>(finish.unitHeightMm)));
+		}
+
 		Shade sample(const cad::FinishInfo& finish, const FinishTexture& texture, double u, double v)
 		{
 			const Shade base = toShade(finish.color);
@@ -156,6 +162,44 @@ namespace f101::scene
 				const double across = (yMm - static_cast<double>(row.index) * (unitH + gap)) / unitH; // 0..1 across the plank
 				const double grain = std::sin((across * 9.0 + 2.5 * valueNoise(u, v, 8, id & 1023U)) * 3.14159265358979) * 0.06;
 				return scaled(base, 1.0 + 0.1 * signedUnit(id) + grain + 0.03 * valueNoise(u, v, 128, 6));
+			}
+			case cad::FinishPattern::Herringbone:
+			{
+				// In plank widths: the cells whose diagonal index d = x - y (mod 2n) is below n belong to planks along u,
+				// the others to planks along v; each plank is n cells long and the planks step diagonally.
+				const std::int64_t n = herringboneRatio(finish);
+				const std::int64_t period = 2 * n;
+				const double cx = xMm / unitH;
+				const double cy = yMm / unitH;
+				const auto ix = static_cast<std::int64_t>(std::floor(cx));
+				const auto iy = static_cast<std::int64_t>(std::floor(cy));
+				const double fx = cx - static_cast<double>(ix);
+				const double fy = cy - static_cast<double>(iy);
+				const std::int64_t d = (((ix - iy) % period) + period) % period;
+				const double half = gap / unitH / 2.0;
+				const bool alongU = d < n;
+				const bool onJoint = alongU ? (fy < half || fy > 1.0 - half || (d == 0 && fx < half) || (d == n - 1 && fx > 1.0 - half))
+					: (fx < half || fx > 1.0 - half || (d == period - 1 && fy < half) || (d == n && fy > 1.0 - half));
+				if (onJoint)
+				{
+					return joint;
+				}
+				// A row holds one plank along u per repeat, a column one along v: their colours repeat with the texture.
+				const std::uint32_t id = alongU ? hash2(((iy % period) + period) % period, 17) : hash2(((ix % period) + period) % period, 29);
+				const double across = alongU ? fy : fx;
+				const double grain = std::sin((across * 5.0 + 2.5 * valueNoise(u, v, 8, id & 1023U)) * 3.14159265358979) * 0.06;
+				return scaled(base, 1.0 + 0.1 * signedUnit(id) + grain + 0.03 * valueNoise(u, v, 128, 7));
+			}
+			case cad::FinishPattern::Checker:
+			{
+				const Cell row = cellAt(yMm, unitH, gap);
+				const Cell column = cellAt(xMm, unitW, gap);
+				if (!row.onUnit || !column.onUnit)
+				{
+					return joint;
+				}
+				const Shade tile = (((row.index + column.index) % 2) + 2) % 2 == 0 ? base : toShade(finish.accentColor);
+				return scaled(tile, 1.0 + 0.02 * signedUnit(hash2(row.index, column.index)) + 0.01 * valueNoise(u, v, 64, 8));
 			}
 			}
 			return base;
@@ -273,12 +317,16 @@ namespace f101::scene
 			texture.repeatHeightMm = BrickCourses * unitH;
 			break;
 		case cad::FinishPattern::Tiles:
+		case cad::FinishPattern::Checker: // an even number of units: the colours alternate across the seam too
 			texture.repeatWidthMm = UnitsAcross * unitW;
 			texture.repeatHeightMm = UnitsAcross * unitH;
 			break;
 		case cad::FinishPattern::Planks:
 			texture.repeatWidthMm = PlanksAcross * unitW;
 			texture.repeatHeightMm = PlankRows * unitH;
+			break;
+		case cad::FinishPattern::Herringbone:
+			texture.repeatWidthMm = texture.repeatHeightMm = 2.0 * static_cast<double>(herringboneRatio(finish) * finish.unitHeightMm);
 			break;
 		}
 

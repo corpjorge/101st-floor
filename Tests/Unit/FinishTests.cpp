@@ -6,6 +6,8 @@
 #include "F101/Scene/FinishTextures.h"
 #include "F101/Scene/SceneCompiler.h"
 
+#include <algorithm>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -94,6 +96,90 @@ TEST_CASE("the finish catalogue: unique ids, the defaults exist and allow their 
 	CHECK(validateFinish("wood-oak", Surface::Wall).error().message == "The finish 'wood-oak' is not for walls");
 }
 
+TEST_CASE("the catalogue offers many paints, floors and furniture finishes, grouped by category (MVP 11)")
+{
+	std::map<FinishCategory, int> byCategory;
+	int floors = 0;
+	for (const FinishInfo& finish : finishCatalogue())
+	{
+		++byCategory[finish.category];
+		floors += finish.allows(Surface::Floor) ? 1 : 0;
+		if (finish.category == FinishCategory::Paint)
+		{
+			CHECK(finish.allows(Surface::Wall));
+			CHECK(finish.allows(Surface::Ceiling));
+			CHECK_FALSE(finish.allows(Surface::Floor));
+		}
+		if (finish.pattern == FinishPattern::Checker)
+		{
+			CHECK_FALSE(finish.accentColor == finish.color);
+		}
+		if (finish.pattern == FinishPattern::Herringbone)
+		{
+			CHECK(finish.unitWidthMm >= 2 * finish.unitHeightMm);
+		}
+		CHECK((finish.opacity < 1.0) <= (finish.category == FinishCategory::Glass));
+	}
+	CHECK(byCategory[FinishCategory::Paint] >= 20);
+	CHECK(byCategory[FinishCategory::Tiles] >= 8);
+	CHECK(byCategory[FinishCategory::Wood] >= 10);
+	CHECK(byCategory[FinishCategory::Stone] >= 6);
+	CHECK(byCategory[FinishCategory::Textile] >= 3);
+	CHECK(byCategory[FinishCategory::Fabric] >= 6);
+	CHECK(floors >= 30);
+	// Ids from earlier projects keep their surfaces.
+	CHECK(findFinish("tile-grey")->allows(Surface::Floor));
+	CHECK_FALSE(findFinish("tile-grey")->allows(Surface::Wall));
+	CHECK(findFinish("wood-oak")->allows(Surface::Carpentry));
+	CHECK(findFinish("glass-clear")->opacity < 1.0);
+}
+
+TEST_CASE("herringbone and checker textures: planks both ways, stepping; colours alternating")
+{
+	// Thick black joints make the planks measurable in pixels.
+	FinishInfo parquet = *findFinish("parquet-herringbone-oak");
+	parquet.jointMm = 20;
+	parquet.jointColor = Rgb8{0, 0, 0};
+	const scene::FinishTexture herringbone = scene::buildFinishTexture(parquet, 256);
+	CHECK(herringbone.repeatWidthMm == doctest::Approx(1200.0)); // 2 x 6 widths of 100 mm
+	CHECK(herringbone.repeatHeightMm == doctest::Approx(1200.0));
+	const scene::TextureImage& image = herringbone.mips.front();
+	auto joint = [&image](int x, int y) { return image.rgba[(static_cast<std::size_t>(y) * image.width + x) * 4] < 60; };
+	int longestAcross = 0;
+	int longestDown = 0;
+	int joints = 0;
+	for (int line = 0; line < image.width; ++line)
+	{
+		int across = 0;
+		int down = 0;
+		for (int step = 0; step < image.width; ++step)
+		{
+			across = joint(step, line) ? 0 : across + 1;
+			down = joint(line, step) ? 0 : down + 1;
+			longestAcross = std::max(longestAcross, across);
+			longestDown = std::max(longestDown, down);
+			joints += joint(step, line) ? 1 : 0;
+		}
+	}
+	// A 600 mm plank is 128 px: runs of about that length both ways, never a whole repeat.
+	CHECK(longestAcross >= 110);
+	CHECK(longestAcross < 140);
+	CHECK(longestDown >= 110);
+	CHECK(longestDown < 140);
+	CHECK(joints > image.width * image.height / 10);
+	CHECK(joints < image.width * image.height / 3);
+
+	const FinishInfo& checker = *findFinish("tile-checker-bw");
+	const scene::FinishTexture board = scene::buildFinishTexture(checker, 256);
+	const scene::TextureImage& squares = board.mips.front();
+	auto red = [&squares](int x, int y) { return squares.rgba[(static_cast<std::size_t>(y) * squares.width + x) * 4]; };
+	// Four units per repeat: 64 px each; unit centres at 32 and 96.
+	CHECK(red(32, 32) > 200);
+	CHECK(red(96, 32) < 70);
+	CHECK(red(96, 96) > 200);
+	CHECK(red(32, 96) < 70);
+}
+
 TEST_CASE_FIXTURE(Room4x3, "wall faces and room surfaces take finishes as undoable commands")
 {
 	REQUIRE(document.execute(SetWallFinishCommand{walls[0], WallSide::Left, "brick-red"}).ok());
@@ -175,6 +261,47 @@ TEST_CASE_FIXTURE(Room4x3, "the Paint tool paints the face it hits, or the floor
 	CHECK(document.project().findRoomFinish(roomKey())->ceiling == "concrete");
 	// Outside every room and wall: nothing to paint.
 	CHECK(editor.pointerPressed(down(9000.0, 9000.0)).error().code == ErrorCode::InvalidArgument);
+}
+
+TEST_CASE_FIXTURE(Room4x3, "Paint tells what a click would paint; a floor finish looks past the walls, down to the floor")
+{
+	EditController editor{document, EditSettings{}};
+	editor.setRoomLocator(geometry::makeRoomLocator());
+	REQUIRE(editor.setPaintFinish("paint-sage").ok());
+	editor.pointerMoved(down(2000.0, 30.0));
+	CHECK_FALSE(editor.paintTarget().has_value()); // not in Paint mode
+	editor.setMode(EditMode::Paint);
+	REQUIRE(editor.paintTarget().has_value());
+	CHECK(editor.paintTarget()->wall == walls[0]);
+	CHECK(editor.paintTarget()->side == WallSide::Left);
+	editor.pointerMoved(down(2000.0, 1500.0));
+	CHECK_FALSE(editor.paintTarget().has_value()); // a wall paint over the floor: nothing
+	CHECK(editor.pointerPressed(down(2000.0, 1500.0)).error().message == "Point at a wall: this finish is for walls");
+
+	// Laminate: only floors. Over the floor, the room; seen from outside, past the wall in front, the floor behind it.
+	REQUIRE(editor.setPaintFinish("laminate-oak-light").ok());
+	REQUIRE(editor.paintTarget().has_value()); // the target follows the finish at once
+	CHECK(editor.paintTarget()->room == roomKey());
+	const Ray3 slanted{2000.0, -1500.0, 2000.0, 0.0, 1.0, -0.6}; // meets the south wall's outer face, then the room's floor
+	REQUIRE(editor.setPaintFinish("paint-sage").ok());
+	editor.pointerMoved(slanted);
+	REQUIRE(editor.paintTarget().has_value());
+	CHECK(editor.paintTarget()->wall == walls[0]); // a wall paint: that face
+	CHECK(editor.paintTarget()->side == WallSide::Right);
+	REQUIRE(editor.setPaintFinish("laminate-oak-light").ok());
+	REQUIRE(editor.paintTarget().has_value());
+	CHECK(editor.paintTarget()->wall.isNil());
+	CHECK(editor.paintTarget()->room == roomKey());
+	REQUIRE(editor.pointerPressed(slanted).ok());
+	CHECK(document.project().findRoomFinish(roomKey())->floor == "laminate-oak-light");
+	CHECK(document.project().findWall(walls[0])->finishLeft.empty());
+
+	// No room there (the walls do not close it): nothing, and why.
+	editor.pointerMoved(down(9000.0, 9000.0));
+	CHECK_FALSE(editor.paintTarget().has_value());
+	CHECK(editor.pointerPressed(down(9000.0, 9000.0)).error().message == "Point at the floor of a room: walls must close it all round");
+	editor.setMode(EditMode::Select);
+	CHECK_FALSE(editor.paintTarget().has_value());
 }
 
 TEST_CASE_FIXTURE(Room4x3, "a click on a room floor selects the room; its finishes are set from the selection")

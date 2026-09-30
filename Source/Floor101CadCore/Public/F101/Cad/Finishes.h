@@ -4,13 +4,15 @@
 #include "F101/Cad/Result.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 // Finishes (ADR-0012): the surface materials of walls, floors and ceilings, from a fixed catalogue. The model stores a
 // finish id per surface; the appearance below is renderer-neutral (sRGB colours, roughness, a repeating pattern) so the
-// Unreal adapter and future exporters build their materials from the same data.
+// Unreal adapter and future exporters build their materials from the same data. Ids are stable: new finishes are added,
+// none is renamed or removed (projects refer to them).
 namespace f101::cad
 {
 	// Catalogue id, e.g. "brick-red". Empty: the surface's default finish.
@@ -28,11 +30,26 @@ namespace f101::cad
 
 	enum class FinishPattern
 	{
-		Plain,   // one colour
-		Speckle, // fine noise (concrete, screed)
-		Bricks,  // running bond: rows of units offset by half a unit
-		Tiles,   // grid of units
-		Planks,  // rows of long units with staggered ends and a grain
+		Plain,       // one colour
+		Speckle,     // fine noise (concrete, screed, carpet)
+		Bricks,      // running bond: rows of units offset by half a unit
+		Tiles,       // grid of units
+		Planks,      // rows of long units with staggered ends and a grain
+		Herringbone, // planks at right angles stepping diagonally (length a whole number of widths)
+		Checker,     // grid of units alternating the colour and the accent colour
+	};
+
+	// What kind of material a finish is, to group the catalogue (ADR-0012; MVP 11).
+	enum class FinishCategory
+	{
+		Paint,    // wall and ceiling paints
+		Tiles,    // ceramic and porcelain tiles
+		Wood,     // floorboards, laminate, parquet, panelling
+		Stone,    // concrete, screed, microcement, brick
+		Textile,  // carpet
+		Joinery,  // lacquers and metals for doors, windows and furniture
+		Fabric,   // upholstery and bedding
+		Glass,
 	};
 
 	struct Rgb8
@@ -47,15 +64,17 @@ namespace f101::cad
 	struct FinishInfo
 	{
 		std::string_view id;
+		FinishCategory category = FinishCategory::Paint;
 		std::uint8_t surfaces = 0; // Surface flags it may be applied to
 		Rgb8 color;                // base colour (sRGB)
 		Rgb8 jointColor;           // mortar, grout or the gap between planks (patterns with units)
 		double roughness = 0.8;    // 0 mirror .. 1 matte
 		FinishPattern pattern = FinishPattern::Plain;
-		std::int64_t unitWidthMm = 0; // size of one brick, tile or plank (patterns with units)
+		std::int64_t unitWidthMm = 0; // size of one brick, tile or plank (patterns with units; a plank's length)
 		std::int64_t unitHeightMm = 0;
 		std::int64_t jointMm = 0;
 		double opacity = 1.0; // 1: opaque; less: see-through (glass)
+		Rgb8 accentColor;     // Checker: every other unit's colour
 
 		bool allows(Surface surface) const { return (surfaces & static_cast<std::uint8_t>(surface)) != 0; }
 	};
@@ -67,6 +86,10 @@ namespace f101::cad
 	inline constexpr std::string_view DefaultGlazingFinish = "glass-clear";
 	// Door handles and other fittings (not chosen by the user).
 	inline constexpr std::string_view HardwareFinish = "aluminium-anthracite";
+
+	// "paint", "tiles", "wood", "stone", "textile", "joinery", "fabric", "glass" (library files).
+	FLOOR101CADCORE_API std::string_view finishCategoryId(FinishCategory category);
+	FLOOR101CADCORE_API std::optional<FinishCategory> parseFinishCategory(std::string_view id);
 
 	// Every finish, in display order.
 	FLOOR101CADCORE_API const std::vector<FinishInfo>& finishCatalogue();

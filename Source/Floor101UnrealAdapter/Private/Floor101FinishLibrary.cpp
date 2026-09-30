@@ -199,6 +199,21 @@ UTexture2D* UFloor101FinishLibrary::GetAssetFinishImage(const FString& FinishId)
 	return bMissing ? nullptr : Texture;
 }
 
+UTexture2D* UFloor101FinishLibrary::GetPicture(const FString& Path)
+{
+	if (const TObjectPtr<UTexture2D>* Cached = Pictures.Find(Path))
+	{
+		return *Cached;
+	}
+	UTexture2D* Picture = FImageUtils::ImportFileAsTexture2D(Path);
+	if (!Picture)
+	{
+		UE_LOG(LogFloor101Finishes, Warning, TEXT("F101: cannot read the picture %s"), *Path);
+	}
+	Pictures.Add(Path, Picture);
+	return Picture;
+}
+
 UMaterialInterface* UFloor101FinishLibrary::GetFinishMaterial(const FString& FinishId, bool bContext)
 {
 	const FString Key = bContext ? FinishId + TEXT("#context") : FinishId;

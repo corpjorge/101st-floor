@@ -8,6 +8,7 @@
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "F101/Assets/Library.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
 #include "Floor101DocumentSubsystem.h"
@@ -96,6 +97,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("L: every level"), Map(EKeys::L) == Command::AllLevels);
 	TestTrue(TEXT("Space: flip the hinges"), Map(EKeys::SpaceBar) == Command::Flip);
 	TestTrue(TEXT("Tab: 2D plan"), Map(EKeys::Tab) == Command::PlanView);
+	TestTrue(TEXT("R: photo"), Map(EKeys::R) == Command::PhotoMode);
 	TestTrue(TEXT("M typed in a length is text ('3.55 m')"),
 		UFloor101GameViewportClient::MapKey(EKeys::M, false, false, false, true) == Command::None);
 	TestTrue(TEXT("W still switches while typing"), UFloor101GameViewportClient::MapKey(EKeys::W, false, false, false, true) == Command::WallTool);
@@ -521,6 +523,65 @@ bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
 	AddExpectedMessagePlain(TEXT("A door cannot be fixed"), ELogVerbosity::Warning);
 	TestFalse(TEXT("fixed door refused"), Document->Edit([](EditController& Editor) { return Editor.setOpeningOperation(f101::cad::OpeningOperation::Fixed); }).ok());
 	TestTrue(TEXT("the refusal reaches the status bar"), Document->IsStatusError());
+
+	// The window tool places the type chosen for it beforehand: a fixed window, closed, with no swing.
+	TestTrue(TEXT("fixed windows chosen"), Document->Edit([](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Window);
+		return Editor.setNewOpeningOperation(f101::cad::OpeningKind::Window, f101::cad::OpeningOperation::Fixed);
+	}).ok());
+	Document->UpdatePointer(Down(1000.0, 40.0));
+	TestTrue(TEXT("click places it"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(1000.0, 40.0)); }).ok());
+	const std::vector<f101::cad::Opening>& Openings = Document->GetDocument().project().findWall(Host)->openings;
+	const auto Window = std::find_if(Openings.begin(), Openings.end(),
+		[](const f101::cad::Opening& Opening) { return Opening.kind == f101::cad::OpeningKind::Window; });
+	if (TestTrue(TEXT("a window placed"), Window != Openings.end()))
+	{
+		TestTrue(TEXT("fixed and closed"), Window->operation == f101::cad::OpeningOperation::Fixed && Window->openPercent == 0);
+		const FString WindowNode = UTF8_TO_TCHAR((f101::cad::toString(Host) + "/opening/" + f101::cad::toString(Window->id)).c_str());
+		TestNotNull(TEXT("with its carpentry"), FindNode(TestWorld.World, WindowNode));
+		TestNull(TEXT("and no swing"), FindNode(TestWorld.World, WindowNode + TEXT("/swing")));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PhotoModeTest, "Floor101.Interaction.PhotoMode", TestFlags)
+bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("document subsystem"), Document) || !TestNotNull(TEXT("finish library"), Library))
+	{
+		return false;
+	}
+	const f101::cad::WallId Host = Document->GetMutableDocument().addWall({0, 0}, {4000, 0}, 120, 2800).value();
+	const f101::cad::OpeningId Door = Document->GetMutableDocument().addOpening(Host,
+		f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Door, 1000, 900, 2100, 0}).value();
+	TestTrue(TEXT("select the wall"), Document->Edit([Host](EditController& Editor) { return Editor.select(Host); }).ok());
+	const FString SwingNode = UTF8_TO_TCHAR((f101::cad::toString(Host) + "/opening/" + f101::cad::toString(Door) + "/swing").c_str());
+	const AFloor101SceneNodeActor* Wall = FindNode(TestWorld.World, UTF8_TO_TCHAR(f101::scene::wallBodyNodeId(Host).value.c_str()));
+	if (!TestNotNull(TEXT("wall actor"), Wall))
+	{
+		return false;
+	}
+	UMaterialInterface* Plaster = Library->GetFinishMaterial(TEXT("plaster-white"));
+	TestTrue(TEXT("selected: tinted"), Wall->GetDisplayMaterial() != Plaster);
+	TestNotNull(TEXT("the door's swing"), FindNode(TestWorld.World, SwingNode));
+
+	// A photo (ADR-0018) shows the project as it is: no selection tint, no editing symbols.
+	Document->SetPhotoMode(true);
+	TestTrue(TEXT("photo mode"), Document->IsPhotoMode());
+	TestTrue(TEXT("its own finish"), Wall->GetDisplayMaterial() == Plaster);
+	TestNull(TEXT("no swing"), FindNode(TestWorld.World, SwingNode));
+	TestTrue(TEXT("a PNG next to the project"), Document->GetDefaultPhotoPath().EndsWith(TEXT(".png")) &&
+		FPaths::GetCleanFilename(Document->GetDefaultPhotoPath()).Contains(TEXT("-foto-")));
+	AddExpectedMessagePlain(TEXT("F101: Save the photo as .png"), ELogVerbosity::Warning);
+	TestFalse(TEXT("another format refused"), Document->SavePhoto(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("foto.jpg"))).ok());
+
+	Document->SetPhotoMode(false);
+	TestNotNull(TEXT("back to editing: the swing"), FindNode(TestWorld.World, SwingNode));
+	TestTrue(TEXT("and the selection"), Wall->GetDisplayMaterial() != Plaster);
 	return true;
 }
 
@@ -686,7 +747,7 @@ bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Furniture"), TEXT("project.json")));
 	TestTrue(TEXT("saved"), Document->SaveProject(Path).ok());
 	FString Json;
-	TestTrue(TEXT("schema 8 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 8")) &&
+	TestTrue(TEXT("schema 9 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 9")) &&
 		Json.Contains(TEXT("\"type\": \"sofa\"")));
 	TestTrue(TEXT("removed before opening"), Document->GetMutableDocument().execute(f101::cad::DeleteFurnitureCommand{Sofa}).ok());
 	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
@@ -798,8 +859,8 @@ bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("saved elsewhere"), Document->SaveProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
 	TestTrue(TEXT("the texture went along"), !TextureFile.IsEmpty() && FPaths::FileExists(FPaths::Combine(Moved, TextureFile)));
 	FString Json;
-	TestTrue(TEXT("schema 8 with its assets"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Moved, TEXT("project.json"))) &&
-		Json.Contains(TEXT("\"schemaVersion\": 8")) && Json.Contains(TEXT("\"file\": \"assets/")));
+	TestTrue(TEXT("schema 9 with its assets"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Moved, TEXT("project.json"))) &&
+		Json.Contains(TEXT("\"schemaVersion\": 9")) && Json.Contains(TEXT("\"file\": \"assets/")));
 	TestTrue(TEXT("opened again"), Document->OpenProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
 	TestEqual(TEXT("three assets"), static_cast<int32>(Document->GetDocument().project().assets.size()), 3);
 	TestTrue(TEXT("the model still shows"), Document->GetAssetProblem(Armchair.value()).IsEmpty() &&
@@ -821,6 +882,98 @@ bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 			Library->GetFinishMaterial(UTF8_TO_TCHAR(f101::cad::modelMaterialFinish(Armchair.value(), 0).c_str())));
 	}
 	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Folder), false, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LibraryInteractionTest, "Floor101.Interaction.Library", TestFlags)
+bool FFloor101LibraryInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("document subsystem"), Document) || !TestNotNull(TEXT("finish library"), Library))
+	{
+		return false;
+	}
+	// The built-in library (ADR-0019), read from the project's Library folder: many pieces a category, and photographs.
+	const f101::assets::Library& Shipped = UFloor101DocumentSubsystem::GetLibrary();
+	TestTrue(TEXT("50 models or more"), Shipped.furniture.size() >= 50);
+	TestTrue(TEXT("many chairs"), std::count_if(Shipped.furniture.begin(), Shipped.furniture.end(),
+		[](const f101::assets::LibraryFurniture& Item) { return Item.category == f101::cad::FurnitureCategory::Seating; }) >= 5);
+	TestTrue(TEXT("14 textures or more"), Shipped.textures.size() >= 14);
+	const f101::assets::LibraryFurniture* Windsor = Shipped.findFurniture("chair-windsor");
+	if (!TestNotNull(TEXT("the Windsor chair"), Windsor))
+	{
+		return false;
+	}
+	const UTexture2D* Picture = Library->GetPicture(FPaths::Combine(UFloor101DocumentSubsystem::GetLibraryFolder(), UTF8_TO_TCHAR(Windsor->thumbnail.c_str())));
+	TestTrue(TEXT("its picture for the palette"), Picture && Picture->GetSizeX() == 256);
+
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Library")));
+	IFileManager::Get().DeleteDirectory(*Folder, false, true);
+	TestTrue(TEXT("saved"), Document->SaveProject(FPaths::Combine(Folder, TEXT("project.json"))).ok());
+	for (const auto& [From, To] : {std::pair<f101::cad::Point2D, f101::cad::Point2D>{{0, 0}, {4000, 0}}, {{4000, 0}, {4000, 4000}},
+			 {{4000, 4000}, {0, 4000}}, {{0, 4000}, {0, 0}}})
+	{
+		(void)Document->GetMutableDocument().addWall(From, To, 120, 2800);
+	}
+
+	// A chair of the library: added to the project once (its files copied next to it), then placed like any model.
+	const f101::Result<f101::cad::AssetId> Chair = Document->AddFromLibrary(TEXT("chair-windsor"));
+	if (!TestTrue(TEXT("added"), Chair.ok()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("the status says so"), Document->GetStatusMessage().ToString().Contains(TEXT("Añadido de la biblioteca: Silla Windsor")));
+	const f101::cad::Asset ChairAsset = *Document->GetDocument().project().findAsset(Chair.value()); // a copy: more are added
+	TestEqual(TEXT("it remembers the item"), FString(UTF8_TO_TCHAR(ChairAsset.library.c_str())), FString(TEXT("chair-windsor")));
+	TestTrue(TEXT("its file in the project"), FPaths::FileExists(Document->GetAssetFilePath(ChairAsset)));
+	const f101::Result<f101::cad::AssetId> Again = Document->AddFromLibrary(TEXT("chair-windsor"));
+	TestTrue(TEXT("added once"), Again.ok() && Again.value() == Chair.value() && Document->GetDocument().project().assets.size() == 1);
+	const std::string ChairRef = f101::cad::assetRef(Chair.value());
+	TestTrue(TEXT("Amueblar with it"), Document->Edit([&ChairRef](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Furniture);
+		return Editor.setFurnitureType(ChairRef);
+	}).ok());
+	TestTrue(TEXT("placed"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(2000.0, 2000.0)); }).ok());
+	const f101::cad::Furniture Piece = Document->GetDocument().project().furniture.back();
+	const AFloor101SceneNodeActor* ChairActor = Cast<AFloor101SceneNodeActor>(Document->FindFurnitureActor(Piece.id));
+	if (TestNotNull(TEXT("its actor"), ChairActor))
+	{
+		TestEqual(TEXT("at the model's width"), ChairActor->GetMeshBounds().GetSize().X, static_cast<double>(ChairAsset.model.widthMm) / 10.0, 0.5);
+		TestTrue(TEXT("with its own materials"), Document->GetAssetProblem(Chair.value()).IsEmpty() && ChairActor->GetDisplayMaterial() ==
+			Library->GetFinishMaterial(UTF8_TO_TCHAR(f101::cad::modelMaterialFinish(Chair.value(), 0).c_str())));
+	}
+
+	// A photographic laminate on the room's floor, at its real size.
+	const f101::Result<f101::cad::AssetId> Laminate = Document->AddFromLibrary(TEXT("photo-laminate-oak"));
+	if (!TestTrue(TEXT("laminate added"), Laminate.ok()))
+	{
+		return false;
+	}
+	const std::string LaminateRef = f101::cad::assetRef(Laminate.value());
+	TestTrue(TEXT("Pintar with it"), Document->Edit([&LaminateRef](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Paint);
+		return Editor.setPaintFinish(LaminateRef);
+	}).ok());
+	TestTrue(TEXT("paint the floor"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(1000.0, 3000.0)); }).ok());
+	if (TestEqual(TEXT("one room"), Document->GetRooms().Num(), 1))
+	{
+		const AFloor101SceneNodeActor* Floor = Cast<AFloor101SceneNodeActor>(Document->FindRoomFloorActor(Document->GetRooms()[0].Key));
+		const FString LaminateId = UTF8_TO_TCHAR(LaminateRef.c_str());
+		TestTrue(TEXT("the floor shows the laminate"), Floor && Floor->GetDisplayMaterial() == Library->GetFinishMaterial(LaminateId));
+		const UTexture2D* Photo = Library->FindFinishTexture(LaminateId);
+		TestTrue(TEXT("its photograph decoded"), Photo && Photo->GetSizeX() == 1024 && !Library->IsAssetImageMissing(LaminateId));
+	}
+
+	// The project remembers where each asset came from (schema 9).
+	TestTrue(TEXT("saved again"), Document->SaveProject(FPaths::Combine(Folder, TEXT("project.json"))).ok());
+	FString Json;
+	TestTrue(TEXT("with the library ids"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Folder, TEXT("project.json"))) &&
+		Json.Contains(TEXT("\"library\": \"chair-windsor\"")) && Json.Contains(TEXT("\"library\": \"photo-laminate-oak\"")));
+	IFileManager::Get().DeleteDirectory(*Folder, false, true);
 	return true;
 }
 

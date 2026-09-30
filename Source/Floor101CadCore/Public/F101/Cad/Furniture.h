@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,6 +17,24 @@
 // type and the dimensions in the Geometry Engine; the model only stores what to build and where.
 namespace f101::cad
 {
+	// The groups of the furniture palette (MVP 11, ADR-0019): the catalogue's types and the built-in library's models.
+	enum class FurnitureCategory
+	{
+		Beds,
+		Seating, // chairs and stools
+		Sofas,   // sofas and armchairs
+		Tables,
+		Storage,
+		Kitchen,
+		Bathroom,
+		Lighting,
+		Decor, // plants, rugs, shelves...
+	};
+
+	// "beds", "seating", "sofas", "tables", "storage", "kitchen", "bathroom", "lighting", "decor" (library files).
+	FLOOR101CADCORE_API std::string_view furnitureCategoryId(FurnitureCategory category);
+	FLOOR101CADCORE_API std::optional<FurnitureCategory> parseFurnitureCategory(std::string_view id);
+
 	// A furniture type of the catalogue: its default size, the sizes it allows and how it is placed.
 	struct FurnitureType
 	{
@@ -31,6 +50,7 @@ namespace f101::cad
 		std::int64_t maxHeightMm = 0;
 		bool againstWall = false;   // placed near a wall, its back goes against it
 		std::string_view bodyFinish; // finish of its main parts unless the piece has its own
+		FurnitureCategory category = FurnitureCategory::Decor;
 	};
 
 	// Every furniture type, in display order.

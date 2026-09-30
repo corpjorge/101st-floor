@@ -45,6 +45,16 @@ private:
 	// Furniture (ADR-0016): the selected piece (sizes, rotation, finish) and the catalogue of the Furniture mode.
 	TSharedRef<SWidget> MakeFurnitureSection();
 	TSharedRef<SWidget> MakeFurniturePalette();
+	// The built-in library (ADR-0019). A tile of a palette grid: a picture with its name under it, framed in orange while
+	// IsActive.
+	TSharedRef<SWidget> MakeCatalogueTile(const TSharedRef<SWidget>& Picture, const FText& Name, const FText& ToolTip,
+		TFunction<bool()> IsActive, TFunction<FReply()> OnClicked);
+	// The picture of an image file (library thumbnails and photographs), or a grey swatch if it cannot be read.
+	const FSlateBrush* GetPictureBrush(const FString& Path);
+	// Adds a library item to the project (once) and uses it: Amueblar places the model, Pintar applies the texture.
+	FReply UseLibraryItem(const std::string& ItemId, bool bModel);
+	// Whether Amueblar (bModel) or Pintar uses the project's asset made from that library item.
+	bool IsLibraryItemInUse(const std::string& ItemId, bool bModel) const;
 	// Imported assets (ADR-0017): the project's textures in Pintar and models in Amueblar (rebuilt when the library
 	// changes), the buttons that import them, and the settings of the one in use.
 	TSharedRef<SWidget> MakeImportedTextures();
@@ -58,6 +68,8 @@ private:
 	TSharedRef<SWidget> MakeSwatch(const std::string& FinishId, float Size);
 	// The image an imported texture shows now (its brush follows it), or a grey swatch while it has none.
 	const FSlateBrush* GetAssetBrush(const FString& FinishId);
+	// The texture a catalogue finish is drawn with (its pattern), for swatches.
+	const FSlateBrush* GetCatalogueBrush(const FString& FinishId);
 	// The project being edited, or null.
 	const f101::cad::Project* CurrentProject() const;
 	// The imported texture Pintar applies, and the imported model Amueblar places; null when it is a catalogue one.
@@ -72,8 +84,12 @@ private:
 	TSharedRef<SWidget> MakeTextRow(const FText& Label, TFunction<FText()> CurrentText, FSelectionSetter Setter);
 	// How the selected door or window opens (ADR-0014): its type, its hinges, the face it opens to, how open it is shown.
 	TSharedRef<SWidget> MakeOpeningTypeSection();
+	// Door and Window modes: the type the next ones are placed with.
+	TSharedRef<SWidget> MakeOpeningPalette();
 	// A row with a label, a value and an "Invertir" button running `Flip`.
 	TSharedRef<SWidget> MakeFlipRow(TFunction<FText()> Label, TFunction<FText()> Value, f101::Status (f101::cad::EditController::*Flip)());
+	// Photo mode (ADR-0018): its samples, quality, saving the image and leaving it.
+	TSharedRef<SWidget> MakePhotoPanel();
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 
@@ -87,6 +103,7 @@ private:
 	// The selected room as shown (active level), or null.
 	const FFloor101RoomView* GetSelectedRoom() const;
 	bool IsLevelPanelShown() const;
+	bool IsPhotoMode() const;
 	FText GetHintText() const;
 	FText GetCursorText() const;
 	// Plan millimetres to this widget in the 2D plan view (camera straight down, north up); unset without a camera.
@@ -104,6 +121,10 @@ private:
 	TSharedPtr<SVerticalBox> ImportedModelList;
 	FString ImportedSignature; // ids and names of the assets the lists show
 	TMap<FString, TSharedPtr<FSlateBrush>> AssetBrushes;
+	// Pintar shows the finishes for walls, or those for floors (MVP 11).
+	bool bPaintFloors = false;
+	// The category Amueblar shows.
+	f101::cad::FurnitureCategory FurnitureTab = f101::cad::FurnitureCategory::Seating;
 	TSharedPtr<FSlateBrush> NoImageBrush;
 	TArray<TSharedPtr<f101::cad::ModelUnit>> ModelUnits;
 	// The types a door and a window can have, for their drop-downs.
