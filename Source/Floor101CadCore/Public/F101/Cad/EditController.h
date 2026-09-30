@@ -22,6 +22,7 @@ namespace f101::cad
 		Door,
 		Window,
 		Paint, // applies EditSettings::paintFinish to a wall face or a room floor (ADR-0012)
+		Furniture, // places pieces of EditSettings::furnitureType (ADR-0016)
 	};
 
 	struct EditSettings
@@ -39,6 +40,11 @@ namespace f101::cad
 		std::int64_t minOpeningWidthMm = 300;
 		// What the Paint mode applies.
 		FinishId paintFinish = "paint-sand";
+		// What the Furniture mode places, turned by furnitureRotationCentidegrees unless it goes against a wall; a piece that
+		// does snaps its back to the face of the nearest wall when its centre is within its depth plus this reach.
+		std::string furnitureType = "sofa";
+		std::int64_t furnitureRotationCentidegrees = 0;
+		double furnitureWallReachMm = 400.0;
 	};
 
 	// The room whose floor contains a plan point, among one level's walls: its key (geometry::Room::key), or nullopt.
@@ -64,6 +70,9 @@ namespace f101::cad
 		// (their own ids). The application shows the project as if they were applied.
 		std::vector<Wall> previewWalls;
 		std::vector<Point2D> handles;
+		FurnitureId selectedFurniture; // nil: none
+		// The piece being placed (nil id) or the selected piece where a drag would leave it (its own id).
+		std::vector<Furniture> previewFurniture;
 	};
 
 	// Interactive editing of a document, independent of any engine (ADR-0008). The engine translates its input into
@@ -80,6 +89,11 @@ namespace f101::cad
 	// it along its wall, dragging one of its edge handles resizes it (one ChangeOpeningCommand on release).
 	// Paint mode: a click on a wall paints the face it hits (the side of the axis); elsewhere, the floor of the room under
 	// the pointer. In Select mode a click on a room floor (not on a wall) selects the room.
+	// Furniture mode (ADR-0016): the pointer previews a piece of the chosen type centred on it, on the snap grid; a type
+	// that goes against walls, near one, turns its back to the nearest wall face and touches it, sliding along it on the
+	// grid and stopping at the walls it would run into. Space turns the next pieces 90 degrees; a click adds one. In Select
+	// mode a click on a piece (nearer than any wall) selects it, dragging it moves it with the same snapping (one
+	// ChangeFurnitureCommand on release), and Space turns it 90 degrees.
 	// Levels (ADR-0011): everything happens on the active level. Pointer rays are taken to that level's elevation, and
 	// picking, snapping, handles and corner moves only see its walls. Changing level drops the selection and any gesture.
 	class EditController
@@ -137,16 +151,35 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status flipOpeningSide();
 		// How open it is shown, typed as a whole percentage ("35", "35 %").
 		FLOOR101CADCORE_API Status setOpeningOpenPercent(std::string_view text);
-		// Space: in Door/Window mode, the next openings get their hinges on the other jamb; otherwise flips the hinges of
-		// the selected opening.
+		// Space: in Door/Window mode, the next openings get their hinges on the other jamb; in Furniture mode the next
+		// pieces turn 90 degrees; otherwise the selected piece turns 90 degrees, or the selected opening flips its hinges.
 		FLOOR101CADCORE_API Status flip();
 		// Door/Window mode: what a click would add (id nil); nullopt when the pointer is not over a wall that fits it.
 		const std::optional<OpeningRef>& openingPlacement() const { return placement; }
 
+		// Furniture (ADR-0016).
+		// A catalogue type for the Furniture mode.
+		FLOOR101CADCORE_API Status setFurnitureType(std::string_view type);
+		// Furniture mode: what a click would add (id nil); nullopt while the pointer is off the floor.
+		const std::optional<Furniture>& furniturePlacement() const { return furnitureAt; }
+		// The selected piece; nullopt if none or if it no longer exists. While one is selected nothing else is.
+		FLOOR101CADCORE_API std::optional<Furniture> selectedFurniture() const;
+		FLOOR101CADCORE_API Status selectFurniture(const FurnitureId& id);
+		// Property edits of the selected piece: sizes typed like lengths, the rotation in degrees ("90", "22.5").
+		FLOOR101CADCORE_API Status setFurnitureWidth(std::string_view text);
+		FLOOR101CADCORE_API Status setFurnitureDepth(std::string_view text);
+		FLOOR101CADCORE_API Status setFurnitureHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setFurnitureRotation(std::string_view text);
+		// Its main finish; empty restores its type's.
+		FLOOR101CADCORE_API Status setFurnitureFinish(std::string_view finish);
+		// Turns the selected piece 90 degrees counter-clockwise about its centre.
+		FLOOR101CADCORE_API Status rotateFurniture();
+
 		const WallTool& wallTool() const { return tool; }
 		const EditSettings& settings() const { return editSettings; }
-		bool isDragging() const { return drag.has_value() || openingDrag.has_value(); }
+		bool isDragging() const { return drag.has_value() || openingDrag.has_value() || furnitureDrag.has_value(); }
 		bool isDraggingOpening() const { return openingDrag.has_value(); }
+		bool isDraggingFurniture() const { return furnitureDrag.has_value(); }
 		// Last cursor position in plan: under the point where the pointer ray meets a wall, else where it meets the floor;
 		// nullopt when it meets neither (e.g. looking at the sky).
 		const std::optional<PlanPoint>& pointerOnPlan() const { return planPoint; }
@@ -170,7 +203,7 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status levelDown();
 		// Adds a level on top, as tall as the current top one with the same slab, and makes it active.
 		FLOOR101CADCORE_API Status addLevel();
-		// Deletes the active level with its walls (one undoable step); the level below becomes active.
+		// Deletes the active level with its walls and furniture (one undoable step); the level below becomes active.
 		FLOOR101CADCORE_API Status deleteActiveLevel();
 		// Property edits of the active level; lengths typed like the wall tool input.
 		FLOOR101CADCORE_API Status setLevelHeight(std::string_view text);
@@ -208,6 +241,13 @@ namespace f101::cad
 			PlanPoint grabOffset;        // origin minus the pointer at the press: the corner keeps its offset
 		};
 
+		// The selected piece being moved.
+		struct FurnitureDrag
+		{
+			Furniture furniture;  // where it would go (the original until the pointer moves)
+			PlanPoint grabOffset; // its centre minus the pointer at the press
+		};
+
 		// Parses `text` as a length and applies the command built from it to the selected wall.
 		Status changeSelection(std::string_view text, Command (*makeCommand)(const WallId&, std::int64_t));
 		// Parses `text` as a length and applies it to a copy of the selected opening, then changes the opening.
@@ -232,6 +272,17 @@ namespace f101::cad
 		Status paint(const Project& levelWalls, const Ray3& ray);
 		Status setRoomFinishes(std::string_view floor, std::string_view ceiling);
 		Status changeActiveLevel(const std::function<Status(Level&)>& edit);
+		// Where `piece` goes for a wanted centre on the active level (snapping, ADR-0016); `freeRotation` when it does not
+		// go against a wall. It goes on the side of the wall the pointer is on: while dragging, the wanted centre (the
+		// pointer plus where the piece was grabbed) can fall across the wall.
+		Furniture placeFurniture(Furniture piece, PlanPoint wanted, PlanPoint pointer, std::int64_t freeRotation) const;
+		void updateFurniturePlacement();
+		void updateFurnitureDrag();
+		// Edits a copy of the selected piece and changes it (one undoable step).
+		Status editSelectedFurniture(const std::function<Status(Furniture&)>& edit);
+		Status changeFurnitureSize(std::string_view text, std::int64_t Furniture::*size);
+		// Drops every selection.
+		void clearSelected();
 
 		Document& document;
 		EditSettings editSettings;
@@ -246,5 +297,8 @@ namespace f101::cad
 		bool allLevels = false;
 		std::string selectedRoomKey;
 		RoomLocator roomLocator;
+		FurnitureId selectedFurnitureId;
+		std::optional<FurnitureDrag> furnitureDrag;
+		std::optional<Furniture> furnitureAt; // Furniture mode placement
 	};
 }

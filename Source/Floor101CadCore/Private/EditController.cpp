@@ -1,8 +1,11 @@
 #include "F101/Cad/EditController.h"
 
 #include <algorithm>
+#include <array>
+#include <charconv>
 #include <cmath>
 #include <limits>
+#include <system_error>
 #include <utility>
 
 namespace f101::cad
@@ -141,6 +144,109 @@ namespace f101::cad
 			}
 			return nullptr;
 		}
+
+		using Quad = std::array<PlanPoint, 4>;
+
+		// A wall's solid in plan: the box centred on its axis.
+		Quad wallBody(const Wall& wall)
+		{
+			const double length = wall.lengthMm();
+			const PlanPoint axis{static_cast<double>(wall.end.x_mm - wall.start.x_mm) / length,
+				static_cast<double>(wall.end.y_mm - wall.start.y_mm) / length};
+			const double half = static_cast<double>(wall.thicknessMm) / 2.0;
+			const PlanPoint side{-axis.y_mm * half, axis.x_mm * half};
+			const double sx = static_cast<double>(wall.start.x_mm);
+			const double sy = static_cast<double>(wall.start.y_mm);
+			const double ex = static_cast<double>(wall.end.x_mm);
+			const double ey = static_cast<double>(wall.end.y_mm);
+			return {PlanPoint{sx - side.x_mm, sy - side.y_mm}, PlanPoint{ex - side.x_mm, ey - side.y_mm},
+				PlanPoint{ex + side.x_mm, ey + side.y_mm}, PlanPoint{sx + side.x_mm, sy + side.y_mm}};
+		}
+
+		// The open interval of t for which `moving`, shifted by t * `direction` (unit), overlaps `fixed` (two rectangles,
+		// separating axis test); nullopt if they never overlap.
+		std::optional<std::pair<double, double>> slideOverlap(const Quad& moving, const Quad& fixed, PlanPoint direction)
+		{
+			double low = -std::numeric_limits<double>::infinity();
+			double high = std::numeric_limits<double>::infinity();
+			for (const Quad* quad : {&moving, &fixed})
+			{
+				for (std::size_t edge = 0; edge < 2; ++edge)
+				{
+					const PlanPoint along{(*quad)[edge + 1].x_mm - (*quad)[edge].x_mm, (*quad)[edge + 1].y_mm - (*quad)[edge].y_mm};
+					const double length = std::hypot(along.x_mm, along.y_mm);
+					if (length <= 0.0)
+					{
+						continue;
+					}
+					const PlanPoint normal{-along.y_mm / length, along.x_mm / length};
+					auto extent = [&normal](const Quad& shape)
+					{
+						double from = std::numeric_limits<double>::infinity();
+						double to = -std::numeric_limits<double>::infinity();
+						for (const PlanPoint& p : shape)
+						{
+							const double value = p.x_mm * normal.x_mm + p.y_mm * normal.y_mm;
+							from = std::min(from, value);
+							to = std::max(to, value);
+						}
+						return std::pair{from, to};
+					};
+					const auto [movingFrom, movingTo] = extent(moving);
+					const auto [fixedFrom, fixedTo] = extent(fixed);
+					const double speed = direction.x_mm * normal.x_mm + direction.y_mm * normal.y_mm;
+					if (std::fabs(speed) < 1e-9)
+					{
+						if (movingTo <= fixedFrom || fixedTo <= movingFrom)
+						{
+							return std::nullopt; // separated on this axis whatever t is
+						}
+						continue;
+					}
+					double enter = (fixedFrom - movingTo) / speed;
+					double leave = (fixedTo - movingFrom) / speed;
+					if (enter > leave)
+					{
+						std::swap(enter, leave);
+					}
+					low = std::max(low, enter);
+					high = std::min(high, leave);
+				}
+			}
+			if (low >= high)
+			{
+				return std::nullopt;
+			}
+			return std::pair{low, high};
+		}
+
+		// Parses a whole or decimal number of degrees ("90", "22.5", "22,5", "90°").
+		std::optional<double> parseDegrees(std::string_view text)
+		{
+			std::string number;
+			for (std::size_t i = 0; i < text.size(); ++i)
+			{
+				const char c = text[i];
+				if (c == ' ')
+				{
+					continue;
+				}
+				if (static_cast<unsigned char>(c) == 0xC2 && i + 1 < text.size() && static_cast<unsigned char>(text[i + 1]) == 0xB0)
+				{
+					++i; // UTF-8 degree sign
+					continue;
+				}
+				number += c == ',' ? '.' : c;
+			}
+			double value = 0.0;
+			const auto [end, error] = std::from_chars(number.data(), number.data() + number.size(), value);
+			if (number.empty() || error != std::errc() || end != number.data() + number.size() || !std::isfinite(value) ||
+				std::fabs(value) > 1e6)
+			{
+				return std::nullopt;
+			}
+			return value;
+		}
 	}
 
 	EditController::EditController(Document& targetDocument, EditSettings settings)
@@ -158,20 +264,29 @@ namespace f101::cad
 		}
 		drag.reset();
 		openingDrag.reset();
+		furnitureDrag.reset();
 		tool.cancel();
 		placement.reset();
+		furnitureAt.reset();
 		if (mode != EditMode::Select)
 		{
-			selected = WallId();
-			selectedOpeningId = OpeningId();
-			selectedRoomKey.clear();
+			clearSelected();
 		}
 		currentMode = mode;
 		if (planPoint)
 		{
 			tool.pointerMoved(*planPoint);
 			updatePlacement();
+			updateFurniturePlacement();
 		}
+	}
+
+	void EditController::clearSelected()
+	{
+		selected = WallId();
+		selectedOpeningId = OpeningId();
+		selectedRoomKey.clear();
+		selectedFurnitureId = FurnitureId();
 	}
 
 	LevelId EditController::activeLevel() const
@@ -222,6 +337,10 @@ namespace f101::cad
 		{
 			updatePlacement();
 		}
+		else if (currentMode == EditMode::Furniture)
+		{
+			updateFurniturePlacement();
+		}
 		else if (drag)
 		{
 			updateDrag();
@@ -230,6 +349,118 @@ namespace f101::cad
 		{
 			updateOpeningDrag();
 		}
+		else if (furnitureDrag)
+		{
+			updateFurnitureDrag();
+		}
+	}
+
+	Furniture EditController::placeFurniture(Furniture piece, PlanPoint wanted, PlanPoint pointer,
+		std::int64_t freeRotation) const
+	{
+		const std::int64_t grid = gridMm();
+		const auto onGrid = [grid](double value) { return std::llround(value / static_cast<double>(grid)) * grid; };
+		piece.level = activeLevel();
+		piece.position = Point2D{onGrid(wanted.x_mm), onGrid(wanted.y_mm)};
+		piece.rotationCentidegrees = freeRotation;
+		const FurnitureType* type = findFurnitureType(piece.type);
+		if (!type || !type->againstWall)
+		{
+			return piece;
+		}
+		// The wall face nearest to where the piece's back would be, within reach.
+		const Project project = levelProject();
+		const double halfDepth = static_cast<double>(piece.depthMm) / 2.0;
+		const Wall* host = nullptr;
+		double hostAlong = 0.0;
+		double nearest = editSettings.furnitureWallReachMm;
+		for (const Wall& wall : project.walls)
+		{
+			const AxisPosition at = locate(wall, wanted);
+			const double gap = at.across - static_cast<double>(wall.thicknessMm) / 2.0 - halfDepth;
+			if (at.along >= 0.0 && at.along <= wall.lengthMm() && gap <= nearest)
+			{
+				host = &wall;
+				hostAlong = at.along;
+				nearest = gap;
+			}
+		}
+		if (!host)
+		{
+			return piece;
+		}
+		// Its back against the face on the pointer's side, facing away from the wall, its centre along the wall on the grid.
+		const double length = host->lengthMm();
+		const PlanPoint axis{static_cast<double>(host->end.x_mm - host->start.x_mm) / length,
+			static_cast<double>(host->end.y_mm - host->start.y_mm) / length};
+		const double side = sideOf(*host, pointer) == WallSide::Left ? 1.0 : -1.0;
+		const PlanPoint out{-axis.y_mm * side, axis.x_mm * side};
+		constexpr double DegreesPerRadian = 180.0 / 3.14159265358979323846;
+		piece.rotationCentidegrees = toCentidegrees(std::atan2(out.x_mm, -out.y_mm) * DegreesPerRadian);
+		const double along = static_cast<double>(onGrid(hostAlong));
+		const double off = static_cast<double>(host->thicknessMm) / 2.0 + halfDepth;
+		PlanPoint centre{static_cast<double>(host->start.x_mm) + axis.x_mm * along + out.x_mm * off,
+			static_cast<double>(host->start.y_mm) + axis.y_mm * along + out.y_mm * off};
+		const auto at = [&piece](PlanPoint point)
+		{
+			Furniture moved = piece;
+			moved.position = Point2D{std::llround(point.x_mm), std::llround(point.y_mm)};
+			return moved;
+		};
+		// Slides along the wall out of the walls it would run into (into a corner it stops at the other wall's face). If it
+		// cannot get clear (a niche narrower than it), it stays on the grid.
+		const auto blocking = [&](const Furniture& candidate) -> std::optional<std::pair<double, double>>
+		{
+			for (const Wall& wall : project.walls)
+			{
+				if (wall.id == host->id)
+				{
+					continue;
+				}
+				const auto overlap = slideOverlap(furnitureFootprint(candidate), wallBody(wall), axis);
+				if (overlap && overlap->first < -0.5 && overlap->second > 0.5)
+				{
+					return overlap;
+				}
+			}
+			return std::nullopt;
+		};
+		PlanPoint cleared = centre;
+		for (int pass = 0; pass < 4; ++pass)
+		{
+			const auto overlap = blocking(at(cleared));
+			if (!overlap)
+			{
+				centre = cleared;
+				break;
+			}
+			const double shift = std::fabs(overlap->first) < std::fabs(overlap->second) ? overlap->first : overlap->second;
+			cleared = PlanPoint{cleared.x_mm + axis.x_mm * shift, cleared.y_mm + axis.y_mm * shift};
+		}
+		return at(centre);
+	}
+
+	void EditController::updateFurniturePlacement()
+	{
+		furnitureAt.reset();
+		if (!planPoint || currentMode != EditMode::Furniture || !findFurnitureType(editSettings.furnitureType))
+		{
+			return;
+		}
+		furnitureAt = placeFurniture(makeFurniture(editSettings.furnitureType, Point2D{}), *planPoint, *planPoint,
+			editSettings.furnitureRotationCentidegrees);
+	}
+
+	void EditController::updateFurnitureDrag()
+	{
+		const Furniture* original = document.project().findFurniture(furnitureDrag->furniture.id);
+		if (!original)
+		{
+			furnitureDrag.reset(); // gone under the gesture
+			return;
+		}
+		const PlanPoint wanted{planPoint->x_mm + furnitureDrag->grabOffset.x_mm, planPoint->y_mm + furnitureDrag->grabOffset.y_mm};
+		furnitureDrag->furniture = placeFurniture(*original, wanted, *planPoint, original->rotationCentidegrees);
 	}
 
 	void EditController::updateDrag()
@@ -394,6 +625,16 @@ namespace f101::cad
 		{
 			return paint(project, ray);
 		}
+		if (currentMode == EditMode::Furniture)
+		{
+			if (!furnitureAt)
+			{
+				return Error{ErrorCode::InvalidArgument, "Point at the floor to place it"};
+			}
+			const Status added = toStatus(document.execute(AddFurnitureCommand{*furnitureAt}));
+			updateFurniturePlacement();
+			return added;
+		}
 
 		// The selected door or window: its edge handles resize it, the hole itself moves it (ADR-0013).
 		if (const std::optional<OpeningRef> current = selectedOpening(); current && planPoint)
@@ -465,11 +706,24 @@ namespace f101::cad
 			}
 		}
 
+		// A piece of furniture in front of any wall: selected, and grabbed (it moves once the pointer moves).
+		clearSelected();
+		const std::optional<WallHit> wallHit = pickWall(project, ray);
+		const std::optional<FurnitureHit> pieceHit = pickFurniture(document.project(), ray, activeLevel());
+		if (pieceHit && (!wallHit || pieceHit->distance < wallHit->distance))
+		{
+			const Furniture& piece = *document.project().findFurniture(pieceHit->furniture);
+			selectedFurnitureId = piece.id;
+			furnitureDrag = FurnitureDrag{piece, {}};
+			if (planPoint)
+			{
+				furnitureDrag->grabOffset = PlanPoint{static_cast<double>(piece.position.x_mm) - planPoint->x_mm,
+					static_cast<double>(piece.position.y_mm) - planPoint->y_mm};
+			}
+			return Status::success();
+		}
 		// A wall, or the opening in it where the pointer is along the wall; else the room whose floor is under the pointer.
-		selected = WallId();
-		selectedOpeningId = OpeningId();
-		selectedRoomKey.clear();
-		if (const std::optional<WallHit> hit = pickWall(project, ray))
+		if (const std::optional<WallHit>& hit = wallHit)
 		{
 			selected = hit->wall;
 			const Wall& wall = *project.findWall(hit->wall);
@@ -488,6 +742,18 @@ namespace f101::cad
 
 	Status EditController::pointerReleased(const Ray3&)
 	{
+		if (furnitureDrag)
+		{
+			// Moved as the last pointerMoved() left it; one undoable change, or none if it did not move.
+			const Furniture moved = furnitureDrag->furniture;
+			furnitureDrag.reset();
+			const Furniture* original = document.project().findFurniture(moved.id);
+			if (!original || *original == moved)
+			{
+				return Status::success();
+			}
+			return toStatus(document.execute(ChangeFurnitureCommand{moved}));
+		}
 		if (openingDrag)
 		{
 			// Moved or resized as the last pointerMoved() left it; one undoable change, or none if it did not move.
@@ -527,10 +793,11 @@ namespace f101::cad
 
 	void EditController::cancel()
 	{
-		if (drag || openingDrag)
+		if (drag || openingDrag || furnitureDrag)
 		{
 			drag.reset();
 			openingDrag.reset();
+			furnitureDrag.reset();
 		}
 		else if (currentMode == EditMode::Wall && tool.state() == WallTool::State::Drafting)
 		{
@@ -542,9 +809,7 @@ namespace f101::cad
 		}
 		else
 		{
-			selected = WallId();
-			selectedOpeningId = OpeningId();
-			selectedRoomKey.clear();
+			clearSelected();
 		}
 	}
 
@@ -568,6 +833,16 @@ namespace f101::cad
 	{
 		drag.reset();
 		openingDrag.reset();
+		furnitureDrag.reset();
+		if (const std::optional<Furniture> piece = selectedFurniture())
+		{
+			const Status deleted = toStatus(document.execute(DeleteFurnitureCommand{piece->id}));
+			if (deleted)
+			{
+				selectedFurnitureId = FurnitureId();
+			}
+			return deleted;
+		}
 		if (const std::optional<OpeningRef> opening = selectedOpening())
 		{
 			const Status deleted = toStatus(document.execute(DeleteOpeningCommand{opening->wall, opening->opening.id}));
@@ -595,12 +870,14 @@ namespace f101::cad
 	{
 		drag.reset();
 		openingDrag.reset();
+		furnitureDrag.reset();
 		tool.cancel();
 		const Status undone = document.undo();
 		if (planPoint)
 		{
 			tool.pointerMoved(*planPoint);
 			updatePlacement();
+			updateFurniturePlacement();
 		}
 		return undone;
 	}
@@ -609,12 +886,14 @@ namespace f101::cad
 	{
 		drag.reset();
 		openingDrag.reset();
+		furnitureDrag.reset();
 		tool.cancel();
 		const Status redone = document.redo();
 		if (planPoint)
 		{
 			tool.pointerMoved(*planPoint);
 			updatePlacement();
+			updateFurniturePlacement();
 		}
 		return redone;
 	}
@@ -623,14 +902,14 @@ namespace f101::cad
 	{
 		drag.reset();
 		openingDrag.reset();
+		furnitureDrag.reset();
 		tool.cancel();
-		selected = WallId();
-		selectedOpeningId = OpeningId();
-		selectedRoomKey.clear();
+		clearSelected();
 		if (planPoint)
 		{
 			tool.pointerMoved(*planPoint);
 			updatePlacement();
+			updateFurniturePlacement();
 		}
 	}
 
@@ -659,11 +938,8 @@ namespace f101::cad
 		}
 		setMode(EditMode::Select);
 		changeLevel(document.project().levelOf(*document.project().findWall(id)));
-		drag.reset();
-		openingDrag.reset();
+		clearSelection();
 		selected = id;
-		selectedOpeningId = OpeningId();
-		selectedRoomKey.clear();
 		return Status::success();
 	}
 
@@ -676,11 +952,9 @@ namespace f101::cad
 		}
 		setMode(EditMode::Select);
 		changeLevel(document.project().levelOf(*host));
-		drag.reset();
-		openingDrag.reset();
+		clearSelection();
 		selected = wall;
 		selectedOpeningId = opening;
-		selectedRoomKey.clear();
 		return Status::success();
 	}
 
@@ -688,9 +962,8 @@ namespace f101::cad
 	{
 		drag.reset();
 		openingDrag.reset();
-		selected = WallId();
-		selectedOpeningId = OpeningId();
-		selectedRoomKey.clear();
+		furnitureDrag.reset();
+		clearSelected();
 	}
 
 	Status EditController::changeSelection(std::string_view text, Command (*makeCommand)(const WallId&, std::int64_t))
@@ -834,11 +1107,131 @@ namespace f101::cad
 			updatePlacement();
 			return Status::success();
 		}
+		if (currentMode == EditMode::Furniture)
+		{
+			// The pieces placed from now on (unless a wall turns them).
+			editSettings.furnitureRotationCentidegrees = (editSettings.furnitureRotationCentidegrees + 9000) % FullTurnCentidegrees;
+			updateFurniturePlacement();
+			return Status::success();
+		}
+		if (selectedFurniture())
+		{
+			return rotateFurniture();
+		}
 		if (!selectedOpening())
 		{
-			return Error{ErrorCode::NotFound, "Select a door or window, or pick the door or window tool, to flip its hinges"};
+			return Error{ErrorCode::NotFound,
+				"Select a piece of furniture, a door or a window, or pick the door, window or furniture tool, to turn it"};
 		}
 		return flipOpeningHinge();
+	}
+
+	Status EditController::setFurnitureType(std::string_view type)
+	{
+		if (!findFurnitureType(type))
+		{
+			return Error{ErrorCode::NotFound, "Unknown furniture type '" + std::string(type) + "'"};
+		}
+		editSettings.furnitureType = std::string(type);
+		updateFurniturePlacement();
+		return Status::success();
+	}
+
+	std::optional<Furniture> EditController::selectedFurniture() const
+	{
+		const Furniture* piece = selectedFurnitureId.isNil() ? nullptr : document.project().findFurniture(selectedFurnitureId);
+		return piece ? std::optional<Furniture>(*piece) : std::nullopt;
+	}
+
+	Status EditController::selectFurniture(const FurnitureId& id)
+	{
+		const Furniture* piece = document.project().findFurniture(id);
+		if (!piece)
+		{
+			return Error{ErrorCode::NotFound, "Furniture not found: " + toString(id)};
+		}
+		setMode(EditMode::Select);
+		changeLevel(piece->level);
+		clearSelection();
+		selectedFurnitureId = id;
+		return Status::success();
+	}
+
+	Status EditController::editSelectedFurniture(const std::function<Status(Furniture&)>& edit)
+	{
+		const std::optional<Furniture> current = selectedFurniture();
+		if (!current)
+		{
+			return nothingSelected();
+		}
+		Furniture changed = *current;
+		if (Status edited = edit(changed); !edited)
+		{
+			return edited;
+		}
+		furnitureDrag.reset();
+		return toStatus(document.execute(ChangeFurnitureCommand{changed}));
+	}
+
+	Status EditController::changeFurnitureSize(std::string_view text, std::int64_t Furniture::*size)
+	{
+		const Result<std::int64_t> value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value)
+		{
+			return value.error();
+		}
+		return editSelectedFurniture([&value, size](Furniture& piece)
+		{
+			piece.*size = value.value();
+			return Status::success();
+		});
+	}
+
+	Status EditController::setFurnitureWidth(std::string_view text)
+	{
+		return changeFurnitureSize(text, &Furniture::widthMm);
+	}
+
+	Status EditController::setFurnitureDepth(std::string_view text)
+	{
+		return changeFurnitureSize(text, &Furniture::depthMm);
+	}
+
+	Status EditController::setFurnitureHeight(std::string_view text)
+	{
+		return changeFurnitureSize(text, &Furniture::heightMm);
+	}
+
+	Status EditController::setFurnitureRotation(std::string_view text)
+	{
+		const std::optional<double> degrees = parseDegrees(text);
+		if (!degrees)
+		{
+			return Error{ErrorCode::InvalidArgument, "Type the rotation in degrees, e.g. 90 or 22.5"};
+		}
+		return editSelectedFurniture([&degrees](Furniture& piece)
+		{
+			piece.rotationCentidegrees = toCentidegrees(*degrees);
+			return Status::success();
+		});
+	}
+
+	Status EditController::setFurnitureFinish(std::string_view finish)
+	{
+		return editSelectedFurniture([finish](Furniture& piece)
+		{
+			piece.finish = std::string(finish);
+			return Status::success();
+		});
+	}
+
+	Status EditController::rotateFurniture()
+	{
+		return editSelectedFurniture([](Furniture& piece)
+		{
+			piece.rotationCentidegrees = (piece.rotationCentidegrees + 9000) % FullTurnCentidegrees;
+			return Status::success();
+		});
 	}
 
 	Status EditController::paint(const Project& project, const Ray3& ray)
@@ -878,10 +1271,7 @@ namespace f101::cad
 	Status EditController::selectRoom(const std::string& room)
 	{
 		setMode(EditMode::Select);
-		drag.reset();
-		openingDrag.reset();
-		selected = WallId();
-		selectedOpeningId = OpeningId();
+		clearSelection();
 		selectedRoomKey = room;
 		return Status::success();
 	}
@@ -923,12 +1313,9 @@ namespace f101::cad
 		{
 			return;
 		}
-		drag.reset();
-		openingDrag.reset();
+		clearSelection();
 		placement.reset();
-		selected = WallId();
-		selectedOpeningId = OpeningId();
-		selectedRoomKey.clear();
+		furnitureAt.reset();
 		tool.setLevel(level);
 		planPoint.reset(); // it was measured on the other level; the next pointer move sets it again
 	}
@@ -1064,6 +1451,24 @@ namespace f101::cad
 				}
 				result.handles = {pointOnAxis(*host, placement->opening.offsetMm),
 					pointOnAxis(*host, placement->opening.offsetMm + placement->opening.widthMm)};
+			}
+			return result;
+		}
+		if (currentMode == EditMode::Furniture)
+		{
+			if (furnitureAt)
+			{
+				result.previewFurniture.push_back(*furnitureAt);
+			}
+			return result;
+		}
+		if (const std::optional<Furniture> piece = selectedFurniture())
+		{
+			result.selectedFurniture = piece->id;
+			// While it is dragged, it is previewed where it would go.
+			if (furnitureDrag && furnitureDrag->furniture.id == piece->id && !(furnitureDrag->furniture == *piece))
+			{
+				result.previewFurniture.push_back(furnitureDrag->furniture);
 			}
 			return result;
 		}

@@ -1,6 +1,7 @@
 #include "F101/Scene/SceneCompiler.h"
 
 #include "F101/Geometry/CarpentryBuilder.h"
+#include "F101/Geometry/FurnitureBuilder.h"
 #include "F101/Geometry/PolygonGeometry.h"
 #include "F101/Geometry/Rooms.h"
 #include "F101/Geometry/WallGeometryBuilder.h"
@@ -39,6 +40,11 @@ namespace f101::scene
 	SceneNodeId wallBodyNodeId(const cad::WallId& id)
 	{
 		return SceneNodeId{cad::toString(id) + "/body"};
+	}
+
+	SceneNodeId furnitureNodeId(const cad::FurnitureId& id)
+	{
+		return SceneNodeId{"furniture/" + cad::toString(id)};
 	}
 
 	std::uint64_t hashMesh(const geometry::MeshData& mesh)
@@ -145,14 +151,22 @@ namespace f101::scene
 			return groups;
 		}
 
-		// Walls (with their node ids and styles), joint fills, room floors and slabs of a project, level by level: joins
-		// and rooms never mix levels, and each level's geometry is lifted to its elevation. `activeLevel` (with
-		// `showAll` false) hides the levels above it and its own slabs and dims the levels below it. Each section gets its
-		// finish (ADR-0012); the floor of `selectedRoom` is Selected. `symbols`: door swings on the floors of the levels
-		// that are not dimmed (ADR-0014), last.
-		Scene compileProject(const cad::Project& project, const std::vector<SceneNodeId>& wallIds,
-			const std::vector<NodeStyle>& wallStyles, const cad::LevelId& activeLevel, bool showAll, const std::string& selectedRoom,
-			bool symbols)
+		// Node ids and view styles of the walls and furniture of a project (same order as the project).
+		struct Presentation
+		{
+			std::vector<SceneNodeId> wallIds;
+			std::vector<NodeStyle> wallStyles;
+			std::vector<SceneNodeId> furnitureIds;
+			std::vector<NodeStyle> furnitureStyles;
+		};
+
+		// Walls, joint fills, room floors, slabs, carpentry and furniture of a project (with the node ids and styles of
+		// `shown`), level by level: joins and rooms never mix levels, and each level's geometry is lifted to its elevation.
+		// `activeLevel` (with `showAll` false) hides the levels above it and its own slabs and dims the levels below it.
+		// Each section gets its finish (ADR-0012); the floor of `selectedRoom` is Selected. `symbols`: door swings on the
+		// floors of the levels that are not dimmed (ADR-0014), last.
+		Scene compileProject(const cad::Project& project, const Presentation& shown, const cad::LevelId& activeLevel, bool showAll,
+			const std::string& selectedRoom, bool symbols)
 		{
 			const std::vector<LevelGroup> groups = levelGroups(project);
 			std::optional<std::size_t> active;
@@ -166,6 +180,7 @@ namespace f101::scene
 			std::vector<SceneNode> floors;
 			std::vector<SceneNode> slabs;
 			std::vector<SceneNode> openings;
+			std::vector<std::optional<SceneNode>> furnitureNodes(project.furniture.size());
 			std::vector<SceneNode> swings;
 			Scene scene;
 			for (std::size_t groupIndex = 0; groupIndex < groups.size(); ++groupIndex)
@@ -197,7 +212,7 @@ namespace f101::scene
 					const std::size_t index = indices[k];
 					const cad::Wall& wall = project.walls[index];
 					SceneNode node;
-					node.id = wallIds[index];
+					node.id = shown.wallIds[index];
 					node.sourceKind = SourceKind::Wall;
 					node.sourceId = cad::toString(wall.id);
 					node.level = group.level;
@@ -209,7 +224,7 @@ namespace f101::scene
 							{geometry::wall_slots::Right, cad::resolveFinish(wall.finishRight, cad::Surface::Wall)}},
 						cad::DefaultWallFinish);
 					node.contentHash = hashNode(node.mesh, node.finishes);
-					node.style = context && wallStyles[index] == NodeStyle::Normal ? NodeStyle::Context : wallStyles[index];
+					node.style = context && shown.wallStyles[index] == NodeStyle::Normal ? NodeStyle::Context : shown.wallStyles[index];
 					for (const cad::Opening& opening : wall.openings)
 					{
 						SceneNode carpentry;
@@ -302,9 +317,38 @@ namespace f101::scene
 					}
 					scene.rooms.push_back(SceneRoom{room, group.level, group.elevationMm});
 				}
+				for (std::size_t index = 0; index < project.furniture.size(); ++index)
+				{
+					const cad::Furniture& piece = project.furniture[index];
+					if (!project.levels.empty() && piece.level != group.level)
+					{
+						continue;
+					}
+					SceneNode node;
+					node.id = shown.furnitureIds[index];
+					node.sourceKind = SourceKind::Furniture;
+					node.sourceId = cad::toString(piece.id);
+					node.level = group.level;
+					node.name = "Furniture " + piece.type + " " + node.sourceId.substr(0, 8);
+					node.mesh = geometry::buildFurnitureMesh(piece);
+					if (node.mesh.sections.empty())
+					{
+						continue;
+					}
+					translateZ(node.mesh, dz);
+					for (const geometry::MeshSection& section : node.mesh.sections)
+					{
+						node.finishes.emplace_back(geometry::furnitureSlotFinish(piece, section.slot));
+					}
+					node.contentHash = hashNode(node.mesh, node.finishes);
+					node.style = context && shown.furnitureStyles[index] == NodeStyle::Normal ? NodeStyle::Context
+						: shown.furnitureStyles[index];
+					furnitureNodes[index] = std::move(node);
+				}
 			}
 
-			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size() + swings.size());
+			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size() +
+				project.furniture.size() + swings.size());
 			for (std::optional<SceneNode>& node : wallNodes)
 			{
 				if (node)
@@ -312,12 +356,23 @@ namespace f101::scene
 					scene.nodes.push_back(std::move(*node));
 				}
 			}
-			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs, &openings, &swings})
+			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs, &openings})
 			{
 				for (SceneNode& node : *group)
 				{
 					scene.nodes.push_back(std::move(node));
 				}
+			}
+			for (std::optional<SceneNode>& node : furnitureNodes)
+			{
+				if (node)
+				{
+					scene.nodes.push_back(std::move(*node));
+				}
+			}
+			for (SceneNode& node : swings)
+			{
+				scene.nodes.push_back(std::move(node));
 			}
 			return scene;
 		}
@@ -325,20 +380,26 @@ namespace f101::scene
 
 	Scene compileScene(const cad::Project& project)
 	{
-		std::vector<SceneNodeId> ids;
+		Presentation shown;
 		for (const cad::Wall& wall : project.walls)
 		{
-			ids.push_back(wallBodyNodeId(wall.id));
+			shown.wallIds.push_back(wallBodyNodeId(wall.id));
 		}
-		return compileProject(project, ids, std::vector<NodeStyle>(project.walls.size(), NodeStyle::Normal), cad::LevelId(), true, std::string(),
-			false);
+		for (const cad::Furniture& piece : project.furniture)
+		{
+			shown.furnitureIds.push_back(furnitureNodeId(piece.id));
+		}
+		shown.wallStyles.assign(project.walls.size(), NodeStyle::Normal);
+		shown.furnitureStyles.assign(project.furniture.size(), NodeStyle::Normal);
+		return compileProject(project, shown, cad::LevelId(), true, std::string(), false);
 	}
 
 	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay)
 	{
 		cad::Project previewed = project;
-		std::vector<SceneNodeId> ids;
-		std::vector<NodeStyle> styles;
+		Presentation shown;
+		std::vector<SceneNodeId>& ids = shown.wallIds;
+		std::vector<NodeStyle>& styles = shown.wallStyles;
 		for (const cad::Wall& wall : project.walls)
 		{
 			ids.push_back(wallBodyNodeId(wall.id));
@@ -366,8 +427,33 @@ namespace f101::scene
 			ids.push_back(SceneNodeId{"preview/wall/" + std::to_string(added - 1)});
 			styles.push_back(NodeStyle::Preview);
 		}
+		for (const cad::Furniture& piece : project.furniture)
+		{
+			shown.furnitureIds.push_back(furnitureNodeId(piece.id));
+			shown.furnitureStyles.push_back(
+				!overlay.selectedFurniture.isNil() && piece.id == overlay.selectedFurniture ? NodeStyle::Selected : NodeStyle::Normal);
+		}
+		std::size_t addedFurniture = 0;
+		for (const cad::Furniture& preview : overlay.previewFurniture)
+		{
+			if (!cad::validateFurniture(preview).ok())
+			{
+				continue;
+			}
+			const auto existing = std::find_if(previewed.furniture.begin(), previewed.furniture.end(),
+				[&preview](const cad::Furniture& piece) { return !preview.id.isNil() && piece.id == preview.id; });
+			if (existing != previewed.furniture.end())
+			{
+				*existing = preview;
+				shown.furnitureStyles[static_cast<std::size_t>(existing - previewed.furniture.begin())] = NodeStyle::Preview;
+				continue;
+			}
+			previewed.furniture.push_back(preview);
+			shown.furnitureIds.push_back(SceneNodeId{"preview/furniture/" + std::to_string(addedFurniture++)});
+			shown.furnitureStyles.push_back(NodeStyle::Preview);
+		}
 
-		Scene scene = compileProject(previewed, ids, styles, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom, true);
+		Scene scene = compileProject(previewed, shown, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom, true);
 		// Handles stand on the level being edited.
 		const double markerElevation = static_cast<double>(cad::levelElevationMm(project, overlay.activeLevel));
 		for (std::size_t index = 0; index < overlay.markers.size(); ++index)

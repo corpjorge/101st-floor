@@ -81,10 +81,48 @@ namespace
 			{TEXT("lacquer-white"), LOCTEXT("FinishLacquer", "Lacado blanco")},
 			{TEXT("aluminium-anthracite"), LOCTEXT("FinishAluminium", "Aluminio antracita")},
 			{TEXT("glass-clear"), LOCTEXT("FinishGlass", "Vidrio")},
+			{TEXT("fabric-grey"), LOCTEXT("FinishFabricGrey", "Tela gris")},
+			{TEXT("fabric-sand"), LOCTEXT("FinishFabricSand", "Tela arena")},
+			{TEXT("linen-white"), LOCTEXT("FinishLinen", "Lino blanco")},
+			{TEXT("ceramic-white"), LOCTEXT("FinishCeramic", "Cerámica blanca")},
+			{TEXT("stone-dark"), LOCTEXT("FinishStone", "Piedra oscura")},
+			{TEXT("steel-brushed"), LOCTEXT("FinishSteel", "Acero cepillado")},
+			{TEXT("glass-black"), LOCTEXT("FinishGlassBlack", "Vidrio negro")},
 		};
 		const FString Key = UTF8_TO_TCHAR(std::string(Id).c_str());
 		const FText* Name = Names.Find(Key);
 		return Name ? *Name : FText::FromString(Key);
+	}
+
+	// Display name of a furniture type (ADR-0016); the catalogue ids stay in English.
+	FText FurnitureName(std::string_view Type)
+	{
+		static const TMap<FString, FText> Names{
+			{TEXT("bed-double"), LOCTEXT("BedDouble", "Cama doble")},
+			{TEXT("bed-single"), LOCTEXT("BedSingle", "Cama individual")},
+			{TEXT("sofa"), LOCTEXT("Sofa", "Sofá")},
+			{TEXT("table"), LOCTEXT("Table", "Mesa")},
+			{TEXT("chair"), LOCTEXT("Chair", "Silla")},
+			{TEXT("wardrobe"), LOCTEXT("Wardrobe", "Armario")},
+			{TEXT("kitchen-counter"), LOCTEXT("Kitchen", "Cocina")},
+			{TEXT("fridge"), LOCTEXT("Fridge", "Frigorífico")},
+			{TEXT("toilet"), LOCTEXT("Toilet", "Inodoro")},
+			{TEXT("washbasin"), LOCTEXT("Washbasin", "Lavabo")},
+			{TEXT("bathtub"), LOCTEXT("Bathtub", "Bañera")},
+			{TEXT("shower-tray"), LOCTEXT("Shower", "Plato de ducha")},
+		};
+		const FString Key = UTF8_TO_TCHAR(std::string(Type).c_str());
+		const FText* Name = Names.Find(Key);
+		return Name ? *Name : FText::FromString(Key);
+	}
+
+	// "200 × 90 cm" (width by depth).
+	FText FootprintText(std::int64_t WidthMm, std::int64_t DepthMm)
+	{
+		FNumberFormattingOptions Centimetres;
+		Centimetres.SetMaximumFractionalDigits(1);
+		return FText::Format(LOCTEXT("Footprint", "{0} × {1} cm"), FText::AsNumber(static_cast<double>(WidthMm) / 10.0, &Centimetres),
+			FText::AsNumber(static_cast<double>(DepthMm) / 10.0, &Centimetres));
 	}
 
 	FLinearColor FinishSwatch(std::string_view Id)
@@ -428,7 +466,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
 			[
-				ModeButton(LOCTEXT("Select", "Seleccionar (V)"), LOCTEXT("SelectTip", "Selecciona muros y arrastra sus extremos"), EditMode::Select)
+				ModeButton(LOCTEXT("Select", "Seleccionar (V)"), LOCTEXT("SelectTip", "Selecciona muros, huecos, muebles y habitaciones; arrastra extremos, huecos y muebles"), EditMode::Select)
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
 			[
@@ -445,6 +483,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
 			[
 				ModeButton(LOCTEXT("Paint", "Pintar (M)"), LOCTEXT("PaintTip", "Aplica un acabado: clic en una cara de muro o en el suelo de una habitación"), EditMode::Paint)
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				ModeButton(LOCTEXT("Furniture", "Amueblar (A)"),
+					LOCTEXT("FurnitureTip", "Coloca muebles: elige uno en el panel y haz clic en el suelo; cerca de un muro se apoya en él"),
+					EditMode::Furniture)
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 2.0f, 2.0f, 2.0f)
 			[
@@ -795,9 +839,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 		.Visibility_Lambda([this]()
 		{
 			const UFloor101DocumentSubsystem* S = Document.Get();
-			const bool bPainting = S && S->GetEditController().mode() == EditMode::Paint;
-			return GetSelectedWall() || GetSelectedOpening() || GetSelectedRoom() || IsLevelPanelShown() || bPainting ? EVisibility::Visible
-				: EVisibility::Collapsed;
+			const bool bTool = S && (S->GetEditController().mode() == EditMode::Paint || S->GetEditController().mode() == EditMode::Furniture);
+			return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() || GetSelectedRoom() || IsLevelPanelShown() || bTool
+				? EVisibility::Visible : EVisibility::Collapsed;
 		})
 		[
 			Panel(
@@ -917,6 +961,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				[
 					MakePaintPalette()
 				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeFurnitureSection()
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeFurniturePalette()
+				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 				[
 					SNew(STextBlock)
@@ -928,7 +980,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				[
 					SNew(SButton)
 					.IsFocusable(false)
-					.Visibility_Lambda([this]() { return GetSelectedWall() || GetSelectedOpening() ? EVisibility::Visible : EVisibility::Collapsed; })
+					.Visibility_Lambda([this]()
+					{
+						return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() ? EVisibility::Visible : EVisibility::Collapsed;
+					})
 					.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteSelection(); }); })
 					[
 						SNew(STextBlock).Text(LOCTEXT("Delete", "Eliminar (Supr)")).Font(Font(10))
@@ -1105,7 +1160,164 @@ bool SFloor101Overlay::IsLevelPanelShown() const
 {
 	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
 	return Subsystem && Subsystem->GetEditController().mode() == EditMode::Select && !GetSelectedWall() && !GetSelectedOpening() &&
-		!GetSelectedRoom() && GetActiveLevel();
+		!GetSelectedFurniture() && !GetSelectedRoom() && GetActiveLevel();
+}
+
+std::optional<f101::cad::Furniture> SFloor101Overlay::GetSelectedFurniture() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	if (!Subsystem || Subsystem->GetEditController().mode() != EditMode::Select)
+	{
+		return std::nullopt;
+	}
+	return Subsystem->GetEditController().selectedFurniture();
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
+{
+	auto Size = [this](std::int64_t f101::cad::Furniture::* Field)
+	{
+		return [this, Field]() -> TOptional<double>
+		{
+			const std::optional<f101::cad::Furniture> Selected = GetSelectedFurniture();
+			return Selected ? TOptional<double>(static_cast<double>((*Selected).*Field)) : TOptional<double>();
+		};
+	};
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([this]() { return GetSelectedFurniture() ? EVisibility::Visible : EVisibility::Collapsed; })
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(11, true))
+			.Text_Lambda([this]()
+			{
+				const std::optional<f101::cad::Furniture> Selected = GetSelectedFurniture();
+				return Selected ? FText::Format(LOCTEXT("SelectedFurniture", "Mueble seleccionado: {0}"), FurnitureName(Selected->type))
+					: FText::GetEmpty();
+			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakePropertyRow(LOCTEXT("FurnitureWidth", "Ancho"), Size(&f101::cad::Furniture::widthMm), &EditController::setFurnitureWidth)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakePropertyRow(LOCTEXT("FurnitureDepth", "Fondo"), Size(&f101::cad::Furniture::depthMm), &EditController::setFurnitureDepth)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakePropertyRow(LOCTEXT("FurnitureHeight", "Alto"), Size(&f101::cad::Furniture::heightMm), &EditController::setFurnitureHeight)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakeTextRow(LOCTEXT("FurnitureRotation", "Giro"), [this]()
+			{
+				const std::optional<f101::cad::Furniture> Selected = GetSelectedFurniture();
+				if (!Selected)
+				{
+					return FText::GetEmpty();
+				}
+				FNumberFormattingOptions Hundredths;
+				Hundredths.SetMaximumFractionalDigits(2);
+				return FText::Format(LOCTEXT("Degrees", "{0}°"),
+					FText::AsNumber(static_cast<double>(Selected->rotationCentidegrees) / 100.0, &Hundredths));
+			}, &EditController::setFurnitureRotation)
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 2.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(LOCTEXT("RotateTip", "Gira el mueble 90° en sentido antihorario sobre su centro"))
+			.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.rotateFurniture(); }); })
+			[
+				SNew(STextBlock).Text(LOCTEXT("Rotate", "Girar 90° (Espacio)")).Font(Font(9))
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(LOCTEXT("FurnitureFinish", "Acabado")).Font(Font(10))
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				MakeFinishCombo(f101::cad::Surface::Furniture,
+					[this]() -> FString
+					{
+						const std::optional<f101::cad::Furniture> Selected = GetSelectedFurniture();
+						return Selected ? UTF8_TO_TCHAR(std::string(f101::cad::resolveFurnitureFinish(*Selected)).c_str()) : FString();
+					},
+					[](EditController& Editor, const std::string& Finish) { return Editor.setFurnitureFinish(Finish); })
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("FurnitureHint", "Arrástralo para moverlo: se ajusta a la rejilla y se apoya en los muros."))
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
+{
+	TSharedRef<SVerticalBox> List = SNew(SVerticalBox);
+	for (const f101::cad::FurnitureType& Type : f101::cad::furnitureCatalogue())
+	{
+		const std::string Id(Type.id);
+		List->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(Type.againstWall ? LOCTEXT("AgainstWallTip", "Cerca de un muro se apoya en él de espaldas")
+				: LOCTEXT("FreeTip", "Se coloca donde apuntes; Espacio lo gira 90°"))
+			.ButtonColorAndOpacity_Lambda([this, Id]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				return S && S->GetEditController().settings().furnitureType == Id ? FSlateColor(ActiveButtonColor)
+					: FSlateColor(FLinearColor(0.35f, 0.35f, 0.38f));
+			})
+			.OnClicked_Lambda([this, Id]() { return Run([&Id](EditController& Editor) { return Editor.setFurnitureType(Id); }); })
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Text(FurnitureName(Id)).Font(Font(10))
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Text(FootprintText(Type.widthMm, Type.depthMm)).Font(Font(9)).ColorAndOpacity(MutedColor)
+				]
+			]
+		];
+	}
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([this]()
+		{
+			const UFloor101DocumentSubsystem* S = Document.Get();
+			return S && S->GetEditController().mode() == EditMode::Furniture ? EVisibility::Visible : EVisibility::Collapsed;
+		})
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("FurnitureTitle", "Amueblar: elige el mueble")).Font(Font(11, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			List
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("FurniturePaletteHint",
+				"Clic en el suelo para colocarlo. Después, en Seleccionar: arrástralo, gíralo o cambia sus medidas y su acabado."))
+		];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
@@ -1207,7 +1419,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 		[
 			SNew(SButton)
 			.IsFocusable(false)
-			.ToolTipText(LOCTEXT("DeleteLevelTip", "Elimina esta planta y sus muros (se puede deshacer)"))
+			.ToolTipText(LOCTEXT("DeleteLevelTip", "Elimina esta planta con sus muros y muebles (se puede deshacer)"))
 			.IsEnabled_Lambda([this]()
 			{
 				const UFloor101DocumentSubsystem* S = Document.Get();
@@ -1481,9 +1693,18 @@ FText SFloor101Overlay::GetHintText() const
 			? LOCTEXT("HintDoor", "Puerta · apunta a un muro: abre hacia el lado al que apuntas · Espacio: bisagras al otro lado · clic: colocarla · Esc o clic derecho: volver a Seleccionar")
 			: LOCTEXT("HintWindow", "Ventana · apunta a un muro: abre hacia el lado al que apuntas · Espacio: bisagras al otro lado · clic: colocarla · Esc o clic derecho: volver a Seleccionar");
 	}
+	if (Editor.mode() == EditMode::Furniture)
+	{
+		return FText::Format(LOCTEXT("HintFurniture", "Amueblar: {0} · clic en el suelo: colocarlo · cerca de un muro se apoya en él de espaldas · Espacio: girar 90° · Esc o clic derecho: volver a Seleccionar"),
+			FurnitureName(Editor.settings().furnitureType));
+	}
 	if (Editor.isDraggingOpening())
 	{
 		return LOCTEXT("HintDraggingOpening", "Moviendo hueco · se ajusta a la rejilla y se aparta de los muros que se unen · suelta para aplicar · Esc o clic derecho: cancelar");
+	}
+	if (Editor.isDraggingFurniture())
+	{
+		return LOCTEXT("HintDraggingFurniture", "Moviendo mueble · se ajusta a la rejilla y se apoya en los muros · suelta para aplicar · Esc o clic derecho: cancelar");
 	}
 	if (Editor.isDragging())
 	{
@@ -1497,8 +1718,12 @@ FText SFloor101Overlay::GetHintText() const
 	{
 		return LOCTEXT("HintOpening", "Seleccionar · arrastra el hueco para moverlo o sus asas para cambiar el ancho · Espacio: invertir bisagras · tipo, apertura y carpintería en el panel · Supr: eliminar");
 	}
+	if (Editor.selectedFurniture())
+	{
+		return LOCTEXT("HintSelectedFurniture", "Seleccionar · arrastra el mueble para moverlo · Espacio: girar 90° · medidas, giro y acabado en el panel · Supr: eliminar");
+	}
 	return Editor.selection().isNil()
-		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco o habitación · W: muros · P: puertas · O: ventanas · M: pintar · Tab: plano 2D · RePág/AvPág: planta")
+		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco, mueble o habitación · W: muros · P: puertas · O: ventanas · M: pintar · A: amueblar · Tab: plano 2D · RePág/AvPág: planta")
 		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 

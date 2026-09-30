@@ -68,6 +68,10 @@ struct FFloor101FinishInfo
 	UPROPERTY()
 	bool bForCarpentry = false;
 
+	/** The main parts of furniture (SetFurnitureFinish). */
+	UPROPERTY()
+	bool bForFurniture = false;
+
 	/** Base colour (sRGB). */
 	UPROPERTY()
 	FColor Color = FColor::White;
@@ -255,10 +259,107 @@ struct FFloor101RoomInfo
 };
 
 /**
- * Edits the levels, walls, doors, windows and finishes of the 101st Floor document and reads the rooms they enclose:
- * the play session's document while Play-In-Editor runs, otherwise the editor world's. Every change is one undoable
- * step and regenerates the Unreal representation (transient actors). Also saves and opens project.json files.
- * Dimensions are integer millimetres; wall coordinates are relative to their level's floor.
+ * A furniture type of the catalogue: its default size and the sizes it allows. Millimetres.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101FurnitureTypeInfo
+{
+	GENERATED_BODY()
+
+	/** Catalogue id, e.g. "sofa". */
+	UPROPERTY()
+	FString Id;
+
+	/** Along its front. */
+	UPROPERTY()
+	int64 WidthMm = 0;
+
+	/** Front to back. */
+	UPROPERTY()
+	int64 DepthMm = 0;
+
+	UPROPERTY()
+	int64 HeightMm = 0;
+
+	UPROPERTY()
+	int64 MinWidthMm = 0;
+
+	UPROPERTY()
+	int64 MaxWidthMm = 0;
+
+	UPROPERTY()
+	int64 MinDepthMm = 0;
+
+	UPROPERTY()
+	int64 MaxDepthMm = 0;
+
+	UPROPERTY()
+	int64 MinHeightMm = 0;
+
+	UPROPERTY()
+	int64 MaxHeightMm = 0;
+
+	/** Placed with the mouse near a wall, its back goes against the wall. */
+	UPROPERTY()
+	bool bAgainstWall = false;
+
+	/** Finish id of its main parts unless the piece has its own. */
+	UPROPERTY()
+	FString BodyFinish;
+};
+
+/**
+ * A piece of furniture: a width x depth footprint centred on (XMm, YMm), relative to its level's floor.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101FurnitureInfo
+{
+	GENERATED_BODY()
+
+	/** Persistent id (UUID). */
+	UPROPERTY()
+	FString Id;
+
+	/** Furniture type id (GetFurnitureTypes). */
+	UPROPERTY()
+	FString Type;
+
+	UPROPERTY()
+	FString LevelId;
+
+	UPROPERTY()
+	int64 XMm = 0;
+
+	UPROPERTY()
+	int64 YMm = 0;
+
+	/** Counter-clockwise, in hundredths of a degree. 0: its front faces south (-Y) and its back north. */
+	UPROPERTY(meta = (ClampMin = "0", ClampMax = "35999"))
+	int32 RotationCentidegrees = 0;
+
+	UPROPERTY()
+	int64 WidthMm = 0;
+
+	UPROPERTY()
+	int64 DepthMm = 0;
+
+	UPROPERTY()
+	int64 HeightMm = 0;
+
+	/** Finish id of its main parts; empty: its type's. */
+	UPROPERTY()
+	FString Finish;
+
+	/** Transient actor rendering it in the target world, or null while its level is hidden. */
+	UPROPERTY()
+	TObjectPtr<AActor> Actor;
+};
+
+/**
+ * Edits the levels, walls, doors, windows, furniture and finishes of the 101st Floor document and reads the rooms the
+ * walls enclose: the play session's document while Play-In-Editor runs, otherwise the editor world's. Every change is
+ * one undoable step and regenerates the Unreal representation (transient actors). Also saves and opens project.json
+ * files and exports plans. Dimensions are integer millimetres; plan coordinates are relative to their level's floor.
  */
 UCLASS(BlueprintType, MinimalAPI)
 class UFloor101DocumentToolset : public UToolsetDefinition
@@ -294,7 +395,7 @@ public:
 	static FFloor101LevelInfo SetLevel(const FString& LevelId, const FString& Name, int64 HeightMm, int64 SlabThicknessMm);
 
 	/**
-	 * Removes a level and all its walls; the levels above move down. The last level cannot be removed.
+	 * Removes a level with all its walls and furniture; the levels above move down. The last level cannot be removed.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveLevel(const FString& LevelId);
@@ -423,6 +524,48 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveWall(const FString& WallId);
+
+	/**
+	 * Returns the furniture catalogue.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101FurnitureTypeInfo> GetFurnitureTypes();
+
+	/**
+	 * Returns every piece of furniture in creation order.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101FurnitureInfo> GetFurniture();
+
+	/**
+	 * Adds a piece of furniture exactly where given (no snapping).
+	 * @param LevelId Empty for the lowest level.
+	 * @param RotationCentidegrees See FFloor101FurnitureInfo::RotationCentidegrees.
+	 * @param WidthMm 0 for the type's default, like DepthMm and HeightMm.
+	 * @return The new piece.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101FurnitureInfo AddFurniture(const FString& LevelId, const FString& Type, int64 XMm, int64 YMm,
+		int32 RotationCentidegrees, int64 WidthMm, int64 DepthMm, int64 HeightMm);
+
+	/**
+	 * Moves, turns or resizes a piece of furniture (its type, level and finish stay).
+	 * @return The updated piece.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101FurnitureInfo SetFurniture(const FString& FurnitureId, int64 XMm, int64 YMm, int32 RotationCentidegrees,
+		int64 WidthMm, int64 DepthMm, int64 HeightMm);
+
+	/**
+	 * Sets the finish of a piece's main parts.
+	 * @param FinishId A catalogue id that allows furniture; empty restores its type's.
+	 * @return The updated piece.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101FurnitureInfo SetFurnitureFinish(const FString& FurnitureId, const FString& FinishId);
+
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void RemoveFurniture(const FString& FurnitureId);
 
 	/**
 	 * Undoes the last change.

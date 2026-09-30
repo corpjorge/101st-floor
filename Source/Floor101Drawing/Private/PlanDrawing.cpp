@@ -1,15 +1,18 @@
 #include "F101/Drawing/PlanDrawing.h"
 
 #include "F101/Geometry/CarpentryBuilder.h"
+#include "F101/Geometry/FurnitureBuilder.h"
 #include "F101/Geometry/PolygonGeometry.h"
 #include "F101/Geometry/Rooms.h"
 #include "F101/Geometry/WallJoins.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <optional>
+#include <utility>
 
 namespace f101::drawing
 {
@@ -24,6 +27,8 @@ namespace f101::drawing
 		constexpr double TickLengthMm = 150.0;
 		constexpr double ExtensionGapMm = 100.0; // between a face and its extension lines, and past the dimension line
 		constexpr double PartitionOffsetMm = 300.0;
+		constexpr double FurnitureLineMm = 8.0;
+		constexpr double FurnitureDetailMm = 5.0;
 		constexpr int ArcSegments = 16;
 
 		PlanPoint add(PlanPoint a, PlanPoint b) { return {a.x_mm + b.x_mm, a.y_mm + b.y_mm}; }
@@ -339,6 +344,7 @@ namespace f101::drawing
 		case Ink::Swing: return {110, 110, 110};
 		case Ink::Hidden: return {176, 176, 176};
 		case Ink::Dimension: return {31, 63, 102};
+		case Ink::Furniture: return {96, 96, 96};
 		case Ink::Selected: return {255, 107, 20};
 		case Ink::Preview: return {56, 148, 255};
 		case Ink::Handle: return {230, 190, 0};
@@ -452,6 +458,49 @@ namespace f101::drawing
 			builder.label(add(room.labelPoint, {0.0, RoomNameHeightMm * 0.8}), 0.0, RoomNameHeightMm, std::move(name), Ink::Label);
 			builder.label(add(room.labelPoint, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, RoomAreaHeightMm,
 				formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit, Ink::Label);
+		}
+
+		// Furniture, as the overlay previews it: its outline, then the details of its type.
+		std::vector<std::pair<cad::Furniture, Ink>> pieces;
+		for (const cad::Furniture& piece : project.furniture)
+		{
+			pieces.emplace_back(piece, !overlay.selectedFurniture.isNil() && piece.id == overlay.selectedFurniture ? Ink::Selected
+				: Ink::Furniture);
+		}
+		for (const cad::Furniture& preview : overlay.previewFurniture)
+		{
+			if (!cad::validateFurniture(preview).ok())
+			{
+				continue;
+			}
+			const auto existing = std::find_if(pieces.begin(), pieces.end(),
+				[&preview](const auto& shown) { return !preview.id.isNil() && shown.first.id == preview.id; });
+			if (existing != pieces.end())
+			{
+				*existing = {preview, Ink::Preview};
+			}
+			else
+			{
+				pieces.emplace_back(preview, Ink::Preview);
+			}
+		}
+		for (const auto& [piece, ink] : pieces)
+		{
+			if (!project.levels.empty() && piece.level != level)
+			{
+				continue;
+			}
+			const std::array<PlanPoint, 4> corners = cad::furnitureFootprint(piece);
+			builder.stroke(std::vector<PlanPoint>(corners.begin(), corners.end()), ink, FurnitureLineMm, true);
+			for (const geometry::FurnitureOutline& detail : geometry::furnitureShape(piece).planDetails)
+			{
+				std::vector<PlanPoint> points;
+				for (const PlanPoint& local : detail)
+				{
+					points.push_back(cad::furnitureToPlan(piece, local.x_mm, local.y_mm));
+				}
+				builder.stroke(std::move(points), ink, FurnitureDetailMm, true);
+			}
 		}
 
 		for (const cad::Point2D& handle : overlay.handles)

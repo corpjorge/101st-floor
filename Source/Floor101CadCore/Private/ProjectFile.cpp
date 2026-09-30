@@ -272,6 +272,65 @@ namespace f101::cad
 			return finish;
 		}
 
+		// Schema 7 (ADR-0016). The type, sizes and finish are checked against the catalogue by validateProject.
+		Result<Furniture> readFurniture(const Json& object, std::size_t index)
+		{
+			const std::string where = "furniture[" + std::to_string(index) + "]";
+			if (!object.is_object())
+			{
+				return formatError(where + " must be an object");
+			}
+			const Result<Uuid> uuid = readUuidField(object, "id", where);
+			if (!uuid)
+			{
+				return uuid.error();
+			}
+			const Result<Uuid> level = readUuidField(object, "level", where);
+			if (!level)
+			{
+				return level.error();
+			}
+			const auto type = object.find("type");
+			if (type == object.end() || !type->is_string())
+			{
+				return formatError(where + ".type must be a string");
+			}
+			const Result<Point2D> position = readPoint(object, "position", where);
+			if (!position)
+			{
+				return position.error();
+			}
+			Furniture furniture;
+			furniture.id = FurnitureId{uuid.value()};
+			furniture.level = LevelId{level.value()};
+			furniture.type = type->get<std::string>();
+			furniture.position = position.value();
+			if (const auto rotation = object.find("rotationCentidegrees"); rotation != object.end())
+			{
+				if (!rotation->is_number_integer() || rotation->get<std::int64_t>() < 0 ||
+					rotation->get<std::int64_t>() >= FullTurnCentidegrees)
+				{
+					return formatError(where + ".rotationCentidegrees must be an integer from 0 to 35999");
+				}
+				furniture.rotationCentidegrees = rotation->get<std::int64_t>();
+			}
+			for (const auto& [key, target] : {std::pair<const char*, std::int64_t*>{"widthMm", &furniture.widthMm},
+					 {"depthMm", &furniture.depthMm}, {"heightMm", &furniture.heightMm}})
+			{
+				const Result<std::int64_t> value = readMillimetersField(object, key, where);
+				if (!value)
+				{
+					return value.error();
+				}
+				*target = value.value();
+			}
+			if (Status read = readOptionalString(object, "finish", where, furniture.finish); !read)
+			{
+				return read.error();
+			}
+			return furniture;
+		}
+
 		// `withLevel`: schema 3, where every wall names its level.
 		Result<Wall> readWall(const Json& object, std::size_t index, bool withLevel)
 		{
@@ -443,6 +502,28 @@ namespace f101::cad
 			}
 			root["roomFinishes"] = std::move(rooms);
 		}
+		if (!project.furniture.empty())
+		{
+			Json furniture = Json::array();
+			for (const Furniture& piece : project.furniture)
+			{
+				Json item = Json::object();
+				item["id"] = toString(piece.id);
+				item["type"] = piece.type;
+				item["level"] = toString(piece.level);
+				item["position"] = toJson(piece.position);
+				item["rotationCentidegrees"] = piece.rotationCentidegrees;
+				item["widthMm"] = piece.widthMm;
+				item["depthMm"] = piece.depthMm;
+				item["heightMm"] = piece.heightMm;
+				if (!piece.finish.empty())
+				{
+					item["finish"] = piece.finish;
+				}
+				furniture.push_back(std::move(item));
+			}
+			root["furniture"] = std::move(furniture);
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -531,6 +612,22 @@ namespace f101::cad
 					return finish.error();
 				}
 				project.roomFinishes.push_back(std::move(finish).value());
+			}
+		}
+		if (const auto furniture = root.find("furniture"); furniture != root.end()) // schema 7
+		{
+			if (!furniture->is_array())
+			{
+				return formatError("furniture must be an array");
+			}
+			for (std::size_t index = 0; index < furniture->size(); ++index)
+			{
+				Result<Furniture> piece = readFurniture((*furniture)[index], index);
+				if (!piece)
+				{
+					return piece.error();
+				}
+				project.furniture.push_back(std::move(piece).value());
 			}
 		}
 		if (!withLevels)

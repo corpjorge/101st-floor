@@ -235,6 +235,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::P) { return EFloor101KeyCommand::DoorTool; }
 	if (Key == EKeys::O) { return EFloor101KeyCommand::WindowTool; }
 	if (Key == EKeys::M) { return EFloor101KeyCommand::PaintTool; }
+	if (Key == EKeys::A) { return EFloor101KeyCommand::FurnitureTool; }
 	if (Key == EKeys::Escape) { return EFloor101KeyCommand::Cancel; }
 	if (Key == EKeys::Enter) { return EFloor101KeyCommand::Confirm; }
 	if (Key == EKeys::Delete) { return EFloor101KeyCommand::Delete; }
@@ -275,6 +276,9 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	case EFloor101KeyCommand::DoorTool: Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Door); })); break;
 	case EFloor101KeyCommand::WindowTool: Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Window); })); break;
 	case EFloor101KeyCommand::PaintTool: Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Paint); })); break;
+	case EFloor101KeyCommand::FurnitureTool:
+		Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Furniture); }));
+		break;
 	case EFloor101KeyCommand::Cancel: Edit(Always([](EditController& Editor) { Editor.cancel(); })); break;
 	case EFloor101KeyCommand::Confirm: Edit([](EditController& Editor) { return Editor.confirm(); }); break;
 	case EFloor101KeyCommand::Delete: Edit([](EditController& Editor) { return Editor.deleteSelection(); }); break;
@@ -287,10 +291,12 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 		break;
 	case EFloor101KeyCommand::Flip:
 	{
-		// Only with a door or window at hand: elsewhere (e.g. typing "3.55 m") the space stays a character.
+		// Only with a door, a window or a piece of furniture at hand: elsewhere (e.g. typing "3.55 m") the space stays a
+		// character.
 		const EditController& Editor = Document.GetEditController();
-		const bool bOpeningTool = Editor.mode() == f101::cad::EditMode::Door || Editor.mode() == f101::cad::EditMode::Window;
-		if (!bOpeningTool && !Editor.selectedOpening())
+		const bool bTool = Editor.mode() == f101::cad::EditMode::Door || Editor.mode() == f101::cad::EditMode::Window ||
+			Editor.mode() == f101::cad::EditMode::Furniture;
+		if (!bTool && !Editor.selectedOpening() && !Editor.selectedFurniture())
 		{
 			return false;
 		}

@@ -2,6 +2,7 @@
 
 #include "F101/Cad/Export.h"
 #include "F101/Cad/Finishes.h"
+#include "F101/Cad/Furniture.h"
 #include "F101/Cad/Level.h"
 #include "F101/Cad/Wall.h"
 
@@ -31,6 +32,7 @@ namespace f101::cad
 		std::vector<Level> levels; // bottom to top; a valid project has at least one
 		std::vector<Wall> walls;   // creation order
 		std::vector<RoomFinish> roomFinishes; // only rooms with a finish of their own
+		std::vector<Furniture> furniture;     // creation order (ADR-0016)
 
 		const Wall* findWall(const WallId& id) const
 		{
@@ -51,6 +53,18 @@ namespace f101::cad
 				if (finish.room == room)
 				{
 					return &finish;
+				}
+			}
+			return nullptr;
+		}
+
+		const Furniture* findFurniture(const FurnitureId& id) const
+		{
+			for (const Furniture& piece : furniture)
+			{
+				if (piece.id == id)
+				{
+					return &piece;
 				}
 			}
 			return nullptr;

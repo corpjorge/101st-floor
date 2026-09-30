@@ -41,12 +41,22 @@ Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se rege
   `frame`, `leaf`, `hardware`, `glass`; cajas cerradas de sombreado plano.
   `buildOpeningSymbolMesh` → el símbolo de las puertas abatibles y de dos hojas: por hoja, el arco de 90° y la hoja
   abierta, líneas planas de 20 mm a 3 mm sobre el suelo, desde la cara hacia la que abre (sección `swing`).
+- **Muebles** (`FurnitureBuilder.h`, ADR-0016): `furnitureShape(furniture)` → las cajas de su tipo en el marco del mueble
+  (x a lo ancho desde el centro, y del frente a la espalda, z desde el suelo), dimensionadas por su ancho, fondo y alto:
+  camas (cabecero, patas, somier, colchón, almohadas, edredón), sofá (patas, base, brazos, respaldo y cojines), mesa, silla,
+  armario (puertas de unos 55 cm con tiradores), cocina (zócalo, módulos abiertos por arriba, frentes con tiradores,
+  encimera con el hueco del fregadero, fregadero de acero con grifo y placa negra si mide 1,20 m o más), frigorífico,
+  inodoro, lavabo suspendido (mueble, encimera cerámica con cubeta y grifo), bañera (cubeta abierta y grifo) y plato de
+  ducha (con desagüe); más los contornos que el plano dibuja dentro (almohadas, edredón, cubetas, fuegos...). Ranuras:
+  `body` (el acabado del mueble), `linen`, `fabric`, `ceramic`, `metal`, `stone`, `dark`, con `furnitureSlotFinish`.
+  `buildFurnitureMesh` gira y coloca las cajas con su marco sobre el suelo de la habitación (z = `FloorThicknessMm`).
 
 Tests: `WallGeometryTests.cpp` (bounds exactos de 3550 × 120 × 2400 mm, normales hacia fuera, orden de triángulos, lado
 izquierdo, espesor en diagonal, regeneración sin escalar; puerta: 36 triángulos, áreas por sección y volumen encerrado
 exactos; puerta y ventana juntas), `WallJoinTests.cpp`, `PolygonGeometryTests.cpp`, `RoomTests.cpp` (casos en
 ADR-0009), `CarpentryTests.cpp` (mallas de carpintería, tramos de unión, recorte en un inglete) y `OpeningTypeTests.cpp`
-(hojas giradas y desplazadas por tipo, símbolos).
+(hojas giradas y desplazadas por tipo, símbolos) y `FurnitureTests.cpp` (cajas de los 12 tipos a medidas mínimas, por
+defecto y máximas; malla girada; acabados por ranura).
 
 Todo es local a una planta: la escena resuelve uniones y habitaciones planta a planta y sube la geometría a su cota.
 

@@ -78,6 +78,8 @@ public:
 	AActor* FindRoomFloorActor(const FString& RoomKey) const;
 	// Transient actor of the slab over a room, or null (e.g. while its level is being edited, or hidden).
 	AActor* FindRoomSlabActor(const FString& RoomKey) const;
+	// Transient actor of a piece of furniture, or null (e.g. on a hidden level).
+	AActor* FindFurnitureActor(const f101::cad::FurnitureId& Id) const;
 	// Rooms of the edited level (of every level when all are shown) as last shown, following the current gesture.
 	const TArray<FFloor101RoomView>& GetRooms() const { return Rooms; }
 

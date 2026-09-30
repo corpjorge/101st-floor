@@ -70,6 +70,35 @@ namespace f101::cad
 		return nearest;
 	}
 
+	std::optional<FurnitureHit> pickFurniture(const Project& project, const Ray3& ray, const LevelId& level)
+	{
+		std::optional<FurnitureHit> nearest;
+		for (const Furniture& piece : project.furniture)
+		{
+			if (piece.level != level)
+			{
+				continue;
+			}
+			// In the piece's own frame (a turn about z): an axis-aligned box.
+			const PlanPoint origin = planToFurniture(piece, PlanPoint{ray.originX, ray.originY});
+			const FurnitureAxes axes = furnitureAxes(piece);
+			const double directionX = ray.directionX * axes.x.x_mm + ray.directionY * axes.x.y_mm;
+			const double directionY = ray.directionX * axes.y.x_mm + ray.directionY * axes.y.y_mm;
+			const double halfWidth = static_cast<double>(piece.widthMm) / 2.0;
+			const double halfDepth = static_cast<double>(piece.depthMm) / 2.0;
+			double tMin = 0.0;
+			double tMax = std::numeric_limits<double>::infinity();
+			if (clipSlab(origin.x_mm, directionX, -halfWidth, halfWidth, tMin, tMax) &&
+				clipSlab(origin.y_mm, directionY, -halfDepth, halfDepth, tMin, tMax) &&
+				clipSlab(ray.originZ, ray.directionZ, 0.0, static_cast<double>(piece.heightMm), tMin, tMax) &&
+				(!nearest || tMin < nearest->distance))
+			{
+				nearest = FurnitureHit{piece.id, tMin};
+			}
+		}
+		return nearest;
+	}
+
 	std::optional<double> intersectPost(const Ray3& ray, Point2D center, double sizeMm, double heightMm)
 	{
 		const double half = sizeMm / 2.0;

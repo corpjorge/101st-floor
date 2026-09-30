@@ -32,6 +32,17 @@ namespace f101::cad
 	FLOOR101CADCORE_API std::optional<WallHit> pickWall(const Project& project, const Ray3& ray,
 		const std::vector<WallId>& ignoreWalls = {});
 
+	struct FurnitureHit
+	{
+		FurnitureId furniture;
+		double distance = 0.0; // along the ray, in units of the ray direction's length
+	};
+
+	// Nearest piece of furniture on `level` whose box (its footprint, from the floor to its height) the ray enters in front
+	// of its origin. The ray is in the level's space (its floor at z = 0).
+	FLOOR101CADCORE_API std::optional<FurnitureHit> pickFurniture(const Project& project, const Ray3& ray,
+		const LevelId& level);
+
 	// Entry distance of the ray into an axis-aligned square post centred on `center` (e.g. an endpoint handle), from the
 	// floor to `heightMm`, `sizeMm` wide; nullopt if it misses.
 	FLOOR101CADCORE_API std::optional<double> intersectPost(const Ray3& ray, Point2D center, double sizeMm, double heightMm);

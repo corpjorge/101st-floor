@@ -125,16 +125,35 @@ namespace f101::cad
 		Level level;
 	};
 
-	// Removes a level and every wall on it; the levels above move down. The last level cannot be removed.
+	// Removes a level with every wall and piece of furniture on it; the levels above move down. The last level cannot be
+	// removed.
 	struct DeleteLevelCommand
 	{
 		LevelId level;
 	};
 
+	// Adds a piece of furniture (ADR-0016); a new id is assigned (the given one is ignored), and a nil level is the first
+	// one.
+	struct AddFurnitureCommand
+	{
+		Furniture furniture;
+	};
+
+	// Replaces the piece of furniture with the same id: type, level, place, size and finish.
+	struct ChangeFurnitureCommand
+	{
+		Furniture furniture;
+	};
+
+	struct DeleteFurnitureCommand
+	{
+		FurnitureId furniture;
+	};
+
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
-		SetRoomFinishCommand>;
+		SetRoomFinishCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand>;
 
 	// Short name for undo/redo UI, e.g. "Create wall".
 	FLOOR101CADCORE_API std::string_view commandLabel(const Command& command);
@@ -167,6 +186,15 @@ namespace f101::cad
 		std::optional<RoomFinish> after;
 	};
 
+	// Same for a piece of furniture; `index` is its position in Project::furniture.
+	struct FurnitureChange
+	{
+		FurnitureId id;
+		std::size_t index = 0;
+		std::optional<Furniture> before;
+		std::optional<Furniture> after;
+	};
+
 	// A validated, reversible edit (ADR-0006): undo applies the `before` states, redo the `after` states.
 	struct Transaction
 	{
@@ -174,8 +202,9 @@ namespace f101::cad
 		std::vector<WallChange> walls;
 		std::vector<LevelChange> levels;
 		std::vector<RoomFinishChange> roomFinishes;
+		std::vector<FurnitureChange> furniture;
 
-		bool empty() const { return walls.empty() && levels.empty() && roomFinishes.empty(); }
+		bool empty() const { return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty(); }
 	};
 
 	// Entities affected by one applied transaction (forward, undo or redo).
@@ -188,6 +217,9 @@ namespace f101::cad
 		std::vector<LevelId> modifiedLevels;
 		std::vector<LevelId> removedLevels;
 		std::vector<std::string> changedRoomFinishes; // room keys
+		std::vector<FurnitureId> addedFurniture;
+		std::vector<FurnitureId> modifiedFurniture;
+		std::vector<FurnitureId> removedFurniture;
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;
@@ -226,6 +258,7 @@ namespace f101::cad
 		FLOOR101CADCORE_API Result<OpeningId> addOpening(const WallId& wall, const Opening& opening);
 		FLOOR101CADCORE_API Result<LevelId> addLevel(std::int64_t heightMm = DefaultLevelHeightMm,
 			std::int64_t slabThicknessMm = DefaultSlabThicknessMm);
+		FLOOR101CADCORE_API Result<FurnitureId> addFurniture(const Furniture& furniture);
 
 		// Openings added or changed must stay clear of the walls joined to their host (ADR-0013), pockets of sliding doors
 		// included (ADR-0014). The Geometry Engine provides the spans (geometry::makeWallObstructions); without it only the
@@ -254,7 +287,7 @@ namespace f101::cad
 		WallObstructions obstructions;
 	};
 
-	// Checks a whole project: at least one level, every level and wall valid, every id unique, every wall on an existing
-	// level, and the top of the building inside the model range.
+	// Checks a whole project: at least one level, every level, wall and piece of furniture valid, every id unique, every
+	// wall and piece of furniture on an existing level, and the top of the building inside the model range.
 	FLOOR101CADCORE_API Status validateProject(const Project& project);
 }

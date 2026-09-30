@@ -33,7 +33,8 @@
   documento no recompila: se hace una sola vez al final, con la vista del controlador ya actualizada (si no, el muro
   recién creado aparecería también como vista previa). `GetRooms()` da el área y la posición de etiqueta (a la cota de
   su planta) de cada habitación de la planta activa, o de todas con "Ver todas" (siguen al gesto en curso);
-  `FindRoomFloorActor(clave)` y `FindRoomSlabActor(clave)` su suelo y su forjado. Plano 2D (ADR-0015):
+  `FindRoomFloorActor(clave)` y `FindRoomSlabActor(clave)` su suelo y su forjado; `FindFurnitureActor(id)` el de un
+  mueble. Plano 2D (ADR-0015):
   `SetPlanView`/`IsPlanView`; mientras está visible, cada refresco dibuja la planta activa con las marcas de edición
   (`GetPlanDrawing`, textos en español y coma decimal). `ExportPlan(ruta, planta)` escribe el plano sin marcas en SVG
   (`writeSvg`) o PNG (`SFloor101PlanView` pintado con `FWidgetRenderer`, 5 mm por píxel, 4096 px como máximo; con
@@ -49,9 +50,9 @@
   "Encuadrar" solo mira las plantas visibles. `SetPlanView`: cámara ortográfica recta hacia abajo (norte arriba) a 1 km
   sobre el foco, tan ancha como la vista; sin órbita; `Frame` encaja la huella con sitio para las cotas.
 - `AFloor101GameMode` (`GlobalDefaultGameMode`) + `AFloor101PlayerController`: cursor visible, modo de entrada juego y
-  UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta, Ventana y Pintar y fila de plantas, panel
-  de propiedades del muro, del hueco (con su tipo, bisagras, sentido, apertura y carpintería) o de la habitación
-  seleccionados o, sin selección, de la
+  UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta, Ventana, Pintar y Amueblar y fila de plantas,
+  panel de propiedades del muro, del hueco (con su tipo, bisagras, sentido, apertura y carpintería), del mueble (medidas,
+  giro, acabado) o de la habitación seleccionados, la paleta de Pintar o el catálogo de Amueblar o, sin selección, de la
   planta activa, barra de estado, etiqueta del cursor y el área de cada habitación proyectada sobre su suelo). En el
   plano 2D, `SFloor101PlanView` pinta el plano sobre toda la vista (rellenos con vértices propios, líneas, textos
   girados) con la proyección de la cámara ortográfica; no toma el ratón, así que la edición sigue en el viewport.
@@ -65,19 +66,19 @@ Desarrollo:
 ## Controles
 | Entrada | Acción |
 |---|---|
-| clic izquierdo | Seleccionar: elige un muro, una puerta o una ventana (clic en el hueco), una habitación (clic en su suelo) o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Con un hueco seleccionado, arrastrar el hueco lo mueve y arrastrar un asa de su borde cambia el ancho (rejilla de 50 mm, mínimo 30 cm, sin pasar uniones ni otros huecos; la etiqueta del cursor da posición y ancho). Muro: inicio / crear (sobre un extremo o un muro se une a él). Pintar: aplica el acabado de la paleta a la cara del muro que toca el cursor o al suelo de la habitación. Puerta / Ventana: coloca el hueco en el muro señalado (centrado en el cursor, borde en la rejilla de 50 mm, en el tramo libre de uniones y huecos más cercano), abriendo hacia el lado del muro donde está el cursor; el modo sigue activo para colocar más |
-| W / P / O / M / V | herramienta Muro / Puerta / Ventana / Pintar / Seleccionar (Ctrl+O sigue siendo abrir) |
-| Espacio | con Puerta o Ventana: las siguientes con las bisagras en la otra jamba; con un hueco seleccionado: invierte sus bisagras (o hacia dónde corre). Escribiendo una longitud sigue siendo un espacio |
+| clic izquierdo | Seleccionar: elige un muro, una puerta o una ventana (clic en el hueco), una habitación (clic en su suelo) o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Con un hueco seleccionado, arrastrar el hueco lo mueve y arrastrar un asa de su borde cambia el ancho (rejilla de 50 mm, mínimo 30 cm, sin pasar uniones ni otros huecos; la etiqueta del cursor da posición y ancho). Muro: inicio / crear (sobre un extremo o un muro se une a él). Pintar: aplica el acabado de la paleta a la cara del muro que toca el cursor o al suelo de la habitación. Puerta / Ventana: coloca el hueco en el muro señalado (centrado en el cursor, borde en la rejilla de 50 mm, en el tramo libre de uniones y huecos más cercano), abriendo hacia el lado del muro donde está el cursor; el modo sigue activo para colocar más. Amueblar: coloca el mueble del catálogo (centrado en el cursor, en la rejilla de 50 mm; los que van contra un muro, a menos de su medio fondo + 40 cm de una cara, se apoyan de espaldas en ella y se paran en los muros con que chocan). Seleccionar un mueble (clic en él) y arrastrarlo lo mueve con el mismo ajuste |
+| W / P / O / M / A / V | herramienta Muro / Puerta / Ventana / Pintar / Amueblar / Seleccionar (Ctrl+O sigue siendo abrir) |
+| Espacio | con Puerta o Ventana: las siguientes con las bisagras en la otra jamba; con un hueco seleccionado: invierte sus bisagras (o hacia dónde corre); con Amueblar: gira 90° los siguientes muebles; con un mueble seleccionado: lo gira 90°. Escribiendo una longitud sigue siendo un espacio |
 | escribir `355`, `3.55 m`, `3550 mm` | longitud del muro que se dibuja (sin unidad = cm); Retroceso borra. Mientras se escribe, M y C son texto (no Pintar) |
 | Tab / botón "Plano 2D (Tab)" | plano 2D de la planta activa, editable como en 3D (rueda: zoom, central: desplazar); Tab o T vuelven a 3D |
 | "Plano: SVG / PNG" | exporta el plano de la planta activa junto al proyecto (`<proyecto>-<planta>.svg|png`) |
 | Enter | crea el muro previsualizado |
-| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta, Ventana o Pintar, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
-| Supr | elimina el muro o el hueco seleccionado |
+| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta, Ventana, Pintar o Amueblar, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
+| Supr | elimina el muro, el hueco o el mueble seleccionado |
 | RePág / AvPág | editar la planta de arriba / de abajo (la cámara la sigue) |
 | L | ver todas las plantas con sus forjados, o solo la activa y, atenuadas, las de abajo |
 | fila de plantas | subir, bajar, "+ Nueva planta" (encima de todas, igual que la de arriba, y pasa a editarla), "Ver todas (L)" |
-| panel de propiedades | muro: longitud, espesor, altura y el acabado de cada cara ("Cara norte"...); habitación: suelo y techo; en Pintar, la paleta de acabados; puerta o ventana: ancho, alto, antepecho (ventanas), posición (desde el inicio del muro hasta el borde del hueco), tipo (puertas: abatible, abatible de dos hojas, corredera empotrada; ventanas: practicable, practicable de dos hojas, corredera, fija), bisagras o hacia dónde se abre la corredera ("Lado oeste", Invertir), hacia qué cara abre ("Cara norte", Invertir), apertura (%) y carpintería (lacado blanco, maderas, aluminio antracita); sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
+| panel de propiedades | muro: longitud, espesor, altura y el acabado de cada cara ("Cara norte"...); habitación: suelo y techo; en Pintar, la paleta de acabados; puerta o ventana: ancho, alto, antepecho (ventanas), posición (desde el inicio del muro hasta el borde del hueco), tipo (puertas: abatible, abatible de dos hojas, corredera empotrada; ventanas: practicable, practicable de dos hojas, corredera, fija), bisagras o hacia dónde se abre la corredera ("Lado oeste", Invertir), hacia qué cara abre ("Cara norte", Invertir), apertura (%) y carpintería (lacado blanco, maderas, aluminio antracita); mueble: ancho, fondo, alto, giro (grados), "Girar 90°" y acabado; en Amueblar, el catálogo con sus medidas; sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
 | Ctrl+Z / Ctrl+Y o Ctrl+Shift+Z | deshacer / rehacer |
 | Ctrl+S / Ctrl+O | guardar / abrir el archivo actual (o el de por defecto) |
 | derecho arrastrando / central arrastrando / rueda / F / T | orbitar / desplazar / zoom / encuadrar todo / vista 3D cenital (norte arriba) |
@@ -87,9 +88,9 @@ Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetLevels`, `AddLevel`, `
 `GetFinishes`, `SetWallFinish`, `SetRoomFinish`,
 `GetWalls`, `AddWall` (en una planta), `SetWallEnd`, `SetWallLength`, `MoveCorner`, `GetRooms`,
 `SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `SetOpeningFinish`, `SetOpeningOperation`,
-`RemoveOpening`, `RemoveWall`,
-`Undo`, `Redo`,
-`SaveProject`, `OpenProject`, `ExportPlan`, en mm enteros. Los muros de plantas que la vista oculta no tienen actor (`SetLevelView`
+`RemoveOpening`, `RemoveWall`, `GetFurnitureTypes`, `GetFurniture`, `AddFurniture`, `SetFurniture`,
+`SetFurnitureFinish`, `RemoveFurniture`, `Undo`, `Redo`,
+`SaveProject`, `OpenProject`, `ExportPlan`, en mm enteros. Los muros y muebles de plantas que la vista oculta no tienen actor (`SetLevelView`
 elige planta y "ver todas"). Actúa sobre el documento de la sesión PIE mientras existe y, si no, sobre el del mundo del editor. Devuelve el actor para
 inspeccionarlo con `ActorTools`. Se registra desde un `UEditorSubsystem` que depende de `UToolsetRegistrySubsystem`,
 porque `RegisterToolsetClass` no hace nada si el registro aún no está listo. Ver `docs/unreal-mcp.md`.
@@ -105,7 +106,8 @@ atenuada, muro dibujado en la cota de su planta, ocultar y "Ver todas"; acabados
 seleccionar la habitación y su techo; carpintería: rechazo en una T, arrastre del hueco con el mismo actor, Esc a mitad
 de arrastre; tipos: colocar abriendo hacia el cursor con Espacio, abrir al 100 %, corredera sin símbolo, puerta fija
 rechazada; plano 2D: dibujo con la selección y las asas, cámara ortográfica y encuadre, exportación SVG y ruta por
-defecto, PNG con la tinta del corte donde hay renderer) y
+defecto, PNG con la tinta del corte donde hay renderer; muebles: colocar un sofá contra un muro, su actor y medidas,
+seleccionarlo, arrastrarlo, girarlo, borrarlo y deshacer, en el plano, guardar y abrir) y
 `Floor101.Editor.DocumentToolset.*` (cada herramienta y cada error).
 `Test.ps1 -Integration` los ejecuta en un editor headless; también se pueden lanzar por MCP.
 

@@ -17,6 +17,7 @@
 #include "Camera/CameraComponent.h"
 #include "DynamicRHI.h"
 #include "F101/Drawing/PlanDrawing.h"
+#include "F101/Scene/SceneCompiler.h"
 #include "HAL/FileManager.h"
 #include "ImageUtils.h"
 #include "InputCoreTypes.h"
@@ -82,6 +83,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("P: door"), Map(EKeys::P) == Command::DoorTool);
 	TestTrue(TEXT("O: window"), Map(EKeys::O) == Command::WindowTool);
 	TestTrue(TEXT("M: paint"), Map(EKeys::M) == Command::PaintTool);
+	TestTrue(TEXT("A: furniture"), Map(EKeys::A) == Command::FurnitureTool);
 	TestTrue(TEXT("Ctrl+O is still open"), Map(EKeys::O, true) == Command::Open);
 	TestTrue(TEXT("Esc: cancel"), Map(EKeys::Escape) == Command::Cancel);
 	TestTrue(TEXT("Enter: confirm"), Map(EKeys::Enter) == Command::Confirm);
@@ -611,6 +613,85 @@ bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 		}
 	}
 	IFileManager::Get().DeleteDirectory(*Directory, false, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FurnitureInteractionTest, "Floor101.Interaction.Furniture", TestFlags)
+bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("document subsystem"), Document) || !TestNotNull(TEXT("finish library"), Library))
+	{
+		return false;
+	}
+	(void)Document->GetMutableDocument().addWall({0, 0}, {6000, 0}, 120, 2800);
+
+	// Furniture mode (A), a sofa: near the wall its preview turns its back to the wall's face; a click places it.
+	(void)Document->Edit([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Furniture); return Editor.setFurnitureType("sofa"); });
+	Document->UpdatePointer(Down(3020.0, 700.0));
+	TestNotNull(TEXT("previewed"), FindNode(TestWorld.World, TEXT("preview/furniture/0")));
+	TestTrue(TEXT("click places it"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(3020.0, 700.0)); }).ok());
+	const std::vector<f101::cad::Furniture>& Pieces = Document->GetDocument().project().furniture;
+	if (!TestEqual(TEXT("one piece"), static_cast<int32>(Pieces.size()), 1))
+	{
+		return false;
+	}
+	const f101::cad::FurnitureId Sofa = Pieces[0].id;
+	TestTrue(TEXT("against the wall, facing north"), Pieces[0].position == f101::cad::Point2D{3000, 510} && Pieces[0].rotationCentidegrees == 18000);
+	const FString NodeId = UTF8_TO_TCHAR(f101::scene::furnitureNodeId(Sofa).value.c_str());
+	const AFloor101SceneNodeActor* Actor = FindNode(TestWorld.World, NodeId);
+	if (!TestNotNull(TEXT("its actor"), Actor))
+	{
+		return false;
+	}
+	TestTrue(TEXT("looked up by id"), Document->FindFurnitureActor(Sofa) == Actor);
+	const FBox Bounds = Actor->GetMeshBounds();
+	TestEqual(TEXT("its back on the face (Unreal Y mirrored: -6 cm)"), Bounds.Max.Y, -6.0, 1e-6);
+	TestEqual(TEXT("200 cm wide"), Bounds.GetSize().X, 200.0, 1e-6);
+	TestEqual(TEXT("on the room floor"), Bounds.Min.Z, 1.0, 1e-6);
+	TestEqual(TEXT("85 cm tall"), Bounds.GetSize().Z, 85.0, 1e-6);
+	TestTrue(TEXT("its first section (the feet) in brushed steel"), Actor->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("steel-brushed")));
+	TestNotNull(TEXT("its upholstery has a synthesized texture"),
+		Library->GetFinishMaterial(TEXT("fabric-grey")) ? Library->FindFinishTexture(TEXT("fabric-grey")) : nullptr);
+
+	// Select it by clicking on it, drag it 1 m east along the wall: one change, and the same actor follows.
+	(void)Document->Edit([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Select); return f101::Status::success(); });
+	TestTrue(TEXT("click on it"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(3000.0, 500.0)); }).ok());
+	TestTrue(TEXT("selected"), Document->GetEditController().selectedFurniture().has_value());
+	TestTrue(TEXT("tinted as selected"), Actor->GetDisplayMaterial() != Library->GetFinishMaterial(TEXT("steel-brushed")));
+	Document->UpdatePointer(Down(4020.0, 520.0));
+	TestTrue(TEXT("release"), Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(4020.0, 520.0)); }).ok());
+	TestTrue(TEXT("moved along the wall"), Document->GetDocument().project().findFurniture(Sofa)->position == f101::cad::Point2D{4000, 510});
+	TestEqual(TEXT("one undoable change"), FString(UTF8_TO_TCHAR(std::string(Document->GetDocument().undoLabel()).c_str())), FString(TEXT("Change furniture")));
+	TestTrue(TEXT("same actor"), FindNode(TestWorld.World, NodeId) == Actor);
+	TestEqual(TEXT("it followed"), Actor->GetMeshBounds().Min.X, 300.0, 1e-6);
+
+	// Space turns it; Delete removes it; undo brings it back. The plan draws it.
+	TestTrue(TEXT("Space"), Document->Edit([](EditController& Editor) { return Editor.flip(); }).ok());
+	TestEqual(TEXT("turned 90 degrees"), Document->GetDocument().project().findFurniture(Sofa)->rotationCentidegrees, int64(27000));
+	TestTrue(TEXT("Delete"), Document->Edit([](EditController& Editor) { return Editor.deleteSelection(); }).ok());
+	TestNull(TEXT("its actor is gone"), FindNode(TestWorld.World, NodeId));
+	TestTrue(TEXT("undo"), Document->Edit([](EditController& Editor) { return Editor.undo(); }).ok());
+	TestNotNull(TEXT("back"), FindNode(TestWorld.World, NodeId));
+	Document->SetPlanView(true);
+	const f101::drawing::PlanDrawing& Plan = Document->GetPlanDrawing();
+	TestTrue(TEXT("drawn on the plan"), std::any_of(Plan.strokes.begin(), Plan.strokes.end(),
+		[](const f101::drawing::Stroke& Stroke) { return Stroke.ink == f101::drawing::Ink::Furniture; }));
+	Document->SetPlanView(false);
+
+	// Saved and opened with the project.
+	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Furniture"), TEXT("project.json")));
+	TestTrue(TEXT("saved"), Document->SaveProject(Path).ok());
+	FString Json;
+	TestTrue(TEXT("schema 7 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 7")) &&
+		Json.Contains(TEXT("\"type\": \"sofa\"")));
+	TestTrue(TEXT("removed before opening"), Document->GetMutableDocument().execute(f101::cad::DeleteFurnitureCommand{Sofa}).ok());
+	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
+	TestTrue(TEXT("the sofa is back from the file"), Document->GetDocument().project().findFurniture(Sofa) != nullptr);
+	TestNotNull(TEXT("with its actor"), FindNode(TestWorld.World, NodeId));
+	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Path), false, true);
 	return true;
 }
 

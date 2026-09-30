@@ -40,6 +40,9 @@ private:
 	// A face of the selected wall ("Cara norte") and its finish.
 	TSharedRef<SWidget> MakeWallFaceRow(f101::cad::WallSide Side);
 	TSharedRef<SWidget> MakeRoomSection();
+	// Furniture (ADR-0016): the selected piece (sizes, rotation, finish) and the catalogue of the Furniture mode.
+	TSharedRef<SWidget> MakeFurnitureSection();
+	TSharedRef<SWidget> MakeFurniturePalette();
 	TSharedRef<SWidget> MakePropertiesPanel();
 	// A length property: the value shown (mm, unset = nothing selected) and the controller call that sets it.
 	TSharedRef<SWidget> MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter);
@@ -56,6 +59,7 @@ private:
 	FReply Run(TFunctionRef<f101::Status(f101::cad::EditController&)> Action);
 	const f101::cad::Wall* GetSelectedWall() const;
 	std::optional<f101::cad::OpeningRef> GetSelectedOpening() const;
+	std::optional<f101::cad::Furniture> GetSelectedFurniture() const;
 	// The active level, shown in the panel when nothing is selected (Select mode).
 	const f101::cad::Level* GetActiveLevel() const;
 	// The selected room as shown (active level), or null.

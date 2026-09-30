@@ -27,6 +27,7 @@ enum class EFloor101KeyCommand : uint8
 	DoorTool,
 	WindowTool,
 	PaintTool,
+	FurnitureTool, // ADR-0016
 	Cancel,
 	Confirm,
 	Delete,
@@ -35,7 +36,8 @@ enum class EFloor101KeyCommand : uint8
 	LevelUp,
 	LevelDown,
 	AllLevels,
-	Flip, // hinges of the door or window being placed or selected to the other jamb (ADR-0014)
+	Flip, // hinges of the door or window being placed or selected to the other jamb (ADR-0014); turns furniture 90 degrees
+	      // (ADR-0016)
 	PlanView, // 2D plan on / off (ADR-0015)
 };
 

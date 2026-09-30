@@ -57,7 +57,10 @@ Paredes del documento de 101st Floor: `GetWalls`, `AddWall`, `SetWallEnd`, `SetW
 antepecho; `GetWalls` las lista en `Openings`; fallan si el hueco pisa la unión con otro muro, ADR-0013),
 `SetOpeningFinish` (acabado de la carpintería; `GetFinishes` marca los válidos con `bForCarpentry` e informa `Opacity`),
 `SetOpeningOperation` (cómo abre, ADR-0014: operación, bisagras, cara y apertura; los huecos lo informan),
-`ExportPlan` (plano 2D de una planta a .svg o .png, ADR-0015; el PNG necesita renderer), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
+`ExportPlan` (plano 2D de una planta a .svg o .png, ADR-0015; el PNG necesita renderer), `GetFurnitureTypes`/`GetFurniture`/
+`AddFurniture`/`SetFurniture`/`SetFurnitureFinish`/`RemoveFurniture` (muebles, ADR-0016: catálogo con medidas y rangos; alta
+exacta, sin snapping, con planta, centro, giro en centésimas de grado y medidas, 0 = las del tipo; acabados con
+`bForFurniture`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
 (vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`
@@ -112,6 +115,13 @@ Verificado (MVP 8, por el transporte MCP): `AutomationTestToolset.RunTests(["Flo
 del editor real (con renderer: el PNG se pinta y su corte sale en #262626) → `Success`; `OpenProject` de la casa del
 MVP 7 → `ExportPlan` a .svg (17 KB) y .png (1994 × 1794) → .pdf rechazado ("Export the plan as .svg or .png").
 `LiveCodingToolset.CompileLiveCoding` sirvió para probar un cambio del subsistema sin cerrar el editor.
+
+Verificado (MVP 9, por el transporte MCP): 5 muros y una puerta → `GetFurnitureTypes` (12 tipos) → `AddFurniture` × 14
+(cama doble, armario, sofá, mesa, 4 sillas, cocina, frigorífico, bañera, inodoro, lavabo, plato de ducha) → 14 con actor →
+`SetFurnitureFinish` (tela arena, nogal) y `SetFurniture` (mesa a 180 cm) → `brick-red` rechazado ("The finish
+'brick-red' is not for furniture") → `Undo`/`Redo` = `Change furniture` → `SaveProject` con esquema 7 y los 14 tipos →
+`ExportPlan` .svg (14 KB) y .png → `CaptureViewport` del piso amueblado con Lumen; `RunTests` de
+`Floor101.Interaction.Furniture`, `PlanView` y `KeyMap` dentro del editor real → `Success`.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

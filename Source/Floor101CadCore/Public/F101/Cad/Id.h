@@ -57,4 +57,7 @@ namespace f101::cad
 
 	struct LevelTag;
 	using LevelId = TypedId<LevelTag>;
+
+	struct FurnitureTag;
+	using FurnitureId = TypedId<FurnitureTag>;
 }

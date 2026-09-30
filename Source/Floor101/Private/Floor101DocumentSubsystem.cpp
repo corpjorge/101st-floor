@@ -353,6 +353,11 @@ AActor* UFloor101DocumentSubsystem::FindRoomSlabActor(const FString& RoomKey) co
 	return Reconciler->FindActor(f101::scene::SceneNodeId{std::string(TCHAR_TO_UTF8(*RoomKey)) + "/slab"});
 }
 
+AActor* UFloor101DocumentSubsystem::FindFurnitureActor(const f101::cad::FurnitureId& Id) const
+{
+	return Reconciler->FindActor(f101::scene::furnitureNodeId(Id));
+}
+
 void UFloor101DocumentSubsystem::SetPlanView(bool bShown)
 {
 	bPlanView = bShown;
@@ -521,6 +526,8 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.activeLevel = View.activeLevel;
 	Overlay.showAllLevels = View.showAllLevels;
 	Overlay.selectedRoom = View.selectedRoom;
+	Overlay.selectedFurniture = View.selectedFurniture;
+	Overlay.previewFurniture = View.previewFurniture;
 
 	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);
@@ -529,6 +536,8 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		f101::drawing::PlanOverlay Marks;
 		Marks.selectedWall = View.selectedWall;
 		Marks.previewWalls = View.previewWalls;
+		Marks.selectedFurniture = View.selectedFurniture;
+		Marks.previewFurniture = View.previewFurniture;
 		Marks.handles = View.handles;
 		Marks.handleSizeMm = static_cast<double>(Editor->settings().handleSizeMm);
 		*PlanDrawing = f101::drawing::buildPlanDrawing(Document->project(), View.activeLevel, Marks, PlanTexts());

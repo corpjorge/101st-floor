@@ -167,7 +167,7 @@ TEST_CASE("schema 6 writes how every opening opens; older openings are read as h
 		OpeningEnd::End, WallSide::Right, 40}).ok());
 	REQUIRE(document.addOpening(wall, Opening{OpeningId{}, OpeningKind::Window, 3000, 1200, 1200, 900, {}, OpeningOperation::DoubleHinged}).ok());
 	const std::string json = writeProjectJson(document.project());
-	CHECK(json.find("\"schemaVersion\": 6") != std::string::npos);
+	CHECK(json.find("\"schemaVersion\": " + std::to_string(ProjectSchemaVersion)) != std::string::npos);
 	for (const char* field : {"\"operation\": \"sliding\"", "\"hinge\": \"end\"", "\"opensTo\": \"right\"", "\"openPercent\": 40",
 			 "\"operation\": \"double\""})
 	{

@@ -274,6 +274,82 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("furniture", [this]()
+	{
+		It("lists the catalogue, adds a sofa with its type's size, moves, turns and finishes it in the same actor, and removes it", [this]()
+		{
+			const TArray<FFloor101FurnitureTypeInfo> Types = UFloor101DocumentToolset::GetFurnitureTypes();
+			TestEqual(TEXT("twelve types"), Types.Num(), 12);
+			const FFloor101FurnitureTypeInfo* SofaType = Types.FindByPredicate([](const FFloor101FurnitureTypeInfo& T) { return T.Id == TEXT("sofa"); });
+			if (TestNotNull(TEXT("sofa in the catalogue"), SofaType))
+			{
+				TestTrue(TEXT("against a wall"), SofaType->bAgainstWall);
+				TestEqual(TEXT("default width"), SofaType->WidthMm, int64(2000));
+				TestTrue(TEXT("width range"), SofaType->MinWidthMm < SofaType->WidthMm && SofaType->WidthMm < SofaType->MaxWidthMm);
+				TestEqual(TEXT("body finish"), SofaType->BodyFinish, FString(TEXT("fabric-grey")));
+			}
+			const TArray<FFloor101FinishInfo> Finishes = UFloor101DocumentToolset::GetFinishes();
+			const FFloor101FinishInfo* Fabric = Finishes.FindByPredicate([](const FFloor101FinishInfo& F) { return F.Id == TEXT("fabric-sand"); });
+			TestTrue(TEXT("fabric only for furniture"), Fabric && Fabric->bForFurniture && !Fabric->bForWalls && !Fabric->bForCarpentry);
+
+			const FFloor101FurnitureInfo Sofa = UFloor101DocumentToolset::AddFurniture(TEXT(""), TEXT("sofa"), 120000, 0, 18000, 0, 0, 0);
+			TestFalse(TEXT("id"), Sofa.Id.IsEmpty());
+			TestEqual(TEXT("type"), Sofa.Type, FString(TEXT("sofa")));
+			TestEqual(TEXT("default depth"), Sofa.DepthMm, int64(900));
+			TestEqual(TEXT("rotation"), Sofa.RotationCentidegrees, 18000);
+			TestEqual(TEXT("on the lowest level"), Sofa.LevelId, UFloor101DocumentToolset::GetLevels()[0].Id);
+			TestTrue(TEXT("listed"), UFloor101DocumentToolset::GetFurniture().ContainsByPredicate(
+				[&Sofa](const FFloor101FurnitureInfo& Piece) { return Piece.Id == Sofa.Id; }));
+			if (!TestNotNull(TEXT("actor"), Sofa.Actor.Get()))
+			{
+				return;
+			}
+			FVector Origin;
+			FVector Extent;
+			Sofa.Actor->GetActorBounds(false, Origin, Extent);
+			TestEqual(TEXT("actor 200 x 90 x 85 cm"), Extent * 2.0, FVector(200.0, 90.0, 85.0), 1e-3f);
+
+			const FFloor101FurnitureInfo Turned = UFloor101DocumentToolset::SetFurniture(Sofa.Id, 121000, 500, 9000, 2400, 950, 800);
+			TestTrue(TEXT("same actor"), Turned.Actor == Sofa.Actor);
+			TestEqual(TEXT("moved"), Turned.XMm, int64(121000));
+			TestEqual(TEXT("wider"), Turned.WidthMm, int64(2400));
+			Turned.Actor->GetActorBounds(false, Origin, Extent);
+			TestEqual(TEXT("turned: 95 x 240 x 80 cm"), Extent * 2.0, FVector(95.0, 240.0, 80.0), 1e-3f);
+
+			const FFloor101FurnitureInfo Finished = UFloor101DocumentToolset::SetFurnitureFinish(Sofa.Id, TEXT("fabric-sand"));
+			TestEqual(TEXT("finish"), Finished.Finish, FString(TEXT("fabric-sand")));
+			TestEqual(TEXT("undo"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change furniture")));
+
+			UFloor101DocumentToolset::RemoveFurniture(Sofa.Id);
+			TestFalse(TEXT("removed"), UFloor101DocumentToolset::GetFurniture().ContainsByPredicate(
+				[&Sofa](const FFloor101FurnitureInfo& Piece) { return Piece.Id == Sofa.Id; }));
+			TestEqual(TEXT("undo the removal"), UFloor101DocumentToolset::Undo(), FString(TEXT("Delete furniture")));
+			TestTrue(TEXT("back"), UFloor101DocumentToolset::GetFurniture().ContainsByPredicate(
+				[&Sofa](const FFloor101FurnitureInfo& Piece) { return Piece.Id == Sofa.Id; }));
+			UFloor101DocumentToolset::RemoveFurniture(Sofa.Id);
+		});
+
+		It("raises on unknown types, sizes out of range, bad rotations, bad finishes and unknown pieces", [this]()
+		{
+			ExpectRaises(TEXT("Unknown furniture type 'spaceship'"),
+				[] { UFloor101DocumentToolset::AddFurniture(TEXT(""), TEXT("spaceship"), 0, 0, 0, 0, 0, 0); });
+			ExpectRaises(TEXT("Its width goes from 700 to 3000 mm"),
+				[] { UFloor101DocumentToolset::AddFurniture(TEXT(""), TEXT("table"), 0, 0, 0, 5000, 0, 0); });
+			ExpectRaises(TEXT("No level with id"),
+				[] { UFloor101DocumentToolset::AddFurniture(TEXT("00000000-0000-0000-0000-0000000000ff"), TEXT("table"), 0, 0, 0, 0, 0, 0); });
+			const FFloor101FurnitureInfo Table = UFloor101DocumentToolset::AddFurniture(TEXT(""), TEXT("table"), 125000, 0, 0, 0, 0, 0);
+			ExpectRaises(TEXT("A rotation goes from 0 to 359.99 degrees"),
+				[&Table] { UFloor101DocumentToolset::SetFurniture(Table.Id, 0, 0, 36000, 1600, 900, 750); });
+			ExpectRaises(TEXT("is not for furniture"), [&Table] { UFloor101DocumentToolset::SetFurnitureFinish(Table.Id, TEXT("brick-red")); });
+			ExpectRaises(TEXT("is not a furniture id"), [] { UFloor101DocumentToolset::SetFurnitureFinish(TEXT("table"), TEXT("")); });
+			ExpectRaises(TEXT("no such piece"),
+				[] { UFloor101DocumentToolset::SetFurniture(TEXT("00000000-0000-0000-0000-0000000000ff"), 0, 0, 0, 1600, 900, 750); });
+			ExpectRaises(TEXT("cannot remove furniture"),
+				[] { UFloor101DocumentToolset::RemoveFurniture(TEXT("00000000-0000-0000-0000-0000000000ff")); });
+			UFloor101DocumentToolset::RemoveFurniture(Table.Id);
+		});
+	});
+
 	Describe("history and files", [this]()
 	{
 		It("undoes and redoes a change, returning what it was", [this]()

@@ -27,6 +27,11 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "No level with id " + toString(id)};
 		}
 
+		Error furnitureNotFound(const FurnitureId& id)
+		{
+			return Error{ErrorCode::NotFound, "No furniture with id " + toString(id)};
+		}
+
 		// A command's level: the named one, or the first level when nil.
 		Result<LevelId> resolveLevel(const Project& project, const LevelId& level)
 		{
@@ -52,6 +57,7 @@ namespace f101::cad
 		const WallId& keyOf(const Wall& wall) { return wall.id; }
 		const LevelId& keyOf(const Level& level) { return level.id; }
 		const std::string& keyOf(const RoomFinish& finish) { return finish.room; }
+		const FurnitureId& keyOf(const Furniture& furniture) { return furniture.id; }
 
 		template <typename Entity, typename Id>
 		std::optional<std::size_t> findIndex(const std::vector<Entity>& entities, const Id& id)
@@ -130,6 +136,8 @@ namespace f101::cad
 			{
 				changes.changedRoomFinishes.push_back(change.id);
 			}
+			sortChanges(transaction.furniture, forward, changes.addedFurniture, changes.modifiedFurniture,
+				changes.removedFurniture);
 			return changes;
 		}
 
@@ -193,6 +201,9 @@ namespace f101::cad
 			std::string_view operator()(const DeleteLevelCommand&) const { return "Delete level"; }
 			std::string_view operator()(const SetWallFinishCommand&) const { return "Change finish"; }
 			std::string_view operator()(const SetRoomFinishCommand&) const { return "Change room finish"; }
+			std::string_view operator()(const AddFurnitureCommand&) const { return "Add furniture"; }
+			std::string_view operator()(const ChangeFurnitureCommand&) const { return "Change furniture"; }
+			std::string_view operator()(const DeleteFurnitureCommand&) const { return "Delete furniture"; }
 		};
 	}
 
@@ -264,6 +275,22 @@ namespace f101::cad
 			if (Status valid = validateFinish(finish.ceiling, Surface::Ceiling); !valid)
 			{
 				return valid;
+			}
+		}
+		std::set<FurnitureId> furnitureIds;
+		for (const Furniture& piece : project.furniture)
+		{
+			if (Status valid = validateFurniture(piece); !valid)
+			{
+				return valid;
+			}
+			if (piece.id.isNil() || !furnitureIds.insert(piece.id).second)
+			{
+				return Error{ErrorCode::InvalidArgument, "Duplicate or nil furniture id " + toString(piece.id)};
+			}
+			if (!project.findLevel(piece.level))
+			{
+				return Error{ErrorCode::InvalidArgument, "Furniture " + toString(piece.id) + " is not on a level of the project"};
 			}
 		}
 		return Status::success();
@@ -502,6 +529,70 @@ namespace f101::cad
 					transaction.walls.push_back(WallChange{model.walls[wall].id, wall, model.walls[wall], std::nullopt});
 				}
 			}
+			for (std::size_t piece = 0; piece < model.furniture.size(); ++piece)
+			{
+				if (model.furniture[piece].level == removal->level)
+				{
+					transaction.furniture.push_back(
+						FurnitureChange{model.furniture[piece].id, piece, model.furniture[piece], std::nullopt});
+				}
+			}
+			return transaction;
+		}
+		if (const auto* add = std::get_if<AddFurnitureCommand>(&command))
+		{
+			Furniture piece = add->furniture;
+			piece.id = FurnitureId{newUuid()};
+			const Result<LevelId> level = resolveLevel(model, piece.level);
+			if (!level)
+			{
+				return level.error();
+			}
+			piece.level = level.value();
+			if (Status valid = validateFurniture(piece); !valid)
+			{
+				return valid.error();
+			}
+			F101_ASSERT(!model.findFurniture(piece.id));
+			Transaction transaction{label, {}, {}, {}};
+			transaction.furniture.push_back(FurnitureChange{piece.id, model.furniture.size(), std::nullopt, piece});
+			return transaction;
+		}
+		if (const auto* change = std::get_if<ChangeFurnitureCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.furniture, change->furniture.id);
+			if (!index)
+			{
+				return furnitureNotFound(change->furniture.id);
+			}
+			Furniture piece = change->furniture;
+			const Result<LevelId> level = resolveLevel(model, piece.level);
+			if (!level)
+			{
+				return level.error();
+			}
+			piece.level = level.value();
+			if (Status valid = validateFurniture(piece); !valid)
+			{
+				return valid.error();
+			}
+			Transaction transaction{label, {}, {}, {}};
+			if (!(piece == model.furniture[*index]))
+			{
+				transaction.furniture.push_back(FurnitureChange{piece.id, *index, model.furniture[*index], piece});
+			}
+			return transaction;
+		}
+		if (const auto* removal = std::get_if<DeleteFurnitureCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.furniture, removal->furniture);
+			if (!index)
+			{
+				return furnitureNotFound(removal->furniture);
+			}
+			Transaction transaction{label, {}, {}, {}};
+			transaction.furniture.push_back(
+				FurnitureChange{removal->furniture, *index, model.furniture[*index], std::nullopt});
 			return transaction;
 		}
 		if (const auto* finish = std::get_if<SetWallFinishCommand>(&command))
@@ -645,6 +736,14 @@ namespace f101::cad
 				changes.changedRoomFinishes.push_back(finish.room);
 			}
 		}
+		for (const Furniture& piece : model.furniture)
+		{
+			changes.removedFurniture.push_back(piece.id);
+		}
+		for (const Furniture& piece : replacement.furniture)
+		{
+			changes.addedFurniture.push_back(piece.id);
+		}
 		model = std::move(replacement);
 		undoStack.clear();
 		redoStack.clear();
@@ -705,12 +804,23 @@ namespace f101::cad
 		return applied.value().levels.front().id;
 	}
 
+	Result<FurnitureId> Document::addFurniture(const Furniture& furniture)
+	{
+		const Result<Transaction> applied = execute(AddFurnitureCommand{furniture});
+		if (!applied)
+		{
+			return applied.error();
+		}
+		return applied.value().furniture.front().id;
+	}
+
 	void Document::apply(const Transaction& transaction, bool forward)
 	{
-		// Levels first: walls being restored refer to them.
+		// Levels first: walls and furniture being restored refer to them.
 		applyChanges(model.levels, transaction.levels, forward);
 		applyChanges(model.walls, transaction.walls, forward);
 		applyChanges(model.roomFinishes, transaction.roomFinishes, forward);
+		applyChanges(model.furniture, transaction.furniture, forward);
 		notify(changeSetOf(transaction, forward));
 	}
 

@@ -32,6 +32,7 @@ namespace f101::scene
 		Room,   // floor of a room
 		Slab,   // structural slab over a room (its ceiling; the floor of the level above)
 		Opening, // door or window carpentry (frame, leaf, glass; ADR-0013)
+		Furniture, // a piece of furniture (ADR-0016)
 		Marker,
 	};
 
@@ -51,7 +52,8 @@ namespace f101::scene
 		SceneNodeId id;
 		std::string name;            // human readable, e.g. "Wall 3f2a9c1e"
 		SourceKind sourceKind = SourceKind::Wall;
-		std::string sourceId;        // UUID text of the source wall (floors and slabs: the room key; openings: the opening)
+		std::string sourceId;        // UUID text of the source wall (floors and slabs: the room key; openings: the opening;
+		                             // furniture: the piece)
 		cad::LevelId level;          // level of the source (nil for markers)
 		geometry::MeshData mesh;     // scene space (mm, right-handed, Z up); node transform is identity for now
 		// Finish of each mesh section (same order as mesh.sections): a catalogue id, never empty (ADR-0012).

@@ -187,6 +187,62 @@ namespace
 		const f101::cad::Wall* Changed = Subsystem->GetDocument().project().findWall(Id);
 		return Changed ? ToInfo(*Changed, *Subsystem) : FFloor101WallInfo(); // deleted walls have no info
 	}
+
+	bool ParseFurnitureId(const FString& Text, f101::cad::FurnitureId& OutId)
+	{
+		const f101::Result<f101::cad::Uuid> Parsed = f101::cad::parseUuid(TCHAR_TO_UTF8(*Text));
+		if (!Parsed)
+		{
+			RaiseError(FString::Printf(TEXT("'%s' is not a furniture id: %s"), *Text, *ToFString(Parsed.error().message)));
+			return false;
+		}
+		OutId = f101::cad::FurnitureId{Parsed.value()};
+		return true;
+	}
+
+	FFloor101FurnitureInfo ToInfo(const f101::cad::Furniture& Piece, const UFloor101DocumentSubsystem& Subsystem)
+	{
+		FFloor101FurnitureInfo Info;
+		Info.Id = ToFString(f101::cad::toString(Piece.id));
+		Info.Type = ToFString(Piece.type);
+		Info.LevelId = ToFString(f101::cad::toString(Piece.level));
+		Info.XMm = Piece.position.x_mm;
+		Info.YMm = Piece.position.y_mm;
+		Info.RotationCentidegrees = static_cast<int32>(Piece.rotationCentidegrees);
+		Info.WidthMm = Piece.widthMm;
+		Info.DepthMm = Piece.depthMm;
+		Info.HeightMm = Piece.heightMm;
+		Info.Finish = ToFString(Piece.finish);
+		Info.Actor = Subsystem.FindFurnitureActor(Piece.id);
+		return Info;
+	}
+
+	// Applies `Edit` to a copy of a piece and changes it (one undoable step); raises and returns empty on failure.
+	FFloor101FurnitureInfo ChangeFurniture(const FString& FurnitureId, TFunctionRef<void(f101::cad::Furniture&)> Edit)
+	{
+		UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+		f101::cad::FurnitureId Id;
+		if (!Subsystem || !ParseFurnitureId(FurnitureId, Id))
+		{
+			return {};
+		}
+		const f101::cad::Furniture* Current = Subsystem->GetDocument().project().findFurniture(Id);
+		if (!Current)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change furniture %s: no such piece"), *FurnitureId));
+			return {};
+		}
+		f101::cad::Furniture Changed = *Current;
+		Edit(Changed);
+		const f101::Result<f101::cad::Transaction> Applied =
+			Subsystem->GetMutableDocument().execute(f101::cad::ChangeFurnitureCommand{Changed});
+		if (!Applied)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change furniture %s: %s"), *FurnitureId, *ToFString(Applied.error().message)));
+			return {};
+		}
+		return ToInfo(*Subsystem->GetDocument().project().findFurniture(Id), *Subsystem);
+	}
 }
 
 TArray<FFloor101LevelInfo> UFloor101DocumentToolset::GetLevels()
@@ -466,6 +522,7 @@ TArray<FFloor101FinishInfo> UFloor101DocumentToolset::GetFinishes()
 		Info.bForFloors = Finish.allows(f101::cad::Surface::Floor);
 		Info.bForCeilings = Finish.allows(f101::cad::Surface::Ceiling);
 		Info.bForCarpentry = Finish.allows(f101::cad::Surface::Carpentry);
+		Info.bForFurniture = Finish.allows(f101::cad::Surface::Furniture);
 		Info.Color = FColor(Finish.color.r, Finish.color.g, Finish.color.b);
 		Info.Roughness = static_cast<float>(Finish.roughness);
 		Info.Opacity = static_cast<float>(Finish.opacity);
@@ -505,6 +562,103 @@ void UFloor101DocumentToolset::RemoveWall(const FString& WallId)
 	{
 		return f101::cad::DeleteWallCommand{Id};
 	});
+}
+
+TArray<FFloor101FurnitureTypeInfo> UFloor101DocumentToolset::GetFurnitureTypes()
+{
+	TArray<FFloor101FurnitureTypeInfo> Types;
+	for (const f101::cad::FurnitureType& Type : f101::cad::furnitureCatalogue())
+	{
+		FFloor101FurnitureTypeInfo Info;
+		Info.Id = ToFString(Type.id);
+		Info.WidthMm = Type.widthMm;
+		Info.DepthMm = Type.depthMm;
+		Info.HeightMm = Type.heightMm;
+		Info.MinWidthMm = Type.minWidthMm;
+		Info.MaxWidthMm = Type.maxWidthMm;
+		Info.MinDepthMm = Type.minDepthMm;
+		Info.MaxDepthMm = Type.maxDepthMm;
+		Info.MinHeightMm = Type.minHeightMm;
+		Info.MaxHeightMm = Type.maxHeightMm;
+		Info.bAgainstWall = Type.againstWall;
+		Info.BodyFinish = ToFString(Type.bodyFinish);
+		Types.Add(Info);
+	}
+	return Types;
+}
+
+TArray<FFloor101FurnitureInfo> UFloor101DocumentToolset::GetFurniture()
+{
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	TArray<FFloor101FurnitureInfo> Pieces;
+	if (Subsystem)
+	{
+		for (const f101::cad::Furniture& Piece : Subsystem->GetDocument().project().furniture)
+		{
+			Pieces.Add(ToInfo(Piece, *Subsystem));
+		}
+	}
+	return Pieces;
+}
+
+FFloor101FurnitureInfo UFloor101DocumentToolset::AddFurniture(const FString& LevelId, const FString& Type, int64 XMm, int64 YMm,
+	int32 RotationCentidegrees, int64 WidthMm, int64 DepthMm, int64 HeightMm)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Level;
+	if (!Subsystem || !ParseLevelId(LevelId, Level))
+	{
+		return {};
+	}
+	f101::cad::Furniture Piece = f101::cad::makeFurniture(TCHAR_TO_UTF8(*Type), {XMm, YMm}, RotationCentidegrees);
+	Piece.level = Level;
+	for (const auto& [Given, Target] : {std::pair{WidthMm, &Piece.widthMm}, {DepthMm, &Piece.depthMm}, {HeightMm, &Piece.heightMm}})
+	{
+		if (Given != 0)
+		{
+			*Target = Given;
+		}
+	}
+	const f101::Result<f101::cad::FurnitureId> Added = Subsystem->GetMutableDocument().addFurniture(Piece);
+	if (!Added)
+	{
+		RaiseError(FString::Printf(TEXT("furniture rejected: %s"), *ToFString(Added.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findFurniture(Added.value()), *Subsystem);
+}
+
+FFloor101FurnitureInfo UFloor101DocumentToolset::SetFurniture(const FString& FurnitureId, int64 XMm, int64 YMm,
+	int32 RotationCentidegrees, int64 WidthMm, int64 DepthMm, int64 HeightMm)
+{
+	return ChangeFurniture(FurnitureId, [&](f101::cad::Furniture& Piece)
+	{
+		Piece.position = {XMm, YMm};
+		Piece.rotationCentidegrees = RotationCentidegrees;
+		Piece.widthMm = WidthMm;
+		Piece.depthMm = DepthMm;
+		Piece.heightMm = HeightMm;
+	});
+}
+
+FFloor101FurnitureInfo UFloor101DocumentToolset::SetFurnitureFinish(const FString& FurnitureId, const FString& FinishId)
+{
+	return ChangeFurniture(FurnitureId, [&FinishId](f101::cad::Furniture& Piece) { Piece.finish = TCHAR_TO_UTF8(*FinishId); });
+}
+
+void UFloor101DocumentToolset::RemoveFurniture(const FString& FurnitureId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::FurnitureId Id;
+	if (!Subsystem || !ParseFurnitureId(FurnitureId, Id))
+	{
+		return;
+	}
+	const f101::Result<f101::cad::Transaction> Removed = Subsystem->GetMutableDocument().execute(f101::cad::DeleteFurnitureCommand{Id});
+	if (!Removed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot remove furniture %s: %s"), *FurnitureId, *ToFString(Removed.error().message)));
+	}
 }
 
 FString UFloor101DocumentToolset::Undo()

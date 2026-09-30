@@ -23,6 +23,7 @@ namespace f101::cad
 		Ceiling = 4,
 		Carpentry = 8, // frames and leaves of doors and windows (ADR-0013)
 		Glazing = 16,  // window panes
+		Furniture = 32, // furniture and fittings (ADR-0016)
 	};
 
 	enum class FinishPattern

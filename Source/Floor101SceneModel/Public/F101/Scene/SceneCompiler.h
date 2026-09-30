@@ -22,6 +22,11 @@ namespace f101::scene
 		// it (e.g. a dragged endpoint), a wall with a nil id is added (the wall being drawn). The scene is compiled
 		// from that previewed project, so joins and rooms follow the preview. Invalid walls are left out.
 		std::vector<cad::Wall> previewWalls;
+		cad::FurnitureId selectedFurniture; // nil: none
+		// Furniture as it would be once the current gesture is applied, like previewWalls: a piece with the id of an
+		// existing one replaces it (e.g. while it is dragged), a piece with a nil id is added (the piece being placed).
+		// Invalid pieces are left out.
+		std::vector<cad::Furniture> previewFurniture;
 		std::vector<cad::Point2D> markers; // e.g. draggable endpoint handles, on the active level
 		std::int64_t markerSizeMm = 240;
 		std::int64_t markerHeightMm = 2500;
@@ -29,16 +34,20 @@ namespace f101::scene
 
 	// Node carrying the body geometry of a wall.
 	FLOOR101SCENEMODEL_API SceneNodeId wallBodyNodeId(const cad::WallId& id);
+	// Node of a piece of furniture.
+	FLOOR101SCENEMODEL_API SceneNodeId furnitureNodeId(const cad::FurnitureId& id);
 
 	// Compiles the whole project into a scene, deterministically (same project, same ids, geometry and hashes):
 	// one node per wall in model order with its joins resolved ("<wall>/body"), then joint fills
 	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"), then the slab over each room ("<room key>/slab",
-	// the top band of its level), then the carpentry of each opening ("<wall>/opening/<opening>", ADR-0013). Joins and
-	// rooms are solved per level, and each level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
+	// the top band of its level), then the carpentry of each opening ("<wall>/opening/<opening>", ADR-0013), then each
+	// piece of furniture in model order ("furniture/<piece>", ADR-0016). Joins and rooms are solved per level, and each
+	// level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project);
 
-	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls are Preview (new ones
-	// get the ids "preview/wall/<index>"), the selected wall is Selected, and markers are "marker/<index>" (Handle).
+	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls and furniture are Preview
+	// (new ones get the ids "preview/wall/<index>" and "preview/furniture/<index>"), the selected wall and piece are
+	// Selected, and markers are "marker/<index>" (Handle).
 	// It also draws the swing of each hinged or double door on the floor of the levels shown undimmed
 	// ("<wall>/opening/<opening>/swing", Symbol; ADR-0014), after the carpentry: an editing aid exporters never see.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ViewOverlay& overlay);

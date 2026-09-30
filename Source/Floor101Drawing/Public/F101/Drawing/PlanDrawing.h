@@ -25,6 +25,7 @@ namespace f101::drawing
 		Hidden,    // what the cut hides (a sliding door's pocket): dashed, drawn light over the cut walls
 		Dimension, // dimension lines, ticks and figures
 		Label,     // room names and areas
+		Furniture, // outlines of furniture and their details (ADR-0016)
 		Selected,  // the selected wall (editing view)
 		Preview,   // walls as the current gesture would leave them (editing view)
 		Handle,    // draggable handles (editing view)
@@ -84,6 +85,9 @@ namespace f101::drawing
 		cad::WallId selectedWall; // nil: none
 		// Walls as the current gesture would leave them: one with an existing id replaces it, one with a nil id is added.
 		std::vector<cad::Wall> previewWalls;
+		cad::FurnitureId selectedFurniture; // nil: none
+		// Furniture as the current gesture would leave it: one with an existing id replaces it, one with a nil id is added.
+		std::vector<cad::Furniture> previewFurniture;
 		std::vector<cad::Point2D> handles;
 		double handleSizeMm = 240.0;
 	};
@@ -114,8 +118,9 @@ namespace f101::drawing
 	// - dimensions, measured along the wall axes (the lengths the model is edited in): for each wall, on the side
 	//   without a room (the left one when both or neither have one), a chain through its openings' edges and its overall
 	//   length; walls with rooms on both sides only get their overall length. Figures in metres with two decimals;
-	// - each room's name ("Room 1"...) and net area at its label point.
-	// The overlay tints the selected and previewed walls and adds the handles.
+	// - each room's name ("Room 1"...) and net area at its label point;
+	// - each piece of furniture: its outline and the details of its type (a mattress, a basin, a hob) as thin lines.
+	// The overlay tints the selected and previewed walls and furniture and adds the handles.
 	FLOOR101DRAWING_API PlanDrawing buildPlanDrawing(const cad::Project& project, const cad::LevelId& level,
 		const PlanOverlay& overlay = {}, const DrawingTexts& texts = {});
 
