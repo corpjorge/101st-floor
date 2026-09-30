@@ -15,8 +15,8 @@ namespace f101::cad
 	// 1: walls. 2: walls with openings (doors, windows). 3: levels, every wall on one (ADR-0011). 4: finishes of wall
 	// faces and rooms (ADR-0012). 5: finishes of door and window carpentry (ADR-0013). 6: how each opening opens:
 	// operation, hinge, opensTo, openPercent (ADR-0014); older openings are read as hinged doors and fixed windows.
-	// 7: furniture (ADR-0016).
-	inline constexpr int ProjectSchemaVersion = 7;
+	// 7: furniture (ADR-0016). 8: imported assets, textures and models (ADR-0017).
+	inline constexpr int ProjectSchemaVersion = 8;
 
 	// Files before schema 3 have no levels: their walls are read onto one level with this id
 	// (f1010000-0000-4000-8000-000000000001), as tall as the tallest wall so the derived slabs stay inside the walls.
@@ -26,7 +26,8 @@ namespace f101::cad
 	FLOOR101CADCORE_API std::string writeProjectJson(const Project& project);
 
 	// Parses and validates a project. Rejects malformed JSON, other formats, newer schema versions, non-integer
-	// millimetres, invalid ids, duplicate ids, invalid walls and invalid furniture. Unknown fields are ignored.
+	// millimetres, invalid ids, duplicate ids, invalid walls, furniture and assets, and asset files outside the project's
+	// folder. Unknown fields are ignored.
 	FLOOR101CADCORE_API Result<Project> readProjectJson(std::string_view json);
 
 	// Writes through a temporary file and a rename, so a failed save never truncates an existing project.

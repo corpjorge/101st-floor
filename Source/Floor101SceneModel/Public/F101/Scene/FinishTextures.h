@@ -34,6 +34,12 @@ namespace f101::scene
 	// `size` must be a power of two (at least 4).
 	FLOOR101SCENEMODEL_API FinishTexture buildFinishTexture(const cad::FinishInfo& finish, int size = 512);
 
+	// A decoded image (ADR-0017) as a tiling texture: resampled to the nearest power of two on each side (at most
+	// `maxSize`, a power of two) with wrap-around filtering, and its whole mip chain. `flipVertically` puts the image's top
+	// row at the far end of v (up a wall, north on a floor), as a surface texture needs; model textures keep their rows.
+	FLOOR101SCENEMODEL_API FinishTexture textureFromImage(const TextureImage& image, double repeatWidthMm,
+		double repeatHeightMm, bool flipVertically, int maxSize = 2048);
+
 	// Everything a renderer needs to show a finish (SceneNode::finishes): roughness, opacity and colour texture. An id
 	// that is not in the catalogue gives flat magenta, so a missing finish shows instead of passing unnoticed.
 	struct FinishLook

@@ -9,6 +9,20 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UTexture2D;
 
+// A finish that comes from an imported asset (ADR-0017): a texture of the project's library, or a material of an imported
+// model. Its colour is ImagePath's image (or plain white) multiplied by Tint.
+struct FFloor101AssetFinish
+{
+	FString ImagePath;         // absolute; empty: no image
+	bool bFlipImage = true;    // surface textures: the image's top goes up a wall (north on a floor); model textures: as is
+	FLinearColor Tint = FLinearColor::White; // linear
+	float Roughness = 0.7f;
+	float RepeatU = 1.0f; // metres one image covers along u and v (model UVs are already in images: 1)
+	float RepeatV = 1.0f;
+
+	bool operator==(const FFloor101AssetFinish&) const = default;
+};
+
 // Unreal materials of the finishes (ADR-0012): one instance of M_Floor101Finish per finish id, with the texture,
 // roughness and repeat of f101::scene::buildFinishLook. Built on first use and shared by every actor and world.
 UCLASS()
@@ -46,7 +60,26 @@ public:
 	// The texture made for a finish (for tests and tools); null before GetFinishMaterial built it.
 	UTexture2D* FindFinishTexture(const FString& FinishId) const;
 
+	// Defines (or redefines) the finish of an imported asset (ADR-0017). A material already made for it is updated in
+	// place, so every actor showing it follows. Images are decoded once per file.
+	void SetAssetFinish(const FString& FinishId, const FFloor101AssetFinish& Finish);
+	// Whether the image of an asset finish could not be read (it then shows its tint alone).
+	bool IsAssetImageMissing(const FString& FinishId) const;
+	// The image of an asset finish as it is defined now (for swatches); null when the finish is not defined, has no
+	// image or its image cannot be read.
+	UTexture2D* GetAssetFinishImage(const FString& FinishId);
+
 private:
+	void ApplyAssetFinish(UMaterialInstanceDynamic* Material, const FString& FinishId, const FFloor101AssetFinish& Finish, bool bContext);
+	// The texture of an image file (cached by file and flip); a white texture when there is no image or it cannot be read.
+	UTexture2D* GetImageTexture(const FString& Path, bool bFlip, float RepeatUMeters, float RepeatVMeters, bool& bOutMissing);
+
+	TMap<FString, FFloor101AssetFinish> AssetFinishes;
+	TSet<FString> MissingAssetImages;
+
+	UPROPERTY()
+	TMap<FString, TObjectPtr<UTexture2D>> ImageTextures;
+
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;
 

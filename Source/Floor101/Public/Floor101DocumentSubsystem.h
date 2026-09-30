@@ -23,6 +23,17 @@ namespace f101::drawing
 	struct PlanDrawing;
 }
 
+namespace f101::assets
+{
+	class ModelCache;
+}
+
+namespace f101::cad
+{
+	struct Asset;
+	struct ModelAsset;
+}
+
 // A room as the UI shows it: where its label goes and its net floor area.
 struct FFloor101RoomView
 {
@@ -94,6 +105,22 @@ public:
 	// Next to the project file (or the default one): "<file name>-<level>.<Extension>", e.g. "casa-planta-baja.svg".
 	FString GetDefaultPlanPath(const FString& Extension) const;
 
+	// Imported assets (ADR-0017). Their files live in the project's folder (the project file's, or the default one's)
+	// under assets/<uuid>/, and move with the project when it is saved somewhere else.
+	FString GetProjectFolder() const;
+	// Copies a PNG or JPEG texture, or a glTF (.gltf, .glb) or OBJ model with the files it needs, into the project's
+	// folder and adds it to the library (one undoable step). The status says what was imported, and any warning.
+	f101::Result<f101::cad::AssetId> ImportAsset(const FString& SourcePath);
+	// Changes an asset's name and settings (one undoable step). A model is read again with its new unit, up axis and
+	// front to update its size.
+	f101::Status ChangeAsset(const f101::cad::Asset& Asset);
+	// Removes an asset nothing uses (its files stay on disk until the folder is cleaned up by hand).
+	f101::Status RemoveAsset(const f101::cad::AssetId& Id);
+	// The asset's file on disk.
+	FString GetAssetFilePath(const f101::cad::Asset& Asset) const;
+	// Why an imported model cannot be shown (its pieces show as boxes); empty if it can.
+	FString GetAssetProblem(const f101::cad::AssetId& Id) const;
+
 	// MVP 0 reference wall: (0,0) -> (3550,0) mm, 120 mm thick, 2400 mm high. No-op if already loaded.
 	void LoadReferenceWall();
 	// Moves the reference wall's end to (LengthMm, 0). Returns false (and logs why) if rejected.
@@ -105,6 +132,8 @@ private:
 	// Compiles the document plus the editing view state and reconciles the world. Document changes log what changed.
 	void Resync(bool bDocumentChanged);
 	void SetStatus(const FText& Message, bool bIsError);
+	// Tells the finish library how every asset of the project looks (textures, and each material of each model).
+	void RegisterAssetFinishes();
 	// Renders the drawing offscreen (fitted, 5 mm per pixel at most, 4096 px wide at most) and saves it as a PNG.
 	f101::Status SavePlanPng(const f101::drawing::PlanDrawing& Drawing, const FString& Path) const;
 
@@ -113,6 +142,7 @@ private:
 	TPimplPtr<f101::cad::EditController> Editor;
 	TPimplPtr<FFloor101SceneReconciler> Reconciler;
 	TPimplPtr<f101::drawing::PlanDrawing> PlanDrawing;
+	TPimplPtr<f101::assets::ModelCache> Models;
 	bool bPlanView = false;
 	std::size_t ListenerHandle = 0;
 	f101::cad::WallId ReferenceWallId;

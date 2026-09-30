@@ -74,6 +74,7 @@ namespace f101::cad
 	FLOOR101CADCORE_API const FinishInfo* findFinish(std::string_view id);
 	// The finish a surface shows: `id`, or the surface's default when it is empty.
 	FLOOR101CADCORE_API std::string_view resolveFinish(std::string_view id, Surface surface);
-	// Empty (the default) or a catalogue finish that allows the surface.
+	// Empty (the default), a catalogue finish that allows the surface, or an imported texture ("asset:<uuid>", ADR-0017),
+	// which only the project can check (validateFinishIn).
 	FLOOR101CADCORE_API Status validateFinish(std::string_view id, Surface surface);
 }

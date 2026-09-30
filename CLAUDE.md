@@ -30,6 +30,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Mobiliario: tipo del catálogo del núcleo + planta, centro, giro en centésimas de grado enteras, medidas y acabado; la
   forma (cajas) se deriva en el Geometry Engine; snapping contra muros en el `EditController`. `project.json` esquema 7
   (ADR-0016).
+- Assets importados: texturas (PNG/JPEG) y modelos (glTF/GLB/OBJ) se leen en el módulo puro `Floor101Assets` y se copian
+  en `<carpeta del proyecto>/assets/<uuid>/`; se referencian como `asset:<uuid>` (acabado o tipo de mueble) y el
+  proyecto solo guarda rutas relativas dentro de esa carpeta. `project.json` esquema 8 (ADR-0017).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
@@ -39,8 +42,8 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Tests: `.\Scripts\Test.ps1` (arquitectura + unitarios CMake, segundos); `-Integration` añade Unreal Automation.
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, esquinas,
-  habitaciones, puertas y ventanas con su carpintería, muebles, acabados, vista por planta, deshacer/rehacer,
-  guardar/abrir, exportar el plano). Con PIE activo actúa sobre el documento de PIE; si no, sobre el del editor.
+  habitaciones, puertas y ventanas con su carpintería, muebles, assets importados, acabados, vista por planta,
+  deshacer/rehacer, guardar/abrir, exportar el plano). Con PIE activo actúa sobre el documento de PIE; si no, sobre el del editor.
 - Unreal MCP: descubrir con `list_toolsets`/`describe_toolset`, invocar con `call_tool`, verificar cada resultado.
   Commit antes de sesiones MCP largas o mutativas.
 - Render: solo DX12/SM6; los formatos D3D11 están eliminados a propósito (un fallback debe fallar, no pasar desapercibido).

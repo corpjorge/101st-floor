@@ -355,6 +355,101 @@ struct FFloor101FurnitureInfo
 	TObjectPtr<AActor> Actor;
 };
 
+UENUM(BlueprintType)
+enum class EFloor101AssetKind : uint8
+{
+	/** A PNG or JPEG image, used as a finish ("asset:<uuid>"). */
+	Texture,
+	/** A glTF 2.0 (.gltf, .glb) or OBJ model, used as a furniture type ("asset:<uuid>"). */
+	Model,
+};
+
+/** The unit a model's coordinates are in. */
+UENUM(BlueprintType)
+enum class EFloor101ModelUnit : uint8
+{
+	Meter,
+	Centimeter,
+	Millimeter,
+	Inch,
+};
+
+/**
+ * An imported asset of the project: its files live in the project's folder under assets/<uuid>/.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101AssetInfo
+{
+	GENERATED_BODY()
+
+	/** Persistent id (UUID). */
+	UPROPERTY()
+	FString Id;
+
+	/** "asset:<uuid>": the finish id of a texture (SetWallFinish, SetRoomFinish...) or the furniture type of a model. */
+	UPROPERTY()
+	FString Ref;
+
+	UPROPERTY()
+	EFloor101AssetKind Kind = EFloor101AssetKind::Texture;
+
+	UPROPERTY()
+	FString Name;
+
+	/** Relative to the project's folder. */
+	UPROPERTY()
+	FString File;
+
+	/** Textures: the length of wall or floor one image covers, along and across. */
+	UPROPERTY()
+	int64 TextureWidthMm = 0;
+
+	UPROPERTY()
+	int64 TextureHeightMm = 0;
+
+	UPROPERTY(meta = (ClampMin = "0", ClampMax = "100"))
+	int32 RoughnessPercent = 0;
+
+	UPROPERTY()
+	int32 PixelWidth = 0;
+
+	UPROPERTY()
+	int32 PixelHeight = 0;
+
+	/** Models: how the file is read. */
+	UPROPERTY()
+	EFloor101ModelUnit Unit = EFloor101ModelUnit::Meter;
+
+	/** True: Z up; false: Y up (glTF and most OBJ files). */
+	UPROPERTY()
+	bool bZUp = false;
+
+	/** Quarter turns (counter-clockwise from above) that put the model's front towards -Y. */
+	UPROPERTY(meta = (ClampMin = "0", ClampMax = "3"))
+	int32 FrontQuarterTurns = 0;
+
+	/** Placed with the mouse near a wall, its back goes against it. */
+	UPROPERTY()
+	bool bAgainstWall = false;
+
+	/** The model's size read with these settings, in millimetres (width along its front, depth, height). */
+	UPROPERTY()
+	int64 WidthMm = 0;
+
+	UPROPERTY()
+	int64 DepthMm = 0;
+
+	UPROPERTY()
+	int64 HeightMm = 0;
+
+	UPROPERTY()
+	int64 Triangles = 0;
+
+	/** Why the model cannot be shown (its pieces then show as boxes); empty if it can. */
+	UPROPERTY()
+	FString Problem;
+};
+
 /**
  * Edits the levels, walls, doors, windows, furniture and finishes of the 101st Floor document and reads the rooms the
  * walls enclose: the play session's document while Play-In-Editor runs, otherwise the editor world's. Every change is
@@ -566,6 +661,45 @@ public:
 
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveFurniture(const FString& FurnitureId);
+
+	/**
+	 * Returns the project's imported assets (textures and models) in import order.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101AssetInfo> GetAssets();
+
+	/**
+	 * Imports a texture (.png, .jpg) or a model (.glb, .gltf, .obj with its .mtl and textures) into the project: its
+	 * files are copied into the project's folder. Use its Ref as a finish or a furniture type.
+	 * @param Path Absolute path of the file to import.
+	 * @return The new asset.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101AssetInfo ImportAsset(const FString& Path);
+
+	/**
+	 * Renames a texture and sets the length one image covers and its roughness.
+	 * @return The updated asset.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101AssetInfo SetTextureAsset(const FString& AssetId, const FString& Name, int64 WidthMm, int64 HeightMm,
+		int32 RoughnessPercent);
+
+	/**
+	 * Renames a model and sets how its file is read and placed; its size is measured again.
+	 * @param bZUp True for Z up, false for Y up.
+	 * @param FrontQuarterTurns 0 to 3.
+	 * @return The updated asset.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101AssetInfo SetModelAsset(const FString& AssetId, const FString& Name, EFloor101ModelUnit Unit, bool bZUp,
+		int32 FrontQuarterTurns, bool bAgainstWall);
+
+	/**
+	 * Removes an asset no surface or piece of furniture uses. Its files stay on disk.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void RemoveAsset(const FString& AssetId);
 
 	/**
 	 * Undoes the last change.

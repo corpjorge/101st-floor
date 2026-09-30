@@ -610,7 +610,11 @@ FFloor101FurnitureInfo UFloor101DocumentToolset::AddFurniture(const FString& Lev
 	{
 		return {};
 	}
-	f101::cad::Furniture Piece = f101::cad::makeFurniture(TCHAR_TO_UTF8(*Type), {XMm, YMm}, RotationCentidegrees);
+	// Catalogue types and imported models ("asset:<uuid>", ADR-0017) alike: the default size of the type.
+	const std::string TypeId = TCHAR_TO_UTF8(*Type);
+	const std::optional<f101::cad::FurnitureType> Spec = f101::cad::furnitureSpec(Subsystem->GetDocument().project(), TypeId);
+	f101::cad::Furniture Piece = Spec ? f101::cad::makeFurniture(*Spec, {XMm, YMm}, RotationCentidegrees)
+		: f101::cad::makeFurniture(TypeId, {XMm, YMm}, RotationCentidegrees);
 	Piece.level = Level;
 	for (const auto& [Given, Target] : {std::pair{WidthMm, &Piece.widthMm}, {DepthMm, &Piece.depthMm}, {HeightMm, &Piece.heightMm}})
 	{
@@ -658,6 +662,148 @@ void UFloor101DocumentToolset::RemoveFurniture(const FString& FurnitureId)
 	if (!Removed)
 	{
 		RaiseError(FString::Printf(TEXT("cannot remove furniture %s: %s"), *FurnitureId, *ToFString(Removed.error().message)));
+	}
+}
+
+namespace
+{
+	FFloor101AssetInfo ToInfo(const f101::cad::Asset& Asset, const UFloor101DocumentSubsystem& Subsystem)
+	{
+		FFloor101AssetInfo Info;
+		Info.Id = ToFString(f101::cad::toString(Asset.id));
+		Info.Ref = ToFString(f101::cad::assetRef(Asset.id));
+		Info.Kind = Asset.kind == f101::cad::AssetKind::Texture ? EFloor101AssetKind::Texture : EFloor101AssetKind::Model;
+		Info.Name = ToFString(Asset.name);
+		Info.File = ToFString(Asset.file);
+		Info.TextureWidthMm = Asset.texture.widthMm;
+		Info.TextureHeightMm = Asset.texture.heightMm;
+		Info.RoughnessPercent = Asset.texture.roughnessPercent;
+		Info.PixelWidth = Asset.texture.pixelWidth;
+		Info.PixelHeight = Asset.texture.pixelHeight;
+		Info.Unit = static_cast<EFloor101ModelUnit>(Asset.model.unit); // same order
+		Info.bZUp = Asset.model.up == f101::cad::ModelUpAxis::Z;
+		Info.FrontQuarterTurns = Asset.model.frontQuarterTurns;
+		Info.bAgainstWall = Asset.model.againstWall;
+		Info.WidthMm = Asset.model.widthMm;
+		Info.DepthMm = Asset.model.depthMm;
+		Info.HeightMm = Asset.model.heightMm;
+		Info.Triangles = Asset.model.triangles;
+		Info.Problem = Asset.kind == f101::cad::AssetKind::Model ? Subsystem.GetAssetProblem(Asset.id) : FString();
+		return Info;
+	}
+
+	bool ParseAssetId(const FString& Text, f101::cad::AssetId& OutId)
+	{
+		const f101::Result<f101::cad::Uuid> Parsed = f101::cad::parseUuid(TCHAR_TO_UTF8(*Text));
+		if (!Parsed)
+		{
+			RaiseError(FString::Printf(TEXT("'%s' is not an asset id: %s"), *Text, *ToFString(Parsed.error().message)));
+			return false;
+		}
+		OutId = f101::cad::AssetId{Parsed.value()};
+		return true;
+	}
+
+	// Applies `Edit` to a copy of an asset and changes it through the subsystem (a model is measured again).
+	FFloor101AssetInfo ChangeAssetWith(const FString& AssetId, TFunctionRef<void(f101::cad::Asset&)> Edit)
+	{
+		UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+		f101::cad::AssetId Id;
+		if (!Subsystem || !ParseAssetId(AssetId, Id))
+		{
+			return {};
+		}
+		const f101::cad::Asset* Current = Subsystem->GetDocument().project().findAsset(Id);
+		if (!Current)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change asset %s: no such asset"), *AssetId));
+			return {};
+		}
+		f101::cad::Asset Changed = *Current;
+		Edit(Changed);
+		const f101::Status Applied = Subsystem->ChangeAsset(Changed);
+		if (!Applied)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change asset %s: %s"), *AssetId, *ToFString(Applied.error().message)));
+			return {};
+		}
+		return ToInfo(*Subsystem->GetDocument().project().findAsset(Id), *Subsystem);
+	}
+}
+
+// The toolset's model units mirror the core's, value for value.
+static_assert(static_cast<int>(EFloor101ModelUnit::Meter) == static_cast<int>(f101::cad::ModelUnit::Meter) &&
+	static_cast<int>(EFloor101ModelUnit::Centimeter) == static_cast<int>(f101::cad::ModelUnit::Centimeter) &&
+	static_cast<int>(EFloor101ModelUnit::Millimeter) == static_cast<int>(f101::cad::ModelUnit::Millimeter) &&
+	static_cast<int>(EFloor101ModelUnit::Inch) == static_cast<int>(f101::cad::ModelUnit::Inch));
+
+TArray<FFloor101AssetInfo> UFloor101DocumentToolset::GetAssets()
+{
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	TArray<FFloor101AssetInfo> Assets;
+	if (Subsystem)
+	{
+		for (const f101::cad::Asset& Asset : Subsystem->GetDocument().project().assets)
+		{
+			Assets.Add(ToInfo(Asset, *Subsystem));
+		}
+	}
+	return Assets;
+}
+
+FFloor101AssetInfo UFloor101DocumentToolset::ImportAsset(const FString& Path)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return {};
+	}
+	const f101::Result<f101::cad::AssetId> Imported = Subsystem->ImportAsset(Path);
+	if (!Imported)
+	{
+		RaiseError(FString::Printf(TEXT("cannot import %s: %s"), *Path, *ToFString(Imported.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findAsset(Imported.value()), *Subsystem);
+}
+
+FFloor101AssetInfo UFloor101DocumentToolset::SetTextureAsset(const FString& AssetId, const FString& Name, int64 WidthMm, int64 HeightMm,
+	int32 RoughnessPercent)
+{
+	return ChangeAssetWith(AssetId, [&](f101::cad::Asset& Asset)
+	{
+		Asset.name = TCHAR_TO_UTF8(*Name);
+		Asset.texture.widthMm = WidthMm;
+		Asset.texture.heightMm = HeightMm;
+		Asset.texture.roughnessPercent = RoughnessPercent;
+	});
+}
+
+FFloor101AssetInfo UFloor101DocumentToolset::SetModelAsset(const FString& AssetId, const FString& Name, EFloor101ModelUnit Unit, bool bZUp,
+	int32 FrontQuarterTurns, bool bAgainstWall)
+{
+	return ChangeAssetWith(AssetId, [&](f101::cad::Asset& Asset)
+	{
+		Asset.name = TCHAR_TO_UTF8(*Name);
+		Asset.model.unit = static_cast<f101::cad::ModelUnit>(Unit); // same order
+		Asset.model.up = bZUp ? f101::cad::ModelUpAxis::Z : f101::cad::ModelUpAxis::Y;
+		Asset.model.frontQuarterTurns = FrontQuarterTurns;
+		Asset.model.againstWall = bAgainstWall;
+	});
+}
+
+void UFloor101DocumentToolset::RemoveAsset(const FString& AssetId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::AssetId Id;
+	if (!Subsystem || !ParseAssetId(AssetId, Id))
+	{
+		return;
+	}
+	const f101::Status Removed = Subsystem->RemoveAsset(Id);
+	if (!Removed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot remove asset %s: %s"), *AssetId, *ToFString(Removed.error().message)));
 	}
 }
 

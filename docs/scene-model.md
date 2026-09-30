@@ -16,11 +16,17 @@ futuro.
   parte superior, extremos, mochetas y uniones con el acabado de muro por defecto; suelos con el de su habitación; la
   cara `ceiling` del forjado con el techo de su habitación; marco y hoja con la carpintería del hueco, manillas con
   `aluminium-anthracite` y vidrio con `glass-clear`; el cuerpo de un mueble con su acabado o el de su tipo y sus demás
-  partes con los fijos de cada ranura). Siempre resuelto: nunca vacío.
+  partes con los fijos de cada ranura; un modelo importado, ADR-0017, con el acabado del mueble o el de cada material,
+  `asset:<uuid>#<i>`). Siempre resuelto: nunca vacío.
+- Modelos importados (ADR-0017): `compileScene` recibe un `ModelProvider` opcional (`Asset` → `geometry::ModelMesh`
+  leída y normalizada, o nulo) que inyecta quien sabe leer archivos (en Unreal, el `ModelCache` de `Floor101Assets`). Un
+  mueble cuyo tipo es un modelo usa `buildModelFurnitureMesh`; sin modelo, una caja de sus medidas.
 - `FinishTextures.h`: `buildFinishTexture` sintetiza una repetición sin costuras de un acabado (ladrillo a soga,
   baldosas, tablas, moteado o liso) con todos sus mips y el tamaño en mm que cubre; `buildFinishLook` añade la
   rugosidad y la opacidad (menor que 1: translúcido, vidrio) y pinta de magenta un id desconocido. Deterministas: el
-  mismo acabado da los mismos píxeles.
+  mismo acabado da los mismos píxeles. `textureFromImage` convierte una imagen decodificada (ADR-0017) en textura
+  repetible: lados en potencia de dos (máx. 2048), filtrado con vuelta, todos los mips y volteada para superficies (la
+  fila de arriba de la imagen va hacia arriba del muro o hacia el norte del suelo).
 - `contentHash`: FNV-1a 64 sobre posiciones, normales, UV, secciones y acabados (`hashNode`). Los consumidores lo usan para no reconstruir lo que
   no cambió. Al mover un muro cambian también sus vecinos (sus ingletes dependen de él).
 - Metadatos de origen: `sourceKind` (`Wall`, `Joint`, `Room`, `Slab`, `Opening`, `Furniture`, `Marker`), `sourceId` (UUID del muro;
@@ -50,5 +56,5 @@ ejes (glTF: `(x, z, −y) / 1000`).
 Tests: `Tests/Unit/SceneTests.cpp` (ID esperado, determinismo, el hash sigue a la geometría, borrado, vista previa unida
 al proyecto, sustitución por id, orden muros → uniones → suelos → forjados) y `LevelTests.cpp` (cotas, forjados, vista
 por planta), `FinishTests.cpp` (acabados por sección, hash, texturas), `CarpentryTests.cpp` (nodos de carpintería,
-acabados, planta y estilo) y `OpeningTypeTests.cpp` (símbolos solo en la escena de edición y en la planta activa) y `FurnitureTests.cpp` (nodos de muebles, elevación,
-estilos).
+acabados, planta y estilo) y `OpeningTypeTests.cpp` (símbolos solo en la escena de edición y en la planta activa), `FurnitureTests.cpp` (nodos de muebles, elevación,
+estilos) y `AssetTests.cpp` (modelo con sus materiales, con un acabado propio o caja sin modelo; texturas de imágenes).

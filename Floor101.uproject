@@ -30,6 +30,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "Floor101Assets",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "Floor101UnrealAdapter",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

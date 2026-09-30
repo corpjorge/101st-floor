@@ -1,5 +1,7 @@
 #include "F101/Cad/Finishes.h"
 
+#include "F101/Cad/Asset.h"
+
 namespace f101::cad
 {
 	namespace
@@ -88,6 +90,10 @@ namespace f101::cad
 		if (id.empty())
 		{
 			return Status::success();
+		}
+		if (isAssetRef(id))
+		{
+			return Status::success(); // an imported texture: the project checks it exists and allows the surface
 		}
 		const FinishInfo* finish = findFinish(id);
 		if (!finish)

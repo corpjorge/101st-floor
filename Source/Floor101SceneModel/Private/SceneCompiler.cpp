@@ -166,7 +166,7 @@ namespace f101::scene
 		// Each section gets its finish (ADR-0012); the floor of `selectedRoom` is Selected. `symbols`: door swings on the
 		// floors of the levels that are not dimmed (ADR-0014), last.
 		Scene compileProject(const cad::Project& project, const Presentation& shown, const cad::LevelId& activeLevel, bool showAll,
-			const std::string& selectedRoom, bool symbols)
+			const std::string& selectedRoom, bool symbols, const ModelProvider& models)
 		{
 			const std::vector<LevelGroup> groups = levelGroups(project);
 			std::optional<std::size_t> active;
@@ -330,7 +330,14 @@ namespace f101::scene
 					node.sourceId = cad::toString(piece.id);
 					node.level = group.level;
 					node.name = "Furniture " + piece.type + " " + node.sourceId.substr(0, 8);
-					node.mesh = geometry::buildFurnitureMesh(piece);
+					// An imported model (ADR-0017): its mesh from the provider, each material its own finish unless the piece
+					// has one; a plain box of its size if the model cannot be read.
+					const std::optional<cad::AssetId> model = cad::parseAssetRef(piece.type);
+					const cad::Asset* asset = model ? project.findAsset(*model) : nullptr;
+					const geometry::ModelMesh* modelMesh = asset && models ? models(*asset) : nullptr;
+					node.mesh = !model ? geometry::buildFurnitureMesh(piece)
+						: modelMesh ? geometry::buildModelFurnitureMesh(piece, *modelMesh)
+						: geometry::buildPlaceholderFurnitureMesh(piece);
 					if (node.mesh.sections.empty())
 					{
 						continue;
@@ -338,7 +345,11 @@ namespace f101::scene
 					translateZ(node.mesh, dz);
 					for (const geometry::MeshSection& section : node.mesh.sections)
 					{
-						node.finishes.emplace_back(geometry::furnitureSlotFinish(piece, section.slot));
+						const std::optional<std::size_t> material = geometry::modelMaterialIndex(section.slot);
+						node.finishes.emplace_back(!model ? std::string(geometry::furnitureSlotFinish(piece, section.slot))
+							: !piece.finish.empty() ? piece.finish
+							: material ? cad::modelMaterialFinish(*model, *material)
+							: std::string(cad::DefaultCarpentryFinish));
 					}
 					node.contentHash = hashNode(node.mesh, node.finishes);
 					node.style = context && shown.furnitureStyles[index] == NodeStyle::Normal ? NodeStyle::Context
@@ -378,7 +389,7 @@ namespace f101::scene
 		}
 	}
 
-	Scene compileScene(const cad::Project& project)
+	Scene compileScene(const cad::Project& project, const ModelProvider& models)
 	{
 		Presentation shown;
 		for (const cad::Wall& wall : project.walls)
@@ -391,10 +402,10 @@ namespace f101::scene
 		}
 		shown.wallStyles.assign(project.walls.size(), NodeStyle::Normal);
 		shown.furnitureStyles.assign(project.furniture.size(), NodeStyle::Normal);
-		return compileProject(project, shown, cad::LevelId(), true, std::string(), false);
+		return compileProject(project, shown, cad::LevelId(), true, std::string(), false, models);
 	}
 
-	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay)
+	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay, const ModelProvider& models)
 	{
 		cad::Project previewed = project;
 		Presentation shown;
@@ -453,7 +464,8 @@ namespace f101::scene
 			shown.furnitureStyles.push_back(NodeStyle::Preview);
 		}
 
-		Scene scene = compileProject(previewed, shown, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom, true);
+		Scene scene = compileProject(previewed, shown, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom, true,
+			models);
 		// Handles stand on the level being edited.
 		const double markerElevation = static_cast<double>(cad::levelElevationMm(project, overlay.activeLevel));
 		for (std::size_t index = 0; index < overlay.markers.size(); ++index)

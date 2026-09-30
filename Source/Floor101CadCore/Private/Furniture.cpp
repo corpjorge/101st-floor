@@ -1,5 +1,6 @@
 #include "F101/Cad/Furniture.h"
 
+#include "F101/Cad/Asset.h"
 #include "F101/Cad/Units.h"
 
 #include <cmath>
@@ -62,6 +63,18 @@ namespace f101::cad
 		return furniture;
 	}
 
+	Furniture makeFurniture(const FurnitureType& spec, Point2D position, std::int64_t rotationCentidegrees)
+	{
+		Furniture furniture;
+		furniture.type = std::string(spec.id);
+		furniture.position = position;
+		furniture.rotationCentidegrees = rotationCentidegrees;
+		furniture.widthMm = spec.widthMm;
+		furniture.depthMm = spec.depthMm;
+		furniture.heightMm = spec.heightMm;
+		return furniture;
+	}
+
 	std::string_view resolveFurnitureFinish(const Furniture& furniture)
 	{
 		if (!furniture.finish.empty())
@@ -74,7 +87,10 @@ namespace f101::cad
 
 	Status validateFurniture(const Furniture& furniture)
 	{
-		const FurnitureType* type = findFurnitureType(furniture.type);
+		// An imported model can take any size in the model range; the project checks the asset exists.
+		const FurnitureType model{furniture.type, 0, 0, 0, MinModelSizeMm, MaxModelSizeMm, MinModelSizeMm, MaxModelSizeMm,
+			MinModelSizeMm, MaxModelSizeMm, false, {}};
+		const FurnitureType* type = isAssetRef(furniture.type) ? &model : findFurnitureType(furniture.type);
 		if (!type)
 		{
 			return Error{ErrorCode::NotFound, "Unknown furniture type '" + furniture.type + "'"};

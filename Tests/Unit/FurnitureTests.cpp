@@ -282,7 +282,7 @@ TEST_CASE("project.json schema 7 saves furniture only when there is some, and re
 	REQUIRE(document.addFurniture(makeFurniture("table", {-1200, 2400}, 4500)).ok());
 
 	const std::string json = writeProjectJson(document.project());
-	CHECK(json.find("\"schemaVersion\": 7") != std::string::npos);
+	CHECK(json.find("\"schemaVersion\": " + std::to_string(ProjectSchemaVersion)) != std::string::npos);
 	CHECK(json.find(
 		"  \"furniture\": [\n"
 		"    {\n"

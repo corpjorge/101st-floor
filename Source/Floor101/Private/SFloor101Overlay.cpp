@@ -1,12 +1,16 @@
 #include "SFloor101Overlay.h"
 
+#include "Brushes/SlateColorBrush.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/Units.h"
 #include "F101/Drawing/PlanDrawing.h"
 #include "Floor101DocumentSubsystem.h"
+#include "Floor101FileDialog.h"
+#include "Floor101FinishLibrary.h"
 #include "Floor101GameViewportClient.h"
 #include "Floor101SceneSpace.h"
 #include "Fonts/FontMeasure.h"
@@ -14,7 +18,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
@@ -63,9 +69,30 @@ namespace
 		}
 	}
 
-	// Display name of a finish (ADR-0012); the catalogue ids stay in English.
-	FText FinishName(std::string_view Id)
+	// The name of an imported asset of the project, if `Ref` is one ("asset:<uuid>", ADR-0017).
+	TOptional<FText> AssetName(std::string_view Ref, const f101::cad::Project* Project)
 	{
+		const std::optional<f101::cad::AssetId> Id = f101::cad::parseAssetRef(Ref);
+		const f101::cad::Asset* Asset = Id && Project ? Project->findAsset(*Id) : nullptr;
+		if (!Id)
+		{
+			return {};
+		}
+		return Asset ? FText::FromString(UTF8_TO_TCHAR(Asset->name.c_str())) : LOCTEXT("MissingAsset", "(asset que falta)");
+	}
+
+	// Display name of a finish (ADR-0012); the catalogue ids stay in English. Imported textures show their name; empty is
+	// the original look (a piece's type finish, or a model's own materials).
+	FText FinishName(std::string_view Id, const f101::cad::Project* Project = nullptr)
+	{
+		if (Id.empty())
+		{
+			return LOCTEXT("FinishOriginal", "Original");
+		}
+		if (const TOptional<FText> Imported = AssetName(Id, Project))
+		{
+			return *Imported;
+		}
 		static const TMap<FString, FText> Names{
 			{TEXT("plaster-white"), LOCTEXT("FinishPlaster", "Enlucido blanco")},
 			{TEXT("paint-sand"), LOCTEXT("FinishSand", "Pintura arena")},
@@ -94,9 +121,13 @@ namespace
 		return Name ? *Name : FText::FromString(Key);
 	}
 
-	// Display name of a furniture type (ADR-0016); the catalogue ids stay in English.
-	FText FurnitureName(std::string_view Type)
+	// Display name of a furniture type (ADR-0016); the catalogue ids stay in English. Imported models show their name.
+	FText FurnitureName(std::string_view Type, const f101::cad::Project* Project = nullptr)
 	{
+		if (const TOptional<FText> Imported = AssetName(Type, Project))
+		{
+			return *Imported;
+		}
 		static const TMap<FString, FText> Names{
 			{TEXT("bed-double"), LOCTEXT("BedDouble", "Cama doble")},
 			{TEXT("bed-single"), LOCTEXT("BedSingle", "Cama individual")},
@@ -388,6 +419,23 @@ void SFloor101Overlay::Tick(const FGeometry& AllottedGeometry, const double InCu
 	if (FSlateApplication::IsInitialized())
 	{
 		CursorPosition = AllottedGeometry.AbsoluteToLocal(FSlateApplication::Get().GetCursorPos());
+	}
+	// Imported assets (ADR-0017): the lists follow the library (import, rename, a model turned, undo, another project).
+	FString Signature;
+	if (const f101::cad::Project* Project = CurrentProject())
+	{
+		for (const f101::cad::Asset& Asset : Project->assets)
+		{
+			// Everything a row shows.
+			Signature += UTF8_TO_TCHAR((f101::cad::toString(Asset.id) + Asset.name + "|" + std::to_string(Asset.model.widthMm) + "x" +
+				std::to_string(Asset.model.depthMm) + "|" + std::to_string(Asset.texture.pixelWidth) + "x" +
+				std::to_string(Asset.texture.pixelHeight) + ";").c_str());
+		}
+	}
+	if (Signature != ImportedSignature)
+	{
+		ImportedSignature = Signature;
+		RebuildImportedLists();
 	}
 }
 
@@ -1193,7 +1241,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 			.Text_Lambda([this]()
 			{
 				const std::optional<f101::cad::Furniture> Selected = GetSelectedFurniture();
-				return Selected ? FText::Format(LOCTEXT("SelectedFurniture", "Mueble seleccionado: {0}"), FurnitureName(Selected->type))
+				return Selected ? FText::Format(LOCTEXT("SelectedFurniture", "Mueble seleccionado: {0}"), FurnitureName(Selected->type, CurrentProject()))
 					: FText::GetEmpty();
 			})
 		]
@@ -1246,8 +1294,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 				MakeFinishCombo(f101::cad::Surface::Furniture,
 					[this]() -> FString
 					{
+						// An imported model with no finish of its own shows its materials: "Original".
 						const std::optional<f101::cad::Furniture> Selected = GetSelectedFurniture();
-						return Selected ? UTF8_TO_TCHAR(std::string(f101::cad::resolveFurnitureFinish(*Selected)).c_str()) : FString();
+						if (!Selected || (Selected->finish.empty() && f101::cad::isAssetRef(Selected->type)))
+						{
+							return FString();
+						}
+						return UTF8_TO_TCHAR(std::string(f101::cad::resolveFurnitureFinish(*Selected)).c_str());
 					},
 					[](EditController& Editor, const std::string& Finish) { return Editor.setFurnitureFinish(Finish); })
 			]
@@ -1308,6 +1361,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
 		+ SVerticalBox::Slot().AutoHeight()
 		[
 			List
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+		[
+			MakeImportedModels()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
@@ -1446,9 +1503,23 @@ const FFloor101RoomView* SFloor101Overlay::GetSelectedRoom() const
 TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface, TFunction<FString()> Current,
 	TFunction<f101::Status(f101::cad::EditController&, const std::string&)> Apply)
 {
-	TArray<TSharedPtr<FString>>& Options = FinishOptions.FindOrAdd(static_cast<uint8>(Surface));
-	if (Options.IsEmpty())
+	// One list per surface, on the heap: combos keep a pointer to it while the map grows.
+	TSharedPtr<TArray<TSharedPtr<FString>>>& Slot = FinishOptions.FindOrAdd(static_cast<uint8>(Surface));
+	if (!Slot)
 	{
+		Slot = MakeShared<TArray<TSharedPtr<FString>>>();
+	}
+	const TSharedPtr<TArray<TSharedPtr<FString>>> List = Slot;
+	// The catalogue's finishes for the surface and the project's imported textures that allow it (ADR-0017); furniture
+	// also offers its original look (empty: its type's finish, or a model's own materials).
+	auto Refresh = [this, Surface, List]()
+	{
+		TArray<TSharedPtr<FString>>& Options = *List;
+		Options.Reset();
+		if (Surface == f101::cad::Surface::Furniture)
+		{
+			Options.Add(MakeShared<FString>());
+		}
 		for (const f101::cad::FinishInfo& Finish : f101::cad::finishCatalogue())
 		{
 			if (Finish.allows(Surface))
@@ -1456,30 +1527,49 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 				Options.Add(MakeShared<FString>(UTF8_TO_TCHAR(std::string(Finish.id).c_str())));
 			}
 		}
-	}
-	auto Row = [](const FString& Id)
+		if (const f101::cad::Project* Project = CurrentProject())
+		{
+			for (const f101::cad::Asset& Asset : Project->assets)
+			{
+				if (Asset.kind == f101::cad::AssetKind::Texture && (Asset.texture.surfaces & static_cast<uint8>(Surface)) != 0)
+				{
+					Options.Add(MakeShared<FString>(UTF8_TO_TCHAR(f101::cad::assetRef(Asset.id).c_str())));
+				}
+			}
+		}
+	};
+	Refresh();
+	auto Row = [this](const FString& Id)
 	{
 		const std::string Utf8 = TCHAR_TO_UTF8(*Id);
 		return SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
 			[
-				SNew(SBorder)
-				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-				.BorderBackgroundColor(FinishSwatch(Utf8))
-				.Padding(FMargin(7.0f, 7.0f))
+				MakeSwatch(Utf8, 14.0f)
 			]
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(FinishName(Utf8)).Font(Font(9))
+				SNew(STextBlock).Text(FinishName(Utf8, CurrentProject())).Font(Font(9))
 			];
 	};
 
-	return SNew(SBox)
+	using FCombo = SComboBox<TSharedPtr<FString>>;
+	const TSharedRef<TWeakPtr<FCombo>> Self = MakeShared<TWeakPtr<FCombo>>();
+	TSharedPtr<FCombo> Combo;
+	TSharedRef<SWidget> Widget = SNew(SBox)
 		.WidthOverride(150.0f)
 		[
-			SNew(SComboBox<TSharedPtr<FString>>)
+			SAssignNew(Combo, FCombo)
 			.IsFocusable(false)
-			.OptionsSource(&Options)
+			.OptionsSource(List.Get())
+			.OnComboBoxOpening_Lambda([Refresh, Self]()
+			{
+				Refresh(); // imported textures may have come or gone
+				if (const TSharedPtr<FCombo> Opened = Self->Pin())
+				{
+					Opened->RefreshOptions();
+				}
+			})
 			.OnGenerateWidget_Lambda([Row](TSharedPtr<FString> Id) { return Row(*Id); })
 			.OnSelectionChanged_Lambda([this, Apply](TSharedPtr<FString> Id, ESelectInfo::Type Info)
 			{
@@ -1495,11 +1585,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 					// The current finish, re-read every frame (undo, another tool...).
 					SNew(STextBlock)
 					.Font(Font(9))
-					.Text_Lambda([Current]() { return FinishName(TCHAR_TO_UTF8(*Current())); })
+					.Text_Lambda([this, Current]() { return FinishName(TCHAR_TO_UTF8(*Current()), CurrentProject()); })
 					.ColorAndOpacity(FLinearColor::White)
 				]
 			]
 		];
+	*Self = Combo;
+	return Widget;
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeWallFaceRow(f101::cad::WallSide Side)
@@ -1588,6 +1680,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 		+ SVerticalBox::Slot().AutoHeight()
 		[
 			List
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+		[
+			MakeImportedTextures()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
@@ -1685,7 +1781,7 @@ FText SFloor101Overlay::GetHintText() const
 	if (Editor.mode() == EditMode::Paint)
 	{
 		return FText::Format(LOCTEXT("HintPaint", "Pintar con {0} · clic en una cara de muro o en el suelo de una habitación · Esc o clic derecho: volver a Seleccionar"),
-			FinishName(Editor.paintFinish()));
+			FinishName(Editor.paintFinish(), &Subsystem->GetDocument().project()));
 	}
 	if (Editor.mode() == EditMode::Door || Editor.mode() == EditMode::Window)
 	{
@@ -1696,7 +1792,7 @@ FText SFloor101Overlay::GetHintText() const
 	if (Editor.mode() == EditMode::Furniture)
 	{
 		return FText::Format(LOCTEXT("HintFurniture", "Amueblar: {0} · clic en el suelo: colocarlo · cerca de un muro se apoya en él de espaldas · Espacio: girar 90° · Esc o clic derecho: volver a Seleccionar"),
-			FurnitureName(Editor.settings().furnitureType));
+			FurnitureName(Editor.settings().furnitureType, &Subsystem->GetDocument().project()));
 	}
 	if (Editor.isDraggingOpening())
 	{
@@ -1835,6 +1931,487 @@ TSharedRef<SWidget> SFloor101Overlay::MakeCursorLabel()
 				.ColorAndOpacity(ErrorColor)
 				.Visibility_Lambda([TypedError]() { return TypedError().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 				.Text_Lambda(TypedError)
+			]
+		];
+}
+
+const f101::cad::Project* SFloor101Overlay::CurrentProject() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	return Subsystem ? &Subsystem->GetDocument().project() : nullptr;
+}
+
+const f101::cad::Asset* SFloor101Overlay::GetPaintAsset() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	const std::optional<f101::cad::AssetId> Id =
+		Subsystem ? f101::cad::parseAssetRef(Subsystem->GetEditController().paintFinish()) : std::nullopt;
+	return Id ? Subsystem->GetDocument().project().findAsset(*Id) : nullptr;
+}
+
+const f101::cad::Asset* SFloor101Overlay::GetFurnitureAsset() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	const std::optional<f101::cad::AssetId> Id =
+		Subsystem ? f101::cad::parseAssetRef(Subsystem->GetEditController().settings().furnitureType) : std::nullopt;
+	return Id ? Subsystem->GetDocument().project().findAsset(*Id) : nullptr;
+}
+
+void SFloor101Overlay::ChangeAsset(const f101::cad::Asset& Asset)
+{
+	if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
+	{
+		(void)Subsystem->ChangeAsset(Asset);
+	}
+	FSlateApplication::Get().SetAllUserFocusToGameViewport();
+}
+
+const FSlateBrush* SFloor101Overlay::GetAssetBrush(const FString& FinishId)
+{
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	UTexture2D* Texture = Library ? Library->GetAssetFinishImage(FinishId) : nullptr;
+	if (!Texture)
+	{
+		if (!NoImageBrush)
+		{
+			NoImageBrush = MakeShared<FSlateColorBrush>(FLinearColor(0.5f, 0.5f, 0.52f));
+		}
+		return NoImageBrush.Get();
+	}
+	TSharedPtr<FSlateBrush>& Brush = AssetBrushes.FindOrAdd(FinishId);
+	if (!Brush)
+	{
+		Brush = MakeShared<FSlateBrush>();
+		Brush->ImageSize = FVector2D(16.0, 16.0);
+	}
+	if (Brush->GetResourceObject() != Texture)
+	{
+		Brush->SetResourceObject(Texture); // first shown, redefined, or read at last from the project's folder
+	}
+	return Brush.Get();
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeSwatch(const std::string& FinishId, float Size)
+{
+	if (f101::cad::isAssetRef(FinishId))
+	{
+		// Looked up on every paint: the texture's image can change while the swatch is shown.
+		return SNew(SBox).WidthOverride(Size).HeightOverride(Size)
+			[SNew(SImage).Image_Lambda([this, Key = FString(UTF8_TO_TCHAR(FinishId.c_str()))]() { return GetAssetBrush(Key); })];
+	}
+	const FLinearColor Colour = FinishId.empty() ? FLinearColor(0.5f, 0.5f, 0.52f) : FinishSwatch(FinishId);
+	return SNew(SBorder)
+		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.BorderBackgroundColor(Colour)
+		.Padding(FMargin(Size / 2.0f, Size / 2.0f));
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeEditRow(const FText& Label, TFunction<FText()> Current, TFunction<void(const FString&)> Apply)
+{
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+		[
+			SNew(STextBlock).Text(Label).Font(Font(10))
+		]
+		+ SHorizontalBox::Slot().AutoWidth()
+		[
+			SNew(SBox)
+			.WidthOverride(120.0f)
+			[
+				SNew(SEditableTextBox)
+				.Font(Font(10))
+				.SelectAllTextWhenFocused(true)
+				.Text_Lambda([Current]() { return Current(); })
+				.OnTextCommitted_Lambda([Current, Apply](const FText& Text, ETextCommit::Type Commit)
+				{
+					if (Commit != ETextCommit::OnCleared && !Text.EqualTo(Current()))
+					{
+						Apply(Text.ToString().TrimStartAndEnd());
+					}
+					if (Commit == ETextCommit::OnEnter)
+					{
+						FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					}
+				})
+			]
+		];
+}
+
+void SFloor101Overlay::ImportFromDialog(bool bModel)
+{
+	UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	FString Path;
+	const bool bChosen = Subsystem && FFloor101FileDialog::OpenFile(
+		bModel ? LOCTEXT("ImportModelTitle", "Importar modelo 3D") : LOCTEXT("ImportTextureTitle", "Importar textura"),
+		bModel ? LOCTEXT("ModelFiles", "Modelos 3D (glTF, GLB, OBJ)").ToString() : LOCTEXT("ImageFiles", "Imágenes (PNG, JPEG)").ToString(),
+		bModel ? TEXT("*.glb;*.gltf;*.obj") : TEXT("*.png;*.jpg;*.jpeg"), Path);
+	if (bChosen)
+	{
+		const f101::Result<f101::cad::AssetId> Imported = Subsystem->ImportAsset(Path);
+		if (Imported)
+		{
+			// Ready to use: Pintar with the texture, Amueblar with the model.
+			const std::string Ref = f101::cad::assetRef(Imported.value());
+			(void)Run([bModel, &Ref](EditController& Editor)
+			{
+				Editor.setMode(bModel ? EditMode::Furniture : EditMode::Paint);
+				return bModel ? Editor.setFurnitureType(Ref) : Editor.setPaintFinish(Ref);
+			});
+		}
+	}
+	FSlateApplication::Get().SetAllUserFocusToGameViewport();
+}
+
+void SFloor101Overlay::RebuildImportedLists()
+{
+	const f101::cad::Project* Project = CurrentProject();
+	for (const bool bModels : {false, true})
+	{
+		const TSharedPtr<SVerticalBox>& List = bModels ? ImportedModelList : ImportedTextureList;
+		if (!List)
+		{
+			continue;
+		}
+		List->ClearChildren();
+		for (const f101::cad::Asset& Asset : Project ? Project->assets : std::vector<f101::cad::Asset>())
+		{
+			if ((Asset.kind == f101::cad::AssetKind::Model) != bModels)
+			{
+				continue;
+			}
+			const std::string Ref = f101::cad::assetRef(Asset.id);
+			const FText Detail = bModels ? FootprintText(Asset.model.widthMm, Asset.model.depthMm)
+				: FText::Format(LOCTEXT("ImageSize", "{0} × {1} px"), Asset.texture.pixelWidth, Asset.texture.pixelHeight);
+			List->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
+			[
+				SNew(SButton)
+				.IsFocusable(false)
+				.ButtonColorAndOpacity_Lambda([this, Ref, bModels]()
+				{
+					const UFloor101DocumentSubsystem* S = Document.Get();
+					const bool bActive = S && (bModels ? S->GetEditController().settings().furnitureType == Ref : S->GetEditController().paintFinish() == Ref);
+					return bActive ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor(0.35f, 0.35f, 0.38f));
+				})
+				.OnClicked_Lambda([this, Ref, bModels]()
+				{
+					return Run([&Ref, bModels](EditController& Editor) { return bModels ? Editor.setFurnitureType(Ref) : Editor.setPaintFinish(Ref); });
+				})
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 8.0f, 0.0f)
+					[
+						bModels ? SNew(SBox) : MakeSwatch(Ref, 16.0f)
+					]
+					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+					[
+						SNew(STextBlock).Text(FText::FromString(UTF8_TO_TCHAR(Asset.name.c_str()))).Font(Font(10))
+					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+					[
+						SNew(STextBlock).Text(Detail).Font(Font(9)).ColorAndOpacity(MutedColor)
+					]
+				]
+			];
+		}
+	}
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeImportedTextures()
+{
+	auto Texture = [this]() { return GetPaintAsset(); };
+	auto Visible = [Texture]() { return Texture() ? EVisibility::Visible : EVisibility::Collapsed; };
+	auto Changed = [this, Texture](TFunctionRef<bool(f101::cad::Asset&)> Edit)
+	{
+		if (const f101::cad::Asset* Current = Texture())
+		{
+			f101::cad::Asset Asset = *Current;
+			if (Edit(Asset))
+			{
+				ChangeAsset(Asset);
+			}
+		}
+	};
+	auto LengthRow = [this, Texture, Changed](const FText& Label, std::int64_t f101::cad::TextureAsset::* Field)
+	{
+		return MakeEditRow(Label,
+			[Texture, Field]() { const f101::cad::Asset* A = Texture(); return A ? LengthText(static_cast<double>(A->texture.*Field)) : FText::GetEmpty(); },
+			[this, Changed, Field](const FString& Typed)
+			{
+				const f101::Result<std::int64_t> Millimeters = f101::cad::parseLength(TCHAR_TO_UTF8(*Typed), f101::cad::LengthUnit::Centimeter);
+				if (!Millimeters)
+				{
+					if (UFloor101DocumentSubsystem* S = Document.Get())
+					{
+						(void)S->Edit([&Millimeters](EditController&) { return f101::Status(Millimeters.error()); });
+					}
+					return;
+				}
+				Changed([&Millimeters, Field](f101::cad::Asset& Asset) { Asset.texture.*Field = Millimeters.value(); return true; });
+			});
+	};
+
+	SAssignNew(ImportedTextureList, SVerticalBox);
+	RebuildImportedLists();
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("ImportedTextures", "Texturas importadas")).Font(Font(10, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			ImportedTextureList.ToSharedRef()
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 4.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(LOCTEXT("ImportTextureTip", "Trae una imagen PNG o JPEG al proyecto (se copia junto a project.json) para usarla como acabado"))
+			.OnClicked_Lambda([this]() { ImportFromDialog(false); return FReply::Handled(); })
+			[
+				SNew(STextBlock).Text(LOCTEXT("ImportTexture", "Importar textura…")).Font(Font(10))
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		[
+			SNew(SVerticalBox)
+			.Visibility_Lambda(Visible)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				MakeEditRow(LOCTEXT("AssetName", "Nombre"),
+					[Texture]() { const f101::cad::Asset* A = Texture(); return A ? FText::FromString(UTF8_TO_TCHAR(A->name.c_str())) : FText::GetEmpty(); },
+					[Changed](const FString& Typed) { Changed([&Typed](f101::cad::Asset& Asset) { Asset.name = TCHAR_TO_UTF8(*Typed); return true; }); })
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				LengthRow(LOCTEXT("TextureWidth", "Ancho de la imagen"), &f101::cad::TextureAsset::widthMm)
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				LengthRow(LOCTEXT("TextureHeight", "Alto de la imagen"), &f101::cad::TextureAsset::heightMm)
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				MakeEditRow(LOCTEXT("TextureRoughness", "Rugosidad (%)"),
+					[Texture]() { const f101::cad::Asset* A = Texture(); return A ? FText::AsNumber(A->texture.roughnessPercent) : FText::GetEmpty(); },
+					[Changed](const FString& Typed)
+					{
+						Changed([&Typed](f101::cad::Asset& Asset)
+						{
+							Asset.texture.roughnessPercent = FCString::Atoi(*Typed);
+							return true;
+						});
+					})
+			]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SNew(SButton)
+				.IsFocusable(false)
+				.ToolTipText(LOCTEXT("RemoveTextureTip", "Quita la textura del proyecto si ninguna superficie la usa (se puede deshacer)"))
+				.OnClicked_Lambda([this, Texture]()
+				{
+					const f101::cad::Asset* Current = Texture();
+					UFloor101DocumentSubsystem* Subsystem = Document.Get();
+					if (Current && Subsystem && Subsystem->RemoveAsset(Current->id).ok())
+					{
+						(void)Run([](EditController& Editor) { return Editor.setPaintFinish("paint-sand"); });
+					}
+					FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					return FReply::Handled();
+				})
+				[
+					SNew(STextBlock).Text(LOCTEXT("RemoveTexture", "Eliminar textura")).Font(Font(9))
+				]
+			]
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
+{
+	using f101::cad::ModelUnit;
+	if (ModelUnits.IsEmpty())
+	{
+		for (const ModelUnit Unit : {ModelUnit::Meter, ModelUnit::Centimeter, ModelUnit::Millimeter, ModelUnit::Inch})
+		{
+			ModelUnits.Add(MakeShared<ModelUnit>(Unit));
+		}
+	}
+	auto UnitName = [](ModelUnit Unit)
+	{
+		switch (Unit)
+		{
+		case ModelUnit::Centimeter: return LOCTEXT("UnitCm", "centímetros");
+		case ModelUnit::Millimeter: return LOCTEXT("UnitMm", "milímetros");
+		case ModelUnit::Inch: return LOCTEXT("UnitIn", "pulgadas");
+		default: return LOCTEXT("UnitM", "metros");
+		}
+	};
+	auto Model = [this]() { return GetFurnitureAsset(); };
+	auto Visible = [Model]() { return Model() ? EVisibility::Visible : EVisibility::Collapsed; };
+	auto Changed = [this, Model](TFunctionRef<void(f101::cad::Asset&)> Edit)
+	{
+		if (const f101::cad::Asset* Current = Model())
+		{
+			f101::cad::Asset Asset = *Current;
+			Edit(Asset);
+			ChangeAsset(Asset);
+		}
+	};
+	auto Toggle = [](const FText& Label, const FText& ToolTip, TFunction<void()> OnClicked)
+	{
+		return SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(ToolTip)
+			.OnClicked_Lambda([OnClicked]() { OnClicked(); return FReply::Handled(); })
+			[
+				SNew(STextBlock).Text(Label).Font(Font(9))
+			];
+	};
+
+	SAssignNew(ImportedModelList, SVerticalBox);
+	RebuildImportedLists();
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("ImportedModels", "Modelos importados")).Font(Font(10, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			ImportedModelList.ToSharedRef()
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 4.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(LOCTEXT("ImportModelTip", "Trae un modelo glTF (.glb, .gltf) u OBJ con sus texturas al proyecto para colocarlo como mueble"))
+			.OnClicked_Lambda([this]() { ImportFromDialog(true); return FReply::Handled(); })
+			[
+				SNew(STextBlock).Text(LOCTEXT("ImportModel", "Importar modelo…")).Font(Font(10))
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		[
+			SNew(SVerticalBox)
+			.Visibility_Lambda(Visible)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				MakeEditRow(LOCTEXT("AssetName", "Nombre"),
+					[Model]() { const f101::cad::Asset* A = Model(); return A ? FText::FromString(UTF8_TO_TCHAR(A->name.c_str())) : FText::GetEmpty(); },
+					[Changed](const FString& Typed) { Changed([&Typed](f101::cad::Asset& Asset) { Asset.name = TCHAR_TO_UTF8(*Typed); }); })
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Text(LOCTEXT("ModelUnits", "Unidades del archivo")).Font(Font(10))
+				]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					SNew(SBox)
+					.WidthOverride(120.0f)
+					[
+						SNew(SComboBox<TSharedPtr<ModelUnit>>)
+						.IsFocusable(false)
+						.OptionsSource(&ModelUnits)
+						.OnGenerateWidget_Lambda([UnitName](TSharedPtr<ModelUnit> Unit) { return SNew(STextBlock).Text(UnitName(*Unit)).Font(Font(9)); })
+						.OnSelectionChanged_Lambda([Changed](TSharedPtr<ModelUnit> Unit, ESelectInfo::Type Info)
+						{
+							if (Unit && Info != ESelectInfo::Direct)
+							{
+								const ModelUnit Chosen = *Unit;
+								Changed([Chosen](f101::cad::Asset& Asset) { Asset.model.unit = Chosen; });
+							}
+						})
+						[
+							SNew(STextBlock)
+							.Font(Font(9))
+							.ColorAndOpacity(FLinearColor::White)
+							.Text_Lambda([Model, UnitName]() { const f101::cad::Asset* A = Model(); return A ? UnitName(A->model.unit) : FText::GetEmpty(); })
+						]
+					]
+				]
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 4.0f, 0.0f)
+				[
+					Toggle(LOCTEXT("ModelUp", "Cambiar eje arriba"), LOCTEXT("ModelUpTip", "Alterna entre Y arriba (glTF y la mayoría de OBJ) y Z arriba"),
+						[Changed]() { Changed([](f101::cad::Asset& Asset) { Asset.model.up = Asset.model.up == f101::cad::ModelUpAxis::Y ? f101::cad::ModelUpAxis::Z : f101::cad::ModelUpAxis::Y; }); })
+				]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					Toggle(LOCTEXT("ModelFront", "Girar frente 90°"), LOCTEXT("ModelFrontTip", "Gira el modelo para que su frente sea el que mira a la habitación"),
+						[Changed]() { Changed([](f101::cad::Asset& Asset) { Asset.model.frontQuarterTurns = (Asset.model.frontQuarterTurns + 1) % 4; }); })
+				]
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				SNew(SCheckBox)
+				.IsFocusable(false)
+				.IsChecked_Lambda([Model]() { const f101::cad::Asset* A = Model(); return A && A->model.againstWall ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+				.OnCheckStateChanged_Lambda([Changed](ECheckBoxState State)
+				{
+					Changed([State](f101::cad::Asset& Asset) { Asset.model.againstWall = State == ECheckBoxState::Checked; });
+				})
+				[
+					SNew(STextBlock).Text(LOCTEXT("ModelAgainstWall", "Se apoya en los muros")).Font(Font(10))
+				]
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				SNew(STextBlock)
+				.Font(Font(9))
+				.ColorAndOpacity(MutedColor)
+				.AutoWrapText(true)
+				.Text_Lambda([Model]()
+				{
+					const f101::cad::Asset* A = Model();
+					if (!A)
+					{
+						return FText::GetEmpty();
+					}
+					FNumberFormattingOptions Centimetres;
+					Centimetres.SetMaximumFractionalDigits(1);
+					return FText::Format(LOCTEXT("ModelInfo", "Tamaño {0} × {1} × {2} cm · {3} triángulos"),
+						FText::AsNumber(A->model.widthMm / 10.0, &Centimetres), FText::AsNumber(A->model.depthMm / 10.0, &Centimetres),
+						FText::AsNumber(A->model.heightMm / 10.0, &Centimetres), FText::AsNumber(A->model.triangles));
+				})
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				SNew(STextBlock)
+				.Font(Font(9))
+				.ColorAndOpacity(ErrorColor)
+				.AutoWrapText(true)
+				.Text_Lambda([this, Model]()
+				{
+					const f101::cad::Asset* A = Model();
+					const UFloor101DocumentSubsystem* S = Document.Get();
+					const FString Problem = A && S ? S->GetAssetProblem(A->id) : FString();
+					return Problem.IsEmpty() ? FText::GetEmpty()
+						: FText::Format(LOCTEXT("ModelProblem", "No se puede mostrar ({0}); se ve como una caja"), FText::FromString(Problem));
+				})
+			]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SNew(SButton)
+				.IsFocusable(false)
+				.ToolTipText(LOCTEXT("RemoveModelTip", "Quita el modelo del proyecto si ningún mueble lo usa (se puede deshacer)"))
+				.OnClicked_Lambda([this, Model]()
+				{
+					const f101::cad::Asset* Current = Model();
+					UFloor101DocumentSubsystem* Subsystem = Document.Get();
+					if (Current && Subsystem && Subsystem->RemoveAsset(Current->id).ok())
+					{
+						(void)Run([](EditController& Editor) { return Editor.setFurnitureType("sofa"); });
+					}
+					FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					return FReply::Handled();
+				})
+				[
+					SNew(STextBlock).Text(LOCTEXT("RemoveModel", "Eliminar modelo")).Font(Font(9))
+				]
 			]
 		];
 }

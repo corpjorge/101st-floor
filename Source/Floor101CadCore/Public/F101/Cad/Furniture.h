@@ -60,12 +60,16 @@ namespace f101::cad
 
 	// A piece of `type` with its default size at a place (id and level unset).
 	FLOOR101CADCORE_API Furniture makeFurniture(std::string_view type, Point2D position, std::int64_t rotationCentidegrees = 0);
+	// A piece of a type described by `spec` (catalogue or imported model, furnitureSpec) with its default size.
+	FLOOR101CADCORE_API Furniture makeFurniture(const FurnitureType& spec, Point2D position,
+		std::int64_t rotationCentidegrees = 0);
 
 	// The finish its main parts show: its own, else its type's.
 	FLOOR101CADCORE_API std::string_view resolveFurnitureFinish(const Furniture& furniture);
 
 	// A known type, dimensions inside the type's ranges, a rotation in [0, 36000), a position in the model range and a
-	// finish for furniture. Its identity and level are checked with the project.
+	// finish for furniture. An imported model ("asset:<uuid>", ADR-0017) takes MinModelSizeMm to MaxModelSizeMm on each
+	// axis. Its identity, level and asset are checked with the project (validateFurnitureIn).
 	FLOOR101CADCORE_API Status validateFurniture(const Furniture& furniture);
 
 	// Whole hundredths of a degree in [0, 36000) for any angle in degrees.

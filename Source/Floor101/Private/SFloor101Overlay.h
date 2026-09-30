@@ -6,7 +6,9 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SVerticalBox;
 class UFloor101DocumentSubsystem;
+struct FSlateBrush;
 struct FFloor101RoomView;
 class UFloor101GameViewportClient;
 
@@ -43,6 +45,26 @@ private:
 	// Furniture (ADR-0016): the selected piece (sizes, rotation, finish) and the catalogue of the Furniture mode.
 	TSharedRef<SWidget> MakeFurnitureSection();
 	TSharedRef<SWidget> MakeFurniturePalette();
+	// Imported assets (ADR-0017): the project's textures in Pintar and models in Amueblar (rebuilt when the library
+	// changes), the buttons that import them, and the settings of the one in use.
+	TSharedRef<SWidget> MakeImportedTextures();
+	TSharedRef<SWidget> MakeImportedModels();
+	void RebuildImportedLists();
+	// Opens the system's file dialog and imports the chosen texture or model, then uses it (Pintar or Amueblar).
+	void ImportFromDialog(bool bModel);
+	// A row with a label and a text box: `Apply` gets what is typed (Enter or leaving the box).
+	TSharedRef<SWidget> MakeEditRow(const FText& Label, TFunction<FText()> Current, TFunction<void(const FString&)> Apply);
+	// The swatch of a finish: its colour, or the image of an imported texture.
+	TSharedRef<SWidget> MakeSwatch(const std::string& FinishId, float Size);
+	// The image an imported texture shows now (its brush follows it), or a grey swatch while it has none.
+	const FSlateBrush* GetAssetBrush(const FString& FinishId);
+	// The project being edited, or null.
+	const f101::cad::Project* CurrentProject() const;
+	// The imported texture Pintar applies, and the imported model Amueblar places; null when it is a catalogue one.
+	const f101::cad::Asset* GetPaintAsset() const;
+	const f101::cad::Asset* GetFurnitureAsset() const;
+	// Changes an asset through the subsystem (one undoable step) and gives the keyboard back to the viewport.
+	void ChangeAsset(const f101::cad::Asset& Asset);
 	TSharedRef<SWidget> MakePropertiesPanel();
 	// A length property: the value shown (mm, unset = nothing selected) and the controller call that sets it.
 	TSharedRef<SWidget> MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter);
@@ -75,8 +97,15 @@ private:
 	TWeakObjectPtr<UFloor101GameViewportClient> ViewportClient;
 	FString PathText;
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
-	// Finish ids each surface allows, for the drop-downs (kept alive for SComboBox).
-	TMap<uint8, TArray<TSharedPtr<FString>>> FinishOptions;
+	// Finish ids each surface allows, for the drop-downs (on the heap: SComboBox keeps a pointer to the list).
+	TMap<uint8, TSharedPtr<TArray<TSharedPtr<FString>>>> FinishOptions;
+	// Imported assets (ADR-0017).
+	TSharedPtr<SVerticalBox> ImportedTextureList;
+	TSharedPtr<SVerticalBox> ImportedModelList;
+	FString ImportedSignature; // ids and names of the assets the lists show
+	TMap<FString, TSharedPtr<FSlateBrush>> AssetBrushes;
+	TSharedPtr<FSlateBrush> NoImageBrush;
+	TArray<TSharedPtr<f101::cad::ModelUnit>> ModelUnits;
 	// The types a door and a window can have, for their drop-downs.
 	TArray<TSharedPtr<f101::cad::OpeningOperation>> DoorOperations;
 	TArray<TSharedPtr<f101::cad::OpeningOperation>> WindowOperations;

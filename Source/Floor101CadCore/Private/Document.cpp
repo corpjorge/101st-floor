@@ -32,6 +32,31 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "No furniture with id " + toString(id)};
 		}
 
+		Error assetNotFound(const AssetId& id)
+		{
+			return Error{ErrorCode::NotFound, "No asset with id " + toString(id)};
+		}
+
+		// The imported textures a wall uses exist and allow its faces and its openings' carpentry (ADR-0017).
+		Status validateWallFinishesIn(const Project& project, const Wall& wall)
+		{
+			for (const FinishId* face : {&wall.finishLeft, &wall.finishRight})
+			{
+				if (Status valid = validateFinishIn(project, *face, Surface::Wall); !valid)
+				{
+					return valid;
+				}
+			}
+			for (const Opening& opening : wall.openings)
+			{
+				if (Status valid = validateFinishIn(project, opening.finish, Surface::Carpentry); !valid)
+				{
+					return valid;
+				}
+			}
+			return Status::success();
+		}
+
 		// A command's level: the named one, or the first level when nil.
 		Result<LevelId> resolveLevel(const Project& project, const LevelId& level)
 		{
@@ -58,6 +83,7 @@ namespace f101::cad
 		const LevelId& keyOf(const Level& level) { return level.id; }
 		const std::string& keyOf(const RoomFinish& finish) { return finish.room; }
 		const FurnitureId& keyOf(const Furniture& furniture) { return furniture.id; }
+		const AssetId& keyOf(const Asset& asset) { return asset.id; }
 
 		template <typename Entity, typename Id>
 		std::optional<std::size_t> findIndex(const std::vector<Entity>& entities, const Id& id)
@@ -138,6 +164,7 @@ namespace f101::cad
 			}
 			sortChanges(transaction.furniture, forward, changes.addedFurniture, changes.modifiedFurniture,
 				changes.removedFurniture);
+			sortChanges(transaction.assets, forward, changes.addedAssets, changes.modifiedAssets, changes.removedAssets);
 			return changes;
 		}
 
@@ -204,6 +231,9 @@ namespace f101::cad
 			std::string_view operator()(const AddFurnitureCommand&) const { return "Add furniture"; }
 			std::string_view operator()(const ChangeFurnitureCommand&) const { return "Change furniture"; }
 			std::string_view operator()(const DeleteFurnitureCommand&) const { return "Delete furniture"; }
+			std::string_view operator()(const AddAssetCommand&) const { return "Import asset"; }
+			std::string_view operator()(const ChangeAssetCommand&) const { return "Change asset"; }
+			std::string_view operator()(const DeleteAssetCommand&) const { return "Delete asset"; }
 		};
 	}
 
@@ -236,6 +266,18 @@ namespace f101::cad
 				return Error{ErrorCode::OutOfRange, "The levels are taller than the model range"};
 			}
 		}
+		std::set<AssetId> assetIds;
+		for (const Asset& asset : project.assets)
+		{
+			if (Status valid = validateAsset(asset); !valid)
+			{
+				return valid;
+			}
+			if (!assetIds.insert(asset.id).second)
+			{
+				return Error{ErrorCode::InvalidArgument, "Duplicate asset id " + toString(asset.id)};
+			}
+		}
 
 		std::set<WallId> ids;
 		std::set<OpeningId> openingIds;
@@ -248,6 +290,10 @@ namespace f101::cad
 			if (!project.findLevel(wall.level))
 			{
 				return Error{ErrorCode::InvalidArgument, "Wall " + toString(wall.id) + " is not on a level of the project"};
+			}
+			if (Status valid = validateWallFinishesIn(project, wall); !valid)
+			{
+				return valid;
 			}
 			if (!ids.insert(wall.id).second)
 			{
@@ -268,11 +314,11 @@ namespace f101::cad
 			{
 				return Error{ErrorCode::InvalidArgument, "Room finishes need a unique room key"};
 			}
-			if (Status valid = validateFinish(finish.floor, Surface::Floor); !valid)
+			if (Status valid = validateFinishIn(project, finish.floor, Surface::Floor); !valid)
 			{
 				return valid;
 			}
-			if (Status valid = validateFinish(finish.ceiling, Surface::Ceiling); !valid)
+			if (Status valid = validateFinishIn(project, finish.ceiling, Surface::Ceiling); !valid)
 			{
 				return valid;
 			}
@@ -280,7 +326,7 @@ namespace f101::cad
 		std::set<FurnitureId> furnitureIds;
 		for (const Furniture& piece : project.furniture)
 		{
-			if (Status valid = validateFurniture(piece); !valid)
+			if (Status valid = validateFurnitureIn(project, piece); !valid)
 			{
 				return valid;
 			}
@@ -395,6 +441,10 @@ namespace f101::cad
 		}
 		if (const auto* add = std::get_if<AddOpeningCommand>(&command))
 		{
+			if (Status valid = validateFinishIn(model, add->opening.finish, Surface::Carpentry); !valid)
+			{
+				return valid.error();
+			}
 			Opening opening = add->opening;
 			opening.id = OpeningId{newUuid()};
 			Result<Transaction> added = modifyWall(model, add->wall, label, [&opening](Wall& wall)
@@ -414,6 +464,10 @@ namespace f101::cad
 		}
 		if (const auto* change = std::get_if<ChangeOpeningCommand>(&command))
 		{
+			if (Status valid = validateFinishIn(model, change->opening.finish, Surface::Carpentry); !valid)
+			{
+				return valid.error();
+			}
 			Result<Transaction> changed = modifyWall(model, change->wall, label, [change](Wall& wall) -> Status
 			{
 				for (Opening& opening : wall.openings)
@@ -549,7 +603,7 @@ namespace f101::cad
 				return level.error();
 			}
 			piece.level = level.value();
-			if (Status valid = validateFurniture(piece); !valid)
+			if (Status valid = validateFurnitureIn(model, piece); !valid)
 			{
 				return valid.error();
 			}
@@ -572,7 +626,7 @@ namespace f101::cad
 				return level.error();
 			}
 			piece.level = level.value();
-			if (Status valid = validateFurniture(piece); !valid)
+			if (Status valid = validateFurnitureIn(model, piece); !valid)
 			{
 				return valid.error();
 			}
@@ -595,8 +649,71 @@ namespace f101::cad
 				FurnitureChange{removal->furniture, *index, model.furniture[*index], std::nullopt});
 			return transaction;
 		}
+		if (const auto* add = std::get_if<AddAssetCommand>(&command))
+		{
+			if (Status valid = validateAsset(add->asset); !valid)
+			{
+				return valid.error();
+			}
+			if (model.findAsset(add->asset.id))
+			{
+				return Error{ErrorCode::InvalidArgument, "Duplicate asset id " + toString(add->asset.id)};
+			}
+			Transaction transaction{label, {}, {}, {}};
+			transaction.assets.push_back(AssetChange{add->asset.id, model.assets.size(), std::nullopt, add->asset});
+			return transaction;
+		}
+		if (const auto* change = std::get_if<ChangeAssetCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.assets, change->asset.id);
+			if (!index)
+			{
+				return assetNotFound(change->asset.id);
+			}
+			const Asset& before = model.assets[*index];
+			if (change->asset.kind != before.kind || change->asset.file != before.file)
+			{
+				return Error{ErrorCode::InvalidArgument, "An asset keeps its kind and its file"};
+			}
+			if (Status valid = validateAsset(change->asset); !valid)
+			{
+				return valid.error();
+			}
+			Project after = model;
+			after.assets[*index] = change->asset;
+			if (Status valid = validateProject(after); !valid)
+			{
+				return valid.error(); // e.g. a texture no longer allowed on a surface it is used on
+			}
+			Transaction transaction{label, {}, {}, {}};
+			if (!(change->asset == before))
+			{
+				transaction.assets.push_back(AssetChange{before.id, *index, before, change->asset});
+			}
+			return transaction;
+		}
+		if (const auto* removal = std::get_if<DeleteAssetCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.assets, removal->asset);
+			if (!index)
+			{
+				return assetNotFound(removal->asset);
+			}
+			if (const std::size_t uses = assetUses(model, removal->asset); uses > 0)
+			{
+				return Error{ErrorCode::InvalidArgument, "'" + model.assets[*index].name + "' is in use (" + std::to_string(uses) +
+					(uses == 1 ? " surface or piece of furniture)" : " surfaces or pieces of furniture)")};
+			}
+			Transaction transaction{label, {}, {}, {}};
+			transaction.assets.push_back(AssetChange{removal->asset, *index, model.assets[*index], std::nullopt});
+			return transaction;
+		}
 		if (const auto* finish = std::get_if<SetWallFinishCommand>(&command))
 		{
+			if (Status valid = validateFinishIn(model, finish->finish, Surface::Wall); !valid)
+			{
+				return valid.error();
+			}
 			return modifyWall(model, finish->wall, label, [finish](Wall& wall)
 			{
 				wall.finish(finish->side) = finish->finish;
@@ -609,11 +726,11 @@ namespace f101::cad
 			{
 				return Error{ErrorCode::InvalidArgument, "No room"};
 			}
-			if (Status valid = validateFinish(roomFinish->floor, Surface::Floor); !valid)
+			if (Status valid = validateFinishIn(model, roomFinish->floor, Surface::Floor); !valid)
 			{
 				return valid.error();
 			}
-			if (Status valid = validateFinish(roomFinish->ceiling, Surface::Ceiling); !valid)
+			if (Status valid = validateFinishIn(model, roomFinish->ceiling, Surface::Ceiling); !valid)
 			{
 				return valid.error();
 			}
@@ -744,6 +861,14 @@ namespace f101::cad
 		{
 			changes.addedFurniture.push_back(piece.id);
 		}
+		for (const Asset& asset : model.assets)
+		{
+			changes.removedAssets.push_back(asset.id);
+		}
+		for (const Asset& asset : replacement.assets)
+		{
+			changes.addedAssets.push_back(asset.id);
+		}
 		model = std::move(replacement);
 		undoStack.clear();
 		redoStack.clear();
@@ -816,8 +941,9 @@ namespace f101::cad
 
 	void Document::apply(const Transaction& transaction, bool forward)
 	{
-		// Levels first: walls and furniture being restored refer to them.
+		// Levels and assets first: walls, finishes and furniture being restored refer to them.
 		applyChanges(model.levels, transaction.levels, forward);
+		applyChanges(model.assets, transaction.assets, forward); // before what uses them
 		applyChanges(model.walls, transaction.walls, forward);
 		applyChanges(model.roomFinishes, transaction.roomFinishes, forward);
 		applyChanges(model.furniture, transaction.furniture, forward);

@@ -7,6 +7,8 @@
 #include <fstream>
 #include <iterator>
 #include <system_error>
+#include <tuple>
+#include <utility>
 
 // Third-party header: its warnings are not ours. Exceptions are disabled, so nlohmann/json turns throws into abort();
 // this file only uses the non-throwing parse and checks every type before reading a value.
@@ -331,6 +333,159 @@ namespace f101::cad
 			return furniture;
 		}
 
+		constexpr std::pair<Surface, const char*> SurfaceNames[] = {{Surface::Wall, "walls"}, {Surface::Floor, "floors"},
+			{Surface::Ceiling, "ceilings"}, {Surface::Carpentry, "carpentry"}, {Surface::Furniture, "furniture"}};
+		constexpr std::pair<ModelUnit, const char*> UnitNames[] = {{ModelUnit::Meter, "m"}, {ModelUnit::Centimeter, "cm"},
+			{ModelUnit::Millimeter, "mm"}, {ModelUnit::Inch, "in"}};
+
+		// An integer field within [low, high]; `out` keeps its value when the field is missing.
+		Status readInteger(const Json& object, const char* key, const std::string& where, std::int64_t low, std::int64_t high,
+			std::int64_t& out)
+		{
+			const auto field = object.find(key);
+			if (field == object.end())
+			{
+				return Status::success();
+			}
+			if (!field->is_number_integer() || field->get<std::int64_t>() < low || field->get<std::int64_t>() > high)
+			{
+				return formatError(where + "." + key + " must be an integer from " + std::to_string(low) + " to " +
+					std::to_string(high));
+			}
+			out = field->get<std::int64_t>();
+			return Status::success();
+		}
+
+		// Schema 8 (ADR-0017). Paths, ranges and ids are checked by validateProject.
+		Result<Asset> readAsset(const Json& object, std::size_t index)
+		{
+			const std::string where = "assets[" + std::to_string(index) + "]";
+			if (!object.is_object())
+			{
+				return formatError(where + " must be an object");
+			}
+			const Result<Uuid> uuid = readUuidField(object, "id", where);
+			if (!uuid)
+			{
+				return uuid.error();
+			}
+			Asset asset;
+			asset.id = AssetId{uuid.value()};
+			const auto kind = object.find("kind");
+			if (kind == object.end() || !kind->is_string() || (*kind != "texture" && *kind != "model"))
+			{
+				return formatError(where + ".kind must be \"texture\" or \"model\"");
+			}
+			asset.kind = *kind == "texture" ? AssetKind::Texture : AssetKind::Model;
+			for (const auto& [key, target] : {std::pair<const char*, std::string*>{"name", &asset.name}, {"file", &asset.file}})
+			{
+				if (Status read = readOptionalString(object, key, where, *target); !read)
+				{
+					return read.error();
+				}
+			}
+			if (asset.kind == AssetKind::Texture)
+			{
+				const auto texture = object.find("texture");
+				if (texture == object.end() || !texture->is_object())
+				{
+					return formatError(where + ".texture must be an object");
+				}
+				const std::string at = where + ".texture";
+				std::int64_t roughness = asset.texture.roughnessPercent;
+				std::int64_t pixelWidth = 0;
+				std::int64_t pixelHeight = 0;
+				for (const auto& [key, target] : {std::pair<const char*, std::int64_t*>{"widthMm", &asset.texture.widthMm},
+						 {"heightMm", &asset.texture.heightMm}})
+				{
+					const Result<std::int64_t> value = readMillimetersField(*texture, key, at);
+					if (!value)
+					{
+						return value.error();
+					}
+					*target = value.value();
+				}
+				using Bounded = std::tuple<const char*, std::int64_t*, std::int64_t>;
+				for (const auto& [key, target, high] : {Bounded{"roughnessPercent", &roughness, 100},
+						 Bounded{"pixelWidth", &pixelWidth, 1 << 20}, Bounded{"pixelHeight", &pixelHeight, 1 << 20}})
+				{
+					if (Status read = readInteger(*texture, key, at, 0, high, *target); !read)
+					{
+						return read.error();
+					}
+				}
+				asset.texture.roughnessPercent = static_cast<int>(roughness);
+				asset.texture.pixelWidth = static_cast<int>(pixelWidth);
+				asset.texture.pixelHeight = static_cast<int>(pixelHeight);
+				const auto surfaces = texture->find("surfaces");
+				if (surfaces == texture->end() || !surfaces->is_array())
+				{
+					return formatError(at + ".surfaces must be an array");
+				}
+				asset.texture.surfaces = 0;
+				for (const Json& name : *surfaces)
+				{
+					const auto known = std::find_if(std::begin(SurfaceNames), std::end(SurfaceNames),
+						[&name](const auto& entry) { return name.is_string() && name == entry.second; });
+					if (known == std::end(SurfaceNames))
+					{
+						return formatError(at + ".surfaces: \"walls\", \"floors\", \"ceilings\", \"carpentry\" or \"furniture\"");
+					}
+					asset.texture.surfaces |= static_cast<std::uint8_t>(known->first);
+				}
+				return asset;
+			}
+			const auto model = object.find("model");
+			if (model == object.end() || !model->is_object())
+			{
+				return formatError(where + ".model must be an object");
+			}
+			const std::string at = where + ".model";
+			const auto unit = model->find("unit");
+			const auto knownUnit = std::find_if(std::begin(UnitNames), std::end(UnitNames),
+				[&unit, &model](const auto& entry) { return unit != model->end() && unit->is_string() && *unit == entry.second; });
+			if (knownUnit == std::end(UnitNames))
+			{
+				return formatError(at + ".unit must be \"m\", \"cm\", \"mm\" or \"in\"");
+			}
+			asset.model.unit = knownUnit->first;
+			const auto up = model->find("up");
+			if (up == model->end() || !up->is_string() || (*up != "y" && *up != "z"))
+			{
+				return formatError(at + ".up must be \"y\" or \"z\"");
+			}
+			asset.model.up = *up == "y" ? ModelUpAxis::Y : ModelUpAxis::Z;
+			std::int64_t turns = 0;
+			if (Status read = readInteger(*model, "frontQuarterTurns", at, 0, 3, turns); !read)
+			{
+				return read.error();
+			}
+			asset.model.frontQuarterTurns = static_cast<int>(turns);
+			if (const auto against = model->find("againstWall"); against != model->end())
+			{
+				if (!against->is_boolean())
+				{
+					return formatError(at + ".againstWall must be true or false");
+				}
+				asset.model.againstWall = against->get<bool>();
+			}
+			for (const auto& [key, target] : {std::pair<const char*, std::int64_t*>{"widthMm", &asset.model.widthMm},
+					 {"depthMm", &asset.model.depthMm}, {"heightMm", &asset.model.heightMm}})
+			{
+				const Result<std::int64_t> value = readMillimetersField(*model, key, at);
+				if (!value)
+				{
+					return value.error();
+				}
+				*target = value.value();
+			}
+			if (Status read = readInteger(*model, "triangles", at, 0, MaxAbsMillimeters, asset.model.triangles); !read)
+			{
+				return read.error();
+			}
+			return asset;
+		}
+
 		// `withLevel`: schema 3, where every wall names its level.
 		Result<Wall> readWall(const Json& object, std::size_t index, bool withLevel)
 		{
@@ -524,6 +679,58 @@ namespace f101::cad
 			}
 			root["furniture"] = std::move(furniture);
 		}
+		if (!project.assets.empty())
+		{
+			Json assets = Json::array();
+			for (const Asset& asset : project.assets)
+			{
+				Json item = Json::object();
+				item["id"] = toString(asset.id);
+				item["kind"] = asset.kind == AssetKind::Texture ? "texture" : "model";
+				item["name"] = asset.name;
+				item["file"] = asset.file;
+				if (asset.kind == AssetKind::Texture)
+				{
+					Json texture = Json::object();
+					texture["widthMm"] = asset.texture.widthMm;
+					texture["heightMm"] = asset.texture.heightMm;
+					texture["roughnessPercent"] = asset.texture.roughnessPercent;
+					Json surfaces = Json::array();
+					for (const auto& [surface, name] : SurfaceNames)
+					{
+						if ((asset.texture.surfaces & static_cast<std::uint8_t>(surface)) != 0)
+						{
+							surfaces.push_back(name);
+						}
+					}
+					texture["surfaces"] = std::move(surfaces);
+					texture["pixelWidth"] = asset.texture.pixelWidth;
+					texture["pixelHeight"] = asset.texture.pixelHeight;
+					item["texture"] = std::move(texture);
+				}
+				else
+				{
+					Json model = Json::object();
+					for (const auto& [unit, name] : UnitNames)
+					{
+						if (unit == asset.model.unit)
+						{
+							model["unit"] = name;
+						}
+					}
+					model["up"] = asset.model.up == ModelUpAxis::Y ? "y" : "z";
+					model["frontQuarterTurns"] = asset.model.frontQuarterTurns;
+					model["againstWall"] = asset.model.againstWall;
+					model["widthMm"] = asset.model.widthMm;
+					model["depthMm"] = asset.model.depthMm;
+					model["heightMm"] = asset.model.heightMm;
+					model["triangles"] = asset.model.triangles;
+					item["model"] = std::move(model);
+				}
+				assets.push_back(std::move(item));
+			}
+			root["assets"] = std::move(assets);
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -612,6 +819,22 @@ namespace f101::cad
 					return finish.error();
 				}
 				project.roomFinishes.push_back(std::move(finish).value());
+			}
+		}
+		if (const auto assets = root.find("assets"); assets != root.end()) // schema 8
+		{
+			if (!assets->is_array())
+			{
+				return formatError("assets must be an array");
+			}
+			for (std::size_t index = 0; index < assets->size(); ++index)
+			{
+				Result<Asset> asset = readAsset((*assets)[index], index);
+				if (!asset)
+				{
+					return asset.error();
+				}
+				project.assets.push_back(std::move(asset).value());
 			}
 		}
 		if (const auto furniture = root.find("furniture"); furniture != root.end()) // schema 7

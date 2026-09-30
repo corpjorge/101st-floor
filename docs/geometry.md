@@ -50,13 +50,18 @@ Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se rege
   ducha (con desagüe); más los contornos que el plano dibuja dentro (almohadas, edredón, cubetas, fuegos...). Ranuras:
   `body` (el acabado del mueble), `linen`, `fabric`, `ceramic`, `metal`, `stone`, `dark`, con `furnitureSlotFinish`.
   `buildFurnitureMesh` gira y coloca las cajas con su marco sobre el suelo de la habitación (z = `FloorThicknessMm`).
+- **Modelos importados** (`ModelMesh.h`, ADR-0017): `ModelMesh` es la malla de un modelo ya normalizada al marco del
+  mueble (mm, z desde 0, centrada en su huella; una sección `m<i>` por material, `modelSectionName`/`modelMaterialIndex`)
+  con su tamaño. `buildModelFurnitureMesh(furniture, model)` la estira por eje a ancho, fondo y alto del mueble (normales
+  por la inversa traspuesta), la gira y la coloca como un mueble; `buildPlaceholderFurnitureMesh` es una caja de sus
+  medidas (sección `body`) cuando el modelo no se puede leer.
 
 Tests: `WallGeometryTests.cpp` (bounds exactos de 3550 × 120 × 2400 mm, normales hacia fuera, orden de triángulos, lado
 izquierdo, espesor en diagonal, regeneración sin escalar; puerta: 36 triángulos, áreas por sección y volumen encerrado
 exactos; puerta y ventana juntas), `WallJoinTests.cpp`, `PolygonGeometryTests.cpp`, `RoomTests.cpp` (casos en
 ADR-0009), `CarpentryTests.cpp` (mallas de carpintería, tramos de unión, recorte en un inglete) y `OpeningTypeTests.cpp`
-(hojas giradas y desplazadas por tipo, símbolos) y `FurnitureTests.cpp` (cajas de los 12 tipos a medidas mínimas, por
-defecto y máximas; malla girada; acabados por ranura).
+(hojas giradas y desplazadas por tipo, símbolos), `FurnitureTests.cpp` (cajas de los 12 tipos a medidas mínimas, por
+defecto y máximas; malla girada; acabados por ranura) y `AssetTests.cpp` (modelo estirado, girado y apoyado, normales).
 
 Todo es local a una planta: la escena resuelve uniones y habitaciones planta a planta y sube la geometría a su cota.
 

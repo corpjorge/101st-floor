@@ -5,6 +5,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Engine/Engine.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "F101/Cad/Document.h"
@@ -685,13 +686,141 @@ bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Furniture"), TEXT("project.json")));
 	TestTrue(TEXT("saved"), Document->SaveProject(Path).ok());
 	FString Json;
-	TestTrue(TEXT("schema 7 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 7")) &&
+	TestTrue(TEXT("schema 8 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 8")) &&
 		Json.Contains(TEXT("\"type\": \"sofa\"")));
 	TestTrue(TEXT("removed before opening"), Document->GetMutableDocument().execute(f101::cad::DeleteFurnitureCommand{Sofa}).ok());
 	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
 	TestTrue(TEXT("the sofa is back from the file"), Document->GetDocument().project().findFurniture(Sofa) != nullptr);
 	TestNotNull(TEXT("with its actor"), FindNode(TestWorld.World, NodeId));
 	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Path), false, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101AssetsInteractionTest, "Floor101.Interaction.Assets", TestFlags)
+bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("document subsystem"), Document) || !TestNotNull(TEXT("finish library"), Library))
+	{
+		return false;
+	}
+	// The project lives in a test folder: its imported assets go next to it (ADR-0017).
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Assets"), TEXT("casa ñ")));
+	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Folder), false, true);
+	TestTrue(TEXT("saved"), Document->SaveProject(FPaths::Combine(Folder, TEXT("project.json"))).ok());
+	const FString Data = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Tests/Data/Assets")));
+	const f101::cad::WallId Wall = Document->GetMutableDocument().addWall({0, 0}, {6000, 0}, 120, 2800).value();
+
+	// A texture: imported, painted on a wall face; the wall shows it through a material with the decoded image.
+	const f101::Result<f101::cad::AssetId> Parquet = Document->ImportAsset(FPaths::Combine(Data, TEXT("parquet.png")));
+	if (!TestTrue(TEXT("texture imported"), Parquet.ok()))
+	{
+		return false;
+	}
+	const f101::cad::Asset* Texture = Document->GetDocument().project().findAsset(Parquet.value());
+	const FString TextureFile = Texture ? UTF8_TO_TCHAR(Texture->file.c_str()) : FString(); // the list grows below
+	TestTrue(TEXT("its file in the project"), Texture && FPaths::FileExists(Document->GetAssetFilePath(*Texture)));
+	TestTrue(TEXT("the status says so"), Document->GetStatusMessage().ToString().Contains(TEXT("Importado: parquet")));
+	const std::string ParquetRef = f101::cad::assetRef(Parquet.value());
+	TestTrue(TEXT("paint with it"), Document->Edit([&ParquetRef](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Paint);
+		return Editor.setPaintFinish(ParquetRef);
+	}).ok());
+	TestTrue(TEXT("paint the wall"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(2000.0, 30.0)); }).ok());
+	const FString ParquetId = UTF8_TO_TCHAR(ParquetRef.c_str());
+	const AFloor101SceneNodeActor* WallActor = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Wall));
+	if (TestNotNull(TEXT("wall actor"), WallActor))
+	{
+		TestTrue(TEXT("the wall shows the texture"), WallActor->GetDisplayMaterial() == Library->GetFinishMaterial(ParquetId));
+	}
+	const UTexture2D* ParquetTexture = Library->FindFinishTexture(ParquetId);
+	if (TestNotNull(TEXT("the image decoded"), ParquetTexture))
+	{
+		TestEqual(TEXT("256 px"), ParquetTexture->GetSizeX(), 256);
+		TestFalse(TEXT("not missing"), Library->IsAssetImageMissing(ParquetId));
+	}
+
+	// A GLB model: placed with the mouse in Furniture mode, at its size, with its own materials.
+	const f101::Result<f101::cad::AssetId> Armchair = Document->ImportAsset(FPaths::Combine(Data, TEXT("armchair.glb")));
+	if (!TestTrue(TEXT("model imported"), Armchair.ok()))
+	{
+		return false;
+	}
+	const std::string ArmchairRef = f101::cad::assetRef(Armchair.value());
+	TestTrue(TEXT("furniture mode with it"), Document->Edit([&ArmchairRef](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Furniture);
+		return Editor.setFurnitureType(ArmchairRef);
+	}).ok());
+	Document->UpdatePointer(Down(3000.0, 2000.0));
+	TestNotNull(TEXT("previewed"), FindNode(TestWorld.World, TEXT("preview/furniture/0")));
+	TestTrue(TEXT("placed"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(3000.0, 2000.0)); }).ok());
+	const f101::cad::Furniture Piece = Document->GetDocument().project().furniture.back(); // a copy: more are added
+	TestTrue(TEXT("of the model"), Piece.type == ArmchairRef);
+	const AFloor101SceneNodeActor* ChairActor = Cast<AFloor101SceneNodeActor>(Document->FindFurnitureActor(Piece.id));
+	if (TestNotNull(TEXT("its actor"), ChairActor))
+	{
+		const FVector Size = ChairActor->GetMeshBounds().GetSize();
+		TestEqual(TEXT("80 x 75 x 90 cm"), Size, FVector(80.0, 75.0, 90.0), 0.05f);
+		TestTrue(TEXT("a model material"), ChairActor->GetDisplayMaterial() ==
+			Library->GetFinishMaterial(UTF8_TO_TCHAR(f101::cad::modelMaterialFinish(Armchair.value(), 0).c_str())));
+	}
+	TestTrue(TEXT("its packed texture written out"), FPaths::FileExists(FPaths::Combine(Folder, TEXT("assets"),
+		UTF8_TO_TCHAR(f101::cad::toString(Armchair.value()).c_str()), TEXT("embedded_0.png"))) ||
+		FPaths::FileExists(FPaths::Combine(Folder, TEXT("assets"), UTF8_TO_TCHAR(f101::cad::toString(Armchair.value()).c_str()), TEXT("embedded_1.png"))));
+
+	// An OBJ with its MTL and texture: every textured material finds its image.
+	const f101::Result<f101::cad::AssetId> Lamp = Document->ImportAsset(FPaths::Combine(Data, TEXT("lamp.obj")));
+	if (TestTrue(TEXT("OBJ imported"), Lamp.ok()))
+	{
+		TestTrue(TEXT("its shade texture came along"), FPaths::FileExists(FPaths::Combine(Folder, TEXT("assets"),
+			UTF8_TO_TCHAR(f101::cad::toString(Lamp.value()).c_str()), TEXT("lamp_shade.png"))));
+		TestTrue(TEXT("place it"), Document->Edit([&Lamp](EditController& Editor)
+		{
+			return Editor.setFurnitureType(f101::cad::assetRef(Lamp.value()));
+		}).ok());
+		TestTrue(TEXT("placed"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(1000.0, 2000.0)); }).ok());
+		bool bTextured = false;
+		for (int32 Material = 0; Material < 2; ++Material)
+		{
+			const FString Finish = UTF8_TO_TCHAR(f101::cad::modelMaterialFinish(Lamp.value(), static_cast<std::size_t>(Material)).c_str());
+			const UTexture2D* Image = Library->GetFinishMaterial(Finish) ? Library->FindFinishTexture(Finish) : nullptr;
+			bTextured = bTextured || (Image && Image->GetSizeX() == 128 && !Library->IsAssetImageMissing(Finish));
+		}
+		TestTrue(TEXT("the shade shows its striped image"), bTextured);
+	}
+
+	// Saved somewhere else, the assets go with it; the file refers to them relative to its folder.
+	const FString Moved = FPaths::Combine(FPaths::GetPath(Folder), TEXT("copia"));
+	TestTrue(TEXT("saved elsewhere"), Document->SaveProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
+	TestTrue(TEXT("the texture went along"), !TextureFile.IsEmpty() && FPaths::FileExists(FPaths::Combine(Moved, TextureFile)));
+	FString Json;
+	TestTrue(TEXT("schema 8 with its assets"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Moved, TEXT("project.json"))) &&
+		Json.Contains(TEXT("\"schemaVersion\": 8")) && Json.Contains(TEXT("\"file\": \"assets/")));
+	TestTrue(TEXT("opened again"), Document->OpenProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
+	TestEqual(TEXT("three assets"), static_cast<int32>(Document->GetDocument().project().assets.size()), 3);
+	TestTrue(TEXT("the model still shows"), Document->GetAssetProblem(Armchair.value()).IsEmpty() &&
+		FindNode(TestWorld.World, UTF8_TO_TCHAR(f101::scene::furnitureNodeId(Piece.id).value.c_str())) != nullptr);
+
+	// Opened from a project whose folder lacks those files: they are read from the folder of the project opened.
+	const FString Empty = FPaths::Combine(FPaths::GetPath(Folder), TEXT("sin assets"));
+	IFileManager::Get().MakeDirectory(*Empty, true);
+	TestTrue(TEXT("the first save has no assets"), IFileManager::Get().Copy(*FPaths::Combine(Empty, TEXT("project.json")),
+		*FPaths::Combine(Folder, TEXT("project.json"))) == COPY_OK);
+	TestTrue(TEXT("opened"), Document->OpenProject(FPaths::Combine(Empty, TEXT("project.json"))).ok());
+	TestTrue(TEXT("the copy opened"), Document->OpenProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
+	TestFalse(TEXT("its image found"), Library->IsAssetImageMissing(ParquetId));
+	const UTexture2D* Swatch = Library->GetAssetFinishImage(ParquetId);
+	TestTrue(TEXT("the swatch shows the image"), Swatch && Swatch->GetSizeX() == 256);
+	if (const AFloor101SceneNodeActor* Reopened = Cast<AFloor101SceneNodeActor>(Document->FindFurnitureActor(Piece.id)))
+	{
+		TestTrue(TEXT("the model, not its placeholder"), Reopened->GetDisplayMaterial() ==
+			Library->GetFinishMaterial(UTF8_TO_TCHAR(f101::cad::modelMaterialFinish(Armchair.value(), 0).c_str())));
+	}
+	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Folder), false, true);
 	return true;
 }
 

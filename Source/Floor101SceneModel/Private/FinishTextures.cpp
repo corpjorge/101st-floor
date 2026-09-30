@@ -188,6 +188,72 @@ namespace f101::scene
 		}
 	}
 
+	FinishTexture textureFromImage(const TextureImage& image, double repeatWidthMm, double repeatHeightMm, bool flipVertically,
+		int maxSize)
+	{
+		F101_ASSERT(image.width > 0 && image.height > 0 &&
+			image.rgba.size() == static_cast<std::size_t>(image.width) * image.height * 4);
+		F101_ASSERT(maxSize >= 1 && (maxSize & (maxSize - 1)) == 0);
+		// Nearest power of two on each side (in octaves), at most maxSize.
+		auto powerOfTwo = [maxSize](int size)
+		{
+			int best = 1;
+			auto octaves = [size](int candidate) { return std::abs(std::log2(static_cast<double>(candidate) / size)); };
+			while (best < maxSize && octaves(best * 2) < octaves(best))
+			{
+				best *= 2;
+			}
+			return best;
+		};
+		const int width = powerOfTwo(image.width);
+		const int height = powerOfTwo(image.height);
+		// Box-halve while the image is more than twice the target, then sample bilinearly with wrapping (the texture tiles).
+		TextureImage source = image;
+		while (source.width >= width * 2 && source.height >= height * 2)
+		{
+			source = halve(source);
+		}
+		TextureImage top;
+		top.width = width;
+		top.height = height;
+		top.rgba.resize(static_cast<std::size_t>(width) * height * 4);
+		auto texel = [&source](int x, int y, int c)
+		{
+			x = ((x % source.width) + source.width) % source.width;
+			y = ((y % source.height) + source.height) % source.height;
+			return static_cast<double>(source.rgba[(static_cast<std::size_t>(y) * source.width + x) * 4 + c]);
+		};
+		for (int y = 0; y < height; ++y)
+		{
+			const int row = flipVertically ? height - 1 - y : y;
+			const double sy = (row + 0.5) * source.height / height - 0.5;
+			const int y0 = static_cast<int>(std::floor(sy));
+			const double fy = sy - y0;
+			for (int x = 0; x < width; ++x)
+			{
+				const double sx = (x + 0.5) * source.width / width - 0.5;
+				const int x0 = static_cast<int>(std::floor(sx));
+				const double fx = sx - x0;
+				for (int c = 0; c < 4; ++c)
+				{
+					const double value = (texel(x0, y0, c) * (1.0 - fx) + texel(x0 + 1, y0, c) * fx) * (1.0 - fy) +
+						(texel(x0, y0 + 1, c) * (1.0 - fx) + texel(x0 + 1, y0 + 1, c) * fx) * fy;
+					top.rgba[(static_cast<std::size_t>(y) * width + x) * 4 + c] =
+						static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
+				}
+			}
+		}
+		FinishTexture texture;
+		texture.repeatWidthMm = repeatWidthMm;
+		texture.repeatHeightMm = repeatHeightMm;
+		texture.mips.push_back(std::move(top));
+		while (texture.mips.back().width > 1 || texture.mips.back().height > 1)
+		{
+			texture.mips.push_back(halve(texture.mips.back()));
+		}
+		return texture;
+	}
+
 	FinishTexture buildFinishTexture(const cad::FinishInfo& finish, int size)
 	{
 		F101_ASSERT(size >= 4 && (size & (size - 1)) == 0);

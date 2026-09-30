@@ -1,6 +1,7 @@
 #include "Floor101DocumentSubsystem.h"
 
 #include "Engine/World.h"
+#include "F101/Assets/AssetImport.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/ProjectFile.h"
@@ -12,6 +13,7 @@
 #include "F101/Scene/SceneCompiler.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Floor101.h"
+#include "Floor101FinishLibrary.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
 #include "Floor101SceneSpace.h"
@@ -165,6 +167,18 @@ namespace
 			}
 		}));
 
+	FAutoConsoleCommandWithWorldAndArgs ImportAssetCommand(
+		TEXT("f101.Asset.Import"),
+		TEXT("Imports a texture (.png, .jpg) or a model (.glb, .gltf, .obj) into the project's folder and its asset library (ADR-0017)."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			UFloor101DocumentSubsystem* Subsystem = FindSubsystem(World);
+			if (Subsystem && !Args.IsEmpty())
+			{
+				(void)Subsystem->ImportAsset(FString::Join(Args, TEXT(" ")).TrimQuotes());
+			}
+		}));
+
 	FAutoConsoleCommandWithWorldAndArgs ExportPlanCommand(
 		TEXT("f101.Plan.Export"),
 		TEXT("Exports the edited level's plan (ADR-0015) as .svg or .png: to the given path, else next to the project file as <name>-<level>.svg."),
@@ -219,6 +233,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	PlanDrawing = MakePimpl<f101::drawing::PlanDrawing>();
+	Models = MakePimpl<f101::assets::ModelCache>();
 	ListenerHandle = Document->subscribe([this](const f101::cad::ChangeSet&)
 	{
 		++ChangeCount;
@@ -305,6 +320,14 @@ f101::Status UFloor101DocumentSubsystem::SaveProject(const FString& Path)
 		SetStatus(ToText(Failed.message), true);
 		return Failed;
 	}
+	// Imported assets go with the project (ADR-0017): saved somewhere else, their folders are copied there first.
+	if (const f101::Status Copied = f101::assets::copyAssetFiles(Document->project(), ToFilesystemPath(GetProjectFolder()),
+			ToFilesystemPath(Directory.IsEmpty() ? FString(TEXT(".")) : Directory));
+		!Copied)
+	{
+		SetStatus(ToText(Copied.error().message), true);
+		return Copied;
+	}
 	const f101::Status Saved = f101::cad::saveProjectFile(ToFilesystemPath(Path), Document->project());
 	if (!Saved)
 	{
@@ -326,16 +349,138 @@ f101::Status UFloor101DocumentSubsystem::OpenProject(const FString& Path)
 		return Loaded.error();
 	}
 	Editor->reset();
+	// Replacing the project rebuilds the scene, which reads the assets' files: from the folder of the one opened.
+	const FString PreviousPath = ProjectPath;
+	ProjectPath = Path;
 	const f101::Status Replaced = Document->replaceProject(std::move(Loaded).value());
 	if (!Replaced)
 	{
+		ProjectPath = PreviousPath;
 		SetStatus(ToText(Replaced.error().message), true);
 		return Replaced;
 	}
-	ProjectPath = Path;
 	SavedChangeCount = ChangeCount;
 	SetStatus(FText::Format(LOCTEXT("Opened", "Abierto: {0}"), FText::FromString(Path)), false);
 	return Replaced;
+}
+
+FString UFloor101DocumentSubsystem::GetProjectFolder() const
+{
+	return FPaths::GetPath(ProjectPath.IsEmpty() ? GetDefaultProjectPath() : ProjectPath);
+}
+
+FString UFloor101DocumentSubsystem::GetAssetFilePath(const f101::cad::Asset& Asset) const
+{
+	return FPaths::Combine(GetProjectFolder(), UTF8_TO_TCHAR(Asset.file.c_str()));
+}
+
+f101::Result<f101::cad::AssetId> UFloor101DocumentSubsystem::ImportAsset(const FString& SourcePath)
+{
+	const f101::cad::AssetId Id{f101::cad::makeRandomUuidSource()()};
+	const f101::Result<f101::assets::ImportedAsset> Imported =
+		f101::assets::importAsset(ToFilesystemPath(SourcePath), ToFilesystemPath(GetProjectFolder()), Id);
+	if (!Imported)
+	{
+		SetStatus(ToText(Imported.error().message), true);
+		return Imported.error();
+	}
+	const f101::Result<f101::cad::Transaction> Added = Document->execute(f101::cad::AddAssetCommand{Imported.value().asset});
+	if (!Added)
+	{
+		SetStatus(ToText(Added.error().message), true);
+		return Added.error();
+	}
+	const FText Name = ToText(Imported.value().asset.name);
+	const std::vector<std::string>& Warnings = Imported.value().warnings;
+	SetStatus(Warnings.empty() ? FText::Format(LOCTEXT("Imported", "Importado: {0}"), Name)
+		: FText::Format(LOCTEXT("ImportedWarning", "Importado: {0} · aviso: {1}"), Name, ToText(Warnings.front())), false);
+	for (const std::string& Warning : Warnings)
+	{
+		UE_LOG(LogFloor101, Warning, TEXT("F101: %s: %s"), *Name.ToString(), UTF8_TO_TCHAR(Warning.c_str()));
+	}
+	return Id;
+}
+
+f101::Status UFloor101DocumentSubsystem::ChangeAsset(const f101::cad::Asset& Asset)
+{
+	f101::cad::Asset Changed = Asset;
+	const f101::cad::Asset* Current = Document->project().findAsset(Asset.id);
+	if (Current && Asset.kind == f101::cad::AssetKind::Model &&
+		(Asset.model.unit != Current->model.unit || Asset.model.up != Current->model.up ||
+			Asset.model.frontQuarterTurns != Current->model.frontQuarterTurns))
+	{
+		const f101::Result<f101::cad::ModelAsset> Measured =
+			f101::assets::measureModel(ToFilesystemPath(GetProjectFolder()), *Current, Asset.model);
+		if (!Measured)
+		{
+			SetStatus(ToText(Measured.error().message), true);
+			return Measured.error();
+		}
+		Changed.model = Measured.value();
+	}
+	const f101::Result<f101::cad::Transaction> Applied = Document->execute(f101::cad::ChangeAssetCommand{Changed});
+	if (!Applied)
+	{
+		SetStatus(ToText(Applied.error().message), true);
+		return Applied.error();
+	}
+	return f101::Status::success();
+}
+
+f101::Status UFloor101DocumentSubsystem::RemoveAsset(const f101::cad::AssetId& Id)
+{
+	const f101::Result<f101::cad::Transaction> Removed = Document->execute(f101::cad::DeleteAssetCommand{Id});
+	if (!Removed)
+	{
+		SetStatus(ToText(Removed.error().message), true);
+		return Removed.error();
+	}
+	return f101::Status::success();
+}
+
+FString UFloor101DocumentSubsystem::GetAssetProblem(const f101::cad::AssetId& Id) const
+{
+	return UTF8_TO_TCHAR(Models->error(Id).c_str());
+}
+
+void UFloor101DocumentSubsystem::RegisterAssetFinishes()
+{
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!Library)
+	{
+		return;
+	}
+	const std::filesystem::path Folder = ToFilesystemPath(GetProjectFolder());
+	for (const f101::cad::Asset& Asset : Document->project().assets)
+	{
+		const FString Ref = UTF8_TO_TCHAR(f101::cad::assetRef(Asset.id).c_str());
+		if (Asset.kind == f101::cad::AssetKind::Texture)
+		{
+			FFloor101AssetFinish Finish;
+			Finish.ImagePath = GetAssetFilePath(Asset);
+			Finish.Roughness = static_cast<float>(Asset.texture.roughnessPercent) / 100.0f;
+			Finish.RepeatU = static_cast<float>(Asset.texture.widthMm) / 1000.0f;
+			Finish.RepeatV = static_cast<float>(Asset.texture.heightMm) / 1000.0f;
+			Library->SetAssetFinish(Ref, Finish);
+			continue;
+		}
+		const f101::assets::LoadedModel* Model = Models->get(Folder, Asset);
+		if (!Model)
+		{
+			continue;
+		}
+		const FString ModelFolder = FPaths::GetPath(GetAssetFilePath(Asset));
+		for (std::size_t Index = 0; Index < Model->materials.size(); ++Index)
+		{
+			const f101::assets::ModelMaterial& Material = Model->materials[Index];
+			FFloor101AssetFinish Finish;
+			Finish.ImagePath = Material.texture.empty() ? FString() : FPaths::Combine(ModelFolder, UTF8_TO_TCHAR(Material.texture.c_str()));
+			Finish.bFlipImage = false; // model UVs already address the image
+			Finish.Tint = FLinearColor::FromSRGBColor(FColor(Material.color.r, Material.color.g, Material.color.b));
+			Finish.Roughness = static_cast<float>(Material.roughness);
+			Library->SetAssetFinish(UTF8_TO_TCHAR(f101::cad::modelMaterialFinish(Asset.id, Index).c_str()), Finish);
+		}
+	}
 }
 
 AActor* UFloor101DocumentSubsystem::FindWallActor(const f101::cad::WallId& Id) const
@@ -529,7 +674,15 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.selectedFurniture = View.selectedFurniture;
 	Overlay.previewFurniture = View.previewFurniture;
 
-	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay);
+	// Imported assets (ADR-0017): their looks registered first, models read from the project's folder (once per file).
+	RegisterAssetFinishes();
+	const std::filesystem::path AssetFolder = ToFilesystemPath(GetProjectFolder());
+	const f101::scene::ModelProvider ModelMeshes = [this, &AssetFolder](const f101::cad::Asset& Asset) -> const f101::geometry::ModelMesh*
+	{
+		const f101::assets::LoadedModel* Model = Models->get(AssetFolder, Asset);
+		return Model ? &Model->mesh : nullptr;
+	};
+	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay, ModelMeshes);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);
 	if (bPlanView)
 	{

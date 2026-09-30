@@ -60,4 +60,7 @@ namespace f101::cad
 
 	struct FurnitureTag;
 	using FurnitureId = TypedId<FurnitureTag>;
+
+	struct AssetTag;
+	using AssetId = TypedId<AssetTag>;
 }

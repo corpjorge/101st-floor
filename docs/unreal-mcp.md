@@ -60,7 +60,10 @@ antepecho; `GetWalls` las lista en `Openings`; fallan si el hueco pisa la unión
 `ExportPlan` (plano 2D de una planta a .svg o .png, ADR-0015; el PNG necesita renderer), `GetFurnitureTypes`/`GetFurniture`/
 `AddFurniture`/`SetFurniture`/`SetFurnitureFinish`/`RemoveFurniture` (muebles, ADR-0016: catálogo con medidas y rangos; alta
 exacta, sin snapping, con planta, centro, giro en centésimas de grado y medidas, 0 = las del tipo; acabados con
-`bForFurniture`), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
+`bForFurniture`), `GetAssets`/`ImportAsset`/`SetTextureAsset`/`SetModelAsset`/`RemoveAsset` (assets importados, ADR-0017:
+`ImportAsset` copia una textura .png/.jpg o un modelo .glb/.gltf/.obj junto al proyecto guardado y devuelve su `Ref`,
+`asset:<uuid>`, que vale como acabado o como tipo de mueble; `AddFurniture` con un modelo usa sus medidas por defecto;
+`RemoveAsset` falla si algo lo usa), `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
 (vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`
@@ -122,6 +125,15 @@ Verificado (MVP 9, por el transporte MCP): 5 muros y una puerta → `GetFurnitur
 'brick-red' is not for furniture") → `Undo`/`Redo` = `Change furniture` → `SaveProject` con esquema 7 y los 14 tipos →
 `ExportPlan` .svg (14 KB) y .png → `CaptureViewport` del piso amueblado con Lumen; `RunTests` de
 `Floor101.Interaction.Furniture`, `PlanView` y `KeyMap` dentro del editor real → `Success`.
+
+Verificado (MVP 10, por el transporte MCP): `SaveProject` en `Saved/ManualTest/mvp10` → salón de 5 × 4 m con ventana →
+`ImportAsset` de `parquet.png`, `stone.jpg`, `armchair.glb` (80 × 75 × 90 cm, 224 triángulos, con su imagen empaquetada
+escrita como archivo) y `lamp.obj` (con `lamp.mtl` y `lamp_shade.png`) → `SetTextureAsset` (parquet de 1,20 m, piedra
+de 80 cm) → `SetRoomFinish` y `SetWallFinish` con sus `Ref` → `AddFurniture` × 3 con los modelos → sillón girado y
+ensanchado, acabado propio y vuelta a "Original" → borrar el sillón en uso rechazado ("armchair is in use (2 surfaces
+or pieces of furniture)") → `SaveProject` con esquema 8 → guardar en otra carpeta copia los 7 archivos → `OpenProject`
+de la copia (4 assets, 3 muebles) → `ExportPlan` .svg y .png → `CaptureViewport` con Lumen; `RunTests` de
+`Floor101.Interaction.Assets`, `Furniture`, `Finishes` y `PlanView` dentro del editor real → `Success`.
 
 ## Particularidades observadas (UE 5.8.3)
 - **Consola:** ningún toolset de Epic ejecuta comandos de consola (`EditorAppToolset` solo lee cvars;

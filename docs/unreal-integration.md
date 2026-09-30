@@ -20,6 +20,11 @@
   vidrio) son una instancia de `M_Floor101Glass` (translúcido, iluminado por píxel; `Tint`, `Opacity`, `Roughness`).
   Se crean al primer uso y se comparten entre actores y mundos. Si un material falta, registra un error
   (`CheckRendering` falla).
+  Assets importados (ADR-0017): `SetAssetFinish(id, {imagen, volteo, tinte, rugosidad, repetición})` define el acabado
+  de una textura o de un material de un modelo y actualiza en su sitio el material que ya exista; cada imagen se
+  decodifica una vez por archivo (`FImageUtils::LoadImage`, sRGB) y pasa por `textureFromImage`. Una imagen ilegible
+  deja el tinte solo y lo registra (`IsAssetImageMissing`); `GetAssetFinishImage` da la imagen vigente para las
+  muestras de la UI.
 - `FFloor101SceneReconciler`: por `SceneNodeId`, crea, actualiza (si cambió el `contentHash` **o** el estilo) o destruye
   actores. Nunca escala: la escala sigue en 1.
 
@@ -27,7 +32,11 @@
 - `UFloor101DocumentSubsystem` (un `UWorldSubsystem` por mundo de juego, PIE o editor) posee el `Document` y su
   `EditController`. `Edit(acción)` ejecuta una acción de edición, refresca la vista y guarda el mensaje de estado
   (errores del núcleo, "Guardado: …"). `UpdatePointer(rayo)` solo cambia la vista. `SaveProject`/`OpenProject`
-  (ruta por defecto `Documentos/101st Floor/project.json`), `HasUnsavedChanges`. Cada cambio →
+  (ruta por defecto `Documentos/101st Floor/project.json`; al guardar en otra carpeta copia antes los assets, y al abrir
+  la ruta nueva rige antes de reconstruir la escena), `HasUnsavedChanges`. Assets (ADR-0017): `ImportAsset(ruta)`
+  (copia a `assets/<uuid>/` junto al proyecto y lo añade; estado "Importado: …"), `ChangeAsset` (vuelve a medir un
+  modelo si cambian unidad, eje o frente), `RemoveAsset`, `GetAssetFilePath`, `GetAssetProblem`; antes de cada
+  compilación registra los acabados de los assets y da a la escena los modelos de un `ModelCache`. Cada cambio →
   `compileScene(project, overlay)` → `Reconcile`, con log `F101: scene resync in X ms`, el estado de cada muro y cada
   habitación (`F101: room <clave> area=…`); los refrescos de vista van a `Verbose`. Dentro de `Edit` el listener del
   documento no recompila: se hace una sola vez al final, con la vista del controlador ya actualizada (si no, el muro
@@ -52,16 +61,18 @@
 - `AFloor101GameMode` (`GlobalDefaultGameMode`) + `AFloor101PlayerController`: cursor visible, modo de entrada juego y
   UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta, Ventana, Pintar y Amueblar y fila de plantas,
   panel de propiedades del muro, del hueco (con su tipo, bisagras, sentido, apertura y carpintería), del mueble (medidas,
-  giro, acabado) o de la habitación seleccionados, la paleta de Pintar o el catálogo de Amueblar o, sin selección, de la
-  planta activa, barra de estado, etiqueta del cursor y el área de cada habitación proyectada sobre su suelo). En el
+  giro, acabado) o de la habitación seleccionados, la paleta de Pintar (con "Texturas importadas") o el catálogo de
+  Amueblar (con "Modelos importados") o, sin selección, de la planta activa, barra de estado, etiqueta del cursor y el área de cada habitación proyectada sobre su suelo). En el
   plano 2D, `SFloor101PlanView` pinta el plano sobre toda la vista (rellenos con vértices propios, líneas, textos
   girados) con la proyección de la cámara ortográfica; no toma el ratón, así que la edición sigue en el viewport.
+- `FFloor101FileDialog::OpenFile`: el diálogo de abrir archivo de Windows (`GetOpenFileNameW`, `comdlg32`), con filtro
+  por tipo y la carpeta de la última vez; lo usan "Importar textura…" e "Importar modelo…".
 
 Desarrollo:
 - `-F101Demo` carga la pared de referencia al empezar el juego (`Run.ps1`, `CheckRendering.ps1 -Demo`).
 - Consola: `f101.Demo.Load`, `f101.Demo.SetLength <longitud>` (acepta `420`, `4.2 m`, `4,2 m`, `4200 mm`),
   `f101.Demo.Clear`, `f101.Demo.Status`, `f101.Undo`, `f101.Redo`, `f101.Project.Save [ruta]`,
-  `f101.Project.Open [ruta]`, `f101.Plan.Export [ruta .svg|.png]`.
+  `f101.Project.Open [ruta]`, `f101.Plan.Export [ruta .svg|.png]`, `f101.Asset.Import <ruta>`.
 
 ## Controles
 | Entrada | Acción |
@@ -78,7 +89,7 @@ Desarrollo:
 | RePág / AvPág | editar la planta de arriba / de abajo (la cámara la sigue) |
 | L | ver todas las plantas con sus forjados, o solo la activa y, atenuadas, las de abajo |
 | fila de plantas | subir, bajar, "+ Nueva planta" (encima de todas, igual que la de arriba, y pasa a editarla), "Ver todas (L)" |
-| panel de propiedades | muro: longitud, espesor, altura y el acabado de cada cara ("Cara norte"...); habitación: suelo y techo; en Pintar, la paleta de acabados; puerta o ventana: ancho, alto, antepecho (ventanas), posición (desde el inicio del muro hasta el borde del hueco), tipo (puertas: abatible, abatible de dos hojas, corredera empotrada; ventanas: practicable, practicable de dos hojas, corredera, fija), bisagras o hacia dónde se abre la corredera ("Lado oeste", Invertir), hacia qué cara abre ("Cara norte", Invertir), apertura (%) y carpintería (lacado blanco, maderas, aluminio antracita); mueble: ancho, fondo, alto, giro (grados), "Girar 90°" y acabado; en Amueblar, el catálogo con sus medidas; sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
+| panel de propiedades | muro: longitud, espesor, altura y el acabado de cada cara ("Cara norte"...); habitación: suelo y techo; en Pintar, la paleta de acabados; puerta o ventana: ancho, alto, antepecho (ventanas), posición (desde el inicio del muro hasta el borde del hueco), tipo (puertas: abatible, abatible de dos hojas, corredera empotrada; ventanas: practicable, practicable de dos hojas, corredera, fija), bisagras o hacia dónde se abre la corredera ("Lado oeste", Invertir), hacia qué cara abre ("Cara norte", Invertir), apertura (%) y carpintería (lacado blanco, maderas, aluminio antracita); mueble: ancho, fondo, alto, giro (grados), "Girar 90°" y acabado ("Original" en un modelo importado: sus propios materiales); en Pintar, "Texturas importadas" con su imagen y "Importar textura…" (nombre, ancho y alto de la imagen, rugosidad, "Eliminar textura"); en Amueblar, el catálogo con sus medidas, "Modelos importados" e "Importar modelo…" (nombre, unidades del archivo, "Cambiar eje arriba", "Girar frente 90°", "Se apoya en los muros", tamaño y triángulos, "Eliminar modelo"); sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
 | Ctrl+Z / Ctrl+Y o Ctrl+Shift+Z | deshacer / rehacer |
 | Ctrl+S / Ctrl+O | guardar / abrir el archivo actual (o el de por defecto) |
 | derecho arrastrando / central arrastrando / rueda / F / T | orbitar / desplazar / zoom / encuadrar todo / vista 3D cenital (norte arriba) |
@@ -89,7 +100,8 @@ Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetLevels`, `AddLevel`, `
 `GetWalls`, `AddWall` (en una planta), `SetWallEnd`, `SetWallLength`, `MoveCorner`, `GetRooms`,
 `SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `SetOpeningFinish`, `SetOpeningOperation`,
 `RemoveOpening`, `RemoveWall`, `GetFurnitureTypes`, `GetFurniture`, `AddFurniture`, `SetFurniture`,
-`SetFurnitureFinish`, `RemoveFurniture`, `Undo`, `Redo`,
+`SetFurnitureFinish`, `RemoveFurniture`, `GetAssets`, `ImportAsset`, `SetTextureAsset`, `SetModelAsset`, `RemoveAsset`,
+`Undo`, `Redo`,
 `SaveProject`, `OpenProject`, `ExportPlan`, en mm enteros. Los muros y muebles de plantas que la vista oculta no tienen actor (`SetLevelView`
 elige planta y "ver todas"). Actúa sobre el documento de la sesión PIE mientras existe y, si no, sobre el del mundo del editor. Devuelve el actor para
 inspeccionarlo con `ActorTools`. Se registra desde un `UEditorSubsystem` que depende de `UToolsetRegistrySubsystem`,
@@ -107,7 +119,9 @@ seleccionar la habitación y su techo; carpintería: rechazo en una T, arrastre 
 de arrastre; tipos: colocar abriendo hacia el cursor con Espacio, abrir al 100 %, corredera sin símbolo, puerta fija
 rechazada; plano 2D: dibujo con la selección y las asas, cámara ortográfica y encuadre, exportación SVG y ruta por
 defecto, PNG con la tinta del corte donde hay renderer; muebles: colocar un sofá contra un muro, su actor y medidas,
-seleccionarlo, arrastrarlo, girarlo, borrarlo y deshacer, en el plano, guardar y abrir) y
+seleccionarlo, arrastrarlo, girarlo, borrarlo y deshacer, en el plano, guardar y abrir; assets: importar una textura,
+un sillón GLB y una lámpara OBJ, pintar, colocar, materiales e imágenes, guardar en otra carpeta y reabrir, también
+desde un proyecto sin esos archivos) y
 `Floor101.Editor.DocumentToolset.*` (cada herramienta y cada error).
 `Test.ps1 -Integration` los ejecuta en un editor headless; también se pueden lanzar por MCP.
 

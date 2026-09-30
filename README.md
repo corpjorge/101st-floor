@@ -3,7 +3,7 @@
 Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
 modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
 
-> Estado: **MVP 9 completo** ([informe](docs/mvp9-report.md); [MVP 8](docs/mvp8-report.md), [MVP 7](docs/mvp7-report.md), [MVP 6](docs/mvp6-report.md),
+> Estado: **MVP 10 completo** ([informe](docs/mvp10-report.md); [MVP 9](docs/mvp9-report.md), [MVP 8](docs/mvp8-report.md), [MVP 7](docs/mvp7-report.md), [MVP 6](docs/mvp6-report.md),
 > [MVP 5](docs/mvp5-report.md), [MVP 4](docs/mvp4-report.md), [MVP 3](docs/mvp3-report.md), [MVP 2](docs/mvp2-report.md),
 > [MVP 1](docs/mvp1-report.md), [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas limpias
 > en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de esquinas compartidas, puertas y
@@ -12,7 +12,8 @@ modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8
 > (pintura, ladrillo, hormigón, azulejo, madera...) por cara de muro, suelo, techo y carpintería, selección,
 > propiedades, deshacer/rehacer y `project.json`, planos 2D editables con cotas y habitaciones exportables a SVG y PNG,
 > mobiliario paramétrico (camas, sofá, mesa, sillas, armario, cocina, baño) que se coloca, mueve y gira con el ratón
-> apoyándose en los muros, sobre Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro
+> apoyándose en los muros, e importación de assets propios (texturas PNG/JPEG como acabados y modelos glTF/GLB/OBJ
+> como muebles, copiados junto al proyecto), sobre Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro
 > probado sin Unreal. Siguiente MVP: pendiente de decisión.
 
 ## Controles
@@ -21,6 +22,7 @@ Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+O: guardar / abrir · Esc o
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
 cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble · con un mueble seleccionado, arrastrarlo: moverlo · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
 F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · "Plano: SVG / PNG": exportar el plano ·
+"Importar textura…" (en Pintar) / "Importar modelo…" (en Amueblar): traer una imagen o un modelo 3D al proyecto ·
 RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detalle en
 [docs/unreal-integration.md](docs/unreal-integration.md#controles).
 

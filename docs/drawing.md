@@ -25,6 +25,7 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
     punto de rótulo.
   - **Muebles** (ADR-0016): el contorno de la huella de cada mueble de la planta y los detalles de su tipo
     (`geometry::furnitureShape`: almohadas, edredón, cojines, cubetas, fuegos, desagüe...), en trazos finos grises.
+    Un modelo importado (ADR-0017) solo dibuja su huella.
   - **Marcas de edición** (`PlanOverlay`, solo en la vista 2D): muro y mueble seleccionados, vistas previas de muros y
     muebles (sustituyen por id o se añaden) y asas.
 - `writeSvg(drawing, {scale, marginMm})`: documento SVG independiente, hoja blanca con el tamaño en mm de papel a la

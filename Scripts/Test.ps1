@@ -20,7 +20,7 @@ param(
 
 . "$PSScriptRoot\Common.ps1"
 
-$PureModules = 'Floor101CadCore', 'Floor101Geometry', 'Floor101SceneModel', 'Floor101Drawing'
+$PureModules = 'Floor101CadCore', 'Floor101Geometry', 'Floor101SceneModel', 'Floor101Drawing', 'Floor101Assets'
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Test-Architecture {

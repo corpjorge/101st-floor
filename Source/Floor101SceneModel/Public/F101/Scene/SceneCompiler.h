@@ -1,9 +1,11 @@
 #pragma once
 
 #include "F101/Cad/Project.h"
+#include "F101/Geometry/ModelMesh.h"
 #include "F101/Scene/Scene.h"
 
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace f101::scene
@@ -32,6 +34,10 @@ namespace f101::scene
 		std::int64_t markerHeightMm = 2500;
 	};
 
+	// The meshes of imported models (ADR-0017), read from their files by the application (f101::assets). Null when a
+	// model cannot be read: its pieces show as plain boxes of their size. Without a provider every model piece is a box.
+	using ModelProvider = std::function<const geometry::ModelMesh*(const cad::Asset& asset)>;
+
 	// Node carrying the body geometry of a wall.
 	FLOOR101SCENEMODEL_API SceneNodeId wallBodyNodeId(const cad::WallId& id);
 	// Node of a piece of furniture.
@@ -41,16 +47,18 @@ namespace f101::scene
 	// one node per wall in model order with its joins resolved ("<wall>/body"), then joint fills
 	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"), then the slab over each room ("<room key>/slab",
 	// the top band of its level), then the carpentry of each opening ("<wall>/opening/<opening>", ADR-0013), then each
-	// piece of furniture in model order ("furniture/<piece>", ADR-0016). Joins and rooms are solved per level, and each
-	// level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
-	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project);
+	// piece of furniture in model order ("furniture/<piece>", ADR-0016; an imported model with one section per material,
+	// finished "asset:<uuid>#<material>" unless the piece has a finish, ADR-0017). Joins and rooms are solved per level,
+	// and each level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
+	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ModelProvider& models = {});
 
 	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls and furniture are Preview
 	// (new ones get the ids "preview/wall/<index>" and "preview/furniture/<index>"), the selected wall and piece are
 	// Selected, and markers are "marker/<index>" (Handle).
 	// It also draws the swing of each hinged or double door on the floor of the levels shown undimmed
 	// ("<wall>/opening/<opening>/swing", Symbol; ADR-0014), after the carpentry: an editing aid exporters never see.
-	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ViewOverlay& overlay);
+	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ViewOverlay& overlay,
+		const ModelProvider& models = {});
 
 	// FNV-1a 64 over everything a consumer renders (positions, normals, uvs, sections).
 	FLOOR101SCENEMODEL_API std::uint64_t hashMesh(const geometry::MeshData& mesh);

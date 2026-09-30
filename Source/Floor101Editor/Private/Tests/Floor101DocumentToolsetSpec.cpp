@@ -350,6 +350,75 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("assets", [this]()
+	{
+		It("imports a texture and a model into the project's folder, uses them, changes them and removes them", [this]()
+		{
+			const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101ToolsetAssets")));
+			IFileManager::Get().DeleteDirectory(*Folder, false, true);
+			UFloor101DocumentToolset::SaveProject(FPaths::Combine(Folder, TEXT("project.json"))); // the assets go next to it
+			const FString Data = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Tests/Data/Assets")));
+
+			const FFloor101AssetInfo Texture = UFloor101DocumentToolset::ImportAsset(FPaths::Combine(Data, TEXT("parquet.png")));
+			TestTrue(TEXT("a texture"), Texture.Kind == EFloor101AssetKind::Texture);
+			TestEqual(TEXT("its pixels"), Texture.PixelWidth, 256);
+			TestEqual(TEXT("1 m wide"), Texture.TextureWidthMm, int64(1000));
+			TestTrue(TEXT("copied into the project"), FPaths::FileExists(FPaths::Combine(Folder, Texture.File)));
+			TestEqual(TEXT("its reference"), Texture.Ref, TEXT("asset:") + Texture.Id);
+			const FFloor101AssetInfo Model = UFloor101DocumentToolset::ImportAsset(FPaths::Combine(Data, TEXT("armchair.glb")));
+			TestTrue(TEXT("a model"), Model.Kind == EFloor101AssetKind::Model);
+			TestEqual(TEXT("80 cm wide"), Model.WidthMm, int64(800));
+			TestEqual(TEXT("90 cm tall"), Model.HeightMm, int64(900));
+			TestTrue(TEXT("readable"), Model.Problem.IsEmpty());
+			TestEqual(TEXT("both listed"), UFloor101DocumentToolset::GetAssets().Num(), 2);
+
+			const FFloor101WallInfo Wall = UFloor101DocumentToolset::AddWall(TEXT(""), 130000, 0, 134000, 0, 120, 2800);
+			const FFloor101WallInfo Painted = UFloor101DocumentToolset::SetWallFinish(Wall.Id, EFloor101WallSide::Left, Texture.Ref);
+			TestEqual(TEXT("the wall shows the texture"), Painted.LeftFinish, Texture.Ref);
+			const FFloor101FurnitureInfo Chair = UFloor101DocumentToolset::AddFurniture(TEXT(""), Model.Ref, 132000, 1000, 0, 0, 0, 0);
+			TestEqual(TEXT("placed at the model's size"), Chair.WidthMm, int64(800));
+			if (TestNotNull(TEXT("its actor"), Chair.Actor.Get()))
+			{
+				FVector Origin;
+				FVector Extent;
+				Chair.Actor->GetActorBounds(false, Origin, Extent);
+				TestEqual(TEXT("80 x 75 x 90 cm"), Extent * 2.0, FVector(80.0, 75.0, 90.0), 0.05f);
+			}
+
+			const FFloor101AssetInfo Renamed = UFloor101DocumentToolset::SetTextureAsset(Texture.Id, TEXT("Roble"), 600, 300, 40);
+			TestEqual(TEXT("renamed"), Renamed.Name, FString(TEXT("Roble")));
+			TestEqual(TEXT("60 cm a repeat"), Renamed.TextureWidthMm, int64(600));
+			const FFloor101AssetInfo Centimetres = UFloor101DocumentToolset::SetModelAsset(Model.Id, TEXT("Sillón"), EFloor101ModelUnit::Centimeter,
+				false, 0, true);
+			TestEqual(TEXT("read in centimetres: a hundredth"), Centimetres.WidthMm, int64(8));
+			TestTrue(TEXT("against walls"), Centimetres.bAgainstWall);
+			TestEqual(TEXT("undo"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change asset")));
+
+			AddExpectedMessagePlain(TEXT("F101: 'Roble' is in use"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("is in use (1 surface or piece of furniture)"), [&Texture] { UFloor101DocumentToolset::RemoveAsset(Texture.Id); });
+			UFloor101DocumentToolset::RemoveFurniture(Chair.Id);
+			UFloor101DocumentToolset::RemoveWall(Wall.Id);
+			UFloor101DocumentToolset::RemoveAsset(Texture.Id);
+			UFloor101DocumentToolset::RemoveAsset(Model.Id);
+			TestEqual(TEXT("none left"), UFloor101DocumentToolset::GetAssets().Num(), 0);
+		});
+
+		It("raises on files it cannot import and on unknown assets", [this]()
+		{
+			const FString Data = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), TEXT("Tests/Data/Assets")));
+			AddExpectedMessagePlain(TEXT("F101: Import PNG or JPEG textures"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("Import PNG or JPEG textures, or glTF (.gltf, .glb) or OBJ models"),
+				[&Data] { UFloor101DocumentToolset::ImportAsset(FPaths::Combine(Data, TEXT("make_samples.py"))); });
+			AddExpectedMessagePlain(TEXT("F101: Cannot open"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("Cannot open"), [&Data] { UFloor101DocumentToolset::ImportAsset(FPaths::Combine(Data, TEXT("missing.png"))); });
+			ExpectRaises(TEXT("is not an asset id"), [] { UFloor101DocumentToolset::SetTextureAsset(TEXT("parquet"), TEXT("x"), 1000, 1000, 50); });
+			ExpectRaises(TEXT("no such asset"),
+				[] { UFloor101DocumentToolset::SetTextureAsset(TEXT("00000000-0000-0000-0000-0000000000ff"), TEXT("x"), 1000, 1000, 50); });
+			AddExpectedMessagePlain(TEXT("F101: No asset with id"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("No asset with id"), [] { UFloor101DocumentToolset::RemoveAsset(TEXT("00000000-0000-0000-0000-0000000000ff")); });
+		});
+	});
+
 	Describe("history and files", [this]()
 	{
 		It("undoes and redoes a change, returning what it was", [this]()

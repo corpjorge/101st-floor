@@ -3,6 +3,8 @@
 #include "Engine/Engine.h"
 #include "Engine/Texture2D.h"
 #include "F101/Scene/FinishTextures.h"
+#include "ImageCore.h"
+#include "ImageUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "TextureResource.h"
@@ -99,12 +101,122 @@ UMaterialInterface* UFloor101FinishLibrary::GetGlassMaterial()
 	return GlassMaterial;
 }
 
+UTexture2D* UFloor101FinishLibrary::GetImageTexture(const FString& Path, bool bFlip, float RepeatUMeters, float RepeatVMeters,
+	bool& bOutMissing)
+{
+	bOutMissing = false;
+	const FString Key = Path.IsEmpty() ? FString(TEXT("#white")) : Path + (bFlip ? TEXT("#flip") : TEXT(""));
+	if (const TObjectPtr<UTexture2D>* Cached = ImageTextures.Find(Key))
+	{
+		bOutMissing = !Path.IsEmpty() && MissingAssetImages.Contains(Path);
+		return *Cached;
+	}
+	f101::scene::TextureImage Image;
+	FImage Decoded;
+	if (!Path.IsEmpty() && FImageUtils::LoadImage(*Path, Decoded) && Decoded.SizeX > 0 && Decoded.SizeY > 0)
+	{
+		Decoded.ChangeFormat(ERawImageFormat::BGRA8, EGammaSpace::sRGB);
+		Image.width = static_cast<int>(Decoded.SizeX);
+		Image.height = static_cast<int>(Decoded.SizeY);
+		Image.rgba.resize(static_cast<size_t>(Image.width) * Image.height * 4);
+		const uint8* Source = Decoded.RawData.GetData();
+		for (size_t Pixel = 0; Pixel < static_cast<size_t>(Image.width) * Image.height; ++Pixel)
+		{
+			Image.rgba[Pixel * 4 + 0] = Source[Pixel * 4 + 2];
+			Image.rgba[Pixel * 4 + 1] = Source[Pixel * 4 + 1];
+			Image.rgba[Pixel * 4 + 2] = Source[Pixel * 4 + 0];
+			Image.rgba[Pixel * 4 + 3] = 255;
+		}
+	}
+	else
+	{
+		if (!Path.IsEmpty())
+		{
+			UE_LOG(LogFloor101Finishes, Warning, TEXT("F101: cannot read the image %s; its finish shows its colour alone"), *Path);
+			MissingAssetImages.Add(Path);
+			bOutMissing = true;
+		}
+		Image.width = Image.height = 4;
+		Image.rgba.assign(4 * 4 * 4, 255);
+	}
+	const f101::scene::FinishTexture Texture = f101::scene::textureFromImage(Image, RepeatUMeters * 1000.0, RepeatVMeters * 1000.0, bFlip);
+	UTexture2D* Made = MakeTexture(Texture, FString::Printf(TEXT("Asset_%d"), ImageTextures.Num())); // unique: never reused
+	ImageTextures.Add(Key, Made);
+	return Made;
+}
+
+void UFloor101FinishLibrary::ApplyAssetFinish(UMaterialInstanceDynamic* Material, const FString& FinishId,
+	const FFloor101AssetFinish& Finish, bool bContext)
+{
+	bool bMissing = false;
+	UTexture2D* Texture = GetImageTexture(Finish.ImagePath, Finish.bFlipImage, Finish.RepeatU, Finish.RepeatV, bMissing);
+	if (Texture)
+	{
+		Material->SetTextureParameterValue(TextureParameter, Texture);
+		if (!bContext)
+		{
+			FinishTextures.Add(FinishId, Texture);
+		}
+	}
+	Material->SetVectorParameterValue(TintParameter, bContext ? Finish.Tint * ContextTint : Finish.Tint);
+	Material->SetScalarParameterValue(RoughnessParameter, Finish.Roughness);
+	Material->SetScalarParameterValue(RepeatUParameter, Finish.RepeatU);
+	Material->SetScalarParameterValue(RepeatVParameter, Finish.RepeatV);
+}
+
+void UFloor101FinishLibrary::SetAssetFinish(const FString& FinishId, const FFloor101AssetFinish& Finish)
+{
+	if (const FFloor101AssetFinish* Current = AssetFinishes.Find(FinishId); Current && *Current == Finish)
+	{
+		return;
+	}
+	AssetFinishes.Add(FinishId, Finish);
+	for (const bool bContext : {false, true})
+	{
+		const FString Key = bContext ? FinishId + TEXT("#context") : FinishId;
+		if (const TObjectPtr<UMaterialInstanceDynamic>* Existing = FinishMaterials.Find(Key))
+		{
+			ApplyAssetFinish(*Existing, FinishId, Finish, bContext);
+		}
+	}
+}
+
+bool UFloor101FinishLibrary::IsAssetImageMissing(const FString& FinishId) const
+{
+	const FFloor101AssetFinish* Finish = AssetFinishes.Find(FinishId);
+	return Finish && !Finish->ImagePath.IsEmpty() && MissingAssetImages.Contains(Finish->ImagePath);
+}
+
+UTexture2D* UFloor101FinishLibrary::GetAssetFinishImage(const FString& FinishId)
+{
+	const FFloor101AssetFinish* Finish = AssetFinishes.Find(FinishId);
+	if (!Finish || Finish->ImagePath.IsEmpty())
+	{
+		return nullptr;
+	}
+	bool bMissing = false;
+	UTexture2D* Texture = GetImageTexture(Finish->ImagePath, Finish->bFlipImage, Finish->RepeatU, Finish->RepeatV, bMissing);
+	return bMissing ? nullptr : Texture;
+}
+
 UMaterialInterface* UFloor101FinishLibrary::GetFinishMaterial(const FString& FinishId, bool bContext)
 {
 	const FString Key = bContext ? FinishId + TEXT("#context") : FinishId;
 	if (const TObjectPtr<UMaterialInstanceDynamic>* Cached = FinishMaterials.Find(Key))
 	{
 		return *Cached;
+	}
+	if (const FFloor101AssetFinish* Asset = AssetFinishes.Find(FinishId))
+	{
+		UMaterialInterface* Base = GetBaseMaterial();
+		if (!Base)
+		{
+			return nullptr;
+		}
+		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this); // ids have characters names cannot
+		ApplyAssetFinish(Material, FinishId, *Asset, bContext);
+		FinishMaterials.Add(Key, Material);
+		return Material;
 	}
 	if (bContext)
 	{

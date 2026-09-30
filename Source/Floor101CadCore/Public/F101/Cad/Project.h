@@ -1,5 +1,6 @@
 #pragma once
 
+#include "F101/Cad/Asset.h"
 #include "F101/Cad/Export.h"
 #include "F101/Cad/Finishes.h"
 #include "F101/Cad/Furniture.h"
@@ -11,6 +12,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace f101::cad
@@ -33,6 +35,7 @@ namespace f101::cad
 		std::vector<Wall> walls;   // creation order
 		std::vector<RoomFinish> roomFinishes; // only rooms with a finish of their own
 		std::vector<Furniture> furniture;     // creation order (ADR-0016)
+		std::vector<Asset> assets;            // imported textures and models, in import order (ADR-0017)
 
 		const Wall* findWall(const WallId& id) const
 		{
@@ -65,6 +68,18 @@ namespace f101::cad
 				if (piece.id == id)
 				{
 					return &piece;
+				}
+			}
+			return nullptr;
+		}
+
+		const Asset* findAsset(const AssetId& id) const
+		{
+			for (const Asset& asset : assets)
+			{
+				if (asset.id == id)
+				{
+					return &asset;
 				}
 			}
 			return nullptr;
@@ -110,6 +125,18 @@ namespace f101::cad
 	// another wall meets it in a T, crossings (ADR-0013). Joins are derived in the Geometry Engine, which provides this
 	// (geometry::makeWallObstructions); without it openings are only checked against the wall itself.
 	using WallObstructions = std::function<std::vector<AxisSpan>(const Project& levelWalls, const Wall& wall)>;
+
+	// Imported assets in use (ADR-0017).
+	// A catalogue finish (validateFinish) or an imported texture of the project that allows the surface.
+	FLOOR101CADCORE_API Status validateFinishIn(const Project& project, std::string_view finish, Surface surface);
+	// Default size, ranges, placement and body finish of a furniture type: a catalogue type, or an imported model of the
+	// project (its size read from the file, MinModelSizeMm to MaxModelSizeMm, against a wall as the asset says, no body
+	// finish: it shows its own materials). The spec's id views `type`. nullopt for an unknown type.
+	FLOOR101CADCORE_API std::optional<FurnitureType> furnitureSpec(const Project& project, std::string_view type);
+	// validateFurniture, and its type (a catalogue type or a model of the project) and finish (validateFinishIn).
+	FLOOR101CADCORE_API Status validateFurnitureIn(const Project& project, const Furniture& furniture);
+	// How many wall faces, openings, room surfaces and pieces of furniture use an asset.
+	FLOOR101CADCORE_API std::size_t assetUses(const Project& project, const AssetId& asset);
 
 	// Height of a level's floor above the first level's floor (the sum of the heights below it); 0 for an unknown level.
 	FLOOR101CADCORE_API std::int64_t levelElevationMm(const Project& project, const LevelId& level);

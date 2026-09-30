@@ -363,7 +363,7 @@ namespace f101::cad
 		piece.level = activeLevel();
 		piece.position = Point2D{onGrid(wanted.x_mm), onGrid(wanted.y_mm)};
 		piece.rotationCentidegrees = freeRotation;
-		const FurnitureType* type = findFurnitureType(piece.type);
+		const std::optional<FurnitureType> type = furnitureSpec(document.project(), piece.type);
 		if (!type || !type->againstWall)
 		{
 			return piece;
@@ -443,11 +443,13 @@ namespace f101::cad
 	void EditController::updateFurniturePlacement()
 	{
 		furnitureAt.reset();
-		if (!planPoint || currentMode != EditMode::Furniture || !findFurnitureType(editSettings.furnitureType))
+		const std::optional<FurnitureType> spec =
+			currentMode == EditMode::Furniture ? furnitureSpec(document.project(), editSettings.furnitureType) : std::nullopt;
+		if (!planPoint || !spec)
 		{
 			return;
 		}
-		furnitureAt = placeFurniture(makeFurniture(editSettings.furnitureType, Point2D{}), *planPoint, *planPoint,
+		furnitureAt = placeFurniture(makeFurniture(*spec, Point2D{}), *planPoint, *planPoint,
 			editSettings.furnitureRotationCentidegrees);
 	}
 
@@ -1128,7 +1130,7 @@ namespace f101::cad
 
 	Status EditController::setFurnitureType(std::string_view type)
 	{
-		if (!findFurnitureType(type))
+		if (!furnitureSpec(document.project(), type))
 		{
 			return Error{ErrorCode::NotFound, "Unknown furniture type '" + std::string(type) + "'"};
 		}
@@ -1254,9 +1256,12 @@ namespace f101::cad
 
 	Status EditController::setPaintFinish(std::string_view finish)
 	{
-		if (!findFinish(finish))
+		// Pintar covers wall faces and floors: a finish for either will do.
+		const bool known = !finish.empty() && (validateFinishIn(document.project(), finish, Surface::Wall).ok() ||
+			validateFinishIn(document.project(), finish, Surface::Floor).ok());
+		if (!known)
 		{
-			return Error{ErrorCode::NotFound, "Unknown finish '" + std::string(finish) + "'"};
+			return Error{ErrorCode::NotFound, "Unknown finish '" + std::string(finish) + "' for walls or floors"};
 		}
 		editSettings.paintFinish = std::string(finish);
 		return Status::success();

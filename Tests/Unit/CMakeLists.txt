@@ -35,6 +35,9 @@ f101_pure_module(Floor101SceneModel)
 target_link_libraries(Floor101SceneModel PUBLIC Floor101Geometry)
 f101_pure_module(Floor101Drawing)
 target_link_libraries(Floor101Drawing PUBLIC Floor101Geometry)
+f101_pure_module(Floor101Assets)
+target_link_libraries(Floor101Assets PUBLIC Floor101Geometry)
+target_include_directories(Floor101Assets SYSTEM PRIVATE "${F101_ROOT}/ThirdParty") # nlohmann/json
 
 add_executable(Floor101UnitTests
 	Main.cpp
@@ -59,6 +62,8 @@ add_executable(Floor101UnitTests
 	OpeningTypeTests.cpp
 	PlanDrawingTests.cpp
 	FurnitureTests.cpp
+	AssetTests.cpp
+	AssetImportTests.cpp
 )
 target_include_directories(Floor101UnitTests SYSTEM PRIVATE "${F101_ROOT}/ThirdParty/doctest")
 # No exceptions, like Unreal (a failed REQUIRE aborts the run). Real std headers instead of doctest's forward
@@ -67,7 +72,9 @@ target_compile_definitions(Floor101UnitTests PRIVATE
 	DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 	DOCTEST_CONFIG_USE_STD_HEADERS
 )
-target_link_libraries(Floor101UnitTests PRIVATE Floor101SceneModel Floor101Drawing)
+target_link_libraries(Floor101UnitTests PRIVATE Floor101SceneModel Floor101Drawing Floor101Assets)
+# Sample assets exported by Blender (Tests/Data/Assets/make_samples.py).
+target_compile_definitions(Floor101UnitTests PRIVATE F101_TEST_DATA_DIR="${F101_ROOT}/Tests/Data")
 
 enable_testing()
 add_test(NAME Floor101UnitTests COMMAND Floor101UnitTests)

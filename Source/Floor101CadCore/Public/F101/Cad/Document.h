@@ -150,10 +150,31 @@ namespace f101::cad
 		FurnitureId furniture;
 	};
 
+	// Adds an imported asset (ADR-0017) with its own id, since its files are already in the folder named after it: a
+	// non-nil id no other asset has.
+	struct AddAssetCommand
+	{
+		Asset asset;
+	};
+
+	// Replaces the asset with the same id: its name and settings (its kind and file stay). A texture cannot stop allowing
+	// a surface it is used on.
+	struct ChangeAssetCommand
+	{
+		Asset asset;
+	};
+
+	// Removes an asset nothing uses (a surface finish or a piece of furniture). Its files stay on disk.
+	struct DeleteAssetCommand
+	{
+		AssetId asset;
+	};
+
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
-		SetRoomFinishCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand>;
+		SetRoomFinishCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
+		ChangeAssetCommand, DeleteAssetCommand>;
 
 	// Short name for undo/redo UI, e.g. "Create wall".
 	FLOOR101CADCORE_API std::string_view commandLabel(const Command& command);
@@ -195,6 +216,15 @@ namespace f101::cad
 		std::optional<Furniture> after;
 	};
 
+	// Same for an imported asset; `index` is its position in Project::assets.
+	struct AssetChange
+	{
+		AssetId id;
+		std::size_t index = 0;
+		std::optional<Asset> before;
+		std::optional<Asset> after;
+	};
+
 	// A validated, reversible edit (ADR-0006): undo applies the `before` states, redo the `after` states.
 	struct Transaction
 	{
@@ -203,8 +233,12 @@ namespace f101::cad
 		std::vector<LevelChange> levels;
 		std::vector<RoomFinishChange> roomFinishes;
 		std::vector<FurnitureChange> furniture;
+		std::vector<AssetChange> assets;
 
-		bool empty() const { return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty(); }
+		bool empty() const
+		{
+			return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty() && assets.empty();
+		}
 	};
 
 	// Entities affected by one applied transaction (forward, undo or redo).
@@ -220,6 +254,9 @@ namespace f101::cad
 		std::vector<FurnitureId> addedFurniture;
 		std::vector<FurnitureId> modifiedFurniture;
 		std::vector<FurnitureId> removedFurniture;
+		std::vector<AssetId> addedAssets;
+		std::vector<AssetId> modifiedAssets;
+		std::vector<AssetId> removedAssets;
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;
@@ -287,7 +324,8 @@ namespace f101::cad
 		WallObstructions obstructions;
 	};
 
-	// Checks a whole project: at least one level, every level, wall and piece of furniture valid, every id unique, every
-	// wall and piece of furniture on an existing level, and the top of the building inside the model range.
+	// Checks a whole project: at least one level, every level, wall, piece of furniture and asset valid, every id unique,
+	// every wall and piece of furniture on an existing level, every imported texture and model they use in the project
+	// (and allowing that surface), and the top of the building inside the model range.
 	FLOOR101CADCORE_API Status validateProject(const Project& project);
 }
