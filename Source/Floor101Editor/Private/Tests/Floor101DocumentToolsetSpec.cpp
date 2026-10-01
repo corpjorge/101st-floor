@@ -470,6 +470,56 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("export for Twinmotion", [this]()
+	{
+		It("writes the whole project as a .glb next to it, with its objects, materials and images", [this]()
+		{
+			const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101ToolsetGltf")));
+			IFileManager::Get().DeleteDirectory(*Folder, false, true);
+			UFloor101DocumentToolset::SaveProject(FPaths::Combine(Folder, TEXT("casa.json")));
+			TArray<FString> Walls;
+			const int64 Corners[][2] = {{150000, 0}, {154000, 0}, {154000, 3000}, {150000, 3000}};
+			for (int32 Corner = 0; Corner < 4; ++Corner)
+			{
+				const int64* From = Corners[Corner];
+				const int64* To = Corners[(Corner + 1) % 4];
+				Walls.Add(UFloor101DocumentToolset::AddWall(TEXT(""), From[0], From[1], To[0], To[1], 120, 2800).Id);
+			}
+			UFloor101DocumentToolset::SetWallFinish(Walls[0], EFloor101WallSide::Left, TEXT("brick-red"));
+			const FFloor101FurnitureInfo Sofa = UFloor101DocumentToolset::AddFurniture(TEXT(""), TEXT("sofa"), 152000, 1500, 0, 0, 0, 0);
+
+			const FFloor101GltfExportInfo Info = UFloor101DocumentToolset::ExportGltf(TEXT(""));
+			TestEqual(TEXT("next to the project"), Info.Path, FPaths::Combine(Folder, TEXT("casa.glb")));
+			TArray<uint8> Bytes;
+			if (TestTrue(TEXT("written"), FFileHelper::LoadFileToArray(Bytes, *Info.Path)))
+			{
+				TestEqual(TEXT("its size"), static_cast<int64>(Bytes.Num()), Info.Bytes);
+				TestTrue(TEXT("a binary glTF"), Bytes.Num() > 12 && FMemory::Memcmp(Bytes.GetData(), "glTF", 4) == 0);
+			}
+			TestTrue(TEXT("walls, floor, slab and sofa"), Info.Objects >= 7);
+			TestTrue(TEXT("the bricks' image"), Info.Images >= 1);
+			TestTrue(TEXT("materials"), Info.Materials >= 3);
+			TestTrue(TEXT("triangles"), Info.Triangles > 100);
+			TestTrue(TEXT("no warnings"), Info.Warnings.IsEmpty());
+
+			UFloor101DocumentToolset::RemoveFurniture(Sofa.Id);
+			for (const FString& Id : Walls)
+			{
+				UFloor101DocumentToolset::RemoveWall(Id);
+			}
+			IFileManager::Get().DeleteDirectory(*Folder, false, true);
+		});
+
+		It("raises on a path that is not .glb", [this]()
+		{
+			AddExpectedMessagePlain(TEXT("F101: Export the model as .glb"), ELogVerbosity::Warning); // the status message
+			ExpectRaises(TEXT("Export the model as .glb"), []
+			{
+				UFloor101DocumentToolset::ExportGltf(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("casa.fbx")));
+			});
+		});
+	});
+
 	Describe("history and files", [this]()
 	{
 		It("undoes and redoes a change, returning what it was", [this]()

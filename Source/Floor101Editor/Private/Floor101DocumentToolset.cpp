@@ -8,6 +8,7 @@
 #include "F101/Scene/SceneCompiler.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Misc/Paths.h"
 
 // The toolset's operations mirror the core's, value for value.
 static_assert(static_cast<int>(EFloor101OpeningOperation::Hinged) == static_cast<int>(f101::cad::OpeningOperation::Hinged) &&
@@ -947,4 +948,29 @@ void UFloor101DocumentToolset::ExportPlan(const FString& Path, const FString& Le
 	{
 		RaiseError(FString::Printf(TEXT("cannot export the plan to %s: %s"), *Path, *ToFString(Exported.error().message)));
 	}
+}
+
+FFloor101GltfExportInfo UFloor101DocumentToolset::ExportGltf(const FString& Path)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	if (!Subsystem)
+	{
+		return {};
+	}
+	const FString Target = Path.IsEmpty() ? Subsystem->GetDefaultGltfPath() : Path;
+	const f101::Result<FFloor101GltfSummary> Exported = Subsystem->ExportGltf(Target);
+	if (!Exported)
+	{
+		RaiseError(FString::Printf(TEXT("cannot export to %s: %s"), *Target, *ToFString(Exported.error().message)));
+		return {};
+	}
+	FFloor101GltfExportInfo Info;
+	Info.Path = FPaths::ConvertRelativePathToFull(Target);
+	Info.Objects = Exported.value().Objects;
+	Info.Materials = Exported.value().Materials;
+	Info.Images = Exported.value().Images;
+	Info.Triangles = Exported.value().Triangles;
+	Info.Bytes = Exported.value().Bytes;
+	Info.Warnings = Exported.value().Warnings;
+	return Info;
 }

@@ -38,6 +38,9 @@ target_link_libraries(Floor101Drawing PUBLIC Floor101Geometry)
 f101_pure_module(Floor101Assets)
 target_link_libraries(Floor101Assets PUBLIC Floor101Geometry)
 target_include_directories(Floor101Assets SYSTEM PRIVATE "${F101_ROOT}/ThirdParty") # nlohmann/json
+f101_pure_module(Floor101Exporters)
+target_link_libraries(Floor101Exporters PUBLIC Floor101SceneModel Floor101Assets)
+target_include_directories(Floor101Exporters SYSTEM PRIVATE "${F101_ROOT}/ThirdParty") # nlohmann/json
 
 add_executable(Floor101UnitTests
 	Main.cpp
@@ -65,6 +68,8 @@ add_executable(Floor101UnitTests
 	AssetTests.cpp
 	AssetImportTests.cpp
 	LibraryTests.cpp
+	PngTests.cpp
+	GltfExportTests.cpp
 )
 target_include_directories(Floor101UnitTests SYSTEM PRIVATE "${F101_ROOT}/ThirdParty/doctest")
 # No exceptions, like Unreal (a failed REQUIRE aborts the run). Real std headers instead of doctest's forward
@@ -73,7 +78,9 @@ target_compile_definitions(Floor101UnitTests PRIVATE
 	DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
 	DOCTEST_CONFIG_USE_STD_HEADERS
 )
-target_link_libraries(Floor101UnitTests PRIVATE Floor101SceneModel Floor101Drawing Floor101Assets)
+target_link_libraries(Floor101UnitTests PRIVATE Floor101SceneModel Floor101Drawing Floor101Assets Floor101Exporters)
+# The glTF export tests read the written document back.
+target_include_directories(Floor101UnitTests SYSTEM PRIVATE "${F101_ROOT}/ThirdParty")
 # Sample assets exported by Blender (Tests/Data/Assets/make_samples.py).
 target_compile_definitions(Floor101UnitTests PRIVATE F101_TEST_DATA_DIR="${F101_ROOT}/Tests/Data")
 # The built-in library (ADR-0019), checked as shipped.

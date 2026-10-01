@@ -44,6 +44,7 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 .\Scripts\RunEditorMcp.ps1 ; .\Scripts\CheckMcp.ps1   # editor + MCP (ver unreal-mcp.md)
 .\Scripts\GenerateAssets.ps1                          # regenera Content/Floor101 (materiales de acabados y vidrio) desde código
 .\Scripts\GenerateLibrary.ps1 [-Only id,…]            # regenera los muebles de Library/furniture con Blender (opcional)
+.\Scripts\CheckGltf.ps1 -Path <archivo.glb>           # segunda opinión de una exportación para Twinmotion, con Blender (opcional)
 .\Scripts\Clean.ps1 [-IncludeSaved]                   # borra Binaries, Intermediate y DerivedDataCache
 ```
 `Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 1); deberá copiar `Library/` junto al ejecutable

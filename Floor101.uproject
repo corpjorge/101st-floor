@@ -35,6 +35,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "Floor101Exporters",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "Floor101UnrealAdapter",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

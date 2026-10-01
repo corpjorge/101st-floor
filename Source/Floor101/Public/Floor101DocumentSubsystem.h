@@ -43,6 +43,17 @@ struct FFloor101RoomView
 	double AreaM2 = 0.0;
 };
 
+// What an export for Twinmotion wrote (ADR-0020).
+struct FFloor101GltfSummary
+{
+	int32 Objects = 0; // walls, floors, slabs, doors and windows, pieces of furniture
+	int32 Materials = 0;
+	int32 Images = 0;
+	int64 Triangles = 0;
+	int64 Bytes = 0;
+	TArray<FString> Warnings; // e.g. an image that could not be read (its material keeps its colour)
+};
+
 // Owns the document edited in a world and keeps the world's representation in sync with it:
 // document change -> scene compilation -> Unreal adapter reconciliation (docs/architecture.md, "Flujo de un cambio").
 // Also owns the interactive editing state (selection, tools; ADR-0008), shown on top of the document.
@@ -115,6 +126,13 @@ public:
 	f101::Status SavePhoto(const FString& Path);
 	// Next to the project file (or the default one): "<file name>-foto-<date>-<time>.png".
 	FString GetDefaultPhotoPath() const;
+
+	// Export for Twinmotion (ADR-0020): the whole project (every level with its slabs, doors and windows, furniture, the
+	// materials and their images) as binary glTF (.glb), names in the UI's language. The status says where it went and
+	// what it holds.
+	f101::Result<FFloor101GltfSummary> ExportGltf(const FString& Path);
+	// Next to the project file (or the default one): "<file name>.glb".
+	FString GetDefaultGltfPath() const;
 
 	// Imported assets (ADR-0017). Their files live in the project's folder (the project file's, or the default one's)
 	// under assets/<uuid>/, and move with the project when it is saved somewhere else.

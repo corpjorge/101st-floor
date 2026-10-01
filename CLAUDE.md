@@ -6,7 +6,8 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 
 ## Arquitectura (no romper sin ADR)
 - Fuente de verdad: el modelo de 101st Floor (CAD Core). Unreal solo representa; Twinmotion solo presenta.
-- CAD Core, Geometry Engine, Scene Model y Drawing: C++ estándar, sin tipos de Unreal, sin MCP, testeables sin Unreal.
+- CAD Core, Geometry Engine, Scene Model, Drawing, Assets y Exporters: C++ estándar, sin tipos de Unreal, sin MCP,
+  testeables sin Unreal.
 - Unidades persistentes: milímetros enteros (`int64_t`). `double` solo como cálculo temporal con cuantización explícita.
 - Sin lógica de producto en Blueprints. Sin pasos manuales en el Editor: todo reproducible desde Git + `Scripts/`.
 - La interacción vive en `f101::cad::EditController` (puro); Unreal solo traduce la entrada y muestra (ADR-0008).
@@ -39,6 +40,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   (ADR-0019).
 - Modo Foto: path tracer de Unreal en el viewport del juego (R), escena sin marcas de edición, PNG sin UI; se valida con
   `CheckRendering.ps1` (ADR-0018).
+- Exportación a Twinmotion: el módulo puro `Floor101Exporters` escribe la escena neutral como `.glb` (metros, Y arriba
+  `(x, z, −y)/1000`, nombres estables, ids en `extras`, repetición de las texturas horneada en los UV, PNG propio);
+  Twinmotion solo recibe copias. Segunda opinión: `Scripts/CheckGltf.ps1` con Blender (ADR-0020).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
@@ -49,7 +53,7 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, esquinas,
   habitaciones, puertas y ventanas con su carpintería, muebles, assets importados, biblioteca, acabados, vista por planta,
-  deshacer/rehacer, guardar/abrir, exportar el plano). Con PIE activo actúa sobre el documento de PIE; si no, sobre el del editor.
+  deshacer/rehacer, guardar/abrir, exportar el plano y el `.glb` para Twinmotion). Con PIE activo actúa sobre el documento de PIE; si no, sobre el del editor.
 - Unreal MCP: descubrir con `list_toolsets`/`describe_toolset`, invocar con `call_tool`, verificar cada resultado.
   Commit antes de sesiones MCP largas o mutativas.
 - Render: solo DX12/SM6; los formatos D3D11 están eliminados a propósito (un fallback debe fallar, no pasar desapercibido).

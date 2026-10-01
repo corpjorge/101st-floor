@@ -463,6 +463,41 @@ struct FFloor101AssetInfo
 };
 
 /**
+ * What an export for Twinmotion (ExportGltf) wrote.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101GltfExportInfo
+{
+	GENERATED_BODY()
+
+	/** Absolute path of the .glb file. */
+	UPROPERTY()
+	FString Path;
+
+	/** Walls, floors, slabs, doors and windows, and pieces of furniture. */
+	UPROPERTY()
+	int32 Objects = 0;
+
+	UPROPERTY()
+	int32 Materials = 0;
+
+	/** Images embedded in the file (textures of the finishes and of the models). */
+	UPROPERTY()
+	int32 Images = 0;
+
+	UPROPERTY()
+	int64 Triangles = 0;
+
+	/** Size of the file. */
+	UPROPERTY()
+	int64 Bytes = 0;
+
+	/** E.g. an image that could not be read: its material keeps its colour. */
+	UPROPERTY()
+	TArray<FString> Warnings;
+};
+
+/**
  * An item of the built-in library shipped with 101st Floor: a furniture model or a photographic texture, added to a
  * project as an asset when used.
  */
@@ -808,4 +843,13 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void ExportPlan(const FString& Path, const FString& LevelId);
+
+	/**
+	 * Exports the whole project for Twinmotion as binary glTF: every level with its slabs, doors and windows, furniture,
+	 * the materials and their images; metres, Y up.
+	 * @param Path Absolute path ending in .glb; empty for "<project file name>.glb" next to the project.
+	 * @return What was written.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101GltfExportInfo ExportGltf(const FString& Path);
 };

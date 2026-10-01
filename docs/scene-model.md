@@ -1,7 +1,7 @@
 # Scene Model (`Source/Floor101SceneModel`, `f101::scene`)
 
-Escena neutral compilada desde el modelo (ADR-0003). C++20 puro. Consumidores: Unreal hoy; exportadores en el
-futuro.
+Escena neutral compilada desde el modelo (ADR-0003). C++20 puro. Consumidores: Unreal y el exportador glTF para
+Twinmotion (`docs/exporters.md`, ADR-0020).
 
 - `compileScene(project)`: primero un nodo por muro en el orden del modelo, con sus uniones resueltas
   (`<wall uuid>/body`); luego un nodo por `JointFill` (`<wall uuid>/joint-start|end`), uno por suelo de habitación
@@ -52,7 +52,7 @@ futuro.
   `compileScene(project)` no lleva overlay: es lo que usan los exportadores.
 
 La escena nunca se guarda como proyecto ni se edita. Un exportador escribe contra ella con su única conversión de
-ejes (glTF: `(x, z, −y) / 1000`).
+ejes (glTF: `(x, z, −y) / 1000`, en `Floor101Exporters`).
 
 Tests: `Tests/Unit/SceneTests.cpp` (ID esperado, determinismo, el hash sigue a la geometría, borrado, vista previa unida
 al proyecto, sustitución por id, orden muros → uniones → suelos → forjados) y `LevelTests.cpp` (cotas, forjados, vista

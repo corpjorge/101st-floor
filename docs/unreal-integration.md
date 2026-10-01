@@ -41,7 +41,11 @@
   (ADR-0019): `GetLibrary()` lee `<proyecto>/Library` una vez por ejecución (vacía, con un error en el log, si no se
   puede leer); `AddFromLibrary(id)` copia el elemento al proyecto como asset o devuelve el ya añadido (estado "Añadido de
   la biblioteca: …"). Modo Foto (ADR-0018): `SetPhotoMode` compila la escena sin marcas de edición; `SavePhoto(ruta)`
-  pide la captura sin UI (`.png`); `GetDefaultPhotoPath()` = `<proyecto>-foto-<fecha>-<hora>.png`. Cada cambio →
+  pide la captura sin UI (`.png`); `GetDefaultPhotoPath()` = `<proyecto>-foto-<fecha>-<hora>.png`. Exportación para
+  Twinmotion (ADR-0020): `ExportGltf(ruta)` escribe todo el proyecto como `.glb` con `f101::exporters::exportProjectGlb`
+  (sus modelos del mismo `ModelCache`, nombres en español de `Floor101Names`) y devuelve objetos, materiales, imágenes,
+  triángulos, bytes y avisos; estado "Exportado para Twinmotion: … (N objetos, M materiales, X MB)";
+  `GetDefaultGltfPath()` = `<proyecto>.glb` junto al proyecto. Cada cambio →
   `compileScene(project, overlay)` → `Reconcile`, con log `F101: scene resync in X ms`, el estado de cada muro y cada
   habitación (`F101: room <clave> area=…`); los refrescos de vista van a `Verbose`. Dentro de `Edit` el listener del
   documento no recompila: se hace una sola vez al final, con la vista del controlador ya actualizada (si no, el muro
@@ -83,7 +87,8 @@ Desarrollo:
 - `-F101Demo` carga la pared de referencia al empezar el juego (`Run.ps1`, `CheckRendering.ps1 -Demo`).
 - Consola: `f101.Demo.Load`, `f101.Demo.SetLength <longitud>` (acepta `420`, `4.2 m`, `4,2 m`, `4200 mm`),
   `f101.Demo.Clear`, `f101.Demo.Status`, `f101.Undo`, `f101.Redo`, `f101.Project.Save [ruta]`,
-  `f101.Project.Open [ruta]`, `f101.Plan.Export [ruta .svg|.png]`, `f101.Asset.Import <ruta>`.
+  `f101.Project.Open [ruta]`, `f101.Plan.Export [ruta .svg|.png]`, `f101.Asset.Import <ruta>`,
+  `f101.Export.Gltf [ruta .glb]`.
 
 ## Controles
 | Entrada | Acción |
@@ -95,6 +100,7 @@ Desarrollo:
 | R / botón "Foto (R)" | Modo Foto: la vista con path tracing, sin marcas de edición; el panel da el progreso, la calidad (Borrador 64, Media 256, Alta 1024 muestras) y "Guardar imagen" (PNG junto al proyecto); la cámara se mueve igual y reinicia la imagen; R o Esc vuelven a editar |
 | Tab / botón "Plano 2D (Tab)" | plano 2D de la planta activa, editable como en 3D (rueda: zoom, central: desplazar); Tab o T vuelven a 3D |
 | "Plano: SVG / PNG" | exporta el plano de la planta activa junto al proyecto (`<proyecto>-<planta>.svg|png`) |
+| "Twinmotion (.glb)" | exporta la casa entera (todas las plantas, forjados, puertas, ventanas, muebles, materiales y texturas) junto al proyecto (`<proyecto>.glb`); en Twinmotion: Importar → el `.glb`; tras cambios, exportar otra vez y refrescar con "Use scene materials" |
 | Enter | crea el muro previsualizado |
 | Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta, Ventana, Pintar o Amueblar, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
 | Supr | elimina el muro, el hueco o el mueble seleccionado |
@@ -113,7 +119,7 @@ Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetLevels`, `AddLevel`, `
 `SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `SetOpeningFinish`, `SetOpeningOperation`,
 `RemoveOpening`, `RemoveWall`, `GetFurnitureTypes`, `GetFurniture`, `AddFurniture`, `SetFurniture`,
 `SetFurnitureFinish`, `RemoveFurniture`, `GetAssets`, `ImportAsset`, `SetTextureAsset`, `SetModelAsset`, `RemoveAsset`,
-`GetLibrary`, `AddFromLibrary`,
+`GetLibrary`, `AddFromLibrary`, `ExportGltf`,
 `Undo`, `Redo`,
 `SaveProject`, `OpenProject`, `ExportPlan`, en mm enteros. Los muros y muebles de plantas que la vista oculta no tienen actor (`SetLevelView`
 elige planta y "ver todas"). Actúa sobre el documento de la sesión PIE mientras existe y, si no, sobre el del mundo del editor. Devuelve el actor para
@@ -135,7 +141,9 @@ defecto, PNG con la tinta del corte donde hay renderer; muebles: colocar un sof�
 seleccionarlo, arrastrarlo, girarlo, borrarlo y deshacer, en el plano, guardar y abrir; assets: importar una textura,
 un sillón GLB y una lámpara OBJ, pintar, colocar, materiales e imágenes, guardar en otra carpeta y reabrir, también
 desde un proyecto sin esos archivos; biblioteca: una silla de la `Library/` real añadida una vez y colocada con sus
-materiales, un laminado fotográfico en el suelo, esquema 9; Modo Foto: sin tinte de selección ni arcos de apertura) y
+materiales, un laminado fotográfico en el suelo, esquema 9; Modo Foto: sin tinte de selección ni arcos de apertura;
+exportación: el `.glb` junto a un proyecto con ruta no ASCII, cabecera, nombres en español y el PNG del ladrillo
+decodificado por Unreal igual, píxel a píxel, que la textura de la aplicación) y
 `Floor101.Editor.DocumentToolset.*` (cada herramienta y cada error).
 `Test.ps1 -Integration` los ejecuta en un editor headless; también se pueden lanzar por MCP.
 

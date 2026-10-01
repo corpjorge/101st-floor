@@ -19,9 +19,12 @@
 #include "Camera/CameraComponent.h"
 #include "DynamicRHI.h"
 #include "F101/Drawing/PlanDrawing.h"
+#include "F101/Scene/FinishTextures.h"
 #include "F101/Scene/SceneCompiler.h"
 #include "HAL/FileManager.h"
 #include "ImageUtils.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "InputCoreTypes.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/FileHelper.h"
@@ -974,6 +977,115 @@ bool FFloor101LibraryInteractionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("with the library ids"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Folder, TEXT("project.json"))) &&
 		Json.Contains(TEXT("\"library\": \"chair-windsor\"")) && Json.Contains(TEXT("\"library\": \"photo-laminate-oak\"")));
 	IFileManager::Get().DeleteDirectory(*Folder, false, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExportInteractionTest, "Floor101.Interaction.Export", TestFlags)
+bool FFloor101ExportInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document))
+	{
+		return false;
+	}
+	// The project in a test folder (non-ASCII path): the .glb goes next to it (ADR-0020).
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Export"), TEXT("casa ñ")));
+	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Folder), false, true);
+	TestTrue(TEXT("saved"), Document->SaveProject(FPaths::Combine(Folder, TEXT("casa.json"))).ok());
+	std::vector<f101::cad::WallId> Walls;
+	for (const auto& [From, To] : {std::pair<f101::cad::Point2D, f101::cad::Point2D>{{0, 0}, {4000, 0}}, {{4000, 0}, {4000, 3000}},
+			 {{4000, 3000}, {0, 3000}}, {{0, 3000}, {0, 0}}})
+	{
+		Walls.push_back(Document->GetMutableDocument().addWall(From, To, 120, 2800).value());
+	}
+	TestTrue(TEXT("bricks"), Document->GetMutableDocument().execute(f101::cad::SetWallFinishCommand{Walls[0], f101::cad::WallSide::Left, "brick-red"}).ok());
+	const f101::cad::OpeningId Door = Document->GetMutableDocument().addOpening(Walls[0],
+		f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Door, 1500, 900, 2100, 0}).value();
+	const f101::cad::FurnitureId Sofa = Document->GetMutableDocument().addFurniture(f101::cad::makeFurniture("sofa", {2000, 1500})).value();
+
+	const FString Path = Document->GetDefaultGltfPath();
+	TestEqual(TEXT("next to the project"), Path, FPaths::Combine(Folder, TEXT("casa.glb")));
+	const f101::Result<FFloor101GltfSummary> Exported = Document->ExportGltf(Path);
+	if (!TestTrue(TEXT("exported"), Exported.ok()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("the status says so"), Document->GetStatusMessage().ToString().StartsWith(TEXT("Exportado para Twinmotion: ")));
+	TestTrue(TEXT("walls, floor, slab, door and sofa"), Exported.value().Objects >= 8);
+
+	// The file: header, JSON chunk, binary chunk (glTF 2.0, GLB).
+	TArray<uint8> Bytes;
+	if (!TestTrue(TEXT("written"), FFileHelper::LoadFileToArray(Bytes, *Path)) || !TestTrue(TEXT("big enough"), Bytes.Num() > 28))
+	{
+		return false;
+	}
+	auto Word = [&Bytes](int32 At) { return static_cast<uint32>(Bytes[At]) | (static_cast<uint32>(Bytes[At + 1]) << 8) |
+		(static_cast<uint32>(Bytes[At + 2]) << 16) | (static_cast<uint32>(Bytes[At + 3]) << 24); };
+	TestEqual(TEXT("magic"), Word(0), 0x46546C67u);
+	TestEqual(TEXT("version 2"), Word(4), 2u);
+	TestEqual(TEXT("length"), static_cast<int32>(Word(8)), Bytes.Num());
+	const int32 JsonLength = static_cast<int32>(Word(12));
+	const int32 BinStart = 20 + JsonLength + 8;
+	const FUTF8ToTCHAR Converted(reinterpret_cast<const ANSICHAR*>(Bytes.GetData() + 20), JsonLength);
+	const FString JsonText(Converted.Length(), Converted.Get());
+	TSharedPtr<FJsonObject> Gltf;
+	if (!TestTrue(TEXT("its JSON reads"), FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(JsonText), Gltf) && Gltf.IsValid()))
+	{
+		return false;
+	}
+
+	// Named in Spanish, as Twinmotion will list them.
+	TSet<FString> Names;
+	for (const TSharedPtr<FJsonValue>& Node : Gltf->GetArrayField(TEXT("nodes")))
+	{
+		Names.Add(Node->AsObject()->GetStringField(TEXT("name")));
+	}
+	const auto Short = [](const auto& Id) { return FString(UTF8_TO_TCHAR(f101::cad::toString(Id).substr(0, 8).c_str())); };
+	TestTrue(TEXT("the level"), Names.Contains(TEXT("Planta baja")));
+	TestTrue(TEXT("the walls"), Names.Contains(TEXT("Muros")) && Names.Contains(TEXT("Muro ") + Short(Walls[0])));
+	TestTrue(TEXT("the door"), Names.Contains(TEXT("Puerta ") + Short(Door)));
+	TestTrue(TEXT("the sofa"), Names.Contains(TEXT("Sofá ") + Short(Sofa)));
+
+	// The bricks' material and its PNG, decoded by Unreal: the very pixels the application shows.
+	const TArray<TSharedPtr<FJsonValue>>& Materials = Gltf->GetArrayField(TEXT("materials"));
+	const TSharedPtr<FJsonValue>* Bricks = Materials.FindByPredicate([](const TSharedPtr<FJsonValue>& Material)
+	{
+		return Material->AsObject()->GetObjectField(TEXT("extras"))->GetStringField(TEXT("f101FinishId")) == TEXT("brick-red");
+	});
+	if (!TestNotNull(TEXT("the bricks' material"), Bricks))
+	{
+		return false;
+	}
+	TestEqual(TEXT("its name"), (*Bricks)->AsObject()->GetStringField(TEXT("name")), FString(TEXT("Ladrillo visto")));
+	const int32 Texture = static_cast<int32>((*Bricks)->AsObject()->GetObjectField(TEXT("pbrMetallicRoughness"))
+		->GetObjectField(TEXT("baseColorTexture"))->GetNumberField(TEXT("index")));
+	const int32 Image = static_cast<int32>(Gltf->GetArrayField(TEXT("textures"))[Texture]->AsObject()->GetNumberField(TEXT("source")));
+	const int32 View = static_cast<int32>(Gltf->GetArrayField(TEXT("images"))[Image]->AsObject()->GetNumberField(TEXT("bufferView")));
+	const TSharedPtr<FJsonObject> ViewObject = Gltf->GetArrayField(TEXT("bufferViews"))[View]->AsObject();
+	const int32 Offset = BinStart + static_cast<int32>(ViewObject->GetNumberField(TEXT("byteOffset")));
+	const int32 Length = static_cast<int32>(ViewObject->GetNumberField(TEXT("byteLength")));
+	FImage Decoded;
+	if (TestTrue(TEXT("a PNG Unreal decodes"), Offset + Length <= Bytes.Num() && FImageUtils::DecompressImage(Bytes.GetData() + Offset, Length, Decoded)))
+	{
+		Decoded.ChangeFormat(ERawImageFormat::BGRA8, EGammaSpace::sRGB);
+		const f101::scene::FinishLook Look = f101::scene::buildFinishLook("brick-red");
+		const f101::scene::TextureImage& Expected = Look.texture.mips.front();
+		TestEqual(TEXT("512 px"), static_cast<int32>(Decoded.SizeX), Expected.width);
+		int32 Different = 0;
+		const uint8* Pixels = Decoded.RawData.GetData();
+		for (int32 Pixel = 0; Pixel < Expected.width * Expected.height && Decoded.RawData.Num() >= Expected.width * Expected.height * 4; ++Pixel)
+		{
+			const uint8* Rgba = Expected.rgba.data() + Pixel * 4;
+			Different += Pixels[Pixel * 4 + 2] != Rgba[0] || Pixels[Pixel * 4 + 1] != Rgba[1] || Pixels[Pixel * 4] != Rgba[2] ? 1 : 0;
+		}
+		TestEqual(TEXT("the same pixels"), Different, 0);
+	}
+
+	// Only .glb.
+	AddExpectedMessagePlain(TEXT("F101: Export the model as .glb"), ELogVerbosity::Warning);
+	TestFalse(TEXT("another format refused"), Document->ExportGltf(FPaths::Combine(Folder, TEXT("casa.fbx"))).ok());
+	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Folder), false, true);
 	return true;
 }
 

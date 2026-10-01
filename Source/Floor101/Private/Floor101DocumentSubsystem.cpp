@@ -3,6 +3,8 @@
 #include "Engine/World.h"
 #include "F101/Assets/AssetImport.h"
 #include "F101/Assets/Library.h"
+#include "F101/Cad/Furniture.h"
+#include "F101/Exporters/Gltf.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/ProjectFile.h"
@@ -15,6 +17,7 @@
 #include "Engine/TextureRenderTarget2D.h"
 #include "Floor101.h"
 #include "Floor101FinishLibrary.h"
+#include "Floor101Names.h"
 #include "Floor101PathTracing.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
@@ -76,6 +79,39 @@ namespace
 		Texts.roomName = TCHAR_TO_UTF8(*LOCTEXT("PlanRoomName", "Habitación {n}").ToString());
 		Texts.areaUnit = TCHAR_TO_UTF8(*LOCTEXT("PlanAreaUnit", " m²").ToString());
 		Texts.decimalSeparator = ',';
+		return Texts;
+	}
+
+	std::string ToUtf8(const FText& Text)
+	{
+		return std::string(TCHAR_TO_UTF8(*Text.ToString()));
+	}
+
+	// The names Twinmotion shows (ADR-0020), in the UI's language.
+	f101::exporters::GltfTexts ExportTexts()
+	{
+		f101::exporters::GltfTexts Texts;
+		Texts.groundFloor = ToUtf8(LOCTEXT("GltfGroundFloor", "Planta baja"));
+		Texts.levelNumber = ToUtf8(LOCTEXT("GltfLevelNumber", "Planta {n}"));
+		Texts.walls = ToUtf8(LOCTEXT("GltfWalls", "Muros"));
+		Texts.floors = ToUtf8(LOCTEXT("GltfFloors", "Suelos"));
+		Texts.slabs = ToUtf8(LOCTEXT("GltfSlabs", "Forjados"));
+		Texts.openings = ToUtf8(LOCTEXT("GltfOpenings", "Puertas y ventanas"));
+		Texts.furniture = ToUtf8(LOCTEXT("GltfFurniture", "Muebles"));
+		Texts.wall = ToUtf8(LOCTEXT("GltfWall", "Muro"));
+		Texts.joint = ToUtf8(LOCTEXT("GltfJoint", "Unión"));
+		Texts.floor = ToUtf8(LOCTEXT("GltfFloor", "Suelo"));
+		Texts.slab = ToUtf8(LOCTEXT("GltfSlab", "Forjado"));
+		Texts.door = ToUtf8(LOCTEXT("GltfDoor", "Puerta"));
+		Texts.window = ToUtf8(LOCTEXT("GltfWindow", "Ventana"));
+		for (const f101::cad::FinishInfo& Finish : f101::cad::finishCatalogue())
+		{
+			Texts.finishNames.emplace(std::string(Finish.id), ToUtf8(Floor101::FinishName(Finish.id)));
+		}
+		for (const f101::cad::FurnitureType& Type : f101::cad::furnitureCatalogue())
+		{
+			Texts.furnitureNames.emplace(std::string(Type.id), ToUtf8(Floor101::FurnitureName(Type.id)));
+		}
 		return Texts;
 	}
 
@@ -191,6 +227,19 @@ namespace
 				const FString Path = Args.IsEmpty() ? Subsystem->GetDefaultPlanPath(TEXT("svg"))
 					: FPaths::ConvertRelativePathToFull(FString::Join(Args, TEXT(" ")));
 				(void)Subsystem->ExportPlan(Path, f101::cad::LevelId());
+			}
+		}));
+
+	FAutoConsoleCommandWithWorldAndArgs ExportGltfCommand(
+		TEXT("f101.Export.Gltf"),
+		TEXT("Exports the whole project for Twinmotion (ADR-0020) as .glb: to the given path, else next to the project file as <name>.glb."),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+		{
+			if (UFloor101DocumentSubsystem* Subsystem = FindSubsystem(World))
+			{
+				const FString Path = Args.IsEmpty() ? Subsystem->GetDefaultGltfPath()
+					: FPaths::ConvertRelativePathToFull(FString::Join(Args, TEXT(" ")).TrimQuotes());
+				(void)Subsystem->ExportGltf(Path);
 			}
 		}));
 
@@ -616,6 +665,53 @@ FString UFloor101DocumentSubsystem::GetDefaultPhotoPath() const
 	const FString Project = ProjectPath.IsEmpty() ? GetDefaultProjectPath() : ProjectPath;
 	return FPaths::Combine(FPaths::GetPath(Project),
 		FPaths::GetBaseFilename(Project) + TEXT("-foto-") + FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")) + TEXT(".png"));
+}
+
+FString UFloor101DocumentSubsystem::GetDefaultGltfPath() const
+{
+	const FString Project = ProjectPath.IsEmpty() ? GetDefaultProjectPath() : ProjectPath;
+	return FPaths::Combine(FPaths::GetPath(Project), FPaths::GetBaseFilename(Project) + TEXT(".glb"));
+}
+
+f101::Result<FFloor101GltfSummary> UFloor101DocumentSubsystem::ExportGltf(const FString& Path)
+{
+	if (!Path.EndsWith(TEXT(".glb"), ESearchCase::IgnoreCase))
+	{
+		const f101::Error Wrong{f101::ErrorCode::InvalidArgument, "Export the model as .glb (binary glTF)"};
+		SetStatus(ToText(Wrong.message), true);
+		return Wrong;
+	}
+	const f101::Result<f101::exporters::GltfExport> Exported = f101::exporters::exportProjectGlb(Document->project(),
+		ToFilesystemPath(GetProjectFolder()), *Models, ExportTexts());
+	if (!Exported)
+	{
+		SetStatus(ToText(Exported.error().message), true);
+		return Exported.error();
+	}
+	const f101::Status Saved = f101::exporters::saveGlbFile(ToFilesystemPath(Path), Exported.value().bytes);
+	if (!Saved)
+	{
+		SetStatus(ToText(Saved.error().message), true);
+		return Saved.error();
+	}
+	FFloor101GltfSummary Summary;
+	Summary.Objects = static_cast<int32>(Exported.value().objects);
+	Summary.Materials = static_cast<int32>(Exported.value().materials);
+	Summary.Images = static_cast<int32>(Exported.value().images);
+	Summary.Triangles = static_cast<int64>(Exported.value().triangles);
+	Summary.Bytes = static_cast<int64>(Exported.value().bytes.size());
+	for (const std::string& Warning : Exported.value().warnings)
+	{
+		Summary.Warnings.Add(UTF8_TO_TCHAR(Warning.c_str()));
+		UE_LOG(LogFloor101, Warning, TEXT("F101: export %s: %s"), *Path, UTF8_TO_TCHAR(Warning.c_str()));
+	}
+	FNumberFormattingOptions OneDecimal;
+	OneDecimal.SetMinimumFractionalDigits(1).SetMaximumFractionalDigits(1);
+	const FText Done = FText::Format(LOCTEXT("GltfExported", "Exportado para Twinmotion: {0} ({1} objetos, {2} materiales, {3} MB)"),
+		FText::FromString(Path), Summary.Objects, Summary.Materials, FText::AsNumber(static_cast<double>(Summary.Bytes) / (1024.0 * 1024.0), &OneDecimal));
+	SetStatus(Summary.Warnings.IsEmpty() ? Done
+		: FText::Format(LOCTEXT("GltfExportedWarning", "{0} · aviso: {1}"), Done, FText::FromString(Summary.Warnings[0])), false);
+	return Summary;
 }
 
 f101::Status UFloor101DocumentSubsystem::SavePhoto(const FString& Path)
