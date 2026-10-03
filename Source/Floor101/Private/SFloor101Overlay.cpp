@@ -10,6 +10,7 @@
 #include "F101/Cad/Units.h"
 #include "F101/Drawing/PlanDrawing.h"
 #include "Floor101DocumentSubsystem.h"
+#include "Floor101Display.h"
 #include "Floor101FileActions.h"
 #include "Floor101FileDialog.h"
 #include "Floor101FinishLibrary.h"
@@ -20,6 +21,7 @@
 #include "Floor101SceneSpace.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/PlayerController.h"
 #include "Misc/Paths.h"
 #include "Rendering/SlateRenderer.h"
@@ -28,6 +30,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
@@ -720,6 +723,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		.Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
 			MakeLevelRow()
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+		[
+			MakeDisplayControls()
 		]
 		+ SVerticalBox::Slot()
 		.AutoHeight()
@@ -1503,6 +1510,74 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 		];
 }
 
+TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
+{
+	const TSharedRef<SWidget> Fullscreen = SNew(SButton)
+		.IsFocusable(false)
+		.IsEnabled_Lambda([this]() { return Floor101::Display::Query(ViewportClient.Get()).Native.X > 0; })
+		.ToolTipText(LOCTEXT("FullscreenTip", "Pantalla completa dedicada con la resolución nativa de este monitor y render al 100 %. F11 vuelve a la ventana anterior."))
+		.OnClicked_Lambda([this]()
+		{
+			Floor101::Display::ToggleFullscreen(ViewportClient.Get());
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			return FReply::Handled();
+		})
+		[
+			SNew(STextBlock).Font(Font(10, true))
+			.Text_Lambda([this]()
+			{
+				return Floor101::Display::Query(ViewportClient.Get()).bFullscreen
+					? LOCTEXT("LeaveFullscreen", "Volver a ventana (F11)") : LOCTEXT("Fullscreen", "Pantalla completa (F11)");
+			})
+		];
+	const TSharedRef<SWidget> Resolution = SNew(SComboButton)
+		.ToolTipText(LOCTEXT("ResolutionTip", "Elige una resolución admitida por este monitor. La opción nativa coincide con los píxeles de la pantalla; el render se mantiene al 100 %."))
+		.OnGetMenuContent_Lambda([this]()
+		{
+			FMenuBuilder Menu(true, nullptr);
+			for (const FIntPoint Size : Floor101::Display::Resolutions(ViewportClient.Get()))
+			{
+				const FString Label = FString::Printf(TEXT("%d × %d%s"), Size.X, Size.Y,
+					Size == Floor101::Display::Query(ViewportClient.Get()).Native ? TEXT(" (nativa)") : TEXT(""));
+				Menu.AddMenuEntry(FText::FromString(Label), FText::GetEmpty(), FSlateIcon(),
+					FUIAction(FExecuteAction::CreateLambda([this, Size]()
+					{
+						Floor101::Display::SetResolution(ViewportClient.Get(), Size);
+						FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this, Size]() { return Floor101::Display::Query(ViewportClient.Get()).Image == Size; })),
+					NAME_None, EUserInterfaceActionType::RadioButton);
+			}
+			return Menu.MakeWidget();
+		})
+		.ButtonContent()
+		[
+			SNew(STextBlock).Font(Font(10))
+			.Text_Lambda([this]()
+			{
+				const FIntPoint Size = Floor101::Display::Query(ViewportClient.Get()).Image;
+				return FText::FromString(FString::Printf(TEXT("Resolución: %d × %d"), Size.X, Size.Y));
+			})
+		];
+	const TSharedRef<SWidget> Status = SNew(STextBlock).Font(Font(9)).AutoWrapText(true)
+		.Text_Lambda([this]() { return Floor101::Display::Describe(Floor101::Display::Query(ViewportClient.Get())); })
+		.ColorAndOpacity_Lambda([this]()
+		{
+			const Floor101::Display::FStatus State = Floor101::Display::Query(ViewportClient.Get());
+			return State.Native == State.Image && (!State.bWorldRendering || State.Image == State.Render) ? FSlateColor(MutedColor) : FSlateColor(ActiveButtonColor);
+		});
+	if (bCompact)
+	{
+		return SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Fullscreen]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Resolution]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Status];
+	}
+	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Fullscreen]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Resolution]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Status];
+}
+
 TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 {
 	auto PanelButton = [this](const FText& Label, const FText& ToolTip, TFunction<void(UFloor101GameViewportClient&)> Action)
@@ -1573,6 +1648,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 				[
 					SNew(STextBlock).Text(LOCTEXT("PhotoTitle", "Foto (path tracing)")).Font(Font(11, true))
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+				[
+					MakeDisplayControls(true)
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 				[

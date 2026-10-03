@@ -44,6 +44,7 @@ enum class EFloor101KeyCommand : uint8
 	      // (ADR-0016) and columns (ADR-0021) 90 degrees
 	PlanView, // 2D plan on / off (ADR-0015)
 	PhotoMode, // path traced photo on / off (ADR-0018)
+	Fullscreen, // dedicated fullscreen at native monitor resolution (F11)
 };
 
 // Translates raw input into editing calls (ADR-0008): the cursor becomes a ray in scene space for the edit controller,

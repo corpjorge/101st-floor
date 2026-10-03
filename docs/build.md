@@ -39,7 +39,7 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 .\Scripts\Build.ps1                                   # Floor101Editor Win64 Development (UBT)
 .\Scripts\Test.ps1                                    # arquitectura + unitarios (CMake, sin Unreal)
 .\Scripts\Test.ps1 -Integration                       # + Unreal Automation en editor headless
-.\Scripts\Run.ps1                                     # app en ventana (-game) con la pared de referencia
+.\Scripts\Run.ps1                                     # app (-game) con modo/resolución guardados y pared de referencia
 .\Scripts\CheckRendering.ps1 [-Demo]                  # validación de render (ver rendering-rtx.md)
 .\Scripts\RunEditorMcp.ps1 ; .\Scripts\CheckMcp.ps1   # editor + MCP (ver unreal-mcp.md)
 .\Scripts\GenerateAssets.ps1                          # regenera Content/Floor101 (materiales de acabados y vidrio) desde código

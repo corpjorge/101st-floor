@@ -6,6 +6,7 @@
 #include "F101/Cad/EditController.h"
 #include "Floor101.h"
 #include "Floor101DocumentSubsystem.h"
+#include "Floor101Display.h"
 #include "Floor101EditingPawn.h"
 #include "Floor101FileActions.h"
 #include "Floor101PathTracing.h"
@@ -64,6 +65,7 @@ bool UFloor101GameViewportClient::GetCursorRay(f101::cad::Ray3& OutRay) const
 void UFloor101GameViewportClient::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	Floor101::Display::Tick(this);
 	if (bPhotoMode)
 	{
 		Floor101::PathTracing::Tick(GetWorld());
@@ -264,6 +266,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::SpaceBar) { return EFloor101KeyCommand::Flip; }
 	if (Key == EKeys::Tab) { return EFloor101KeyCommand::PlanView; }
 	if (Key == EKeys::R) { return EFloor101KeyCommand::PhotoMode; }
+	if (Key == EKeys::F11) { return EFloor101KeyCommand::Fullscreen; }
 	return EFloor101KeyCommand::None;
 }
 
@@ -291,6 +294,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 		case EFloor101KeyCommand::Cancel: SetPhotoMode(false); break;
 		case EFloor101KeyCommand::Frame: FrameProject(); break;
 		case EFloor101KeyCommand::TopView: ShowTopView(); break;
+		case EFloor101KeyCommand::Fullscreen: Floor101::Display::ToggleFullscreen(this); break;
 		default: break;
 		}
 		return true;
@@ -345,6 +349,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	}
 	case EFloor101KeyCommand::PlanView: SetPlanView(!IsPlanView()); break;
 	case EFloor101KeyCommand::PhotoMode: SetPhotoMode(true); break;
+	case EFloor101KeyCommand::Fullscreen: Floor101::Display::ToggleFullscreen(this); break;
 	}
 	return true;
 }

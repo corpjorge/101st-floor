@@ -105,6 +105,7 @@ private:
 	// Photo mode (ADR-0018): its samples, quality, saving the image and leaving it.
 	TSharedRef<SWidget> MakePhotoPanel();
 	TSharedRef<SWidget> MakeHdrButton();
+	TSharedRef<SWidget> MakeDisplayControls(bool bCompact = false);
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 

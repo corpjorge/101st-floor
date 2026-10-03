@@ -22,7 +22,7 @@ la adaptación sigue los metadatos de la pantalla donde está la ventana.
 | Luminancia declarada por DXGI | pico y fotograma completo: 603,70 nits; mínimo: 0 |
 | Salida de la app (`-game`, UE 5.8.3) | ventana y viewport HDR; scRGB, output device 5, gamut 0 |
 | Tone mapping efectivo | pico de 603,70 nits; blanco de referencia de 203 nits |
-| EXR del Modo Foto | 1280 × 720, máximo lineal 3,924, media 0,746: conserva valores superiores a 1 |
+| EXR del Modo Foto | 1280 × 720, máximo lineal 3,939, media 0,750: conserva valores superiores a 1 |
 | Vuelta a SDR | ventana y viewport SDR; nombre PNG; captura legible y no negra |
 | Restauración del test | Windows HDR apagado, señal de 8 bits; preferencias previas restauradas |
 
@@ -47,11 +47,14 @@ Con HDR disponible también converge el path tracer a 64 muestras y decodifica e
 Logs y capturas quedan en `Saved/HDR/` (no versionado). Ejecútalo sin otras instancias de la aplicación abiertas.
 La selección manual del botón y el aspecto perceptual del HDR quedan para la revisión del usuario en su pantalla.
 
-La compilación Win64 Development pasó. `Test.ps1 -Integration`: 265/265 tests unitarios (12.892 aserciones) y 58/58
-tests Unreal, incluido `Floor101.Rendering.HDRUnavailable`. Pasaron el ciclo real con Windows HDR activo y el caso
+La compilación Win64 Development pasó. `Test.ps1 -Integration`: 265/265 tests unitarios (12.892 aserciones) y 59/59
+tests Unreal, incluidos `Floor101.Rendering.HDRUnavailable` y `DisplayUnavailable`. Pasaron el ciclo real con Windows HDR activo y el caso
 con Windows HDR apagado. `CheckRendering.ps1 -AnalyzeLog Saved/HDR/RenderRegression.log`: todas las comprobaciones
 pasaron, con Lumen HWRT, DX12/SM6, materiales y captura PNG a 64 muestras. La ejecución usó 30 frames de calentamiento
-y 60 de muestreo a 1920 × 1080; GPU media 2,99 ms en la escena de referencia.
+y 60 de muestreo a 1920 × 1080, render al 100 %; GPU media 3,85 ms en la escena de referencia.
+
+También pasó la comprobación de [pantalla completa nativa y resolución](display.md): HDR activo al entrar a
+2560 × 1440, imagen y render interno a esa resolución, selección de 1920 × 1080 y retorno a ventana.
 
 ![Botón Activar HDR en la barra de 101st Floor](images/hdr-toggle.png)
 

@@ -13,11 +13,11 @@ public class Floor101 : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Floor101CadCore", "Floor101Geometry", "Floor101SceneModel", "Floor101Drawing", "Floor101Assets", "Floor101Exporters", "Floor101UnrealAdapter",
-			"InputCore", "Slate", "SlateCore",
+			"InputCore", "Slate", "SlateCore", "ApplicationCore",
 			// Plan PNG export (ADR-0015): widgets rendered offscreen and saved as an image.
 			"UMG", "ImageCore",
 			// RHI/RenderCore: the development render check (Private/RenderCheck.cpp) and the offscreen plan render.
-			"RHI", "RenderCore",
+			"RHI", "RenderCore", "Renderer",
 			// Json: the integration tests read an exported glTF back (ADR-0020).
 			"Json",
 		});
