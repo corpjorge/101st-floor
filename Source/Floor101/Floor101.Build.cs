@@ -8,12 +8,12 @@ public class Floor101 : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Floor101CadCore", "Floor101Geometry", "Floor101SceneModel", "Floor101Drawing", "Floor101Assets", "Floor101Exporters", "Floor101UnrealAdapter",
-			"InputCore", "Slate", "SlateCore", "ApplicationCore",
+			"Slate", "SlateCore", "ApplicationCore",
 			// Plan PNG export (ADR-0015): widgets rendered offscreen and saved as an image.
 			"UMG", "ImageCore",
 			// RHI/RenderCore: the development render check (Private/RenderCheck.cpp) and the offscreen plan render.

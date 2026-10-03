@@ -26,6 +26,12 @@ namespace
 	{
 		return FVector(Floor101::Conversion::ToUnrealPosition({static_cast<double>(P.x_mm), static_cast<double>(P.y_mm), ZMm}));
 	}
+
+	bool IsShortcutModifier(const FKey& Key)
+	{
+		return Key == EKeys::LeftControl || Key == EKeys::RightControl || Key == EKeys::LeftAlt || Key == EKeys::RightAlt
+			|| Key == EKeys::LeftCommand || Key == EKeys::RightCommand;
+	}
 }
 
 UFloor101DocumentSubsystem* UFloor101GameViewportClient::GetEditingTarget()
@@ -77,20 +83,29 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 		bOrbiting = bOrbiting && Viewport->KeyState(EKeys::RightMouseButton);
 		bPanning = bPanning && Viewport->KeyState(EKeys::MiddleMouseButton);
 	}
+	TickNavigation(DeltaTime);
 
 	FVector2D Mouse;
 	if (!GetMousePosition(Mouse))
 	{
+		LastMousePosition = FVector2D(-1.0, -1.0);
 		return;
 	}
 	const FVector2D Delta = LastMousePosition.X < 0.0 ? FVector2D::ZeroVector : Mouse - LastMousePosition;
 	LastMousePosition = Mouse;
-	if (AFloor101EditingPawn* Pawn = GetEditingPawn(); Pawn && !Delta.IsZero())
+	if (AFloor101EditingPawn* Pawn = GetEditingPawn(); Pawn && CanNavigate() && !Delta.IsZero())
 	{
 		if (bOrbiting)
 		{
 			RightDragPixels += Delta.Size();
-			Pawn->Orbit(Delta);
+			if (bNavigationMode || bRightNavigationUsed)
+			{
+				Pawn->Look(Delta);
+			}
+			else
+			{
+				Pawn->Orbit(Delta);
+			}
 		}
 		else if (bPanning)
 		{
@@ -115,7 +130,7 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 
 	// The ray changes when the cursor or the camera moves; only then is the view recomputed.
 	f101::cad::Ray3 Ray;
-	if (Document && !bPhotoMode && GetCursorRay(Ray))
+	if (Document && !bPhotoMode && !bNavigationMode && !bOrbiting && GetCursorRay(Ray))
 	{
 		const FVector Origin(Ray.originX, Ray.originY, Ray.originZ);
 		const FVector Direction(Ray.directionX, Ray.directionY, Ray.directionZ);
@@ -128,25 +143,86 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 	}
 }
 
+bool UFloor101GameViewportClient::CanNavigate()
+{
+	return Viewport && Viewport->HasFocus() && Viewport->IsForegroundWindow() && !IgnoreInput()
+		&& !(ViewportConsole && ViewportConsole->ConsoleActive());
+}
+
+void UFloor101GameViewportClient::TickNavigation(float DeltaTime)
+{
+	const FModifierKeysState Modifiers = FSlateApplication::IsInitialized()
+		? FSlateApplication::Get().GetModifierKeys() : FModifierKeysState();
+	if (!CanNavigate() || !GetEditingTarget() || (!bNavigationMode && !bOrbiting)
+		|| Modifiers.IsControlDown() || Modifiers.IsAltDown() || Modifiers.IsCommandDown())
+	{
+		NavigationKeys.Reset();
+		return;
+	}
+	const FVector Direction = NavigationKeys.Direction([this](const FKey& Key) { return Viewport->KeyState(Key); });
+	if (!Direction.IsZero())
+	{
+		if (AFloor101EditingPawn* Pawn = GetEditingPawn())
+		{
+			Pawn->Move(Direction, DeltaTime, Modifiers.IsShiftDown());
+			bRightNavigationUsed |= bOrbiting;
+		}
+	}
+}
+
+void UFloor101GameViewportClient::LostFocus(FViewport* InViewport)
+{
+	NavigationKeys.Reset();
+	bOrbiting = false;
+	bPanning = false;
+	bRightNavigationUsed = false;
+	LastMousePosition = FVector2D(-1.0, -1.0);
+	Super::LostFocus(InViewport);
+}
+
+void UFloor101GameViewportClient::SetNavigationMode(bool bNavigate)
+{
+	if (bNavigationMode == bNavigate)
+	{
+		return;
+	}
+	bNavigationMode = bNavigate;
+	NavigationKeys.Reset();
+	if (bNavigate)
+	{
+		if (UFloor101DocumentSubsystem* Document = GetEditingTarget())
+		{
+			(void)Document->Edit([](EditController& Editor) { Editor.cancel(); return f101::Status::success(); });
+		}
+	}
+}
+
 bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 {
 	UE_LOG(LogFloor101, VeryVerbose, TEXT("F101: key %s %s"), *EventArgs.Key.ToString(),
 		*StaticEnum<EInputEvent>()->GetNameStringByValue(EventArgs.Event));
+	const FKey& Key = EventArgs.Key;
+	const EInputEvent Event = EventArgs.Event;
+	const bool bDown = Event == IE_Pressed || Event == IE_DoubleClick;
+	const FModifierKeysState Modifiers = FSlateApplication::IsInitialized()
+		? FSlateApplication::Get().GetModifierKeys() : FModifierKeysState();
+	const bool bShortcut = IsShortcutModifier(Key) || Modifiers.IsControlDown() || Modifiers.IsAltDown() || Modifiers.IsCommandDown();
 	UFloor101DocumentSubsystem* Document = GetEditingTarget();
+	if (NavigationKeys.HandleKey(Key, Event, Document && CanNavigate() && (bNavigationMode || bOrbiting), bShortcut))
+	{
+		bRightNavigationUsed |= bOrbiting && bDown;
+		return true;
+	}
 	if (!Document)
 	{
 		return Super::InputKey(EventArgs);
 	}
 
-	const FKey& Key = EventArgs.Key;
-	const EInputEvent Event = EventArgs.Event;
-	const bool bDown = Event == IE_Pressed || Event == IE_DoubleClick;
-
 	if (Key == EKeys::LeftMouseButton)
 	{
-		if (bPhotoMode)
+		if (bPhotoMode || bNavigationMode)
 		{
-			return true; // a photo is taken, not edited
+			return true; // navigating and photos do not edit
 		}
 		f101::cad::Ray3 Ray;
 		if (GetCursorRay(Ray))
@@ -171,12 +247,17 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		if (bDown)
 		{
 			bOrbiting = true;
+			bRightNavigationUsed = false;
 			RightDragPixels = 0.0;
 		}
 		else if (Event == IE_Released && bOrbiting)
 		{
 			bOrbiting = false;
-			if (RightDragPixels <= CancelClickMaxPixels)
+			if (!bNavigationMode)
+			{
+				NavigationKeys.Reset();
+			}
+			if (!bNavigationMode && !bRightNavigationUsed && RightDragPixels <= CancelClickMaxPixels)
 			{
 				(void)Document->Edit([](EditController& Editor) { Editor.cancel(); return f101::Status::success(); });
 			}
@@ -212,7 +293,7 @@ bool UFloor101GameViewportClient::InputAxis(const FInputKeyEventArgs& EventArgs)
 	return Super::InputAxis(EventArgs);
 }
 
-EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat, bool bTypingLength)
+EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat, bool bTypingLength, bool bNavigating)
 {
 	if (bControl)
 	{
@@ -237,6 +318,10 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 			return EFloor101KeyCommand::Open;
 		}
 		return EFloor101KeyCommand::None; // Ctrl+W is not W
+	}
+	if (bNavigating && FFloor101NavigationKeys::IsMovementKey(Key))
+	{
+		return EFloor101KeyCommand::NavigationMove;
 	}
 	if (Key == EKeys::BackSpace)
 	{
@@ -267,6 +352,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::Tab) { return EFloor101KeyCommand::PlanView; }
 	if (Key == EKeys::R) { return EFloor101KeyCommand::PhotoMode; }
 	if (Key == EKeys::F11) { return EFloor101KeyCommand::Fullscreen; }
+	if (Key == EKeys::N) { return EFloor101KeyCommand::NavigationToggle; }
 	return EFloor101KeyCommand::None;
 }
 
@@ -275,6 +361,10 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	const FModifierKeysState Modifiers = FSlateApplication::IsInitialized()
 		? FSlateApplication::Get().GetModifierKeys()
 		: FModifierKeysState();
+	if (Modifiers.IsAltDown() || Modifiers.IsCommandDown())
+	{
+		return false;
+	}
 	auto Edit = [&Document](auto Action) { (void)Document.Edit(Action); };
 	auto Always = [](auto Action)
 	{
@@ -283,7 +373,22 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 
 	const EditController& Current = Document.GetEditController();
 	const bool bTypingLength = Current.mode() == f101::cad::EditMode::Wall && Current.wallTool().state() == f101::cad::WallTool::State::Drafting;
-	const EFloor101KeyCommand Command = MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat, bTypingLength);
+	const EFloor101KeyCommand Command = MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat, bTypingLength, bNavigationMode || bOrbiting);
+	if (Command == EFloor101KeyCommand::NavigationToggle || (Command == EFloor101KeyCommand::Cancel && bNavigationMode))
+	{
+		SetNavigationMode(!bNavigationMode);
+		return true;
+	}
+	if (Command == EFloor101KeyCommand::NavigationMove)
+	{
+		return true;
+	}
+	if (bNavigationMode && !bPhotoMode && (Command == EFloor101KeyCommand::SelectTool || Command == EFloor101KeyCommand::DoorTool
+		|| Command == EFloor101KeyCommand::WindowTool || Command == EFloor101KeyCommand::PaintTool
+		|| Command == EFloor101KeyCommand::ColumnTool || Command == EFloor101KeyCommand::ServicesTool))
+	{
+		SetNavigationMode(false);
+	}
 	if (bPhotoMode)
 	{
 		// Only the camera and leaving the photo: editing keys do nothing while the view is path traced.
@@ -350,12 +455,18 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	case EFloor101KeyCommand::PlanView: SetPlanView(!IsPlanView()); break;
 	case EFloor101KeyCommand::PhotoMode: SetPhotoMode(true); break;
 	case EFloor101KeyCommand::Fullscreen: Floor101::Display::ToggleFullscreen(this); break;
+	case EFloor101KeyCommand::NavigationToggle:
+	case EFloor101KeyCommand::NavigationMove: break; // handled before photo/edit routing
 	}
 	return true;
 }
 
 bool UFloor101GameViewportClient::InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character)
 {
+	if (bNavigationMode || bOrbiting)
+	{
+		return true;
+	}
 	UFloor101DocumentSubsystem* Document = GetEditingTarget();
 	if (!Document || Document->GetEditController().mode() != f101::cad::EditMode::Wall)
 	{

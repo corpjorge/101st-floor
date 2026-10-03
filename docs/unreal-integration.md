@@ -72,7 +72,7 @@
   muestras por píxel (`SetPhotoSamples`: 64, 256 o 1024) y activa el path tracer (`Floor101::PathTracing`: modo de vista
   `VMI_PathTracing`, progreso leído por una `FSceneViewExtension`, acumulación reiniciada al terminar de compilar
   shaders); en Modo Foto el clic izquierdo no edita.
-- `AFloor101EditingPawn`: cámara orbital sin colisión (foco, guiñada, cabeceo entre −89° y −5°, distancia 0,5–2000 m);
+- `AFloor101EditingPawn`: cámara sin colisión, orbital al editar y libre al navegar (foco, guiñada, cabeceo orbital entre −89° y −5°, distancia 0,02–2000 m);
   `Frame` encuadra con margen usando el campo de visión vertical; `TopView` es la vista en planta (−89°, norte arriba);
   `RaiseFocus` sube o baja el foco: el viewport client lo usa para que la cámara siga la cota de la planta activa, y
   "Encuadrar" solo mira las plantas visibles. `SetPlanView`: cámara ortográfica recta hacia abajo (norte arriba) a 1 km
@@ -113,6 +113,7 @@ Desarrollo:
 | escribir `355`, `3.55 m`, `3550 mm` | longitud del muro que se dibuja (sin unidad = cm); Retroceso borra. Mientras se escribe, M y C son texto (no Pintar) |
 | R / botón "Foto (R)" | Modo Foto: la vista con path tracing, sin marcas de edición; el panel da el progreso, la calidad (Borrador 64, Media 256, Alta 1024 muestras) y "Guardar imagen" (PNG en SDR, EXR con HDR); la cámara se mueve igual y reinicia la imagen; R o Esc vuelven a editar |
 | F11 / botón "Pantalla completa" | pantalla completa dedicada a la resolución nativa del monitor y render al 100 %; vuelve al tamaño de ventana anterior. Disponible también en Modo Foto |
+| N / botón "Navegar"; derecho + WASD al editar | WASD desplaza la cámara, Q/E baja/sube, Shift acelera; derecho arrastrando mira desde la cámara. N/Esc vuelve a editar. En plano 2D, WASD desplaza el plano. [Detalle](camera-navigation.md) |
 | "Resolución" y fila Pantalla / Imagen / Render | elegir un modo admitido por el monitor y comprobar dimensiones nativas, viewport efectivo y render interno antes de TSR. En plano 2D se indica "plano 2D"; detalle en [pantalla y resolución](display.md) |
 | Tab / botón "Plano 2D (Tab)" | plano 2D de la planta activa, editable como en 3D (rueda: zoom, central: desplazar); Tab o T vuelven a 3D |
 | "Plano: SVG / PNG" | exporta el plano de la planta activa junto al proyecto (`<proyecto>-<planta>.svg|png`) |

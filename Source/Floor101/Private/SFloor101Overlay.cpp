@@ -405,6 +405,10 @@ void SFloor101Overlay::Tick(const FGeometry& AllottedGeometry, const double InCu
 
 FReply SFloor101Overlay::Run(TFunctionRef<f101::Status(EditController&)> Action)
 {
+	if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+	{
+		Client->SetNavigationMode(false);
+	}
 	if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
 	{
 		(void)Subsystem->Edit(Action);
@@ -434,7 +438,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			.ButtonColorAndOpacity_Lambda([this, Mode]()
 			{
 				const UFloor101DocumentSubsystem* Subsystem = Document.Get();
-				return Subsystem && Subsystem->GetEditController().mode() == Mode ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+				const UFloor101GameViewportClient* Client = ViewportClient.Get();
+				return Subsystem && !(Client && Client->IsNavigationMode()) && Subsystem->GetEditController().mode() == Mode
+					? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
 			})
 			.OnClicked_Lambda([this, Mode]()
 			{
@@ -1510,6 +1516,35 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 		];
 }
 
+TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
+{
+	return SNew(SButton)
+		.IsFocusable(false)
+		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; arrastrar con botón derecho: mirar. También puedes usar derecho + WASD al editar."))
+		.ButtonColorAndOpacity_Lambda([this]()
+		{
+			const UFloor101GameViewportClient* Client = ViewportClient.Get();
+			return Client && Client->IsNavigationMode() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+		})
+		.OnClicked_Lambda([this]()
+		{
+			if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+			{
+				Client->SetNavigationMode(!Client->IsNavigationMode());
+			}
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			return FReply::Handled();
+		})
+		[
+			SNew(STextBlock).Font(Font(10, true))
+			.Text_Lambda([this]()
+			{
+				const UFloor101GameViewportClient* Client = ViewportClient.Get();
+				return Client && Client->IsNavigationMode() ? LOCTEXT("NavigationOff", "Volver a editar (N)") : LOCTEXT("NavigationOn", "Navegar (N · WASD)");
+			})
+		];
+}
+
 TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 {
 	const TSharedRef<SWidget> Fullscreen = SNew(SButton)
@@ -1568,11 +1603,18 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 	if (bCompact)
 	{
 		return SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationButton()]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				SNew(STextBlock).Font(Font(9)).AutoWrapText(true)
+				.Text(LOCTEXT("NavigationPhotoHint", "N + WASD: moverse · Q/E: bajar/subir · Shift: rápido · derecho: mirar"))
+			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Fullscreen]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Resolution]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Status];
 	}
 	return SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)[MakeNavigationButton()]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Fullscreen]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Resolution]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Status];
@@ -3004,6 +3046,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 
 FText SFloor101Overlay::GetHintText() const
 {
+	if (const UFloor101GameViewportClient* Client = ViewportClient.Get(); Client && Client->IsNavigationMode())
+	{
+		return Client->IsPlanView()
+			? LOCTEXT("NavigationPlanHint", "Navegar · WASD: desplazar el plano · Shift: rápido · rueda: zoom · N o Esc: volver a editar")
+			: LOCTEXT("NavigationHint", "Navegar · WASD: moverse · Q/E: bajar/subir · Shift: rápido · derecho: mirar · N o Esc: volver a editar");
+	}
 	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
 	if (!Subsystem)
 	{
@@ -3159,13 +3207,17 @@ TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
 				const FText Unsaved = bUnsaved ? LOCTEXT("Unsaved", "Sin guardar  ·  ") : FText::GetEmpty();
 				return S && S->IsPlanView()
 					? FText::Format(LOCTEXT("PlanCameraHint", "{0}Plano 2D · Rueda: zoom · Clic central: desplazar · Tab: volver a 3D"), Unsaved)
-					: FText::Format(LOCTEXT("CameraHint", "{0}Clic derecho arrastrando: orbitar · Rueda: zoom · Clic central: desplazar"), Unsaved);
+					: FText::Format(LOCTEXT("CameraHint", "{0}N: navegar · Derecho + WASD: moverse · Rueda: acercar · Central: desplazar"), Unsaved);
 			})
 		]);
 }
 
 FText SFloor101Overlay::GetCursorText() const
 {
+	if (const UFloor101GameViewportClient* Client = ViewportClient.Get(); Client && Client->IsNavigationMode())
+	{
+		return FText::GetEmpty();
+	}
 	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
 	if (!Subsystem)
 	{

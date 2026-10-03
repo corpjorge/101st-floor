@@ -8,10 +8,15 @@ namespace
 	constexpr double DegreesPerPixel = 0.25;
 	constexpr double MinPitch = -89.0;
 	constexpr double MaxPitch = -5.0;
-	constexpr double MinDistance = 50.0;     // cm
+	constexpr double MinDistance = 2.0;      // cm; the configured 1 cm near plane permits inspecting small details
 	constexpr double MaxDistance = 200000.0; // cm
 	constexpr double ZoomFactorPerStep = 0.85;
+	constexpr double CloseDollyPerStep = 5.0; // cm once the camera has reached its orbit focus
+	constexpr double MaxCloseDollySteps = 10.0; // bound a single unusually large wheel event
 	constexpr double PlanCameraHeight = 100000.0; // cm over the focus: above any building, so pointer rays start above it
+	constexpr double MinMoveSpeed = 10.0;   // cm/s: fine control while inspecting details
+	constexpr double MaxMoveSpeed = 1000.0; // cm/s
+	constexpr double FastMoveMultiplier = 4.0;
 }
 
 AFloor101EditingPawn::AFloor101EditingPawn()
@@ -40,7 +45,10 @@ void AFloor101EditingPawn::Orbit(const FVector2D& DeltaPixels)
 		return;
 	}
 	Yaw = FRotator::NormalizeAxis(Yaw + DeltaPixels.X * DegreesPerPixel);
-	Pitch = FMath::Clamp(Pitch - DeltaPixels.Y * DegreesPerPixel, MinPitch, MaxPitch);
+	// A navigation look may leave the camera above the horizon. Resume orbiting from that pose without snapping
+	// downward; ordinary downward-facing orbits still cannot tilt past their usual upper limit.
+	const double UpperPitch = FMath::Max(MaxPitch, Pitch);
+	Pitch = FMath::Clamp(Pitch - DeltaPixels.Y * DegreesPerPixel, MinPitch, UpperPitch);
 	ApplyView();
 }
 
@@ -55,9 +63,56 @@ void AFloor101EditingPawn::Pan(const FVector2D& DeltaPixels, const FVector2D& Vi
 	ApplyView();
 }
 
+void AFloor101EditingPawn::Look(const FVector2D& DeltaPixels)
+{
+	if (bPlanView)
+	{
+		return;
+	}
+	const FVector Position = GetActorLocation();
+	Yaw = FRotator::NormalizeAxis(Yaw + DeltaPixels.X * DegreesPerPixel);
+	Pitch = FMath::Clamp(Pitch - DeltaPixels.Y * DegreesPerPixel, MinPitch, -MinPitch);
+	Focus = Position + FRotator(Pitch, Yaw, 0.0).Vector() * Distance;
+	ApplyView();
+}
+
 void AFloor101EditingPawn::Zoom(float Steps)
 {
+	if (!FMath::IsFinite(Steps))
+	{
+		return;
+	}
+	if (!bPlanView && Steps > 0.0f)
+	{
+		// Once the old focus is reached, move both camera and focus forward instead of getting stuck there. Account
+		// for any notches spent approaching the focus before dollying; a large event cannot leap through a building.
+		const double StepsToClose = FMath::Loge(MinDistance / Distance) / FMath::Loge(ZoomFactorPerStep);
+		const double DollySteps = FMath::Clamp(static_cast<double>(Steps) - StepsToClose, 0.0, MaxCloseDollySteps);
+		Focus += FRotator(Pitch, Yaw, 0.0).Vector() * (CloseDollyPerStep * DollySteps);
+	}
 	Distance = FMath::Clamp(Distance * FMath::Pow(ZoomFactorPerStep, static_cast<double>(Steps)), MinDistance, MaxDistance);
+	ApplyView();
+}
+
+void AFloor101EditingPawn::Move(const FVector& LocalDirection, float DeltaTime, bool bFast)
+{
+	if (!FMath::IsFinite(DeltaTime) || DeltaTime <= 0.0f || LocalDirection.ContainsNaN())
+	{
+		return;
+	}
+	const FRotationMatrix Basis(FRotator(Pitch, Yaw, 0.0));
+	// The plan is cardinal by definition. Exact axes avoid tiny height/easting drift from rotating by -90 degrees.
+	const FVector Forward = bPlanView ? FVector(0.0, -1.0, 0.0) : Basis.GetUnitAxis(EAxis::X);
+	const FVector Right = bPlanView ? FVector(1.0, 0.0, 0.0) : Basis.GetUnitAxis(EAxis::Y);
+	const FVector Up = bPlanView ? FVector::ZeroVector : FVector::UpVector;
+	const FVector Direction = (Forward * LocalDirection.X + Right * LocalDirection.Y + Up * LocalDirection.Z).GetSafeNormal();
+	if (Direction.IsZero())
+	{
+		return;
+	}
+	const double ViewScale = bPlanView ? GetViewWidth() : Distance;
+	const double Speed = FMath::Clamp(ViewScale * 0.25, MinMoveSpeed, MaxMoveSpeed) * (bFast ? FastMoveMultiplier : 1.0);
+	Focus += Direction * Speed * static_cast<double>(DeltaTime);
 	ApplyView();
 }
 
