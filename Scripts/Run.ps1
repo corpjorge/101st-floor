@@ -18,7 +18,9 @@ param(
 . "$PSScriptRoot\Common.ps1"
 
 $engine = Find-UnrealEngine
-$arguments = @("`"$UProjectPath`"", '-game', '-windowed', "-ResX=$ResX", "-ResY=$ResY", '-log')
+# -DisablePython: the app has no Python. Without it the editor's Python plugin still runs the init_unreal.py of
+# editor-only plugins (ToolsetRegistry), whose classes are not loaded in -game, and logs a traceback at startup.
+$arguments = @("`"$UProjectPath`"", '-game', '-windowed', "-ResX=$ResX", "-ResY=$ResY", '-log', '-DisablePython')
 if ($Demo) { $arguments += '-F101Demo' }
 
 Write-Step "Starting 101st Floor ($($engine.Version)) $(if ($Demo) { 'with the MVP 0 reference wall' })"

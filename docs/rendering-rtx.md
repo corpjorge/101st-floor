@@ -106,3 +106,15 @@ binario del editor con `-game`).
 - `CheckRendering.ps1` comprueba el Modo Foto ("Path tracing (photo mode)", `-PathTraceSamples`, 64 por defecto): las
   muestras llegan al objetivo y la imagen no es negra. Medido el 2026-09-30: 64/64 muestras en 1,5 s a 853 × 640 con la
   pared de referencia, brillo medio 0,62; `PathTrace-<fecha>.png` en `Saved/RenderCheck`.
+- Aviso "[VSM] Non-Nanite Marking Job Queue overflow" (2026-10-02): la cola de marcado de páginas de los VSM para
+  mallas no Nanite tiene tamaño fijo en el shader (`MARKING_JOB_QUEUE_SIZE`, sin cvar); si se desborda, el trabajo se
+  hace igual pero más lento, sin artefactos. Con `r.Shadow.Virtual.NonNanite.NumPageAreaDiagSlots -1` y
+  `r.Shadow.Virtual.NonNanite.LargeInstancePageAreaThreshold 32` el log nombra las mallas de más área: solo el suelo
+  (`Floor`, 81–575 páginas) y la esfera del cielo (`SM_SkySphere`, 564) del mapa plantilla; ninguna malla del proyecto
+  llega al umbral, ni con 34 muros en dos plantas. Por eso el subsistema les quita la sombra al empezar
+  (`OnWorldBeginPlay`): su sombra cae donde no se ve, la imagen no cambia (diferencia media 0,36/255 entre capturas,
+  brillo del path tracing 0,62 igual) y el log queda limpio con las mismas vistas. Con casas mucho mayores podría volver
+  a salir (las mallas generadas no son Nanite): es un aviso de rendimiento solo de builds de desarrollo, no se oculta.
+- `Run.ps1` y `CheckRendering.ps1` lanzan con `-DisablePython`: la app no usa Python, y sin él el plugin de Python del
+  editor ejecuta en `-game` el `init_unreal.py` de ToolsetRegistry (solo editor), cuya clase `PythonTestRunner` no está
+  cargada, y deja un traceback rojo en la consola al arrancar.

@@ -40,7 +40,7 @@ function Invoke-RenderCheckRun {
 
     $arguments = @(
         "`"$UProjectPath`"", $Map, '-game', '-windowed', "-ResX=$ResX", "-ResY=$ResY",
-        '-log', "-abslog=`"$runLog`"", '-unattended', '-nosplash', '-nosound',
+        '-log', "-abslog=`"$runLog`"", '-unattended', '-nosplash', '-nosound', '-DisablePython', # as Run.ps1
         '-ExecCmds="r.ProfileGPU.ShowUI 0, r.ProfileGPU.UnicodeOutput 0"',
         '-F101RenderCheck', "-F101RenderCheckWarmupFrames=$WarmupFrames",
         "-F101RenderCheckSampleFrames=$SampleFrames", "-F101RenderCheckTimeout=$TimeoutSeconds",

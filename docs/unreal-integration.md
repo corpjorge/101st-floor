@@ -94,7 +94,10 @@
   por tipo y la carpeta de la última vez; lo usan "Importar textura…" e "Importar modelo…".
 
 Desarrollo:
-- `-F101Demo` carga la pared de referencia al empezar el juego (`Run.ps1`, `CheckRendering.ps1 -Demo`).
+- `-F101Demo` carga la pared de referencia al empezar el juego (`Run.ps1`, `CheckRendering.ps1 -Demo`). Al empezar
+  el juego, las mallas propias del mapa (suelo y esfera del cielo de la plantilla) dejan de proyectar sombra: desbordaban
+  la cola de VSM para mallas no Nanite (`docs/rendering-rtx.md`). `Run.ps1` lanza con `-DisablePython` (la app no usa
+  Python; sin él, el `init_unreal.py` de ToolsetRegistry, solo de editor, falla al arrancar en `-game`).
 - Consola: `f101.Demo.Load`, `f101.Demo.SetLength <longitud>` (acepta `420`, `4.2 m`, `4,2 m`, `4200 mm`),
   `f101.Demo.Clear`, `f101.Demo.Status`, `f101.Undo`, `f101.Redo`, `f101.Project.Save [ruta]`,
   `f101.Project.Open [ruta]`, `f101.Plan.Export [ruta .svg|.png]`, `f101.Asset.Import <ruta>`,

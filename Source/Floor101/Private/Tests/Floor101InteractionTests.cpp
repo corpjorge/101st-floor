@@ -788,6 +788,8 @@ bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 	}
 	Ground->GetStaticMeshComponent()->SetStaticMesh(Plane);
 	Ground->GetStaticMeshComponent()->SetMaterial(0, GroundMaterial);
+	Document->OnWorldBeginPlay(*TestWorld.World);
+	TestFalse(TEXT("the map's meshes cast no shadow (they flood VSM's non-Nanite queue)"), Ground->GetStaticMeshComponent()->CastShadow);
 	const f101::cad::WallId Wall = Document->GetMutableDocument().addWall({0, 0}, {4000, 0}, 120, 2800).value();
 	const AFloor101SceneNodeActor* WallActor = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Wall));
 	if (!TestNotNull(TEXT("the wall's actor"), WallActor))

@@ -321,6 +321,17 @@ void UFloor101DocumentSubsystem::Deinitialize()
 void UFloor101DocumentSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
+	// The map's own meshes (the template's ground plane and sky sphere) cast no shadow: their shadows fall where nothing
+	// is seen, and as huge non-Nanite meshes they cover hundreds of virtual shadow map pages each (r.Shadow.Virtual.
+	// NonNanite.NumPageAreaDiagSlots), which overflows VSM's marking queue ("[VSM] Non-Nanite Marking Job Queue
+	// overflow"). The image does not change. The project's own actors are not static mesh actors.
+	for (TActorIterator<AStaticMeshActor> It(&InWorld); It; ++It)
+	{
+		if (UStaticMeshComponent* Component = It->GetStaticMeshComponent())
+		{
+			Component->SetCastShadow(false);
+		}
+	}
 	if (FParse::Param(FCommandLine::Get(), TEXT("F101Demo")))
 	{
 		LoadReferenceWall();
