@@ -125,6 +125,11 @@ namespace Floor101
 			{TEXT("fabric-terracotta"), LOCTEXT("FinishFabricTerracotta", "Tela teja")},
 			{TEXT("leather-brown"), LOCTEXT("FinishLeatherBrown", "Cuero marrón")},
 			{TEXT("leather-black"), LOCTEXT("FinishLeatherBlack", "Cuero negro")},
+			// Building services (ADR-0021): the colour of each kind of run.
+			{TEXT("service-electrical"), LOCTEXT("FinishServiceElectrical", "Tubo eléctrico verde")},
+			{TEXT("service-water"), LOCTEXT("FinishServiceWater", "Tubo de agua blanco")},
+			{TEXT("service-sewage"), LOCTEXT("FinishServiceSewage", "Tubo de saneamiento amarillo")},
+			{TEXT("service-gas"), LOCTEXT("FinishServiceGas", "Tubo de gas dorado")},
 		};
 		const FString Key = UTF8_TO_TCHAR(std::string(Id).c_str());
 		const FText* Name = Names.Find(Key);
@@ -155,6 +160,22 @@ namespace Floor101
 		const FString Key = UTF8_TO_TCHAR(std::string(Type).c_str());
 		const FText* Name = Names.Find(Key);
 		return Name ? *Name : FText::FromString(Key);
+	}
+
+	FText ServiceKindName(f101::cad::ServiceKind Kind)
+	{
+		switch (Kind)
+		{
+		case f101::cad::ServiceKind::Water: return LOCTEXT("ServiceWater", "Agua");
+		case f101::cad::ServiceKind::Sewage: return LOCTEXT("ServiceSewage", "Aguas negras");
+		case f101::cad::ServiceKind::Gas: return LOCTEXT("ServiceGas", "Gas");
+		default: return LOCTEXT("ServiceElectrical", "Electricidad");
+		}
+	}
+
+	FText ColumnShapeName(f101::cad::ColumnShape Shape)
+	{
+		return Shape == f101::cad::ColumnShape::Round ? LOCTEXT("ColumnRound", "Redondo") : LOCTEXT("ColumnRectangle", "Rectangular");
 	}
 }
 

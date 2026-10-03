@@ -83,6 +83,8 @@ namespace f101::exporters
 			Slabs,
 			Openings,
 			Furniture,
+			Columns,
+			Services,
 			Count,
 		};
 
@@ -94,6 +96,8 @@ namespace f101::exporters
 			case scene::SourceKind::Slab: return Group::Slabs;
 			case scene::SourceKind::Opening: return Group::Openings;
 			case scene::SourceKind::Furniture: return Group::Furniture;
+			case scene::SourceKind::Column: return Group::Columns;
+			case scene::SourceKind::Service: return Group::Services;
 			default: return Group::Walls;
 			}
 		}
@@ -108,6 +112,8 @@ namespace f101::exporters
 			case scene::SourceKind::Slab: return "slab";
 			case scene::SourceKind::Opening: return "opening";
 			case scene::SourceKind::Furniture: return "furniture";
+			case scene::SourceKind::Column: return "column";
+			case scene::SourceKind::Service: return "service";
 			default: return "marker";
 			}
 		}
@@ -234,6 +240,21 @@ namespace f101::exporters
 		{
 			furnitureTypes.emplace(cad::toString(piece.id), piece.type);
 		}
+		std::map<std::string, cad::ServiceKind, std::less<>> serviceKinds;
+		for (const cad::ServiceRun& run : project.services)
+		{
+			serviceKinds.emplace(cad::toString(run.id), run.kind);
+		}
+		const auto serviceName = [&texts](cad::ServiceKind kind) -> const std::string&
+		{
+			switch (kind)
+			{
+			case cad::ServiceKind::Water: return texts.water;
+			case cad::ServiceKind::Sewage: return texts.sewage;
+			case cad::ServiceKind::Gas: return texts.gas;
+			default: return texts.electrical;
+			}
+		};
 		const auto furnitureName = [&](std::string_view type) -> std::string
 		{
 			if (const std::optional<cad::AssetId> asset = cad::parseAssetRef(type))
@@ -274,6 +295,12 @@ namespace f101::exporters
 			{
 				const auto type = furnitureTypes.find(node.sourceId);
 				return (type != furnitureTypes.end() ? furnitureName(type->second) : texts.furniture) + " " + id;
+			}
+			case scene::SourceKind::Column: return texts.column + " " + id;
+			case scene::SourceKind::Service:
+			{
+				const auto kind = serviceKinds.find(node.sourceId);
+				return (kind != serviceKinds.end() ? serviceName(kind->second) : texts.services) + " " + id;
 			}
 			default: return node.name;
 			}
@@ -395,7 +422,7 @@ namespace f101::exporters
 
 		// Groups under their levels, levels under the root.
 		const std::array<const std::string*, static_cast<std::size_t>(Group::Count)> groupNames{&texts.walls, &texts.floors,
-			&texts.slabs, &texts.openings, &texts.furniture};
+			&texts.slabs, &texts.openings, &texts.furniture, &texts.columns, &texts.services};
 		const auto levelName = [&](std::size_t index)
 		{
 			const cad::Level& level = project.levels[index];

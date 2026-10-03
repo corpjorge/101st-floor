@@ -11,9 +11,10 @@ Twinmotion (ADR-0020).
 
 Reglas del `.glb` (ADR-0020):
 - Metros, Y arriba: `(x, y, z)` mm → `(x, z, −y) / 1000`; es una rotación, los triángulos conservan su sentido.
-- Raíz → plantas (de abajo arriba) → grupos (Muros, Suelos, Forjados, Puertas y ventanas, Muebles) → un objeto por nodo de
-  la escena con una primitiva por sección. Nombres estables y únicos; ids en `extras` (`f101NodeId`, `f101Source`,
-  `f101LevelId`, `f101FinishId`).
+- Raíz → plantas (de abajo arriba) → grupos (Muros, Suelos, Forjados, Puertas y ventanas, Muebles, Pilares, Instalaciones;
+  ADR-0021) → un objeto por nodo de la escena con una primitiva por sección. Nombres estables y únicos ("Muro 3f2a9c1e",
+  "Pilar 5b0e2d71", "Gas 0c4e81d2"); ids en `extras` (`f101NodeId`, `f101Source`, `f101LevelId`, `f101FinishId`). Las
+  instalaciones van siempre, con la capa encendida o no.
 - Un material por acabado: color base lineal × imagen, rugosidad, metálico 0; vidrio con `alphaMode: BLEND`. Los UV de
   cada primitiva llevan la repetición de su textura (`uv · 1000 / repetición`), reflejados en v para las imágenes de
   superficie que vienen de un archivo. Imágenes iguales, una vez.

@@ -49,6 +49,11 @@ public:
 	UMaterialInterface* GetBaseMaterial();
 	// The glass material; null, with an error logged once, if the asset is missing.
 	UMaterialInterface* GetGlassMaterial();
+	// The architecture seen through while the building services are shown (view style Ghost, ADR-0021): the glass
+	// material, pale and faint. Null if the glass material is missing.
+	UMaterialInterface* GetGhostMaterial();
+	static const FLinearColor GhostTint;
+	static const float GhostOpacity;
 
 	// Tint of finishes on the levels below the edited one (view style Context): the same finishes, darker.
 	static const FLinearColor ContextTint;
@@ -91,6 +96,9 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> GlassMaterial;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> GhostMaterial;
 
 	UPROPERTY()
 	TMap<FString, TObjectPtr<UMaterialInstanceDynamic>> FinishMaterials;

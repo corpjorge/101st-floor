@@ -28,6 +28,9 @@ enum class EFloor101KeyCommand : uint8
 	WindowTool,
 	PaintTool,
 	FurnitureTool, // ADR-0016
+	ColumnTool,    // ADR-0021
+	ServicesTool,  // draws runs of the building services (ADR-0021)
+	ServicesLayer, // the services layer on / off: the runs shown, the architecture seen through (ADR-0021)
 	Cancel,
 	Confirm,
 	Delete,
@@ -36,8 +39,8 @@ enum class EFloor101KeyCommand : uint8
 	LevelUp,
 	LevelDown,
 	AllLevels,
-	Flip, // hinges of the door or window being placed or selected to the other jamb (ADR-0014); turns furniture 90 degrees
-	      // (ADR-0016)
+	Flip, // hinges of the door or window being placed or selected to the other jamb (ADR-0014); turns furniture
+	      // (ADR-0016) and columns (ADR-0021) 90 degrees
 	PlanView, // 2D plan on / off (ADR-0015)
 	PhotoMode, // path traced photo on / off (ADR-0018)
 };
@@ -47,7 +50,8 @@ enum class EFloor101KeyCommand : uint8
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
-// Keys: W wall, P door, O window, M paint, A furniture, V select, Enter, Esc, Backspace, Delete, F frame all, T top view,
+// Keys: W wall, P door, O window, M paint, A furniture, C column, I services run, X services layer, V select, Enter, Esc,
+// Backspace, Delete, F frame all, T top view,
 // Tab 2D plan, R photo, Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
 // Ctrl+S save, Ctrl+O open.
 // The camera follows the edited level: its focus moves up or down with the level's elevation.

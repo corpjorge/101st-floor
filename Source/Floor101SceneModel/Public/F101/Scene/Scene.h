@@ -33,6 +33,8 @@ namespace f101::scene
 		Slab,   // structural slab over a room (its ceiling; the floor of the level above)
 		Opening, // door or window carpentry (frame, leaf, glass; ADR-0013)
 		Furniture, // a piece of furniture (ADR-0016)
+		Column,    // a column (ADR-0021)
+		Service,   // a run of the building services: electrical, water, sewage, gas (ADR-0021)
 		Marker,
 	};
 
@@ -45,6 +47,7 @@ namespace f101::scene
 		Handle,
 		Context, // a level below the one being edited: shown dimmed, for reference
 		Symbol,  // plan annotation (e.g. a door swing on the floor): a dark line that casts no shadow
+		Ghost,   // see-through: walls, floors and slabs while the building services are shown (X-ray, ADR-0021)
 	};
 
 	struct SceneNode
@@ -53,7 +56,7 @@ namespace f101::scene
 		std::string name;            // human readable, e.g. "Wall 3f2a9c1e"
 		SourceKind sourceKind = SourceKind::Wall;
 		std::string sourceId;        // UUID text of the source wall (floors and slabs: the room key; openings: the opening;
-		                             // furniture: the piece)
+		                             // furniture: the piece; columns and service runs: theirs)
 		cad::LevelId level;          // level of the source (nil for markers)
 		geometry::MeshData mesh;     // scene space (mm, right-handed, Z up); node transform is identity for now
 		// Finish of each mesh section (same order as mesh.sections): a catalogue id, never empty (ADR-0012).

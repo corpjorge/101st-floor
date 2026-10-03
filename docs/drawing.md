@@ -8,6 +8,7 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
   - `Stroke`: polilínea (cerrada o no, discontinua o no) con su ancho en mm (a 1:100, 10 mm imprimen 0,1 mm);
   - `Label`: texto UTF-8 centrado en un punto, girado para leerse derecho, con la altura de sus mayúsculas en mm;
   - cada elemento con su tinta (`Ink`): `Cut`, `Carpentry`, `Swing`, `Hidden`, `Dimension`, `Label`, `Furniture`,
+    `ServiceCasing`, `ServiceElectrical`, `ServiceWater`, `ServiceSewage`, `ServiceGas` (`serviceInk`),
     `Selected`, `Preview`, `Handle`; `inkColor` da su color sRGB, igual para todos los consumidores;
   - `min`/`max`: los límites de todo (los rótulos, por su punto y su altura).
 - Qué dibuja:
@@ -26,8 +27,14 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
   - **Muebles** (ADR-0016): el contorno de la huella de cada mueble de la planta y los detalles de su tipo
     (`geometry::furnitureShape`: almohadas, edredón, cojines, cubetas, fuegos, desagüe...), en trazos finos grises.
     Un modelo importado (ADR-0017) solo dibuja su huella.
-  - **Marcas de edición** (`PlanOverlay`, solo en la vista 2D): muro y mueble seleccionados, vistas previas de muros y
-    muebles (sustituyen por id o se añaden) y asas.
+  - **Pilares** (ADR-0021): cortados como los muros, relleno sólido de su huella (rectángulo o polígono de 32 lados).
+  - **Instalaciones** (con `PlanOverlay::services`, la capa): el recorrido en planta de cada tramo de la planta con una
+    vaina oscura (`ServiceCasingMm` a cada lado) bajo un trazo del color de su tipo, tan ancho como su tubo y nunca
+    menos de `MinServiceCoreMm`, para que el agua blanca se vea sobre papel blanco; donde sube o baja sobre el mismo
+    punto, un anillo. Los tramos en vista previa se dibujan aunque la capa esté apagada.
+  - **Marcas de edición** (`PlanOverlay`, solo en la vista 2D): muro, mueble, pilar y tubería seleccionados, vistas
+    previas de muros, muebles, pilares y tuberías (sustituyen por id o se añaden) y asas. La exportación del plano lleva
+    las instalaciones si su capa está activa, nunca las marcas.
 - `writeSvg(drawing, {scale, marginMm})`: documento SVG independiente, hoja blanca con el tamaño en mm de papel a la
   escala pedida, unidades de usuario en mm de planta con el norte arriba; polígonos, polilíneas (discontinuas con
   `stroke-dasharray`), textos girados y escapados. Determinista.
@@ -35,4 +42,5 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
 Consumidores: la vista 2D y la exportación PNG (`SFloor101PlanView` en el módulo `Floor101`) y la exportación SVG
 (`UFloor101DocumentSubsystem::ExportPlan`).
 
-Tests: `Tests/Unit/PlanDrawingTests.cpp` y `FurnitureTests.cpp` (muebles en el plano).
+Tests: `Tests/Unit/PlanDrawingTests.cpp`, `FurnitureTests.cpp` (muebles en el plano) y `ServicesTests.cpp` (pilares, vainas,
+anillos y tintes de las instalaciones).

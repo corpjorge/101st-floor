@@ -23,6 +23,8 @@ namespace f101::cad
 		Window,
 		Paint, // applies EditSettings::paintFinish to a wall face or a room floor (ADR-0012)
 		Furniture, // places pieces of EditSettings::furnitureType (ADR-0016)
+		Column,    // places columns of EditSettings::columnShape (ADR-0021)
+		Services,  // draws runs of EditSettings::serviceKind point by point (ADR-0021)
 	};
 
 	struct EditSettings
@@ -45,6 +47,18 @@ namespace f101::cad
 		std::string furnitureType = "sofa";
 		std::int64_t furnitureRotationCentidegrees = 0;
 		double furnitureWallReachMm = 400.0;
+		// What the Column mode places (ADR-0021): a column of this shape and size (a round one columnWidthMm across), turned
+		// by columnRotationCentidegrees.
+		ColumnShape columnShape = ColumnShape::Rectangle;
+		std::int64_t columnWidthMm = DefaultColumnSizeMm;
+		std::int64_t columnDepthMm = DefaultColumnSizeMm;
+		std::int64_t columnRotationCentidegrees = 0;
+		// What the Services mode draws: runs of this kind, their next point this high over the level's floor (negative:
+		// under it).
+		ServiceKind serviceKind = ServiceKind::Electrical;
+		std::int64_t serviceHeightMm = 300;
+		// How far from a pipe the pointer still picks it.
+		double servicePickToleranceMm = 80.0;
 	};
 
 	// The room whose floor contains a plan point, among one level's walls: its key (geometry::Room::key), or nullopt.
@@ -83,6 +97,14 @@ namespace f101::cad
 		FurnitureId selectedFurniture; // nil: none
 		// The piece being placed (nil id) or the selected piece where a drag would leave it (its own id).
 		std::vector<Furniture> previewFurniture;
+		ColumnId selectedColumn; // nil: none
+		// The column being placed (nil id) or the selected one where a drag would leave it (its own id).
+		std::vector<Column> previewColumns;
+		// The building-services layer (ADR-0021): the runs shown, the architecture seen through.
+		bool showServices = false;
+		ServiceRunId selectedServiceRun; // nil: none
+		// The run being drawn (nil id) or the selected one where a drag would leave it (its own id).
+		std::vector<ServiceRun> previewServiceRuns;
 	};
 
 	// Interactive editing of a document, independent of any engine (ADR-0008). The engine translates its input into
@@ -105,6 +127,16 @@ namespace f101::cad
 	// grid and stopping at the walls it would run into. Space turns the next pieces 90 degrees; a click adds one. In Select
 	// mode a click on a piece (nearer than any wall) selects it, dragging it moves it with the same snapping (one
 	// ChangeFurnitureCommand on release), and Space turns it 90 degrees.
+	// Column mode (ADR-0021): the pointer previews a column of the chosen shape and size centred on it, snapped to wall
+	// corners, then wall axes, then the grid; Space turns the next ones 90 degrees; a click adds one. In Select mode a click
+	// on a column (nearer than any wall or piece) selects it, dragging it moves it with the same snapping, Space turns it.
+	// Services mode (ADR-0021): it shows the services layer. The pointer, taken to the chosen height, previews the next
+	// point, snapped like a wall's ends (from the last point: its angle and length); each click adds a point, Enter, a
+	// double click or a second click on the last point finishes the run (one AddServiceRunCommand), Backspace takes the
+	// last point back and Esc drops the run. A height changed while drawing rises or drops on the spot from the last
+	// point. With the layer
+	// shown, in Select mode a click on a run (seen through the walls) selects it: dragging it moves it on the grid,
+	// dragging one of the handles at its bends moves that bend.
 	// Levels (ADR-0011): everything happens on the active level. Pointer rays are taken to that level's elevation, and
 	// picking, snapping, handles and corner moves only see its walls. Changing level drops the selection and any gesture.
 	class EditController
@@ -119,13 +151,18 @@ namespace f101::cad
 		FLOOR101CADCORE_API void pointerMoved(const Ray3& ray);
 		FLOOR101CADCORE_API Status pointerPressed(const Ray3& ray);
 		FLOOR101CADCORE_API Status pointerReleased(const Ray3& ray);
+		// The second press of a double click (the first one came as pointerPressed): in Services mode it finishes the run
+		// being drawn, wherever snapping would put a next point; elsewhere it is a press.
+		FLOOR101CADCORE_API Status pointerDoubleClicked(const Ray3& ray);
 
-		// Enter: creates the previewed wall (Wall mode).
+		// Enter: creates the previewed wall (Wall mode), or finishes the run being drawn (Services mode).
 		FLOOR101CADCORE_API Status confirm();
-		// Esc: stops the current gesture, then leaves Wall mode, then clears the selection.
+		// Esc: stops the current gesture (a run being drawn is dropped), then leaves the tool's mode, then clears the
+		// selection.
 		FLOOR101CADCORE_API void cancel();
 		// Typed length of the wall being drawn.
 		FLOOR101CADCORE_API void appendText(std::string_view text);
+		// The typed length's last character; in Services mode, the last point of the run being drawn.
 		FLOOR101CADCORE_API void backspace();
 
 		FLOOR101CADCORE_API Status deleteSelection();
@@ -162,8 +199,9 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status flipOpeningSide();
 		// How open it is shown, typed as a whole percentage ("35", "35 %").
 		FLOOR101CADCORE_API Status setOpeningOpenPercent(std::string_view text);
-		// Space: in Door/Window mode, the next openings get their hinges on the other jamb; in Furniture mode the next
-		// pieces turn 90 degrees; otherwise the selected piece turns 90 degrees, or the selected opening flips its hinges.
+		// Space: in Door/Window mode, the next openings get their hinges on the other jamb; in Furniture and Column modes
+		// the next pieces or columns turn 90 degrees; otherwise the selected piece or column turns 90 degrees, or the
+		// selected opening flips its hinges.
 		FLOOR101CADCORE_API Status flip();
 		// Door/Window mode: what a click would add (id nil); nullopt when the pointer is not over a wall that fits it.
 		const std::optional<OpeningRef>& openingPlacement() const { return placement; }
@@ -189,9 +227,51 @@ namespace f101::cad
 		// Turns the selected piece 90 degrees counter-clockwise about its centre.
 		FLOOR101CADCORE_API Status rotateFurniture();
 
+		// Columns (ADR-0021).
+		// Column mode: what a click would add (id nil); nullopt while the pointer is off the floor.
+		const std::optional<Column>& columnPlacement() const { return columnAt; }
+		// The shape and size of the next columns (settings().column*); the preview follows. Sizes typed like lengths.
+		FLOOR101CADCORE_API Status setNewColumnShape(ColumnShape shape);
+		FLOOR101CADCORE_API Status setNewColumnWidth(std::string_view text);
+		FLOOR101CADCORE_API Status setNewColumnDepth(std::string_view text);
+		// The selected column; nullopt if none or if it no longer exists. While one is selected nothing else is.
+		FLOOR101CADCORE_API std::optional<Column> selectedColumn() const;
+		FLOOR101CADCORE_API Status selectColumn(const ColumnId& id);
+		// Property edits of the selected column: sizes typed like lengths, the rotation in degrees. A round one takes its
+		// width as its diameter and is never turned.
+		FLOOR101CADCORE_API Status setColumnShape(ColumnShape shape);
+		FLOOR101CADCORE_API Status setColumnWidth(std::string_view text);
+		FLOOR101CADCORE_API Status setColumnDepth(std::string_view text);
+		FLOOR101CADCORE_API Status setColumnRotation(std::string_view text);
+		// A finish for walls; empty restores concrete.
+		FLOOR101CADCORE_API Status setColumnFinish(std::string_view finish);
+
+		// Building services (ADR-0021).
+		bool showsServices() const { return servicesShown; }
+		// Hiding the layer leaves the Services mode and drops a selected run.
+		FLOOR101CADCORE_API void setShowServices(bool show);
+		// The kind of the next runs, and of the one being drawn.
+		FLOOR101CADCORE_API Status setServiceKind(ServiceKind kind);
+		// The height of the next points over the level's floor, typed like a length ("-10" goes under the floor) or in mm.
+		FLOOR101CADCORE_API Status setServiceHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setServiceHeightMm(std::int64_t heightMm);
+		// Services mode: the points of the run being drawn (empty: none yet), and where a click would put the next one
+		// (nullopt while the pointer points at nothing).
+		const std::vector<ServicePoint>& runPoints() const { return runDraft; }
+		const std::optional<ServicePoint>& runPointer() const { return runCursor; }
+		// The selected run; nullopt if none, if it no longer exists or if the layer is hidden.
+		FLOOR101CADCORE_API std::optional<ServiceRun> selectedServiceRun() const;
+		// Shows the layer.
+		FLOOR101CADCORE_API Status selectServiceRun(const ServiceRunId& id);
+		FLOOR101CADCORE_API Status setServiceRunKind(ServiceKind kind);
+
 		const WallTool& wallTool() const { return tool; }
 		const EditSettings& settings() const { return editSettings; }
-		bool isDragging() const { return drag.has_value() || openingDrag.has_value() || furnitureDrag.has_value(); }
+		bool isDragging() const
+		{
+			return drag.has_value() || openingDrag.has_value() || furnitureDrag.has_value() || columnDrag.has_value() ||
+				runDrag.has_value();
+		}
 		bool isDraggingOpening() const { return openingDrag.has_value(); }
 		bool isDraggingFurniture() const { return furnitureDrag.has_value(); }
 		// Last cursor position in plan: under the point where the pointer ray meets a wall, else where it meets the floor;
@@ -265,6 +345,22 @@ namespace f101::cad
 			PlanPoint grabOffset; // its centre minus the pointer at the press
 		};
 
+		// The selected column being moved.
+		struct ColumnDrag
+		{
+			Column column;        // where it would go (the original until the pointer moves)
+			PlanPoint grabOffset; // its centre minus the pointer at the press
+		};
+
+		// The selected run being moved (bend nullopt) or one of its bends.
+		struct RunDrag
+		{
+			ServiceRun run;                  // where it would go (the original until the pointer moves)
+			std::optional<std::size_t> bend; // index of a point at the bend (every point there moves with it)
+			double planeZ = 0.0;             // the pointer is followed on this horizontal plane
+			PlanPoint grab;                  // where the pointer met it at the press
+		};
+
 		// Parses `text` as a length and applies the command built from it to the selected wall.
 		Status changeSelection(std::string_view text, Command (*makeCommand)(const WallId&, std::int64_t));
 		// Parses `text` as a length and applies it to a copy of the selected opening, then changes the opening.
@@ -299,6 +395,24 @@ namespace f101::cad
 		// Edits a copy of the selected piece and changes it (one undoable step).
 		Status editSelectedFurniture(const std::function<Status(Furniture&)>& edit);
 		Status changeFurnitureSize(std::string_view text, std::int64_t Furniture::*size);
+		// Where a column goes for a wanted centre on the active level: a wall corner, a wall axis or the grid.
+		Column placeColumn(Column column, PlanPoint wanted) const;
+		void updateColumnPlacement();
+		void updateColumnDrag();
+		Status editSelectedColumn(const std::function<Status(Column&)>& edit);
+		Status changeColumnSize(std::string_view text, std::int64_t Column::*size);
+		Status changeNewColumnSize(std::string_view text, std::int64_t EditSettings::*size);
+		void updateRunPointer();
+		void updateRunDrag();
+		// Adds the pointed point to the run being drawn (or starts one), or finishes it on its last point.
+		Status addRunPoint();
+		Status finishRun();
+		// The run being drawn as it would be with the pointed point: nullopt with fewer than two points.
+		std::optional<ServiceRun> runPreview() const;
+		// Drops every drag.
+		void dropDrags();
+		// The tools' previews for the last pointer, after the project changed.
+		void refreshPlacements();
 		// Drops every selection.
 		void clearSelected();
 
@@ -320,5 +434,13 @@ namespace f101::cad
 		std::optional<Furniture> furnitureAt; // Furniture mode placement
 		std::optional<PaintTarget> paintAt;  // Paint mode target
 		std::optional<Ray3> pointerRay;      // the last pointer ray, in the active level's space
+		ColumnId selectedColumnId;
+		std::optional<ColumnDrag> columnDrag;
+		std::optional<Column> columnAt; // Column mode placement
+		bool servicesShown = false;
+		ServiceRunId selectedRunId;
+		std::optional<RunDrag> runDrag;
+		std::vector<ServicePoint> runDraft;     // Services mode: the run being drawn
+		std::optional<ServicePoint> runCursor;  // Services mode: the next point
 	};
 }

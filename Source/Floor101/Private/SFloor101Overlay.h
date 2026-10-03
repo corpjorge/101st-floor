@@ -45,6 +45,18 @@ private:
 	// Furniture (ADR-0016): the selected piece (sizes, rotation, finish) and the catalogue of the Furniture mode.
 	TSharedRef<SWidget> MakeFurnitureSection();
 	TSharedRef<SWidget> MakeFurniturePalette();
+	// Columns and building services (ADR-0021): the selected column and run, and the palettes of the Column and Services
+	// modes.
+	TSharedRef<SWidget> MakeColumnSection();
+	TSharedRef<SWidget> MakeColumnPalette();
+	TSharedRef<SWidget> MakeServiceRunSection();
+	TSharedRef<SWidget> MakeServicesPalette();
+	// A button per column shape, and one per kind of run with its colour: the one `Current` gives is highlighted, a click
+	// runs `Apply`.
+	TSharedRef<SWidget> MakeColumnShapeButtons(TFunction<std::optional<f101::cad::ColumnShape>()> Current,
+		TFunction<f101::Status(f101::cad::EditController&, f101::cad::ColumnShape)> Apply);
+	TSharedRef<SWidget> MakeServiceKindButtons(TFunction<std::optional<f101::cad::ServiceKind>()> Current,
+		TFunction<f101::Status(f101::cad::EditController&, f101::cad::ServiceKind)> Apply);
 	// The built-in library (ADR-0019). A tile of a palette grid: a picture with its name under it, framed in orange while
 	// IsActive.
 	TSharedRef<SWidget> MakeCatalogueTile(const TSharedRef<SWidget>& Picture, const FText& Name, const FText& ToolTip,
@@ -98,6 +110,8 @@ private:
 	const f101::cad::Wall* GetSelectedWall() const;
 	std::optional<f101::cad::OpeningRef> GetSelectedOpening() const;
 	std::optional<f101::cad::Furniture> GetSelectedFurniture() const;
+	std::optional<f101::cad::Column> GetSelectedColumn() const;
+	std::optional<f101::cad::ServiceRun> GetSelectedServiceRun() const;
 	// The active level, shown in the panel when nothing is selected (Select mode).
 	const f101::cad::Level* GetActiveLevel() const;
 	// The selected room as shown (active level), or null.

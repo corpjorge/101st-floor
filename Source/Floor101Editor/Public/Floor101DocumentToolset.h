@@ -55,7 +55,7 @@ struct FFloor101FinishInfo
 	UPROPERTY()
 	FString Id;
 
-	/** Palette group: "paint", "tiles", "wood", "stone", "textile", "joinery", "fabric" or "glass". */
+	/** Palette group: "paint", "tiles", "wood", "stone", "textile", "joinery", "fabric", "glass" or "services". */
 	UPROPERTY()
 	FString Category;
 
@@ -75,6 +75,10 @@ struct FFloor101FinishInfo
 	/** The main parts of furniture (SetFurnitureFinish). */
 	UPROPERTY()
 	bool bForFurniture = false;
+
+	/** The colour of a kind of building-services run (not chosen: each kind has its own). */
+	UPROPERTY()
+	bool bForServices = false;
 
 	/** Base colour (sRGB). */
 	UPROPERTY()
@@ -363,6 +367,124 @@ struct FFloor101FurnitureInfo
 	TObjectPtr<AActor> Actor;
 };
 
+/** A column's cross-section. */
+UENUM(BlueprintType)
+enum class EFloor101ColumnShape : uint8
+{
+	Rectangle,
+	/** A circle: its width is its diameter. */
+	Round,
+};
+
+/**
+ * A column: a structural post standing on its level's floor, as tall as the level, centred on (XMm, YMm).
+ */
+USTRUCT(BlueprintType)
+struct FFloor101ColumnInfo
+{
+	GENERATED_BODY()
+
+	/** Persistent id (UUID). */
+	UPROPERTY()
+	FString Id;
+
+	UPROPERTY()
+	FString LevelId;
+
+	UPROPERTY()
+	int64 XMm = 0;
+
+	UPROPERTY()
+	int64 YMm = 0;
+
+	UPROPERTY()
+	EFloor101ColumnShape Shape = EFloor101ColumnShape::Rectangle;
+
+	/** Along its own X before turning; a round column: its diameter. */
+	UPROPERTY(meta = (ClampMin = "100", ClampMax = "3000"))
+	int64 WidthMm = 0;
+
+	/** A round column: its diameter too. */
+	UPROPERTY(meta = (ClampMin = "100", ClampMax = "3000"))
+	int64 DepthMm = 0;
+
+	/** Counter-clockwise, in hundredths of a degree; a round column: 0. */
+	UPROPERTY(meta = (ClampMin = "0", ClampMax = "35999"))
+	int32 RotationCentidegrees = 0;
+
+	/** Finish id (one that allows walls); empty: exposed concrete. */
+	UPROPERTY()
+	FString Finish;
+
+	/** Transient actor rendering it in the target world, or null while its level is hidden. */
+	UPROPERTY()
+	TObjectPtr<AActor> Actor;
+};
+
+/** A kind of building-services run: its colour and pipe diameter come with it. */
+UENUM(BlueprintType)
+enum class EFloor101ServiceKind : uint8
+{
+	/** Electrical conduit: a thin green tube, 25 mm. */
+	Electrical,
+	/** Clean water: a thin white pipe, 25 mm. */
+	Water,
+	/** Sewage: a thick yellow pipe, 110 mm. */
+	Sewage,
+	/** Gas: a thin gold pipe, 22 mm. */
+	Gas,
+};
+
+/** A point of a run: its plan position, and the height of the pipe's axis over its level's floor (negative: under it). */
+USTRUCT(BlueprintType)
+struct FFloor101ServicePoint
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int64 XMm = 0;
+
+	UPROPERTY()
+	int64 YMm = 0;
+
+	UPROPERTY(meta = (ClampMin = "-5000", ClampMax = "50000"))
+	int64 ZMm = 0;
+};
+
+/**
+ * A run of a building service on one level: a pipe through its points.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101ServiceRunInfo
+{
+	GENERATED_BODY()
+
+	/** Persistent id (UUID). */
+	UPROPERTY()
+	FString Id;
+
+	UPROPERTY()
+	FString LevelId;
+
+	UPROPERTY()
+	EFloor101ServiceKind Kind = EFloor101ServiceKind::Electrical;
+
+	/** Two or more; consecutive points differ. The same plan position twice in a row rises or drops on the spot. */
+	UPROPERTY()
+	TArray<FFloor101ServicePoint> Points;
+
+	/** Along every segment, vertical ones included. */
+	UPROPERTY()
+	double LengthMm = 0.0;
+
+	UPROPERTY()
+	int64 DiameterMm = 0;
+
+	/** Transient actor rendering it in the target world; null while the services layer or its level is hidden. */
+	UPROPERTY()
+	TObjectPtr<AActor> Actor;
+};
+
 UENUM(BlueprintType)
 enum class EFloor101AssetKind : uint8
 {
@@ -542,10 +664,11 @@ struct FFloor101LibraryItem
 };
 
 /**
- * Edits the levels, walls, doors, windows, furniture and finishes of the 101st Floor document and reads the rooms the
- * walls enclose: the play session's document while Play-In-Editor runs, otherwise the editor world's. Every change is
- * one undoable step and regenerates the Unreal representation (transient actors). Also saves and opens project.json
- * files and exports plans. Dimensions are integer millimetres; plan coordinates are relative to their level's floor.
+ * Edits the levels, walls, doors, windows, furniture, columns, building-services runs and finishes of the 101st Floor
+ * document and reads the rooms the walls enclose: the play session's document while Play-In-Editor runs, otherwise the
+ * editor world's. Every change is one undoable step and regenerates the Unreal representation (transient actors). Also
+ * saves and opens project.json files and exports plans. Dimensions are integer millimetres; plan coordinates are
+ * relative to their level's floor.
  */
 UCLASS(BlueprintType, MinimalAPI)
 class UFloor101DocumentToolset : public UToolsetDefinition
@@ -754,6 +877,76 @@ public:
 	static void RemoveFurniture(const FString& FurnitureId);
 
 	/**
+	 * Returns every column in creation order.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101ColumnInfo> GetColumns();
+
+	/**
+	 * Adds a column exactly where given (no snapping), in exposed concrete.
+	 * @param LevelId Empty for the lowest level.
+	 * @param WidthMm 0 for 300 mm.
+	 * @param DepthMm 0 for the width. Ignored for a round column.
+	 * @param RotationCentidegrees Ignored for a round column.
+	 * @return The new column.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101ColumnInfo AddColumn(const FString& LevelId, EFloor101ColumnShape Shape, int64 XMm, int64 YMm, int64 WidthMm,
+		int64 DepthMm, int32 RotationCentidegrees);
+
+	/**
+	 * Moves, reshapes, resizes or turns a column (its level and finish stay).
+	 * @param DepthMm Ignored for a round column.
+	 * @param RotationCentidegrees Ignored for a round column.
+	 * @return The updated column.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101ColumnInfo SetColumn(const FString& ColumnId, EFloor101ColumnShape Shape, int64 XMm, int64 YMm, int64 WidthMm,
+		int64 DepthMm, int32 RotationCentidegrees);
+
+	/**
+	 * Sets a column's finish.
+	 * @param FinishId A catalogue id that allows walls, or an imported texture; empty restores concrete.
+	 * @return The updated column.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101ColumnInfo SetColumnFinish(const FString& ColumnId, const FString& FinishId);
+
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void RemoveColumn(const FString& ColumnId);
+
+	/**
+	 * Returns every run of the building services in creation order.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101ServiceRunInfo> GetServiceRuns();
+
+	/**
+	 * Adds a run of a building service through the given points, exactly as given.
+	 * @param LevelId Empty for the lowest level.
+	 * @return The new run.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101ServiceRunInfo AddServiceRun(const FString& LevelId, EFloor101ServiceKind Kind, const TArray<FFloor101ServicePoint>& Points);
+
+	/**
+	 * Changes a run's kind and points (its level stays).
+	 * @return The updated run.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101ServiceRunInfo SetServiceRun(const FString& RunId, EFloor101ServiceKind Kind, const TArray<FFloor101ServicePoint>& Points);
+
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void RemoveServiceRun(const FString& RunId);
+
+	/**
+	 * Shows or hides the building-services layer of the view: shown, the runs appear and the walls, floors, slabs, doors
+	 * and windows turn see-through; hidden, the runs are left out. Columns always show.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void SetServicesView(bool bShown);
+
+	/**
 	 * Returns the project's imported assets (textures and models) in import order.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
@@ -837,7 +1030,8 @@ public:
 	static TArray<FFloor101WallInfo> OpenProject(const FString& Path);
 
 	/**
-	 * Exports the floor plan of a level: cut walls, doors and windows, dimensions in metres, room names and areas.
+	 * Exports the floor plan of a level: cut walls and columns, doors and windows, dimensions in metres, room names and
+	 * areas, and the building-services runs while their layer is shown (SetServicesView).
 	 * @param Path Absolute path ending in .svg or .png (PNG needs a renderer).
 	 * @param LevelId Empty: the level being edited.
 	 */
@@ -846,7 +1040,7 @@ public:
 
 	/**
 	 * Exports the whole project for Twinmotion as binary glTF: every level with its slabs, doors and windows, furniture,
-	 * the materials and their images; metres, Y up.
+	 * columns and building-services runs, the materials and their images; metres, Y up.
 	 * @param Path Absolute path ending in .glb; empty for "<project file name>.glb" next to the project.
 	 * @return What was written.
 	 */

@@ -333,6 +333,122 @@ namespace f101::cad
 			return furniture;
 		}
 
+		// Schema 10 (ADR-0021). Sizes, shape and finish are checked by validateProject.
+		Result<Column> readColumn(const Json& object, std::size_t index)
+		{
+			const std::string where = "columns[" + std::to_string(index) + "]";
+			if (!object.is_object())
+			{
+				return formatError(where + " must be an object");
+			}
+			const Result<Uuid> uuid = readUuidField(object, "id", where);
+			if (!uuid)
+			{
+				return uuid.error();
+			}
+			const Result<Uuid> level = readUuidField(object, "level", where);
+			if (!level)
+			{
+				return level.error();
+			}
+			const Result<Point2D> position = readPoint(object, "position", where);
+			if (!position)
+			{
+				return position.error();
+			}
+			const auto shape = object.find("shape");
+			const std::optional<ColumnShape> parsed = shape != object.end() && shape->is_string()
+				? parseColumnShape(shape->get_ref<const std::string&>()) : std::nullopt;
+			if (!parsed)
+			{
+				return formatError(where + ".shape must be \"rectangle\" or \"round\"");
+			}
+			Column column;
+			column.id = ColumnId{uuid.value()};
+			column.level = LevelId{level.value()};
+			column.position = position.value();
+			column.shape = *parsed;
+			for (const auto& [key, target] : {std::pair<const char*, std::int64_t*>{"widthMm", &column.widthMm}, {"depthMm", &column.depthMm}})
+			{
+				const Result<std::int64_t> value = readMillimetersField(object, key, where);
+				if (!value)
+				{
+					return value.error();
+				}
+				*target = value.value();
+			}
+			if (const auto rotation = object.find("rotationCentidegrees"); rotation != object.end())
+			{
+				if (!rotation->is_number_integer() || rotation->get<std::int64_t>() < 0 || rotation->get<std::int64_t>() >= FullTurnCentidegrees)
+				{
+					return formatError(where + ".rotationCentidegrees must be an integer from 0 to 35999");
+				}
+				column.rotationCentidegrees = rotation->get<std::int64_t>();
+			}
+			if (Status read = readOptionalString(object, "finish", where, column.finish); !read)
+			{
+				return read.error();
+			}
+			return column;
+		}
+
+		// Schema 10 (ADR-0021): points are [x_mm, y_mm, z_mm], z over the level's floor.
+		Result<ServiceRun> readServiceRun(const Json& object, std::size_t index)
+		{
+			const std::string where = "services[" + std::to_string(index) + "]";
+			if (!object.is_object())
+			{
+				return formatError(where + " must be an object");
+			}
+			const Result<Uuid> uuid = readUuidField(object, "id", where);
+			if (!uuid)
+			{
+				return uuid.error();
+			}
+			const Result<Uuid> level = readUuidField(object, "level", where);
+			if (!level)
+			{
+				return level.error();
+			}
+			const auto kind = object.find("kind");
+			const std::optional<ServiceKind> parsed = kind != object.end() && kind->is_string()
+				? parseServiceKind(kind->get_ref<const std::string&>()) : std::nullopt;
+			if (!parsed)
+			{
+				return formatError(where + ".kind must be \"electrical\", \"water\", \"sewage\" or \"gas\"");
+			}
+			const auto points = object.find("points");
+			if (points == object.end() || !points->is_array())
+			{
+				return formatError(where + ".points must be an array");
+			}
+			ServiceRun run;
+			run.id = ServiceRunId{uuid.value()};
+			run.level = LevelId{level.value()};
+			run.kind = *parsed;
+			for (std::size_t p = 0; p < points->size(); ++p)
+			{
+				const Json& point = (*points)[p];
+				const std::string at = where + ".points[" + std::to_string(p) + "]";
+				if (!point.is_array() || point.size() != 3)
+				{
+					return formatError(at + " must be [x_mm, y_mm, z_mm]");
+				}
+				ServicePoint read;
+				for (const auto& [axis, target] : {std::pair<std::size_t, std::int64_t*>{0, &read.x_mm}, {1, &read.y_mm}, {2, &read.z_mm}})
+				{
+					const Result<std::int64_t> value = readMillimeters(point[axis], at + "[" + std::to_string(axis) + "]");
+					if (!value)
+					{
+						return value.error();
+					}
+					*target = value.value();
+				}
+				run.points.push_back(read);
+			}
+			return run;
+		}
+
 		constexpr std::pair<Surface, const char*> SurfaceNames[] = {{Surface::Wall, "walls"}, {Surface::Floor, "floors"},
 			{Surface::Ceiling, "ceilings"}, {Surface::Carpentry, "carpentry"}, {Surface::Furniture, "furniture"}};
 		constexpr std::pair<ModelUnit, const char*> UnitNames[] = {{ModelUnit::Meter, "m"}, {ModelUnit::Centimeter, "cm"},
@@ -736,6 +852,46 @@ namespace f101::cad
 			}
 			root["assets"] = std::move(assets);
 		}
+		if (!project.columns.empty())
+		{
+			Json columns = Json::array();
+			for (const Column& column : project.columns)
+			{
+				Json item = Json::object();
+				item["id"] = toString(column.id);
+				item["level"] = toString(column.level);
+				item["position"] = toJson(column.position);
+				item["shape"] = std::string(columnShapeId(column.shape));
+				item["widthMm"] = column.widthMm;
+				item["depthMm"] = column.depthMm;
+				item["rotationCentidegrees"] = column.rotationCentidegrees;
+				if (!column.finish.empty())
+				{
+					item["finish"] = column.finish;
+				}
+				columns.push_back(std::move(item));
+			}
+			root["columns"] = std::move(columns);
+		}
+		if (!project.services.empty())
+		{
+			Json services = Json::array();
+			for (const ServiceRun& run : project.services)
+			{
+				Json item = Json::object();
+				item["id"] = toString(run.id);
+				item["level"] = toString(run.level);
+				item["kind"] = std::string(serviceKindInfo(run.kind).id);
+				Json points = Json::array();
+				for (const ServicePoint& point : run.points)
+				{
+					points.push_back(Json::array({point.x_mm, point.y_mm, point.z_mm}));
+				}
+				item["points"] = std::move(points);
+				services.push_back(std::move(item));
+			}
+			root["services"] = std::move(services);
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -856,6 +1012,39 @@ namespace f101::cad
 					return piece.error();
 				}
 				project.furniture.push_back(std::move(piece).value());
+			}
+		}
+		for (const auto& [key, isColumns] : {std::pair<const char*, bool>{"columns", true}, {"services", false}}) // schema 10
+		{
+			const auto list = root.find(key);
+			if (list == root.end())
+			{
+				continue;
+			}
+			if (!list->is_array())
+			{
+				return formatError(std::string(key) + " must be an array");
+			}
+			for (std::size_t index = 0; index < list->size(); ++index)
+			{
+				if (isColumns)
+				{
+					Result<Column> column = readColumn((*list)[index], index);
+					if (!column)
+					{
+						return column.error();
+					}
+					project.columns.push_back(std::move(column).value());
+				}
+				else
+				{
+					Result<ServiceRun> run = readServiceRun((*list)[index], index);
+					if (!run)
+					{
+						return run.error();
+					}
+					project.services.push_back(std::move(run).value());
+				}
 			}
 		}
 		if (!withLevels)

@@ -526,6 +526,7 @@ TArray<FFloor101FinishInfo> UFloor101DocumentToolset::GetFinishes()
 		Info.bForCeilings = Finish.allows(f101::cad::Surface::Ceiling);
 		Info.bForCarpentry = Finish.allows(f101::cad::Surface::Carpentry);
 		Info.bForFurniture = Finish.allows(f101::cad::Surface::Furniture);
+		Info.bForServices = Finish.allows(f101::cad::Surface::Services);
 		Info.Color = FColor(Finish.color.r, Finish.color.g, Finish.color.b);
 		Info.Roughness = static_cast<float>(Finish.roughness);
 		Info.Opacity = static_cast<float>(Finish.opacity);
@@ -666,6 +667,263 @@ void UFloor101DocumentToolset::RemoveFurniture(const FString& FurnitureId)
 	if (!Removed)
 	{
 		RaiseError(FString::Printf(TEXT("cannot remove furniture %s: %s"), *FurnitureId, *ToFString(Removed.error().message)));
+	}
+}
+
+// Columns and building services (ADR-0021).
+static_assert(static_cast<int>(EFloor101ColumnShape::Rectangle) == static_cast<int>(f101::cad::ColumnShape::Rectangle) &&
+	static_cast<int>(EFloor101ColumnShape::Round) == static_cast<int>(f101::cad::ColumnShape::Round));
+static_assert(static_cast<int>(EFloor101ServiceKind::Electrical) == static_cast<int>(f101::cad::ServiceKind::Electrical) &&
+	static_cast<int>(EFloor101ServiceKind::Water) == static_cast<int>(f101::cad::ServiceKind::Water) &&
+	static_cast<int>(EFloor101ServiceKind::Sewage) == static_cast<int>(f101::cad::ServiceKind::Sewage) &&
+	static_cast<int>(EFloor101ServiceKind::Gas) == static_cast<int>(f101::cad::ServiceKind::Gas));
+
+namespace
+{
+	// A UUID of some kind of entity; raises and returns false if the text is not one.
+	template <typename IdType>
+	bool ParseEntityId(const FString& Text, const TCHAR* What, IdType& OutId)
+	{
+		const f101::Result<f101::cad::Uuid> Parsed = f101::cad::parseUuid(TCHAR_TO_UTF8(*Text));
+		if (!Parsed)
+		{
+			RaiseError(FString::Printf(TEXT("'%s' is not a %s id: %s"), *Text, What, *ToFString(Parsed.error().message)));
+			return false;
+		}
+		OutId = IdType{Parsed.value()};
+		return true;
+	}
+
+	FFloor101ColumnInfo ToInfo(const f101::cad::Column& Column, const UFloor101DocumentSubsystem& Subsystem)
+	{
+		FFloor101ColumnInfo Info;
+		Info.Id = ToFString(f101::cad::toString(Column.id));
+		Info.LevelId = ToFString(f101::cad::toString(Column.level));
+		Info.XMm = Column.position.x_mm;
+		Info.YMm = Column.position.y_mm;
+		Info.Shape = static_cast<EFloor101ColumnShape>(Column.shape);
+		Info.WidthMm = Column.widthMm;
+		Info.DepthMm = Column.depthMm;
+		Info.RotationCentidegrees = static_cast<int32>(Column.rotationCentidegrees);
+		Info.Finish = ToFString(Column.finish);
+		Info.Actor = Subsystem.FindColumnActor(Column.id);
+		return Info;
+	}
+
+	// A column of that shape and size: 0 width is the default, 0 depth the width; a round one is as deep as wide, unturned.
+	void Reshape(f101::cad::Column& Column, EFloor101ColumnShape Shape, int64 WidthMm, int64 DepthMm, int32 RotationCentidegrees)
+	{
+		Column.shape = static_cast<f101::cad::ColumnShape>(Shape);
+		Column.widthMm = WidthMm != 0 ? WidthMm : f101::cad::DefaultColumnSizeMm;
+		Column.depthMm = Column.shape == f101::cad::ColumnShape::Round || DepthMm == 0 ? Column.widthMm : DepthMm;
+		Column.rotationCentidegrees = Column.shape == f101::cad::ColumnShape::Round ? 0 : RotationCentidegrees;
+	}
+
+	FFloor101ColumnInfo ChangeColumn(const FString& ColumnId, TFunctionRef<void(f101::cad::Column&)> Edit)
+	{
+		UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+		f101::cad::ColumnId Id;
+		if (!Subsystem || !ParseEntityId(ColumnId, TEXT("column"), Id))
+		{
+			return {};
+		}
+		const f101::cad::Column* Current = Subsystem->GetDocument().project().findColumn(Id);
+		if (!Current)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change column %s: no such column"), *ColumnId));
+			return {};
+		}
+		f101::cad::Column Changed = *Current;
+		Edit(Changed);
+		const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(f101::cad::ChangeColumnCommand{Changed});
+		if (!Applied)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change column %s: %s"), *ColumnId, *ToFString(Applied.error().message)));
+			return {};
+		}
+		return ToInfo(*Subsystem->GetDocument().project().findColumn(Id), *Subsystem);
+	}
+
+	FFloor101ServiceRunInfo ToInfo(const f101::cad::ServiceRun& Run, const UFloor101DocumentSubsystem& Subsystem)
+	{
+		FFloor101ServiceRunInfo Info;
+		Info.Id = ToFString(f101::cad::toString(Run.id));
+		Info.LevelId = ToFString(f101::cad::toString(Run.level));
+		Info.Kind = static_cast<EFloor101ServiceKind>(Run.kind);
+		for (const f101::cad::ServicePoint& Point : Run.points)
+		{
+			Info.Points.Add(FFloor101ServicePoint{Point.x_mm, Point.y_mm, Point.z_mm});
+		}
+		Info.LengthMm = f101::cad::serviceRunLengthMm(Run);
+		Info.DiameterMm = f101::cad::serviceKindInfo(Run.kind).diameterMm;
+		Info.Actor = Subsystem.FindServiceRunActor(Run.id);
+		return Info;
+	}
+
+	std::vector<f101::cad::ServicePoint> ToPoints(const TArray<FFloor101ServicePoint>& Points)
+	{
+		std::vector<f101::cad::ServicePoint> Converted;
+		for (const FFloor101ServicePoint& Point : Points)
+		{
+			Converted.push_back(f101::cad::ServicePoint{Point.XMm, Point.YMm, Point.ZMm});
+		}
+		return Converted;
+	}
+}
+
+TArray<FFloor101ColumnInfo> UFloor101DocumentToolset::GetColumns()
+{
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	TArray<FFloor101ColumnInfo> Columns;
+	if (Subsystem)
+	{
+		for (const f101::cad::Column& Column : Subsystem->GetDocument().project().columns)
+		{
+			Columns.Add(ToInfo(Column, *Subsystem));
+		}
+	}
+	return Columns;
+}
+
+FFloor101ColumnInfo UFloor101DocumentToolset::AddColumn(const FString& LevelId, EFloor101ColumnShape Shape, int64 XMm, int64 YMm,
+	int64 WidthMm, int64 DepthMm, int32 RotationCentidegrees)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Level;
+	if (!Subsystem || !ParseLevelId(LevelId, Level))
+	{
+		return {};
+	}
+	f101::cad::Column Column;
+	Column.level = Level;
+	Column.position = {XMm, YMm};
+	Reshape(Column, Shape, WidthMm, DepthMm, RotationCentidegrees);
+	const f101::Result<f101::cad::ColumnId> Added = Subsystem->GetMutableDocument().addColumn(Column);
+	if (!Added)
+	{
+		RaiseError(FString::Printf(TEXT("column rejected: %s"), *ToFString(Added.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findColumn(Added.value()), *Subsystem);
+}
+
+FFloor101ColumnInfo UFloor101DocumentToolset::SetColumn(const FString& ColumnId, EFloor101ColumnShape Shape, int64 XMm, int64 YMm,
+	int64 WidthMm, int64 DepthMm, int32 RotationCentidegrees)
+{
+	return ChangeColumn(ColumnId, [&](f101::cad::Column& Column)
+	{
+		Column.position = {XMm, YMm};
+		Reshape(Column, Shape, WidthMm, DepthMm, RotationCentidegrees);
+	});
+}
+
+FFloor101ColumnInfo UFloor101DocumentToolset::SetColumnFinish(const FString& ColumnId, const FString& FinishId)
+{
+	return ChangeColumn(ColumnId, [&FinishId](f101::cad::Column& Column) { Column.finish = TCHAR_TO_UTF8(*FinishId); });
+}
+
+void UFloor101DocumentToolset::RemoveColumn(const FString& ColumnId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::ColumnId Id;
+	if (!Subsystem || !ParseEntityId(ColumnId, TEXT("column"), Id))
+	{
+		return;
+	}
+	const f101::Result<f101::cad::Transaction> Removed = Subsystem->GetMutableDocument().execute(f101::cad::DeleteColumnCommand{Id});
+	if (!Removed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot remove column %s: %s"), *ColumnId, *ToFString(Removed.error().message)));
+	}
+}
+
+TArray<FFloor101ServiceRunInfo> UFloor101DocumentToolset::GetServiceRuns()
+{
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	TArray<FFloor101ServiceRunInfo> Runs;
+	if (Subsystem)
+	{
+		for (const f101::cad::ServiceRun& Run : Subsystem->GetDocument().project().services)
+		{
+			Runs.Add(ToInfo(Run, *Subsystem));
+		}
+	}
+	return Runs;
+}
+
+FFloor101ServiceRunInfo UFloor101DocumentToolset::AddServiceRun(const FString& LevelId, EFloor101ServiceKind Kind,
+	const TArray<FFloor101ServicePoint>& Points)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::LevelId Level;
+	if (!Subsystem || !ParseLevelId(LevelId, Level))
+	{
+		return {};
+	}
+	f101::cad::ServiceRun Run;
+	Run.level = Level;
+	Run.kind = static_cast<f101::cad::ServiceKind>(Kind);
+	Run.points = ToPoints(Points);
+	const f101::Result<f101::cad::ServiceRunId> Added = Subsystem->GetMutableDocument().addServiceRun(Run);
+	if (!Added)
+	{
+		RaiseError(FString::Printf(TEXT("run rejected: %s"), *ToFString(Added.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findServiceRun(Added.value()), *Subsystem);
+}
+
+FFloor101ServiceRunInfo UFloor101DocumentToolset::SetServiceRun(const FString& RunId, EFloor101ServiceKind Kind,
+	const TArray<FFloor101ServicePoint>& Points)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::ServiceRunId Id;
+	if (!Subsystem || !ParseEntityId(RunId, TEXT("run"), Id))
+	{
+		return {};
+	}
+	const f101::cad::ServiceRun* Current = Subsystem->GetDocument().project().findServiceRun(Id);
+	if (!Current)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change run %s: no such run"), *RunId));
+		return {};
+	}
+	f101::cad::ServiceRun Changed = *Current;
+	Changed.kind = static_cast<f101::cad::ServiceKind>(Kind);
+	Changed.points = ToPoints(Points);
+	const f101::Result<f101::cad::Transaction> Applied = Subsystem->GetMutableDocument().execute(f101::cad::ChangeServiceRunCommand{Changed});
+	if (!Applied)
+	{
+		RaiseError(FString::Printf(TEXT("cannot change run %s: %s"), *RunId, *ToFString(Applied.error().message)));
+		return {};
+	}
+	return ToInfo(*Subsystem->GetDocument().project().findServiceRun(Id), *Subsystem);
+}
+
+void UFloor101DocumentToolset::RemoveServiceRun(const FString& RunId)
+{
+	UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	f101::cad::ServiceRunId Id;
+	if (!Subsystem || !ParseEntityId(RunId, TEXT("run"), Id))
+	{
+		return;
+	}
+	const f101::Result<f101::cad::Transaction> Removed = Subsystem->GetMutableDocument().execute(f101::cad::DeleteServiceRunCommand{Id});
+	if (!Removed)
+	{
+		RaiseError(FString::Printf(TEXT("cannot remove run %s: %s"), *RunId, *ToFString(Removed.error().message)));
+	}
+}
+
+void UFloor101DocumentToolset::SetServicesView(bool bShown)
+{
+	if (UFloor101DocumentSubsystem* Subsystem = GetSubsystem())
+	{
+		(void)Subsystem->Edit([bShown](f101::cad::EditController& Editor)
+		{
+			Editor.setShowServices(bShown);
+			return f101::Status::success();
+		});
 	}
 }
 

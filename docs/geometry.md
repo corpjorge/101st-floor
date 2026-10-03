@@ -55,13 +55,19 @@ Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se rege
   con su tamaño. `buildModelFurnitureMesh(furniture, model)` la estira por eje a ancho, fondo y alto del mueble (normales
   por la inversa traspuesta), la gira y la coloca como un mueble; `buildPlaceholderFurnitureMesh` es una caja de sus
   medidas (sección `body`) cuando el modelo no se puede leer.
+- **Pilares e instalaciones** (`ServicesBuilder.h`, ADR-0021): `columnOutline` (la huella del pilar, en sentido
+  antihorario: su rectángulo o un polígono de 32 lados), `buildColumnMesh(column, alto)` (caja de sombreado plano o
+  cilindro liso con tapas, de z = 0 a la altura de su planta; sección `column`) y `buildServiceRunMesh(run)` (un tubo liso
+  de 12 caras por segmento con el diámetro de su tipo, una esfera en cada codo para que los tubos se unan y extremos
+  planos; sección `pipe`; UV en metros alrededor y a lo largo).
 
 Tests: `WallGeometryTests.cpp` (bounds exactos de 3550 × 120 × 2400 mm, normales hacia fuera, orden de triángulos, lado
 izquierdo, espesor en diagonal, regeneración sin escalar; puerta: 36 triángulos, áreas por sección y volumen encerrado
 exactos; puerta y ventana juntas), `WallJoinTests.cpp`, `PolygonGeometryTests.cpp`, `RoomTests.cpp` (casos en
 ADR-0009), `CarpentryTests.cpp` (mallas de carpintería, tramos de unión, recorte en un inglete) y `OpeningTypeTests.cpp`
 (hojas giradas y desplazadas por tipo, símbolos), `FurnitureTests.cpp` (cajas de los 12 tipos a medidas mínimas, por
-defecto y máximas; malla girada; acabados por ranura) y `AssetTests.cpp` (modelo estirado, girado y apoyado, normales).
+defecto y máximas; malla girada; acabados por ranura), `ServicesTests.cpp` (caja y cilindro del pilar; cada vértice del
+tubo a su radio de la polilínea, codos y extremos planos) y `AssetTests.cpp` (modelo estirado, girado y apoyado, normales).
 
 Todo es local a una planta: la escena resuelve uniones y habitaciones planta a planta y sube la geometría a su cota.
 

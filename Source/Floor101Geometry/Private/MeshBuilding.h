@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -100,6 +101,117 @@ namespace f101::geometry::detail
 		for (std::uint32_t i = 1; i + 1 < corners.size(); ++i)
 		{
 			section.indices.insert(section.indices.end(), {base, base + i, base + i + 1});
+		}
+	}
+
+	inline Vec3 normalized(const Vec3& v)
+	{
+		const double length = std::sqrt(dot(v, v));
+		return length > 0.0 ? Vec3{v.x / length, v.y / length, v.z / length} : Vec3{0.0, 0.0, 1.0};
+	}
+
+	// Two unit vectors square to a unit direction and to each other, (u, v, direction) right-handed: u horizontal unless the
+	// direction is vertical.
+	inline std::pair<Vec3, Vec3> frameAround(const Vec3& direction)
+	{
+		const Vec3 up{0.0, 0.0, 1.0};
+		Vec3 u = cross(direction, up);
+		u = dot(u, u) < 1e-12 ? Vec3{1.0, 0.0, 0.0} : normalized(u);
+		return {u, cross(direction, u)};
+	}
+
+	// A smooth tube of `radius` from `a` to `b` with `sides` facets: smooth side normals, outward; flat caps where asked.
+	// UVs in metres: v along the tube from `vStart`, u around it.
+	inline void addTube(MeshData& mesh, const char* slot, const Vec3& a, const Vec3& b, double radius, int sides, double vStart,
+		bool capStart, bool capEnd)
+	{
+		const Vec3 axis = subtract(b, a);
+		const double length = std::sqrt(dot(axis, axis));
+		if (length <= 0.0 || radius <= 0.0 || sides < 3)
+		{
+			return;
+		}
+		const Vec3 d{axis.x / length, axis.y / length, axis.z / length};
+		const auto [u, v] = frameAround(d);
+		constexpr double Tau = 6.28318530717958647692;
+		const double circumference = Tau * radius;
+		const auto base = static_cast<std::uint32_t>(mesh.positions.size());
+		for (int i = 0; i <= sides; ++i)
+		{
+			const double angle = Tau * static_cast<double>(i) / static_cast<double>(sides);
+			const Vec3 n{u.x * std::cos(angle) + v.x * std::sin(angle), u.y * std::cos(angle) + v.y * std::sin(angle),
+				u.z * std::cos(angle) + v.z * std::sin(angle)};
+			const double around = circumference * static_cast<double>(i) / static_cast<double>(sides) * MetersPerMillimeter;
+			for (const auto& [end, along] : {std::pair{a, vStart}, {b, vStart + length}})
+			{
+				mesh.positions.push_back(Vec3{end.x + n.x * radius, end.y + n.y * radius, end.z + n.z * radius});
+				mesh.normals.push_back(n);
+				mesh.uvs.push_back(Vec2{around, along * MetersPerMillimeter});
+			}
+		}
+		MeshSection& section = sectionFor(mesh, slot);
+		for (std::uint32_t i = 0; i < static_cast<std::uint32_t>(sides); ++i)
+		{
+			const std::uint32_t a0 = base + i * 2;
+			const std::uint32_t b0 = a0 + 1;
+			const std::uint32_t a1 = a0 + 2;
+			const std::uint32_t b1 = a0 + 3;
+			section.indices.insert(section.indices.end(), {a0, a1, b1, a0, b1, b0});
+		}
+		for (const auto& [end, wanted, sign] : {std::tuple{a, capStart, -1.0}, {b, capEnd, 1.0}})
+		{
+			if (!wanted)
+			{
+				continue;
+			}
+			std::vector<Corner> corners;
+			for (int i = 0; i < sides; ++i)
+			{
+				const double angle = Tau * static_cast<double>(i) / static_cast<double>(sides);
+				const double cu = std::cos(angle) * radius;
+				const double cv = std::sin(angle) * radius;
+				corners.push_back(Corner{Vec3{end.x + u.x * cu + v.x * cv, end.y + u.y * cu + v.y * cv, end.z + u.z * cu + v.z * cv},
+					Vec2{cu * MetersPerMillimeter, cv * MetersPerMillimeter}});
+			}
+			addConvexPolygon(mesh, slot, std::move(corners), Vec3{d.x * sign, d.y * sign, d.z * sign});
+		}
+	}
+
+	// A smooth ball of `radius` at `centre` (`rings` bands, `sides` around), outward normals.
+	inline void addBall(MeshData& mesh, const char* slot, const Vec3& centre, double radius, int rings, int sides)
+	{
+		constexpr double Pi = 3.14159265358979323846;
+		const auto base = static_cast<std::uint32_t>(mesh.positions.size());
+		for (int r = 0; r <= rings; ++r)
+		{
+			const double polar = Pi * static_cast<double>(r) / static_cast<double>(rings);
+			for (int s = 0; s <= sides; ++s)
+			{
+				const double azimuth = 2.0 * Pi * static_cast<double>(s) / static_cast<double>(sides);
+				const Vec3 n{std::sin(polar) * std::cos(azimuth), std::sin(polar) * std::sin(azimuth), std::cos(polar)};
+				mesh.positions.push_back(Vec3{centre.x + n.x * radius, centre.y + n.y * radius, centre.z + n.z * radius});
+				mesh.normals.push_back(n);
+				mesh.uvs.push_back(Vec2{2.0 * Pi * radius * static_cast<double>(s) / static_cast<double>(sides) * MetersPerMillimeter,
+					Pi * radius * static_cast<double>(r) / static_cast<double>(rings) * MetersPerMillimeter});
+			}
+		}
+		MeshSection& section = sectionFor(mesh, slot);
+		const auto row = static_cast<std::uint32_t>(sides + 1);
+		for (std::uint32_t r = 0; r < static_cast<std::uint32_t>(rings); ++r)
+		{
+			for (std::uint32_t s = 0; s < static_cast<std::uint32_t>(sides); ++s)
+			{
+				const std::uint32_t p = base + r * row + s; // towards the bottom pole as r grows
+				const std::uint32_t q = p + row;
+				if (r > 0)
+				{
+					section.indices.insert(section.indices.end(), {p, q, p + 1});
+				}
+				if (r + 1 < static_cast<std::uint32_t>(rings))
+				{
+					section.indices.insert(section.indices.end(), {p + 1, q, q + 1});
+				}
+			}
 		}
 	}
 

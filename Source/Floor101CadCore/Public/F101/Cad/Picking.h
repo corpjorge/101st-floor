@@ -43,6 +43,27 @@ namespace f101::cad
 	FLOOR101CADCORE_API std::optional<FurnitureHit> pickFurniture(const Project& project, const Ray3& ray,
 		const LevelId& level);
 
+	struct ColumnHit
+	{
+		ColumnId column;
+		double distance = 0.0; // along the ray, in units of the ray direction's length
+	};
+
+	// Nearest column on `level` whose solid (its outline from the floor up to the level's height) the ray enters in front
+	// of its origin. The ray is in the level's space (its floor at z = 0).
+	FLOOR101CADCORE_API std::optional<ColumnHit> pickColumn(const Project& project, const Ray3& ray, const LevelId& level);
+
+	struct ServiceRunHit
+	{
+		ServiceRunId run;
+		double distance = 0.0; // along the ray to where it passes closest to the run, in units of the direction's length
+	};
+
+	// Nearest run on `level` that the ray passes within its pipe's radius plus `toleranceMm` of, in front of its origin.
+	// The ray is in the level's space.
+	FLOOR101CADCORE_API std::optional<ServiceRunHit> pickServiceRun(const Project& project, const Ray3& ray,
+		const LevelId& level, double toleranceMm);
+
 	// Entry distance of the ray into an axis-aligned square post centred on `center` (e.g. an endpoint handle), from the
 	// floor to `heightMm`, `sizeMm` wide; nullopt if it misses.
 	FLOOR101CADCORE_API std::optional<double> intersectPost(const Ray3& ray, Point2D center, double sizeMm, double heightMm);

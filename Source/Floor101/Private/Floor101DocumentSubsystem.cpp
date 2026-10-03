@@ -1,6 +1,9 @@
 #include "Floor101DocumentSubsystem.h"
 
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "F101/Assets/AssetImport.h"
 #include "F101/Assets/Library.h"
 #include "F101/Cad/Furniture.h"
@@ -104,6 +107,13 @@ namespace
 		Texts.slab = ToUtf8(LOCTEXT("GltfSlab", "Forjado"));
 		Texts.door = ToUtf8(LOCTEXT("GltfDoor", "Puerta"));
 		Texts.window = ToUtf8(LOCTEXT("GltfWindow", "Ventana"));
+		Texts.columns = ToUtf8(LOCTEXT("GltfColumns", "Pilares"));
+		Texts.services = ToUtf8(LOCTEXT("GltfServices", "Instalaciones"));
+		Texts.column = ToUtf8(LOCTEXT("GltfColumn", "Pilar"));
+		Texts.electrical = ToUtf8(Floor101::ServiceKindName(f101::cad::ServiceKind::Electrical));
+		Texts.water = ToUtf8(Floor101::ServiceKindName(f101::cad::ServiceKind::Water));
+		Texts.sewage = ToUtf8(Floor101::ServiceKindName(f101::cad::ServiceKind::Sewage));
+		Texts.gas = ToUtf8(Floor101::ServiceKindName(f101::cad::ServiceKind::Gas));
 		for (const f101::cad::FinishInfo& Finish : f101::cad::finishCatalogue())
 		{
 			Texts.finishNames.emplace(std::string(Finish.id), ToUtf8(Floor101::FinishName(Finish.id)));
@@ -615,6 +625,16 @@ AActor* UFloor101DocumentSubsystem::FindFurnitureActor(const f101::cad::Furnitur
 	return Reconciler->FindActor(f101::scene::furnitureNodeId(Id));
 }
 
+AActor* UFloor101DocumentSubsystem::FindColumnActor(const f101::cad::ColumnId& Id) const
+{
+	return Reconciler->FindActor(f101::scene::columnNodeId(Id));
+}
+
+AActor* UFloor101DocumentSubsystem::FindServiceRunActor(const f101::cad::ServiceRunId& Id) const
+{
+	return Reconciler->FindActor(f101::scene::serviceRunNodeId(Id));
+}
+
 void UFloor101DocumentSubsystem::SetPlanView(bool bShown)
 {
 	bPlanView = bShown;
@@ -758,7 +778,10 @@ f101::Status UFloor101DocumentSubsystem::ExportPlan(const FString& Path, const f
 	{
 		return Fail("Cannot create the folder " + std::string(TCHAR_TO_UTF8(*Directory)));
 	}
-	const f101::drawing::PlanDrawing Drawing = f101::drawing::buildPlanDrawing(Model, Target, {}, PlanTexts());
+	// No editing marks; the runs of the building services when their layer is shown (ADR-0021).
+	f101::drawing::PlanOverlay Layers;
+	Layers.services = Editor->showsServices();
+	const f101::drawing::PlanDrawing Drawing = f101::drawing::buildPlanDrawing(Model, Target, Layers, PlanTexts());
 	if (Extension == TEXT("svg"))
 	{
 		const std::string Svg = f101::drawing::writeSvg(Drawing, f101::drawing::SvgOptions{100.0, PlanMarginMm});
@@ -870,13 +893,20 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.selectedRoom = View.selectedRoom;
 	Overlay.selectedFurniture = View.selectedFurniture;
 	Overlay.previewFurniture = View.previewFurniture;
+	Overlay.services = View.showServices;
+	Overlay.selectedColumn = View.selectedColumn;
+	Overlay.previewColumns = View.previewColumns;
+	Overlay.selectedServiceRun = View.selectedServiceRun;
+	Overlay.previewServiceRuns = View.previewServiceRuns;
 	if (bPhotoMode)
 	{
-		// A photo shows the project as it is (ADR-0018): no selection, gesture, handles or door swings.
+		// A photo shows the project as it is (ADR-0018): no selection, gesture, handles or door swings. The services
+		// layer stays as chosen, so the installation can be photographed (ADR-0021).
 		const f101::scene::ViewOverlay Levels = Overlay;
 		Overlay = f101::scene::ViewOverlay{};
 		Overlay.activeLevel = Levels.activeLevel;
 		Overlay.showAllLevels = Levels.showAllLevels;
+		Overlay.services = Levels.services;
 		Overlay.symbols = false;
 	}
 
@@ -890,6 +920,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	};
 	const f101::scene::Scene Scene = f101::scene::compileScene(Document->project(), Overlay, ModelMeshes);
 	const FFloor101ReconcileStats Stats = Reconciler->Reconcile(Scene);
+	SetGroundGhosted(Overlay.services);
 	if (bPlanView)
 	{
 		f101::drawing::PlanOverlay Marks;
@@ -897,6 +928,11 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		Marks.previewWalls = View.previewWalls;
 		Marks.selectedFurniture = View.selectedFurniture;
 		Marks.previewFurniture = View.previewFurniture;
+		Marks.services = View.showServices;
+		Marks.selectedColumn = View.selectedColumn;
+		Marks.previewColumns = View.previewColumns;
+		Marks.selectedServiceRun = View.selectedServiceRun;
+		Marks.previewServiceRuns = View.previewServiceRuns;
 		Marks.handles = View.handles;
 		Marks.handleSizeMm = static_cast<double>(Editor->settings().handleSizeMm);
 		*PlanDrawing = f101::drawing::buildPlanDrawing(Document->project(), View.activeLevel, Marks, PlanTexts());
@@ -926,6 +962,50 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	{
 		UE_LOG(LogFloor101, Verbose, TEXT("F101: view refresh in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
 			(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
+	}
+}
+
+void UFloor101DocumentSubsystem::SetGroundGhosted(bool bGhosted)
+{
+	if (bGhosted == bGroundGhosted)
+	{
+		return;
+	}
+	bGroundGhosted = bGhosted;
+	if (!bGhosted)
+	{
+		for (int32 Slot = 0; Slot < GhostedSlots.Num(); ++Slot)
+		{
+			if (UMeshComponent* Component = GhostedSlots[Slot].Component.Get())
+			{
+				Component->SetMaterial(GhostedSlots[Slot].Index, GroundMaterials[Slot]);
+			}
+		}
+		GhostedSlots.Reset();
+		GroundMaterials.Reset();
+		return;
+	}
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	UMaterialInterface* Ghost = Library ? Library->GetGhostMaterial() : nullptr;
+	UWorld* World = GetWorld();
+	if (!Ghost || !World)
+	{
+		return;
+	}
+	// The map's static meshes: the project's own actors are AFloor101SceneNodeActor, never static mesh actors.
+	for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+	{
+		UStaticMeshComponent* Component = It->GetStaticMeshComponent();
+		if (!Component || !Component->IsVisible())
+		{
+			continue;
+		}
+		for (int32 Index = 0; Index < Component->GetNumMaterials(); ++Index)
+		{
+			GhostedSlots.Add(FGhostedSlot{Component, Index});
+			GroundMaterials.Add(Component->GetMaterial(Index));
+			Component->SetMaterial(Index, Ghost);
+		}
 	}
 }
 

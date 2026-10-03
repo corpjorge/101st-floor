@@ -4,6 +4,7 @@
 #include "F101/Geometry/FurnitureBuilder.h"
 #include "F101/Geometry/PolygonGeometry.h"
 #include "F101/Geometry/Rooms.h"
+#include "F101/Geometry/ServicesBuilder.h"
 #include "F101/Geometry/WallJoins.h"
 
 #include <algorithm>
@@ -333,6 +334,78 @@ namespace f101::drawing
 			drawing.min = PlanPoint{minX, minY};
 			drawing.max = PlanPoint{maxX, maxY};
 		}
+
+		// Items as the overlay previews them, each with its ink: the selected one tinted, a valid preview with an existing
+		// id in its place, new ones last.
+		template <typename T, typename Id, typename Valid>
+		std::vector<std::pair<T, Ink>> overlaid(const std::vector<T>& items, const Id& selected, const std::vector<T>& previews,
+			Ink ink, Valid valid)
+		{
+			std::vector<std::pair<T, Ink>> shown;
+			for (const T& item : items)
+			{
+				shown.emplace_back(item, !selected.isNil() && item.id == selected ? Ink::Selected : ink);
+			}
+			for (const T& preview : previews)
+			{
+				if (!valid(preview))
+				{
+					continue;
+				}
+				const auto existing = std::find_if(shown.begin(), shown.end(),
+					[&preview](const auto& item) { return !preview.id.isNil() && item.first.id == preview.id; });
+				if (existing != shown.end())
+				{
+					*existing = {preview, Ink::Preview};
+				}
+				else
+				{
+					shown.emplace_back(preview, Ink::Preview);
+				}
+			}
+			return shown;
+		}
+
+		// A run: its path in plan with a casing under its core (`casing`: the casing's ink), and a ring where it rises or
+		// drops on the spot.
+		void drawServiceRun(Builder& builder, const cad::ServiceRun& run, Ink casing)
+		{
+			const double core = std::max(static_cast<double>(cad::serviceKindInfo(run.kind).diameterMm), MinServiceCoreMm);
+			const double cased = core + 2.0 * ServiceCasingMm;
+			const Ink coreInk = serviceInk(run.kind);
+			std::vector<PlanPoint> path;
+			std::vector<PlanPoint> risers;
+			for (std::size_t index = 0; index < run.points.size(); ++index)
+			{
+				const cad::ServicePoint& point = run.points[index];
+				const PlanPoint at{static_cast<double>(point.x_mm), static_cast<double>(point.y_mm)};
+				if (!path.empty() && path.back().x_mm == at.x_mm && path.back().y_mm == at.y_mm)
+				{
+					if (risers.empty() || risers.back().x_mm != at.x_mm || risers.back().y_mm != at.y_mm)
+					{
+						risers.push_back(at);
+					}
+					continue;
+				}
+				path.push_back(at);
+			}
+			if (path.size() >= 2)
+			{
+				builder.stroke(path, casing, cased);
+				builder.stroke(path, coreInk, core);
+			}
+			for (const PlanPoint& riser : risers)
+			{
+				std::vector<PlanPoint> ring;
+				for (int i = 0; i < ArcSegments; ++i)
+				{
+					const double angle = 2.0 * Pi * static_cast<double>(i) / static_cast<double>(ArcSegments);
+					ring.push_back(add(riser, PlanPoint{core * std::cos(angle), core * std::sin(angle)}));
+				}
+				builder.stroke(ring, casing, cased, true);
+				builder.stroke(std::move(ring), coreInk, core, true);
+			}
+		}
 	}
 
 	Rgb inkColor(Ink ink)
@@ -348,7 +421,23 @@ namespace f101::drawing
 		case Ink::Selected: return {255, 107, 20};
 		case Ink::Preview: return {56, 148, 255};
 		case Ink::Handle: return {230, 190, 0};
+		case Ink::ServiceCasing: return {64, 64, 64};
+		case Ink::ServiceElectrical: return {46, 156, 72};
+		case Ink::ServiceWater: return {238, 238, 234};
+		case Ink::ServiceSewage: return {232, 186, 34};
+		case Ink::ServiceGas: return {212, 172, 64};
 		default: return {17, 17, 17}; // Label
+		}
+	}
+
+	Ink serviceInk(cad::ServiceKind kind)
+	{
+		switch (kind)
+		{
+		case cad::ServiceKind::Water: return Ink::ServiceWater;
+		case cad::ServiceKind::Sewage: return Ink::ServiceSewage;
+		case cad::ServiceKind::Gas: return Ink::ServiceGas;
+		default: return Ink::ServiceElectrical;
 		}
 	}
 
@@ -461,29 +550,8 @@ namespace f101::drawing
 		}
 
 		// Furniture, as the overlay previews it: its outline, then the details of its type.
-		std::vector<std::pair<cad::Furniture, Ink>> pieces;
-		for (const cad::Furniture& piece : project.furniture)
-		{
-			pieces.emplace_back(piece, !overlay.selectedFurniture.isNil() && piece.id == overlay.selectedFurniture ? Ink::Selected
-				: Ink::Furniture);
-		}
-		for (const cad::Furniture& preview : overlay.previewFurniture)
-		{
-			if (!cad::validateFurniture(preview).ok())
-			{
-				continue;
-			}
-			const auto existing = std::find_if(pieces.begin(), pieces.end(),
-				[&preview](const auto& shown) { return !preview.id.isNil() && shown.first.id == preview.id; });
-			if (existing != pieces.end())
-			{
-				*existing = {preview, Ink::Preview};
-			}
-			else
-			{
-				pieces.emplace_back(preview, Ink::Preview);
-			}
-		}
+		const auto pieces = overlaid(project.furniture, overlay.selectedFurniture, overlay.previewFurniture, Ink::Furniture,
+			[](const cad::Furniture& piece) { return cad::validateFurniture(piece).ok(); });
 		for (const auto& [piece, ink] : pieces)
 		{
 			if (!project.levels.empty() && piece.level != level)
@@ -500,6 +568,29 @@ namespace f101::drawing
 					points.push_back(cad::furnitureToPlan(piece, local.x_mm, local.y_mm));
 				}
 				builder.stroke(std::move(points), ink, FurnitureDetailMm, true);
+			}
+		}
+
+		// Columns, cut like the walls.
+		const auto columns = overlaid(project.columns, overlay.selectedColumn, overlay.previewColumns, Ink::Cut,
+			[](const cad::Column& column) { return cad::validateColumn(column).ok(); });
+		for (const auto& [column, ink] : columns)
+		{
+			if (project.levels.empty() || column.level == level)
+			{
+				builder.fill(geometry::columnOutline(column), ink);
+			}
+		}
+
+		// Runs of the building services: with the layer on, or while a gesture previews them.
+		const std::vector<cad::ServiceRun> none;
+		const auto runs = overlaid(overlay.services ? project.services : none, overlay.selectedServiceRun, overlay.previewServiceRuns,
+			Ink::ServiceCasing, [](const cad::ServiceRun& run) { return cad::validateServiceRun(run).ok(); });
+		for (const auto& [run, ink] : runs)
+		{
+			if (project.levels.empty() || run.level == level)
+			{
+				drawServiceRun(builder, run, ink);
 			}
 		}
 

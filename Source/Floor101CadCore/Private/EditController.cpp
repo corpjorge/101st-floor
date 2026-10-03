@@ -247,6 +247,39 @@ namespace f101::cad
 			}
 			return value;
 		}
+
+		// Where the ray meets the horizontal plane at height `z`, in front of its origin and within 100 km.
+		std::optional<PlanPoint> atHeight(const Ray3& ray, double z)
+		{
+			if (std::fabs(ray.directionZ) < 1e-12)
+			{
+				return std::nullopt;
+			}
+			const double t = (z - ray.originZ) / ray.directionZ;
+			const PlanPoint at{ray.originX + ray.directionX * t, ray.originY + ray.directionY * t};
+			if (t < 0.0 || std::fabs(at.x_mm) > 1e8 || std::fabs(at.y_mm) > 1e8)
+			{
+				return std::nullopt;
+			}
+			return at;
+		}
+
+		bool sameSpot(const ServicePoint& a, const ServicePoint& b)
+		{
+			return a.x_mm == b.x_mm && a.y_mm == b.y_mm;
+		}
+
+		// The points a run takes from `last` to `next`: when it changes height elsewhere, it first rises or drops on the spot.
+		std::vector<ServicePoint> stepTo(const ServicePoint& last, const ServicePoint& next)
+		{
+			std::vector<ServicePoint> steps;
+			if (next.z_mm != last.z_mm && !sameSpot(next, last))
+			{
+				steps.push_back(ServicePoint{last.x_mm, last.y_mm, next.z_mm});
+			}
+			steps.push_back(next);
+			return steps;
+		}
 	}
 
 	EditController::EditController(Document& targetDocument, EditSettings settings)
@@ -262,15 +295,19 @@ namespace f101::cad
 		{
 			return;
 		}
-		drag.reset();
-		openingDrag.reset();
-		furnitureDrag.reset();
+		dropDrags();
 		tool.cancel();
+		runDraft.clear();
 		placement.reset();
 		furnitureAt.reset();
+		columnAt.reset();
 		if (mode != EditMode::Select)
 		{
 			clearSelected();
+		}
+		if (mode == EditMode::Services)
+		{
+			servicesShown = true; // the runs being drawn among the others, the architecture seen through
 		}
 		currentMode = mode;
 		if (planPoint)
@@ -278,8 +315,19 @@ namespace f101::cad
 			tool.pointerMoved(*planPoint);
 			updatePlacement();
 			updateFurniturePlacement();
+			updateColumnPlacement();
 		}
+		updateRunPointer();
 		paintAt = mode == EditMode::Paint && pointerRay ? resolvePaintTarget(levelProject(), *pointerRay) : std::nullopt;
+	}
+
+	void EditController::dropDrags()
+	{
+		drag.reset();
+		openingDrag.reset();
+		furnitureDrag.reset();
+		columnDrag.reset();
+		runDrag.reset();
 	}
 
 	void EditController::clearSelected()
@@ -288,6 +336,8 @@ namespace f101::cad
 		selectedOpeningId = OpeningId();
 		selectedRoomKey.clear();
 		selectedFurnitureId = FurnitureId();
+		selectedColumnId = ColumnId();
+		selectedRunId = ServiceRunId();
 	}
 
 	LevelId EditController::activeLevel() const
@@ -328,6 +378,13 @@ namespace f101::cad
 		pointerRay = ray;
 		planPoint = planPointOf(ray, drag ? drag->joined : std::vector<WallId>{});
 		paintAt = currentMode == EditMode::Paint ? resolvePaintTarget(levelProject(), ray) : std::nullopt;
+		// Runs follow the pointer on their own planes, wherever the floor is.
+		updateRunPointer();
+		if (runDrag)
+		{
+			updateRunDrag();
+			return;
+		}
 		if (!planPoint)
 		{
 			return; // off the floor: keep the last preview
@@ -343,6 +400,14 @@ namespace f101::cad
 		else if (currentMode == EditMode::Furniture)
 		{
 			updateFurniturePlacement();
+		}
+		else if (currentMode == EditMode::Column)
+		{
+			updateColumnPlacement();
+		}
+		else if (columnDrag)
+		{
+			updateColumnDrag();
 		}
 		else if (drag)
 		{
@@ -466,6 +531,106 @@ namespace f101::cad
 		}
 		const PlanPoint wanted{planPoint->x_mm + furnitureDrag->grabOffset.x_mm, planPoint->y_mm + furnitureDrag->grabOffset.y_mm};
 		furnitureDrag->furniture = placeFurniture(*original, wanted, *planPoint, original->rotationCentidegrees);
+	}
+
+	Column EditController::placeColumn(Column column, PlanPoint wanted) const
+	{
+		// Like a wall's end: onto a corner, else onto a wall's axis, else the grid; the level below guides too (stacking).
+		column.level = activeLevel();
+		column.position = snapPoint(snapReference(document.project(), activeLevel()), wanted, editSettings.wallTool.snap).point;
+		return column;
+	}
+
+	void EditController::updateColumnPlacement()
+	{
+		columnAt.reset();
+		if (currentMode != EditMode::Column || !planPoint)
+		{
+			return;
+		}
+		columnAt = placeColumn(makeColumn(editSettings.columnShape, Point2D{}, editSettings.columnWidthMm, editSettings.columnDepthMm,
+			editSettings.columnRotationCentidegrees), *planPoint);
+	}
+
+	void EditController::updateColumnDrag()
+	{
+		const Column* original = document.project().findColumn(columnDrag->column.id);
+		if (!original)
+		{
+			columnDrag.reset(); // gone under the gesture
+			return;
+		}
+		columnDrag->column = placeColumn(*original,
+			PlanPoint{planPoint->x_mm + columnDrag->grabOffset.x_mm, planPoint->y_mm + columnDrag->grabOffset.y_mm});
+	}
+
+	void EditController::updateRunPointer()
+	{
+		runCursor.reset();
+		if (currentMode != EditMode::Services || !pointerRay)
+		{
+			return;
+		}
+		// Under the pointer at the height being drawn (else where it points on the plan), snapped like a wall's ends.
+		std::optional<PlanPoint> at = atHeight(*pointerRay, static_cast<double>(editSettings.serviceHeightMm));
+		if (!at)
+		{
+			at = planPoint;
+		}
+		if (!at)
+		{
+			return;
+		}
+		const Project reference = levelProject();
+		const Point2D snapped = runDraft.empty() ? snapPoint(reference, *at, editSettings.wallTool.snap).point
+			: snapFromAnchor(reference, Point2D{runDraft.back().x_mm, runDraft.back().y_mm}, *at, editSettings.wallTool.snap).point;
+		runCursor = ServicePoint{snapped.x_mm, snapped.y_mm, editSettings.serviceHeightMm};
+	}
+
+	void EditController::updateRunDrag()
+	{
+		const ServiceRun* original = document.project().findServiceRun(runDrag->run.id);
+		if (!original)
+		{
+			runDrag.reset(); // gone under the gesture
+			return;
+		}
+		const std::optional<PlanPoint> at = pointerRay ? atHeight(*pointerRay, runDrag->planeZ) : std::nullopt;
+		if (!at)
+		{
+			return;
+		}
+		const PlanPoint shift{at->x_mm - runDrag->grab.x_mm, at->y_mm - runDrag->grab.y_mm};
+		ServiceRun moved = *original;
+		if (!runDrag->bend)
+		{
+			// The whole run, by whole grid steps.
+			const std::int64_t grid = gridMm();
+			const std::int64_t dx = std::llround(shift.x_mm / static_cast<double>(grid)) * grid;
+			const std::int64_t dy = std::llround(shift.y_mm / static_cast<double>(grid)) * grid;
+			for (ServicePoint& point : moved.points)
+			{
+				point.x_mm += dx;
+				point.y_mm += dy;
+			}
+		}
+		else
+		{
+			// The bend, snapped like a wall's end; every point there (a rise or drop on the spot) moves with it.
+			const ServicePoint bend = original->points[*runDrag->bend];
+			const Point2D snapped = snapPoint(levelProject(),
+				PlanPoint{static_cast<double>(bend.x_mm) + shift.x_mm, static_cast<double>(bend.y_mm) + shift.y_mm},
+				editSettings.wallTool.snap).point;
+			for (std::size_t index = *runDrag->bend; index < moved.points.size() && sameSpot(original->points[index], bend); ++index)
+			{
+				moved.points[index].x_mm = snapped.x_mm;
+				moved.points[index].y_mm = snapped.y_mm;
+			}
+		}
+		if (validateServiceRun(moved).ok()) // not onto the next point: keep the last place
+		{
+			runDrag->run = moved;
+		}
 	}
 
 	void EditController::updateDrag()
@@ -640,6 +805,48 @@ namespace f101::cad
 			updateFurniturePlacement();
 			return added;
 		}
+		if (currentMode == EditMode::Column)
+		{
+			if (!columnAt)
+			{
+				return Error{ErrorCode::InvalidArgument, "Point at the floor to place it"};
+			}
+			const Status added = toStatus(document.execute(AddColumnCommand{*columnAt}));
+			updateColumnPlacement();
+			return added;
+		}
+		if (currentMode == EditMode::Services)
+		{
+			return addRunPoint();
+		}
+
+		// The handles at the bends of the selected run move them (ADR-0021).
+		if (const std::optional<ServiceRun> run = selectedServiceRun())
+		{
+			std::optional<double> nearest;
+			for (std::size_t index = 0; index < run->points.size(); ++index)
+			{
+				const ServicePoint& point = run->points[index];
+				if (index > 0 && sameSpot(run->points[index - 1], point))
+				{
+					continue; // one handle per bend
+				}
+				const std::optional<double> hit = intersectPost(ray, Point2D{point.x_mm, point.y_mm},
+					static_cast<double>(editSettings.handleSizeMm), static_cast<double>(editSettings.handleHeightMm));
+				if (hit && (!nearest || *hit < *nearest))
+				{
+					nearest = hit;
+					runDrag = RunDrag{*run, index, static_cast<double>(point.z_mm), {}};
+				}
+			}
+			if (runDrag)
+			{
+				const ServicePoint& bend = run->points[*runDrag->bend];
+				runDrag->grab = atHeight(ray, runDrag->planeZ)
+					.value_or(PlanPoint{static_cast<double>(bend.x_mm), static_cast<double>(bend.y_mm)});
+				return Status::success();
+			}
+		}
 
 		// The selected door or window: its edge handles resize it, the hole itself moves it (ADR-0013).
 		if (const std::optional<OpeningRef> current = selectedOpening(); current && planPoint)
@@ -711,11 +918,41 @@ namespace f101::cad
 			}
 		}
 
-		// A piece of furniture in front of any wall: selected, and grabbed (it moves once the pointer moves).
+		// What is nearest under the pointer: selected, and a piece, a column or a run grabbed (it moves once the pointer moves).
 		clearSelected();
+		const Project& model = document.project();
 		const std::optional<WallHit> wallHit = pickWall(project, ray);
-		const std::optional<FurnitureHit> pieceHit = pickFurniture(document.project(), ray, activeLevel());
-		if (pieceHit && (!wallHit || pieceHit->distance < wallHit->distance))
+		const std::optional<FurnitureHit> pieceHit = pickFurniture(model, ray, activeLevel());
+		const std::optional<ColumnHit> columnHit = pickColumn(model, ray, activeLevel());
+		const std::optional<ServiceRunHit> runHit =
+			servicesShown ? pickServiceRun(model, ray, activeLevel(), editSettings.servicePickToleranceMm) : std::nullopt;
+		constexpr double Far = std::numeric_limits<double>::infinity();
+		const double wallDistance = wallHit ? wallHit->distance : Far;
+		const double pieceDistance = pieceHit ? pieceHit->distance : Far;
+		const double columnDistance = columnHit ? columnHit->distance : Far;
+		// A run is seen through the walls (the layer shows them ghosted): only furniture and columns hide it.
+		if (runHit && runHit->distance < pieceDistance && runHit->distance < columnDistance)
+		{
+			const ServiceRun& run = *model.findServiceRun(runHit->run);
+			selectedRunId = run.id;
+			const double t = runHit->distance;
+			runDrag = RunDrag{run, std::nullopt, ray.originZ + ray.directionZ * t,
+				PlanPoint{ray.originX + ray.directionX * t, ray.originY + ray.directionY * t}};
+			return Status::success();
+		}
+		if (columnHit && columnDistance <= wallDistance && columnDistance < pieceDistance)
+		{
+			const Column& column = *model.findColumn(columnHit->column);
+			selectedColumnId = column.id;
+			columnDrag = ColumnDrag{column, {}};
+			if (planPoint)
+			{
+				columnDrag->grabOffset = PlanPoint{static_cast<double>(column.position.x_mm) - planPoint->x_mm,
+					static_cast<double>(column.position.y_mm) - planPoint->y_mm};
+			}
+			return Status::success();
+		}
+		if (pieceHit && pieceDistance < wallDistance)
 		{
 			const Furniture& piece = *document.project().findFurniture(pieceHit->furniture);
 			selectedFurnitureId = piece.id;
@@ -745,8 +982,41 @@ namespace f101::cad
 		return Status::success();
 	}
 
+	Status EditController::pointerDoubleClicked(const Ray3& sceneRay)
+	{
+		if (currentMode == EditMode::Services && !runDraft.empty())
+		{
+			movePointer(toLevel(sceneRay));
+			return finishRun();
+		}
+		return pointerPressed(sceneRay);
+	}
+
 	Status EditController::pointerReleased(const Ray3&)
 	{
+		// Each drag: moved as the last pointerMoved() left it; one undoable change, or none if it did not move.
+		if (columnDrag)
+		{
+			const Column moved = columnDrag->column;
+			columnDrag.reset();
+			const Column* original = document.project().findColumn(moved.id);
+			if (!original || *original == moved)
+			{
+				return Status::success();
+			}
+			return toStatus(document.execute(ChangeColumnCommand{moved}));
+		}
+		if (runDrag)
+		{
+			const ServiceRun moved = runDrag->run;
+			runDrag.reset();
+			const ServiceRun* original = document.project().findServiceRun(moved.id);
+			if (!original || *original == moved)
+			{
+				return Status::success();
+			}
+			return toStatus(document.execute(ChangeServiceRunCommand{moved}));
+		}
 		if (furnitureDrag)
 		{
 			// Moved as the last pointerMoved() left it; one undoable change, or none if it did not move.
@@ -788,6 +1058,10 @@ namespace f101::cad
 
 	Status EditController::confirm()
 	{
+		if (currentMode == EditMode::Services)
+		{
+			return runDraft.empty() ? Status::success() : finishRun();
+		}
 		if (currentMode != EditMode::Wall)
 		{
 			return Status::success();
@@ -796,17 +1070,85 @@ namespace f101::cad
 		return created ? Status::success() : Status(created.error());
 	}
 
+	Status EditController::addRunPoint()
+	{
+		if (!runCursor)
+		{
+			return Error{ErrorCode::InvalidArgument, "Point at the plan to place the run's points"};
+		}
+		if (!runDraft.empty())
+		{
+			if (*runCursor == runDraft.back())
+			{
+				return finishRun(); // a second click on the last point (a double click)
+			}
+			const std::vector<ServicePoint> steps = stepTo(runDraft.back(), *runCursor);
+			if (runDraft.size() + steps.size() > MaxServicePoints)
+			{
+				return Error{ErrorCode::OutOfRange, "A run has at most " + std::to_string(MaxServicePoints) +
+					" points: finish this one and start another"};
+			}
+			runDraft.insert(runDraft.end(), steps.begin(), steps.end());
+		}
+		else
+		{
+			runDraft.push_back(*runCursor);
+		}
+		updateRunPointer(); // snapping now measures from the new last point
+		return Status::success();
+	}
+
+	Status EditController::finishRun()
+	{
+		if (runDraft.size() < 2)
+		{
+			return Error{ErrorCode::InvalidArgument, "Place a second point to make a run"};
+		}
+		ServiceRun run;
+		run.level = activeLevel();
+		run.kind = editSettings.serviceKind;
+		run.points = runDraft;
+		const Status added = toStatus(document.execute(AddServiceRunCommand{run}));
+		if (added)
+		{
+			runDraft.clear();
+			updateRunPointer();
+		}
+		return added;
+	}
+
+	std::optional<ServiceRun> EditController::runPreview() const
+	{
+		if (runDraft.empty())
+		{
+			return std::nullopt;
+		}
+		ServiceRun run;
+		run.level = activeLevel();
+		run.kind = editSettings.serviceKind;
+		run.points = runDraft;
+		if (runCursor && !(*runCursor == runDraft.back()))
+		{
+			const std::vector<ServicePoint> steps = stepTo(runDraft.back(), *runCursor);
+			run.points.insert(run.points.end(), steps.begin(), steps.end());
+		}
+		return run.points.size() >= 2 ? std::optional<ServiceRun>(run) : std::nullopt;
+	}
+
 	void EditController::cancel()
 	{
-		if (drag || openingDrag || furnitureDrag)
+		if (isDragging())
 		{
-			drag.reset();
-			openingDrag.reset();
-			furnitureDrag.reset();
+			dropDrags();
 		}
 		else if (currentMode == EditMode::Wall && tool.state() == WallTool::State::Drafting)
 		{
 			tool.cancel();
+		}
+		else if (currentMode == EditMode::Services && !runDraft.empty())
+		{
+			runDraft.clear();
+			updateRunPointer();
 		}
 		else if (currentMode != EditMode::Select)
 		{
@@ -832,13 +1174,34 @@ namespace f101::cad
 		{
 			tool.backspace();
 		}
+		else if (currentMode == EditMode::Services && !runDraft.empty())
+		{
+			runDraft.pop_back();
+			updateRunPointer();
+		}
 	}
 
 	Status EditController::deleteSelection()
 	{
-		drag.reset();
-		openingDrag.reset();
-		furnitureDrag.reset();
+		dropDrags();
+		if (const std::optional<Column> column = selectedColumn())
+		{
+			const Status deleted = toStatus(document.execute(DeleteColumnCommand{column->id}));
+			if (deleted)
+			{
+				selectedColumnId = ColumnId();
+			}
+			return deleted;
+		}
+		if (const std::optional<ServiceRun> run = selectedServiceRun())
+		{
+			const Status deleted = toStatus(document.execute(DeleteServiceRunCommand{run->id}));
+			if (deleted)
+			{
+				selectedRunId = ServiceRunId();
+			}
+			return deleted;
+		}
 		if (const std::optional<Furniture> piece = selectedFurniture())
 		{
 			const Status deleted = toStatus(document.execute(DeleteFurnitureCommand{piece->id}));
@@ -873,49 +1236,43 @@ namespace f101::cad
 
 	Status EditController::undo()
 	{
-		drag.reset();
-		openingDrag.reset();
-		furnitureDrag.reset();
+		dropDrags();
 		tool.cancel();
+		runDraft.clear();
 		const Status undone = document.undo();
-		if (planPoint)
-		{
-			tool.pointerMoved(*planPoint);
-			updatePlacement();
-			updateFurniturePlacement();
-		}
+		refreshPlacements();
 		return undone;
 	}
 
 	Status EditController::redo()
 	{
-		drag.reset();
-		openingDrag.reset();
-		furnitureDrag.reset();
+		dropDrags();
 		tool.cancel();
+		runDraft.clear();
 		const Status redone = document.redo();
-		if (planPoint)
-		{
-			tool.pointerMoved(*planPoint);
-			updatePlacement();
-			updateFurniturePlacement();
-		}
+		refreshPlacements();
 		return redone;
 	}
 
 	void EditController::reset()
 	{
-		drag.reset();
-		openingDrag.reset();
-		furnitureDrag.reset();
+		dropDrags();
 		tool.cancel();
+		runDraft.clear();
 		clearSelected();
+		refreshPlacements();
+	}
+
+	void EditController::refreshPlacements()
+	{
 		if (planPoint)
 		{
 			tool.pointerMoved(*planPoint);
 			updatePlacement();
 			updateFurniturePlacement();
+			updateColumnPlacement();
 		}
+		updateRunPointer();
 	}
 
 	WallId EditController::selection() const
@@ -965,9 +1322,7 @@ namespace f101::cad
 
 	void EditController::clearSelection()
 	{
-		drag.reset();
-		openingDrag.reset();
-		furnitureDrag.reset();
+		dropDrags();
 		clearSelected();
 	}
 
@@ -1131,14 +1486,32 @@ namespace f101::cad
 			updateFurniturePlacement();
 			return Status::success();
 		}
+		if (currentMode == EditMode::Column)
+		{
+			// The columns placed from now on.
+			editSettings.columnRotationCentidegrees = (editSettings.columnRotationCentidegrees + 9000) % FullTurnCentidegrees;
+			updateColumnPlacement();
+			return Status::success();
+		}
 		if (selectedFurniture())
 		{
 			return rotateFurniture();
 		}
+		if (selectedColumn())
+		{
+			return editSelectedColumn([](Column& column)
+			{
+				if (column.shape == ColumnShape::Rectangle)
+				{
+					column.rotationCentidegrees = (column.rotationCentidegrees + 9000) % FullTurnCentidegrees;
+				}
+				return Status::success();
+			});
+		}
 		if (!selectedOpening())
 		{
-			return Error{ErrorCode::NotFound,
-				"Select a piece of furniture, a door or a window, or pick the door, window or furniture tool, to turn it"};
+			return Error{ErrorCode::NotFound, "Select a piece of furniture, a column, a door or a window, or pick the door, "
+				"window, furniture or column tool, to turn it"};
 		}
 		return flipOpeningHinge();
 	}
@@ -1251,6 +1624,220 @@ namespace f101::cad
 		});
 	}
 
+	Status EditController::setNewColumnShape(ColumnShape shape)
+	{
+		editSettings.columnShape = shape;
+		updateColumnPlacement();
+		return Status::success();
+	}
+
+	Status EditController::changeNewColumnSize(std::string_view text, std::int64_t EditSettings::*size)
+	{
+		const Result<std::int64_t> value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value)
+		{
+			return value.error();
+		}
+		if (value.value() < MinColumnSizeMm || value.value() > MaxColumnSizeMm)
+		{
+			return Error{ErrorCode::OutOfRange, "A column measures from " + std::to_string(MinColumnSizeMm) + " to " +
+				std::to_string(MaxColumnSizeMm) + " mm"};
+		}
+		editSettings.*size = value.value();
+		updateColumnPlacement();
+		return Status::success();
+	}
+
+	Status EditController::setNewColumnWidth(std::string_view text)
+	{
+		return changeNewColumnSize(text, &EditSettings::columnWidthMm);
+	}
+
+	Status EditController::setNewColumnDepth(std::string_view text)
+	{
+		return changeNewColumnSize(text, &EditSettings::columnDepthMm);
+	}
+
+	std::optional<Column> EditController::selectedColumn() const
+	{
+		const Column* column = selectedColumnId.isNil() ? nullptr : document.project().findColumn(selectedColumnId);
+		return column ? std::optional<Column>(*column) : std::nullopt;
+	}
+
+	Status EditController::selectColumn(const ColumnId& id)
+	{
+		const Column* column = document.project().findColumn(id);
+		if (!column)
+		{
+			return Error{ErrorCode::NotFound, "Column not found: " + toString(id)};
+		}
+		setMode(EditMode::Select);
+		changeLevel(column->level);
+		clearSelection();
+		selectedColumnId = id;
+		return Status::success();
+	}
+
+	Status EditController::editSelectedColumn(const std::function<Status(Column&)>& edit)
+	{
+		const std::optional<Column> current = selectedColumn();
+		if (!current)
+		{
+			return nothingSelected();
+		}
+		Column changed = *current;
+		if (Status edited = edit(changed); !edited)
+		{
+			return edited;
+		}
+		columnDrag.reset();
+		return toStatus(document.execute(ChangeColumnCommand{changed}));
+	}
+
+	Status EditController::changeColumnSize(std::string_view text, std::int64_t Column::*size)
+	{
+		const Result<std::int64_t> value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value)
+		{
+			return value.error();
+		}
+		return editSelectedColumn([&value, size](Column& column)
+		{
+			column.*size = value.value();
+			if (column.shape == ColumnShape::Round)
+			{
+				column.widthMm = column.depthMm = value.value(); // its diameter
+			}
+			return Status::success();
+		});
+	}
+
+	Status EditController::setColumnShape(ColumnShape shape)
+	{
+		return editSelectedColumn([shape](Column& column)
+		{
+			column.shape = shape;
+			if (shape == ColumnShape::Round)
+			{
+				column.depthMm = column.widthMm;
+				column.rotationCentidegrees = 0;
+			}
+			return Status::success();
+		});
+	}
+
+	Status EditController::setColumnWidth(std::string_view text)
+	{
+		return changeColumnSize(text, &Column::widthMm);
+	}
+
+	Status EditController::setColumnDepth(std::string_view text)
+	{
+		return changeColumnSize(text, &Column::depthMm);
+	}
+
+	Status EditController::setColumnRotation(std::string_view text)
+	{
+		const std::optional<double> degrees = parseDegrees(text);
+		if (!degrees)
+		{
+			return Error{ErrorCode::InvalidArgument, "Type the rotation in degrees, e.g. 90 or 22.5"};
+		}
+		return editSelectedColumn([&degrees](Column& column)
+		{
+			if (column.shape == ColumnShape::Round)
+			{
+				return Status(Error{ErrorCode::InvalidArgument, "A round column is not turned"});
+			}
+			column.rotationCentidegrees = toCentidegrees(*degrees);
+			return Status::success();
+		});
+	}
+
+	Status EditController::setColumnFinish(std::string_view finish)
+	{
+		return editSelectedColumn([finish](Column& column)
+		{
+			column.finish = std::string(finish);
+			return Status::success();
+		});
+	}
+
+	void EditController::setShowServices(bool show)
+	{
+		servicesShown = show;
+		if (!show)
+		{
+			if (currentMode == EditMode::Services)
+			{
+				setMode(EditMode::Select);
+			}
+			runDrag.reset();
+			selectedRunId = ServiceRunId();
+		}
+	}
+
+	Status EditController::setServiceKind(ServiceKind kind)
+	{
+		editSettings.serviceKind = kind;
+		return Status::success();
+	}
+
+	Status EditController::setServiceHeightMm(std::int64_t heightMm)
+	{
+		if (heightMm < MinServiceHeightMm || heightMm > MaxServiceHeightMm)
+		{
+			return Error{ErrorCode::OutOfRange, "A run goes from " + std::to_string(MinServiceHeightMm) + " to " +
+				std::to_string(MaxServiceHeightMm) + " mm over the level's floor"};
+		}
+		editSettings.serviceHeightMm = heightMm;
+		updateRunPointer();
+		return Status::success();
+	}
+
+	Status EditController::setServiceHeight(std::string_view text)
+	{
+		const Result<std::int64_t> value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value)
+		{
+			return value.error();
+		}
+		return setServiceHeightMm(value.value());
+	}
+
+	std::optional<ServiceRun> EditController::selectedServiceRun() const
+	{
+		const ServiceRun* run = !servicesShown || selectedRunId.isNil() ? nullptr : document.project().findServiceRun(selectedRunId);
+		return run ? std::optional<ServiceRun>(*run) : std::nullopt;
+	}
+
+	Status EditController::selectServiceRun(const ServiceRunId& id)
+	{
+		const ServiceRun* run = document.project().findServiceRun(id);
+		if (!run)
+		{
+			return Error{ErrorCode::NotFound, "Run not found: " + toString(id)};
+		}
+		setMode(EditMode::Select);
+		changeLevel(run->level);
+		clearSelection();
+		servicesShown = true;
+		selectedRunId = id;
+		return Status::success();
+	}
+
+	Status EditController::setServiceRunKind(ServiceKind kind)
+	{
+		std::optional<ServiceRun> changed = selectedServiceRun();
+		if (!changed)
+		{
+			return nothingSelected();
+		}
+		changed->kind = kind;
+		runDrag.reset();
+		return toStatus(document.execute(ChangeServiceRunCommand{*changed}));
+	}
+
 	std::optional<PaintTarget> EditController::resolvePaintTarget(const Project& levelWalls, const Ray3& ray) const
 	{
 		const bool forWalls = validateFinishIn(document.project(), editSettings.paintFinish, Surface::Wall).ok();
@@ -1361,8 +1948,12 @@ namespace f101::cad
 		clearSelection();
 		placement.reset();
 		furnitureAt.reset();
+		columnAt.reset();
+		runDraft.clear();
+		runCursor.reset();
 		tool.setLevel(level);
 		planPoint.reset(); // it was measured on the other level; the next pointer move sets it again
+		pointerRay.reset();
 	}
 
 	Status EditController::setActiveLevel(const LevelId& level)
@@ -1468,7 +2059,56 @@ namespace f101::cad
 		result.activeLevel = activeLevel();
 		result.showAllLevels = allLevels;
 		result.selectedRoom = selectedRoom();
+		result.showServices = servicesShown;
 		const Project& project = document.project();
+		if (currentMode == EditMode::Column)
+		{
+			if (columnAt)
+			{
+				result.previewColumns.push_back(*columnAt);
+			}
+			return result;
+		}
+		if (currentMode == EditMode::Services)
+		{
+			if (const std::optional<ServiceRun> run = runPreview())
+			{
+				result.previewServiceRuns.push_back(*run);
+			}
+			if (runCursor)
+			{
+				result.handles.push_back(Point2D{runCursor->x_mm, runCursor->y_mm});
+			}
+			return result;
+		}
+		if (const std::optional<Column> column = selectedColumn())
+		{
+			result.selectedColumn = column->id;
+			// While it is dragged, it is previewed where it would go.
+			if (columnDrag && columnDrag->column.id == column->id && !(columnDrag->column == *column))
+			{
+				result.previewColumns.push_back(columnDrag->column);
+			}
+			return result;
+		}
+		if (const std::optional<ServiceRun> run = selectedServiceRun())
+		{
+			result.selectedServiceRun = run->id;
+			// While it is dragged, it is previewed where it would go; a handle at each bend.
+			const ServiceRun& shown = runDrag && runDrag->run.id == run->id ? runDrag->run : *run;
+			if (!(shown == *run))
+			{
+				result.previewServiceRuns.push_back(shown);
+			}
+			for (std::size_t index = 0; index < shown.points.size(); ++index)
+			{
+				if (index == 0 || !sameSpot(shown.points[index - 1], shown.points[index]))
+				{
+					result.handles.push_back(Point2D{shown.points[index].x_mm, shown.points[index].y_mm});
+				}
+			}
+			return result;
+		}
 		if (currentMode == EditMode::Wall)
 		{
 			if (const std::optional<Wall> preview = tool.preview())

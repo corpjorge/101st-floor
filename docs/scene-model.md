@@ -7,7 +7,9 @@ Twinmotion (`docs/exporters.md`, ADR-0020).
   (`<wall uuid>/body`); luego un nodo por `JointFill` (`<wall uuid>/joint-start|end`), uno por suelo de habitación
   (`<room key>/floor`), uno por forjado (`<room key>/slab`, en la franja alta de su planta) y uno por hueco con su
   carpintería (`<wall uuid>/opening/<opening uuid>`, ADR-0013; en la planta y con el estilo de su muro) y uno por mueble en el
-  orden del modelo (`furniture/<furniture uuid>`, ADR-0016; `furnitureNodeId`). Uniones y habitaciones se
+  orden del modelo (`furniture/<furniture uuid>`, ADR-0016; `furnitureNodeId`), uno por pilar (`column/<uuid>`,
+  `columnNodeId`, tan alto como su planta, con su acabado o hormigón visto) y uno por tramo de instalación
+  (`service/<uuid>`, `serviceRunNodeId`, con el acabado de su tipo) (ADR-0021). Uniones y habitaciones se
   resuelven planta a planta y cada planta se sube a su cota (ADR-0011). `Scene::rooms` lista esas habitaciones
   (`SceneRoom`: habitación, planta y cota) para las vistas; cada nodo lleva su `level`. Es
   determinista: el mismo proyecto da la misma escena (ADR-0009).
@@ -30,8 +32,8 @@ Twinmotion (`docs/exporters.md`, ADR-0020).
   fila de arriba de la imagen va hacia arriba del muro o hacia el norte del suelo).
 - `contentHash`: FNV-1a 64 sobre posiciones, normales, UV, secciones y acabados (`hashNode`). Los consumidores lo usan para no reconstruir lo que
   no cambió. Al mover un muro cambian también sus vecinos (sus ingletes dependen de él).
-- Metadatos de origen: `sourceKind` (`Wall`, `Joint`, `Room`, `Slab`, `Opening`, `Furniture`, `Marker`), `sourceId` (UUID del muro;
-  en suelos y forjados, la clave de la habitación; en la carpintería, el UUID del hueco; en un mueble, el suyo) y `name` legible (`Wall 1a2b3c4d`, `Room 11.17 m2`).
+- Metadatos de origen: `sourceKind` (`Wall`, `Joint`, `Room`, `Slab`, `Opening`, `Furniture`, `Column`, `Service`, `Marker`), `sourceId` (UUID del muro;
+  en suelos y forjados, la clave de la habitación; en la carpintería, el UUID del hueco; en un mueble, un pilar o un tramo, el suyo) y `name` legible (`Wall 1a2b3c4d`, `Room 11.17 m2`).
 - Espacio: mm, dextrógiro, X este, Y norte, Z arriba. Transform de nodo identidad (geometría en coordenadas de escena).
 - Vista: `compileScene(project, overlay)` compila el proyecto **como quedaría** tras el gesto en curso.
   `ViewOverlay::previewWalls` sustituye muros por id (arrastre de una esquina) o añade muros sin id (el que se dibuja,
@@ -44,6 +46,10 @@ Twinmotion (`docs/exporters.md`, ADR-0020).
   `ViewOverlay::selectedFurniture` y `previewFurniture` (ADR-0016): el mueble seleccionado lleva `Selected`; los previstos
   sustituyen por id (arrastre) o se añaden sin id (el que se coloca, `preview/furniture/<i>`), con estilo `Preview`; los
   inválidos se omiten. Los muebles de las plantas de abajo llevan `Context`.
+  Pilares e instalaciones (ADR-0021): `selectedColumn`/`previewColumns` y `selectedServiceRun`/`previewServiceRuns` como
+  los muebles (`preview/column/<i>`, `preview/service/<i>`). Los tramos solo se compilan con `ViewOverlay::services` (la
+  capa de instalaciones) o mientras están en vista previa; con la capa, muros, uniones, suelos, forjados y carpintería
+  con estilo `Normal` pasan a `Ghost` (translúcidos); los pilares no. `compileScene(project)` lleva siempre los tramos.
   Símbolos (ADR-0014): la escena de edición añade, al final, el arco de cada puerta abatible o de dos hojas de las plantas
   no atenuadas (`<wall uuid>/opening/<opening uuid>/swing`, `sourceKind` `Opening`, estilo `Symbol`); la de exportación
   no los tiene, ni la de una foto (`ViewOverlay::symbols = false`, Modo Foto, ADR-0018).
@@ -58,4 +64,4 @@ Tests: `Tests/Unit/SceneTests.cpp` (ID esperado, determinismo, el hash sigue a l
 al proyecto, sustitución por id, orden muros → uniones → suelos → forjados) y `LevelTests.cpp` (cotas, forjados, vista
 por planta), `FinishTests.cpp` (acabados por sección, hash, texturas), `CarpentryTests.cpp` (nodos de carpintería,
 acabados, planta y estilo) y `OpeningTypeTests.cpp` (símbolos solo en la escena de edición y en la planta activa), `FurnitureTests.cpp` (nodos de muebles, elevación,
-estilos) y `AssetTests.cpp` (modelo con sus materiales, con un acabado propio o caja sin modelo; texturas de imágenes).
+estilos), `ServicesTests.cpp` (pilares siempre, tramos con la capa, `Ghost`, vistas previas, planta de arriba) y `AssetTests.cpp` (modelo con sus materiales, con un acabado propio o caja sin modelo; texturas de imágenes).

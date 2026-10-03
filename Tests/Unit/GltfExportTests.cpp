@@ -68,6 +68,11 @@ namespace
 		texts.slab = "Forjado";
 		texts.door = "Puerta";
 		texts.window = "Ventana";
+		texts.columns = "Pilares";
+		texts.services = "Instalaciones";
+		texts.column = "Pilar";
+		texts.gas = "Gas";
+		texts.water = "Agua";
 		texts.finishNames = {{"brick-red", "Ladrillo visto"}, {"paint-sage", "Pintura verde salvia"}};
 		texts.furnitureNames = {{"sofa", "Sofá"}};
 		return texts;
@@ -455,6 +460,54 @@ TEST_CASE("imported textures and model materials keep their image files; an unre
 	const Glb plain = parseGlb(missing.bytes);
 	REQUIRE(plain.material(cad::assetRef(parquetId)) != nullptr);
 	CHECK_FALSE((*plain.material(cad::assetRef(parquetId)))["pbrMetallicRoughness"].contains("baseColorTexture"));
+}
+
+TEST_CASE("columns and the runs of the building services go in their own groups, named by kind, in their colours")
+{
+	House house;
+	const cad::ColumnId column = house.document.addColumn(cad::makeColumn(cad::ColumnShape::Round, {0, 0}, 350)).value();
+	cad::ServiceRun gas;
+	gas.kind = cad::ServiceKind::Gas;
+	gas.points = {{500, 500, 2400}, {3500, 500, 2400}};
+	const cad::ServiceRunId run = house.document.addServiceRun(gas).value();
+	TempFolder folder;
+	assets::ModelCache models;
+	const GltfExport exported = exportProjectGlb(house.project(), folder.path, models, spanish()).value();
+	CHECK(exported.warnings.empty());
+	const Glb glb = parseGlb(exported.bytes);
+	const Json& nodes = glb.json["nodes"];
+	const Json& root = nodes[glb.json["scenes"][0]["nodes"][0].get<std::size_t>()];
+	const Json& level = nodes[root["children"][0].get<std::size_t>()];
+	std::vector<std::string> groups;
+	for (const Json& child : level["children"])
+	{
+		groups.push_back(nodes[child.get<std::size_t>()]["name"].get<std::string>());
+	}
+	CHECK(groups == std::vector<std::string>{"Muros", "Suelos", "Forjados", "Puertas y ventanas", "Muebles", "Pilares", "Instalaciones"});
+
+	const auto named = [&nodes](const std::string& name) -> const Json*
+	{
+		for (const Json& node : nodes)
+		{
+			if (node["name"] == name)
+			{
+				return &node;
+			}
+		}
+		return nullptr;
+	};
+	const Json* columnNode = named("Pilar " + cad::toString(column).substr(0, 8));
+	REQUIRE(columnNode != nullptr);
+	CHECK((*columnNode)["extras"]["f101Source"] == "column");
+	const Json* runNode = named("Gas " + cad::toString(run).substr(0, 8));
+	REQUIRE(runNode != nullptr);
+	CHECK((*runNode)["extras"]["f101Source"] == "service");
+	const Json* gold = glb.material("service-gas");
+	REQUIRE(gold != nullptr);
+	const Json& factor = (*gold)["pbrMetallicRoughness"]["baseColorFactor"];
+	CHECK(factor[0].get<double>() == doctest::Approx(linear(212)).epsilon(0.001));
+	CHECK(factor[2].get<double>() == doctest::Approx(linear(64)).epsilon(0.001));
+	REQUIRE(glb.material("concrete") != nullptr);
 }
 
 TEST_CASE("levels above are named and ordered; nothing to export is an error; an unknown finish shows magenta")

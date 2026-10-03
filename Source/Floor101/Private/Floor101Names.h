@@ -2,6 +2,9 @@
 
 #include "CoreMinimal.h"
 
+#include "F101/Cad/Column.h"
+#include "F101/Cad/Services.h"
+
 #include <string_view>
 
 namespace f101::cad
@@ -17,4 +20,7 @@ namespace Floor101
 	FText FinishName(std::string_view Id, const f101::cad::Project* Project = nullptr);
 	// A furniture type (ADR-0016): the catalogue's name, or an imported model's own name with the project.
 	FText FurnitureName(std::string_view Type, const f101::cad::Project* Project = nullptr);
+	// A kind of building-services run and a column's shape (ADR-0021).
+	FText ServiceKindName(f101::cad::ServiceKind Kind);
+	FText ColumnShapeName(f101::cad::ColumnShape Shape);
 }

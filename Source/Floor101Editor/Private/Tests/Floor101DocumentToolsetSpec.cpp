@@ -350,6 +350,106 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("columns and building services", [this]()
+	{
+		It("adds a column with its defaults, reshapes, moves and finishes it in the same actor, and removes it", [this]()
+		{
+			const FFloor101ColumnInfo Column = UFloor101DocumentToolset::AddColumn(TEXT(""), EFloor101ColumnShape::Rectangle, 130000, 0, 0, 0, 0);
+			TestFalse(TEXT("id"), Column.Id.IsEmpty());
+			TestEqual(TEXT("30 cm by default"), Column.WidthMm, int64(300));
+			TestEqual(TEXT("square"), Column.DepthMm, int64(300));
+			TestTrue(TEXT("concrete"), Column.Finish.IsEmpty());
+			TestEqual(TEXT("on the lowest level"), Column.LevelId, UFloor101DocumentToolset::GetLevels()[0].Id);
+			TestTrue(TEXT("listed"), UFloor101DocumentToolset::GetColumns().ContainsByPredicate(
+				[&Column](const FFloor101ColumnInfo& Each) { return Each.Id == Column.Id; }));
+			if (!TestNotNull(TEXT("actor"), Column.Actor.Get()))
+			{
+				return;
+			}
+			FVector Origin;
+			FVector Extent;
+			Column.Actor->GetActorBounds(false, Origin, Extent);
+			TestEqual(TEXT("30 x 30 cm, as tall as the level"), Extent * 2.0, FVector(30.0, 30.0, UFloor101DocumentToolset::GetLevels()[0].HeightMm / 10.0), 1e-3f);
+
+			const FFloor101ColumnInfo Turned = UFloor101DocumentToolset::SetColumn(Column.Id, EFloor101ColumnShape::Rectangle, 131000, 0, 600, 200, 9000);
+			TestTrue(TEXT("same actor"), Turned.Actor == Column.Actor);
+			Turned.Actor->GetActorBounds(false, Origin, Extent);
+			TestEqual(TEXT("turned: 20 x 60 cm"), FVector(Extent.X, Extent.Y, 0.0) * 2.0, FVector(20.0, 60.0, 0.0), 1e-3f);
+			const FFloor101ColumnInfo Round = UFloor101DocumentToolset::SetColumn(Column.Id, EFloor101ColumnShape::Round, 131000, 0, 400, 200, 9000);
+			TestEqual(TEXT("one diameter"), Round.DepthMm, int64(400));
+			TestEqual(TEXT("not turned"), Round.RotationCentidegrees, 0);
+			TestEqual(TEXT("finished"), UFloor101DocumentToolset::SetColumnFinish(Column.Id, TEXT("brick-red")).Finish, FString(TEXT("brick-red")));
+			TestEqual(TEXT("undo"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change column")));
+
+			UFloor101DocumentToolset::RemoveColumn(Column.Id);
+			TestFalse(TEXT("removed"), UFloor101DocumentToolset::GetColumns().ContainsByPredicate(
+				[&Column](const FFloor101ColumnInfo& Each) { return Each.Id == Column.Id; }));
+			TestEqual(TEXT("undo the removal"), UFloor101DocumentToolset::Undo(), FString(TEXT("Delete column")));
+			UFloor101DocumentToolset::RemoveColumn(Column.Id);
+		});
+
+		It("adds a run through its points, shown only with the services layer, changes its kind and removes it", [this]()
+		{
+			const TArray<FFloor101FinishInfo> Finishes = UFloor101DocumentToolset::GetFinishes();
+			const FFloor101FinishInfo* Gold = Finishes.FindByPredicate([](const FFloor101FinishInfo& F) { return F.Id == TEXT("service-gas"); });
+			TestTrue(TEXT("the gas colour is only for runs"), Gold && Gold->bForServices && !Gold->bForWalls && Gold->Category == TEXT("services"));
+
+			UFloor101DocumentToolset::SetServicesView(false);
+			const TArray<FFloor101ServicePoint> Points{{135000, 0, -100}, {135000, 0, 2400}, {138000, 0, 2400}};
+			const FFloor101ServiceRunInfo Run = UFloor101DocumentToolset::AddServiceRun(TEXT(""), EFloor101ServiceKind::Gas, Points);
+			TestFalse(TEXT("id"), Run.Id.IsEmpty());
+			TestEqual(TEXT("three points"), Run.Points.Num(), 3);
+			TestEqual(TEXT("length"), Run.LengthMm, 5500.0, 1e-9);
+			TestEqual(TEXT("gas pipe"), Run.DiameterMm, int64(22));
+			TestNull(TEXT("hidden without the layer"), Run.Actor.Get());
+
+			UFloor101DocumentToolset::SetServicesView(true);
+			const FFloor101ServiceRunInfo Shown = UFloor101DocumentToolset::GetServiceRuns().Last();
+			TestEqual(TEXT("listed"), Shown.Id, Run.Id);
+			if (TestNotNull(TEXT("shown with the layer"), Shown.Actor.Get()))
+			{
+				FVector Origin;
+				FVector Extent;
+				Shown.Actor->GetActorBounds(false, Origin, Extent);
+				TestEqual(TEXT("300 cm long, plus the radius of the riser at its start"), Extent.X * 2.0, 301.1, 0.01);
+			}
+			const FFloor101ServiceRunInfo Water = UFloor101DocumentToolset::SetServiceRun(Run.Id, EFloor101ServiceKind::Water, Points);
+			TestTrue(TEXT("water now"), Water.Kind == EFloor101ServiceKind::Water);
+			TestEqual(TEXT("its pipe"), Water.DiameterMm, int64(25));
+			TestEqual(TEXT("undo"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change service run")));
+			UFloor101DocumentToolset::SetServicesView(false);
+
+			UFloor101DocumentToolset::RemoveServiceRun(Run.Id);
+			TestFalse(TEXT("removed"), UFloor101DocumentToolset::GetServiceRuns().ContainsByPredicate(
+				[&Run](const FFloor101ServiceRunInfo& Each) { return Each.Id == Run.Id; }));
+		});
+
+		It("raises on columns out of range, wrong finishes, bad runs and unknown ids", [this]()
+		{
+			ExpectRaises(TEXT("A column's sides go from"),
+				[] { UFloor101DocumentToolset::AddColumn(TEXT(""), EFloor101ColumnShape::Rectangle, 0, 0, 50, 0, 0); });
+			ExpectRaises(TEXT("No level with id"),
+				[] { UFloor101DocumentToolset::AddColumn(TEXT("00000000-0000-0000-0000-0000000000ff"), EFloor101ColumnShape::Round, 0, 0, 0, 0, 0); });
+			const FFloor101ColumnInfo Column = UFloor101DocumentToolset::AddColumn(TEXT(""), EFloor101ColumnShape::Rectangle, 140000, 0, 0, 0, 0);
+			ExpectRaises(TEXT("is not for"), [&Column] { UFloor101DocumentToolset::SetColumnFinish(Column.Id, TEXT("service-water")); });
+			ExpectRaises(TEXT("is not a column id"), [] { UFloor101DocumentToolset::RemoveColumn(TEXT("column")); });
+			ExpectRaises(TEXT("no such column"),
+				[] { UFloor101DocumentToolset::SetColumnFinish(TEXT("00000000-0000-0000-0000-0000000000ff"), TEXT("")); });
+			ExpectRaises(TEXT("cannot remove column"), [] { UFloor101DocumentToolset::RemoveColumn(TEXT("00000000-0000-0000-0000-0000000000ff")); });
+			UFloor101DocumentToolset::RemoveColumn(Column.Id);
+
+			ExpectRaises(TEXT("A run goes through 2 to"),
+				[] { UFloor101DocumentToolset::AddServiceRun(TEXT(""), EFloor101ServiceKind::Water, {{0, 0, 0}}); });
+			ExpectRaises(TEXT("the same point twice in a row"),
+				[] { UFloor101DocumentToolset::AddServiceRun(TEXT(""), EFloor101ServiceKind::Water, {{0, 0, 0}, {0, 0, 0}}); });
+			ExpectRaises(TEXT("is not a run id"),
+				[] { UFloor101DocumentToolset::SetServiceRun(TEXT("run"), EFloor101ServiceKind::Water, {{0, 0, 0}, {1, 0, 0}}); });
+			ExpectRaises(TEXT("no such run"),
+				[] { UFloor101DocumentToolset::SetServiceRun(TEXT("00000000-0000-0000-0000-0000000000ff"), EFloor101ServiceKind::Water, {{0, 0, 0}, {1, 0, 0}}); });
+			ExpectRaises(TEXT("cannot remove run"), [] { UFloor101DocumentToolset::RemoveServiceRun(TEXT("00000000-0000-0000-0000-0000000000ff")); });
+		});
+	});
+
 	Describe("assets", [this]()
 	{
 		It("imports a texture and a model into the project's folder, uses them, changes them and removes them", [this]()

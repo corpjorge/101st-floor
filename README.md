@@ -3,7 +3,7 @@
 Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
 modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
 
-> Estado: **MVP 12 completo** ([informe](docs/mvp12-report.md); [MVP 11](docs/mvp11-report.md), [MVP 10](docs/mvp10-report.md), [MVP 9](docs/mvp9-report.md), [MVP 8](docs/mvp8-report.md), [MVP 7](docs/mvp7-report.md), [MVP 6](docs/mvp6-report.md),
+> Estado: **MVP 13 completo** ([informe](docs/mvp13-report.md); [MVP 12](docs/mvp12-report.md), [MVP 11](docs/mvp11-report.md), [MVP 10](docs/mvp10-report.md), [MVP 9](docs/mvp9-report.md), [MVP 8](docs/mvp8-report.md), [MVP 7](docs/mvp7-report.md), [MVP 6](docs/mvp6-report.md),
 > [MVP 5](docs/mvp5-report.md), [MVP 4](docs/mvp4-report.md), [MVP 3](docs/mvp3-report.md), [MVP 2](docs/mvp2-report.md),
 > [MVP 1](docs/mvp1-report.md), [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas limpias
 > en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de esquinas compartidas, puertas y
@@ -14,15 +14,17 @@ modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8
 > selección, propiedades, deshacer/rehacer y `project.json`, planos 2D editables con cotas y habitaciones exportables
 > a SVG y PNG, mobiliario paramétrico y una biblioteca integrada de 53 muebles con imagen por categoría (camas, sillas,
 > sofás, mesas, almacenaje, cocina, baño, luces, decoración), importación de assets propios (texturas PNG/JPEG y
-> modelos glTF/GLB/OBJ, copiados junto al proyecto), Modo Foto con path tracing y exportación de la casa entera a
+> modelos glTF/GLB/OBJ, copiados junto al proyecto), pilares rectangulares y redondos, instalaciones de electricidad
+> (verde), agua (blanco), aguas negras (amarillo) y gas (dorado) dibujadas por tramos y vistas con rayos X, Modo Foto
+> con path tracing y exportación de la casa entera a
 > Twinmotion (`.glb` con materiales y texturas), sobre Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro
 > probado sin Unreal. Siguiente MVP: pendiente de decisión.
 
 ## Controles
-W: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de colocarla) · M: pintar (pestañas Paredes / Suelos) · A: amueblar (pestañas por categoría) · V: seleccionar · R: Modo Foto (path tracing; "Guardar imagen") · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
+W: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de colocarla) · M: pintar (pestañas Paredes / Suelos) · A: amueblar (pestañas por categoría) · C: pilar · I: instalación (clic por punto, doble clic o Enter para terminar; tipo y altura en el panel) · X: rayos X (ver las instalaciones) · V: seleccionar · R: Modo Foto (path tracing; "Guardar imagen") · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
 Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+O: guardar / abrir · Esc o clic derecho: cancelar ·
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
-cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble · con un mueble seleccionado, arrastrarlo: moverlo · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
+cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble o el pilar · con un mueble, un pilar o una tubería seleccionados, arrastrarlo: moverlo (las asas de una tubería mueven un codo) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
 F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · "Plano: SVG / PNG": exportar el plano ·
 "Twinmotion (.glb)": exportar la casa entera junto al proyecto (en Twinmotion: Importar → el `.glb`) ·
 "Importar textura…" (en Pintar) / "Importar modelo…" (en Amueblar): traer una imagen o un modelo 3D al proyecto ·

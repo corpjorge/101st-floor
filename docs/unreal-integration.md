@@ -12,7 +12,9 @@
   material base `/Game/Floor101/Materials/M_Floor101Finish` (referencia dura y `DirectoriesToAlwaysCook`), etiqueta
   `f101.node:<SceneNodeId>`. Cada sección muestra su acabado (ADR-0012); los estilos de vista `Selected` (naranja),
   `Preview` (azul), `Handle` (amarillo) y `Symbol` (casi negro, sin sombra: los arcos de apertura, ADR-0014) tiñen el
-  material base con su parámetro `Tint`, y `Context` (plantas de abajo) muestra los acabados oscurecidos. Muros, `JointFill`,
+  material base con su parámetro `Tint`, `Context` (plantas de abajo) muestra los acabados oscurecidos y `Ghost` (la
+  arquitectura con la capa de instalaciones, ADR-0021) usa `MI_Floor101Ghost`, el vidrio gris azulado casi transparente,
+  sin sombras. Muros, `JointFill`,
   suelos y forjados de habitación y la carpintería de cada hueco (ADR-0013) son nodos como cualquier otro.
 - `UFloor101FinishLibrary` (subsistema de motor): una `UMaterialInstanceDynamic` de `M_Floor101Finish` por acabado,
   con la textura sintetizada por el Scene Model (`UTexture2D` transitoria sRGB con todos sus mips), la rugosidad y la
@@ -51,15 +53,20 @@
   documento no recompila: se hace una sola vez al final, con la vista del controlador ya actualizada (si no, el muro
   recién creado aparecería también como vista previa). `GetRooms()` da el área y la posición de etiqueta (a la cota de
   su planta) de cada habitación de la planta activa, o de todas con "Ver todas" (siguen al gesto en curso);
-  `FindRoomFloorActor(clave)` y `FindRoomSlabActor(clave)` su suelo y su forjado; `FindFurnitureActor(id)` el de un
-  mueble. Plano 2D (ADR-0015):
+  `FindRoomFloorActor(clave)` y `FindRoomSlabActor(clave)` su suelo y su forjado; `FindFurnitureActor(id)`,
+  `FindColumnActor(id)` y `FindServiceRunActor(id)` el de un mueble, un pilar o un tramo (este, solo con la capa de
+  instalaciones). Con la capa (ADR-0021), además de la arquitectura en `Ghost`, los `AStaticMeshActor` del mapa (el suelo
+  de la plantilla) toman el material fantasma y recuperan los suyos al apagarla, para ver los tramos bajo la planta baja;
+  la foto conserva la capa. Plano 2D (ADR-0015):
   `SetPlanView`/`IsPlanView`; mientras está visible, cada refresco dibuja la planta activa con las marcas de edición
-  (`GetPlanDrawing`, textos en español y coma decimal). `ExportPlan(ruta, planta)` escribe el plano sin marcas en SVG
+  (`GetPlanDrawing`, textos en español y coma decimal). `ExportPlan(ruta, planta)` escribe el plano sin marcas (con las
+  instalaciones si su capa está activa) en SVG
   (`writeSvg`) o PNG (`SFloor101PlanView` pintado con `FWidgetRenderer`, 5 mm por píxel, 4096 px como máximo; con
   `-nullrhi` devuelve un error claro); `GetDefaultPlanPath(ext)` = `<proyecto>-<planta>.<ext>` junto al proyecto.
 - `UFloor101GameViewportClient` (`GameViewportClientClassName`): cursor → rayo de escena (deproyección +
   `ToScenePosition`), `MapKey` (función pura del mapa de teclas), caracteres → longitud escrita, rueda por
-  `MouseWheelAxis`. Con la consola abierta todo va al motor. Registra cada tecla en `VeryVerbose`
+  `MouseWheelAxis`. El doble clic llega al controlador como `pointerDoubleClicked` (termina una tubería). Con la consola
+  abierta todo va al motor. Registra cada tecla en `VeryVerbose`
   (`-LogCmds="LogFloor101 VeryVerbose"`). `SetPlanView` enciende el plano 2D: cámara ortográfica del pawn,
   `bDisableWorldRendering` y el plano del subsistema; T (cenital) lo apaga. `SetPhotoMode` (R) sale del plano, fija las
   muestras por píxel (`SetPhotoSamples`: 64, 256 o 1024) y activa el path tracer (`Floor101::PathTracing`: modo de vista
@@ -71,9 +78,12 @@
   "Encuadrar" solo mira las plantas visibles. `SetPlanView`: cámara ortográfica recta hacia abajo (norte arriba) a 1 km
   sobre el foco, tan ancha como la vista; sin órbita; `Frame` encaja la huella con sitio para las cotas.
 - `AFloor101GameMode` (`GlobalDefaultGameMode`) + `AFloor101PlayerController`: cursor visible, modo de entrada juego y
-  UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta, Ventana, Pintar y Amueblar y fila de plantas,
+  UI, y el overlay `SFloor101Overlay` (barra con Seleccionar, Muro, Puerta, Ventana, Pintar, Amueblar, Pilar,
+  Instalación y "Rayos X (X)" y fila de plantas,
   panel de propiedades del muro, del hueco (con su tipo, bisagras, sentido, apertura y carpintería), del mueble (medidas,
-  giro, acabado) o de la habitación seleccionados, el tipo de las puertas o ventanas que se van a colocar
+  giro, acabado), del pilar (forma, medidas, giro, acabado), de la tubería (tipo, longitud, puntos, alturas) o de la
+  habitación seleccionados, la forma y medidas del pilar (en Pilar), el tipo y la altura de la tubería (en Instalación),
+  el tipo de las puertas o ventanas que se van a colocar
   (en Puerta y Ventana), la paleta de Pintar (pestañas Paredes/Suelos, secciones por categoría con las fotografías de la
   biblioteca, "Texturas importadas") o el catálogo de Amueblar (pestañas por categoría con fichas con imagen: tipos
   paramétricos y modelos de la biblioteca; "Modelos importados") o, sin selección, de la planta activa; en Modo Foto,
@@ -93,21 +103,23 @@ Desarrollo:
 ## Controles
 | Entrada | Acción |
 |---|---|
-| clic izquierdo | Seleccionar: elige un muro, una puerta o una ventana (clic en el hueco), una habitación (clic en su suelo) o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Con un hueco seleccionado, arrastrar el hueco lo mueve y arrastrar un asa de su borde cambia el ancho (rejilla de 50 mm, mínimo 30 cm, sin pasar uniones ni otros huecos; la etiqueta del cursor da posición y ancho). Muro: inicio / crear (sobre un extremo o un muro se une a él). Pintar: aplica el acabado de la paleta a la cara del muro que toca el cursor o al suelo de la habitación (un acabado solo de suelo, de la pestaña Suelos, mira a través de los muros hasta el suelo; la barra de estado dice qué se pintará). Puerta / Ventana: coloca el hueco, del tipo elegido en el panel ("Puerta: elige el tipo": abatible, de dos hojas, corredera empotrada; "Ventana: elige el tipo": practicable, de dos hojas, corredera, fija; cada clase recuerda el suyo), en el muro señalado (centrado en el cursor, borde en la rejilla de 50 mm, en el tramo libre de uniones y huecos más cercano), abriendo hacia el lado del muro donde está el cursor; el modo sigue activo para colocar más. Amueblar: coloca el mueble elegido en su categoría (tipo paramétrico o modelo de la biblioteca, que se copia al proyecto al elegirlo; centrado en el cursor, en la rejilla de 50 mm; los que van contra un muro, a menos de su medio fondo + 40 cm de una cara, se apoyan de espaldas en ella y se paran en los muros con que chocan). Seleccionar un mueble (clic en él) y arrastrarlo lo mueve con el mismo ajuste |
-| W / P / O / M / A / V | herramienta Muro / Puerta / Ventana / Pintar / Amueblar / Seleccionar (Ctrl+O sigue siendo abrir) |
-| Espacio | con Puerta o Ventana: las siguientes con las bisagras en la otra jamba; con un hueco seleccionado: invierte sus bisagras (o hacia dónde corre); con Amueblar: gira 90° los siguientes muebles; con un mueble seleccionado: lo gira 90°. Escribiendo una longitud sigue siendo un espacio |
+| clic izquierdo | Seleccionar: elige un muro, una puerta o una ventana (clic en el hueco), una habitación (clic en su suelo) o limpia la selección; arrastrar un asa amarilla mueve esa esquina (y todos los muros que la comparten). Con un hueco seleccionado, arrastrar el hueco lo mueve y arrastrar un asa de su borde cambia el ancho (rejilla de 50 mm, mínimo 30 cm, sin pasar uniones ni otros huecos; la etiqueta del cursor da posición y ancho). Muro: inicio / crear (sobre un extremo o un muro se une a él). Pintar: aplica el acabado de la paleta a la cara del muro que toca el cursor o al suelo de la habitación (un acabado solo de suelo, de la pestaña Suelos, mira a través de los muros hasta el suelo; la barra de estado dice qué se pintará). Puerta / Ventana: coloca el hueco, del tipo elegido en el panel ("Puerta: elige el tipo": abatible, de dos hojas, corredera empotrada; "Ventana: elige el tipo": practicable, de dos hojas, corredera, fija; cada clase recuerda el suyo), en el muro señalado (centrado en el cursor, borde en la rejilla de 50 mm, en el tramo libre de uniones y huecos más cercano), abriendo hacia el lado del muro donde está el cursor; el modo sigue activo para colocar más. Amueblar: coloca el mueble elegido en su categoría (tipo paramétrico o modelo de la biblioteca, que se copia al proyecto al elegirlo; centrado en el cursor, en la rejilla de 50 mm; los que van contra un muro, a menos de su medio fondo + 40 cm de una cara, se apoyan de espaldas en ella y se paran en los muros con que chocan). Seleccionar un mueble (clic en él) y arrastrarlo lo mueve con el mismo ajuste. Pilar: coloca el pilar de la forma y medidas del panel, ajustado a las esquinas, a los ejes de los muros o a la rejilla; en Seleccionar se elige antes que el muro en que está y se arrastra con el mismo ajuste. Instalación: cada clic añade un punto a la altura del panel (Bajo suelo, Pared, Techo o escrita), ajustado como el extremo de un muro; doble clic termina; cambiar la altura a mitad sube o baja en vertical. Con la capa, en Seleccionar, un clic en una tubería la elige a través de los muros: arrastrarla la mueve por la rejilla y sus asas mueven un codo |
+| W / P / O / M / A / C / I / V | herramienta Muro / Puerta / Ventana / Pintar / Amueblar / Pilar / Instalación / Seleccionar (Ctrl+O sigue siendo abrir) |
+| X / botón "Rayos X (X)" | capa de instalaciones: muestra las tuberías y deja translúcidos muros, suelos, forjados, carpintería y el suelo del mapa; Instalación la enciende sola |
+| Espacio | con Puerta o Ventana: las siguientes con las bisagras en la otra jamba; con un hueco seleccionado: invierte sus bisagras (o hacia dónde corre); con Amueblar o Pilar: gira 90° los siguientes; con un mueble o un pilar seleccionado: lo gira 90°. Escribiendo una longitud sigue siendo un espacio |
 | escribir `355`, `3.55 m`, `3550 mm` | longitud del muro que se dibuja (sin unidad = cm); Retroceso borra. Mientras se escribe, M y C son texto (no Pintar) |
 | R / botón "Foto (R)" | Modo Foto: la vista con path tracing, sin marcas de edición; el panel da el progreso, la calidad (Borrador 64, Media 256, Alta 1024 muestras) y "Guardar imagen" (PNG junto al proyecto); la cámara se mueve igual y reinicia la imagen; R o Esc vuelven a editar |
 | Tab / botón "Plano 2D (Tab)" | plano 2D de la planta activa, editable como en 3D (rueda: zoom, central: desplazar); Tab o T vuelven a 3D |
 | "Plano: SVG / PNG" | exporta el plano de la planta activa junto al proyecto (`<proyecto>-<planta>.svg|png`) |
-| "Twinmotion (.glb)" | exporta la casa entera (todas las plantas, forjados, puertas, ventanas, muebles, materiales y texturas) junto al proyecto (`<proyecto>.glb`); en Twinmotion: Importar → el `.glb`; tras cambios, exportar otra vez y refrescar con "Use scene materials" |
-| Enter | crea el muro previsualizado |
-| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro en curso, luego el modo Muro, Puerta, Ventana, Pintar o Amueblar, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
-| Supr | elimina el muro, el hueco o el mueble seleccionado |
+| "Twinmotion (.glb)" | exporta la casa entera (todas las plantas, forjados, puertas, ventanas, muebles, pilares, instalaciones, materiales y texturas) junto al proyecto (`<proyecto>.glb`); en Twinmotion: Importar → el `.glb`; tras cambios, exportar otra vez y refrescar con "Use scene materials" |
+| Enter | crea el muro previsualizado; en Instalación, termina la tubería |
+| Esc o clic derecho sin arrastrar | cancela: el arrastre, luego el muro o la tubería en curso, luego el modo de herramienta, luego la selección. En PIE, Esc detiene la sesión (tecla del editor): usar clic derecho |
+| Supr | elimina el muro, el hueco, el mueble, el pilar o la tubería seleccionados |
+| Retroceso | borra lo escrito de la longitud; en Instalación, quita el último punto |
 | RePág / AvPág | editar la planta de arriba / de abajo (la cámara la sigue) |
 | L | ver todas las plantas con sus forjados, o solo la activa y, atenuadas, las de abajo |
 | fila de plantas | subir, bajar, "+ Nueva planta" (encima de todas, igual que la de arriba, y pasa a editarla), "Ver todas (L)" |
-| panel de propiedades | muro: longitud, espesor, altura y el acabado de cada cara ("Cara norte"...); habitación: suelo y techo; en Pintar, la paleta de acabados; puerta o ventana: ancho, alto, antepecho (ventanas), posición (desde el inicio del muro hasta el borde del hueco), tipo (puertas: abatible, abatible de dos hojas, corredera empotrada; ventanas: practicable, practicable de dos hojas, corredera, fija), bisagras o hacia dónde se abre la corredera ("Lado oeste", Invertir), hacia qué cara abre ("Cara norte", Invertir), apertura (%) y carpintería (lacado blanco, maderas, aluminio antracita); mueble: ancho, fondo, alto, giro (grados), "Girar 90°" y acabado ("Original" en un modelo importado: sus propios materiales); en Pintar, "Texturas importadas" con su imagen y "Importar textura…" (nombre, ancho y alto de la imagen, rugosidad, "Eliminar textura"); en Amueblar, las pestañas Camas, Sillas, Sofás, Mesas, Almacenaje, Cocina, Baño, Luces y Decoración con sus fichas, "Modelos importados" e "Importar modelo…" (nombre, unidades del archivo, "Cambiar eje arriba", "Girar frente 90°", "Se apoya en los muros", tamaño y triángulos, "Eliminar modelo"); sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
+| panel de propiedades | muro: longitud, espesor, altura y el acabado de cada cara ("Cara norte"...); habitación: suelo y techo; en Pintar, la paleta de acabados; puerta o ventana: ancho, alto, antepecho (ventanas), posición (desde el inicio del muro hasta el borde del hueco), tipo (puertas: abatible, abatible de dos hojas, corredera empotrada; ventanas: practicable, practicable de dos hojas, corredera, fija), bisagras o hacia dónde se abre la corredera ("Lado oeste", Invertir), hacia qué cara abre ("Cara norte", Invertir), apertura (%) y carpintería (lacado blanco, maderas, aluminio antracita); mueble: ancho, fondo, alto, giro (grados), "Girar 90°" y acabado ("Original" en un modelo importado: sus propios materiales); pilar: Rectangular/Redondo, ancho y fondo (o diámetro), giro, "Girar 90°" y acabado de muro; tubería: su tipo (Electricidad, Agua, Aguas negras, Gas, con su color y diámetro), longitud, puntos y alturas; en Pilar, la forma y medidas de los siguientes; en Instalación, el tipo, la altura (Bajo suelo, Pared, Techo o escrita) y los puntos colocados; en Pintar, "Texturas importadas" con su imagen y "Importar textura…" (nombre, ancho y alto de la imagen, rugosidad, "Eliminar textura"); en Amueblar, las pestañas Camas, Sillas, Sofás, Mesas, Almacenaje, Cocina, Baño, Luces y Decoración con sus fichas, "Modelos importados" e "Importar modelo…" (nombre, unidades del archivo, "Cambiar eje arriba", "Girar frente 90°", "Se apoya en los muros", tamaño y triángulos, "Eliminar modelo"); sin selección, la planta activa: nombre, altura de planta, forjado, "Eliminar planta". Sin unidad = cm; Enter aplica |
 | Ctrl+Z / Ctrl+Y o Ctrl+Shift+Z | deshacer / rehacer |
 | Ctrl+S / Ctrl+O | guardar / abrir el archivo actual (o el de por defecto) |
 | derecho arrastrando / central arrastrando / rueda / F / T | orbitar / desplazar / zoom / encuadrar todo / vista 3D cenital (norte arriba) |
@@ -118,7 +130,8 @@ Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetLevels`, `AddLevel`, `
 `GetWalls`, `AddWall` (en una planta), `SetWallEnd`, `SetWallLength`, `MoveCorner`, `GetRooms`,
 `SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `SetOpeningFinish`, `SetOpeningOperation`,
 `RemoveOpening`, `RemoveWall`, `GetFurnitureTypes`, `GetFurniture`, `AddFurniture`, `SetFurniture`,
-`SetFurnitureFinish`, `RemoveFurniture`, `GetAssets`, `ImportAsset`, `SetTextureAsset`, `SetModelAsset`, `RemoveAsset`,
+`SetFurnitureFinish`, `RemoveFurniture`, `GetColumns`, `AddColumn`, `SetColumn`, `SetColumnFinish`, `RemoveColumn`,
+`GetServiceRuns`, `AddServiceRun`, `SetServiceRun`, `RemoveServiceRun`, `SetServicesView`, `GetAssets`, `ImportAsset`, `SetTextureAsset`, `SetModelAsset`, `RemoveAsset`,
 `GetLibrary`, `AddFromLibrary`, `ExportGltf`,
 `Undo`, `Redo`,
 `SaveProject`, `OpenProject`, `ExportPlan`, en mm enteros. Los muros y muebles de plantas que la vista oculta no tienen actor (`SetLevelView`
@@ -143,7 +156,10 @@ un sillón GLB y una lámpara OBJ, pintar, colocar, materiales e imágenes, guar
 desde un proyecto sin esos archivos; biblioteca: una silla de la `Library/` real añadida una vez y colocada con sus
 materiales, un laminado fotográfico en el suelo, esquema 9; Modo Foto: sin tinte de selección ni arcos de apertura;
 exportación: el `.glb` junto a un proyecto con ruta no ASCII, cabecera, nombres en español y el PNG del ladrillo
-decodificado por Unreal igual, píxel a píxel, que la textura de la aplicación) y
+decodificado por Unreal igual, píxel a píxel, que la textura de la aplicación; instalaciones: pilar ajustado a la esquina, de
+hormigón y tan alto como la planta; capa con el muro y el suelo del mapa en fantasma y el pilar sólido; tubería en tres
+clics; plano y SVG con el tubo verde; X la oculta y devuelve sus materiales; seleccionarla la vuelve a mostrar; guardar
+y abrir con el esquema 10) y
 `Floor101.Editor.DocumentToolset.*` (cada herramienta y cada error).
 `Test.ps1 -Integration` los ejecuta en un editor headless; también se pueden lanzar por MCP.
 

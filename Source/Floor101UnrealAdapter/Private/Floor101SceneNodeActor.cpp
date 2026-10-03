@@ -22,6 +22,7 @@ namespace
 		case f101::scene::NodeStyle::Handle: return FLinearColor(1.0f, 0.85f, 0.1f);
 		case f101::scene::NodeStyle::Context: return FLinearColor(0.3f, 0.32f, 0.36f); // levels below the edited one
 		case f101::scene::NodeStyle::Symbol: return FLinearColor(0.02f, 0.03f, 0.05f); // plan symbols, e.g. door swings
+		case f101::scene::NodeStyle::Ghost: return FLinearColor(0.62f, 0.68f, 0.76f); // only without the glass material
 		default: return FLinearColor::White;
 		}
 	}
@@ -81,18 +82,23 @@ void AFloor101SceneNodeActor::ApplyNode(const f101::scene::SceneNode& Node)
 #endif
 
 	MeshComponent->SetMesh(Floor101::Conversion::ToDynamicMesh(Node.mesh));
-	// Symbols are drawn on the floor, not part of the building: they cast no shadow.
-	MeshComponent->SetCastShadow(Node.style != f101::scene::NodeStyle::Symbol);
+	// Symbols are drawn on the floor, not part of the building, and ghosts are seen through: they cast no shadow.
+	const bool bGhost = Node.style == f101::scene::NodeStyle::Ghost;
+	MeshComponent->SetCastShadow(Node.style != f101::scene::NodeStyle::Symbol && !bGhost);
 
-	// Normal nodes show the finish of each section, Context ones the same finishes darker; other view styles tint the
-	// whole node.
+	// Normal nodes show the finish of each section, Context ones the same finishes darker, Ghost ones the faint glass of
+	// the services layer (ADR-0021); other view styles tint the whole node.
 	UFloor101FinishLibrary* Finishes = UFloor101FinishLibrary::Get();
 	TArray<UMaterialInterface*> Materials;
 	for (std::size_t Section = 0; Section < Node.mesh.sections.size(); ++Section)
 	{
 		UMaterialInterface* Material = nullptr;
 		const bool bContext = Node.style == f101::scene::NodeStyle::Context;
-		if ((Node.style == f101::scene::NodeStyle::Normal || bContext) && Finishes && Section < Node.finishes.size())
+		if (bGhost && Finishes)
+		{
+			Material = Finishes->GetGhostMaterial();
+		}
+		else if ((Node.style == f101::scene::NodeStyle::Normal || bContext) && Finishes && Section < Node.finishes.size())
 		{
 			Material = Finishes->GetFinishMaterial(UTF8_TO_TCHAR(Node.finishes[Section].c_str()), bContext);
 		}

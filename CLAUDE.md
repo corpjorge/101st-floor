@@ -43,6 +43,10 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Exportación a Twinmotion: el módulo puro `Floor101Exporters` escribe la escena neutral como `.glb` (metros, Y arriba
   `(x, z, −y)/1000`, nombres estables, ids en `extras`, repetición de las texturas horneada en los UV, PNG propio);
   Twinmotion solo recibe copias. Segunda opinión: `Scripts/CheckGltf.ps1` con Blender (ADR-0020).
+- Pilares (`Column`: rectangulares o redondos, tan altos como su planta) e instalaciones (`ServiceRun`: polilínea 3D con z
+  sobre el suelo de su planta; color y diámetro fijados por la red: electricidad, agua, aguas negras, gas). Los tramos
+  solo se ven con la capa de instalaciones (X), que deja la arquitectura en `Ghost`; los exportadores los llevan siempre.
+  `project.json` esquema 10 (ADR-0021).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
@@ -52,7 +56,8 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Tests: `.\Scripts\Test.ps1` (arquitectura + unitarios CMake, segundos); `-Integration` añade Unreal Automation.
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, esquinas,
-  habitaciones, puertas y ventanas con su carpintería, muebles, assets importados, biblioteca, acabados, vista por planta,
+  habitaciones, puertas y ventanas con su carpintería, muebles, pilares, instalaciones y su capa, assets importados,
+  biblioteca, acabados, vista por planta,
   deshacer/rehacer, guardar/abrir, exportar el plano y el `.glb` para Twinmotion). Con PIE activo actúa sobre el documento de PIE; si no, sobre el del editor.
 - Unreal MCP: descubrir con `list_toolsets`/`describe_toolset`, invocar con `call_tool`, verificar cada resultado.
   Commit antes de sesiones MCP largas o mutativas.

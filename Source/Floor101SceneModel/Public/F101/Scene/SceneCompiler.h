@@ -34,6 +34,13 @@ namespace f101::scene
 		std::int64_t markerHeightMm = 2500;
 		// Door swings on the floor (editing aids, ADR-0014); off for a clean view such as a photo (ADR-0018).
 		bool symbols = true;
+		// The building services layer (ADR-0021): on, the runs are shown and the walls, floors, slabs and carpentry turn
+		// see-through (Ghost) so the runs inside them can be seen; off, the runs are left out (previews still show).
+		bool services = false;
+		cad::ColumnId selectedColumn;       // nil: none
+		std::vector<cad::Column> previewColumns; // like previewFurniture: an existing id replaces it, a nil id is added
+		cad::ServiceRunId selectedServiceRun;    // nil: none
+		std::vector<cad::ServiceRun> previewServiceRuns; // the run being drawn (nil id), or one being changed
 	};
 
 	// The meshes of imported models (ADR-0017), read from their files by the application (f101::assets). Null when a
@@ -44,14 +51,18 @@ namespace f101::scene
 	FLOOR101SCENEMODEL_API SceneNodeId wallBodyNodeId(const cad::WallId& id);
 	// Node of a piece of furniture.
 	FLOOR101SCENEMODEL_API SceneNodeId furnitureNodeId(const cad::FurnitureId& id);
+	// Nodes of a column ("column/<uuid>") and of a run of the building services ("service/<uuid>"), ADR-0021.
+	FLOOR101SCENEMODEL_API SceneNodeId columnNodeId(const cad::ColumnId& id);
+	FLOOR101SCENEMODEL_API SceneNodeId serviceRunNodeId(const cad::ServiceRunId& id);
 
 	// Compiles the whole project into a scene, deterministically (same project, same ids, geometry and hashes):
 	// one node per wall in model order with its joins resolved ("<wall>/body"), then joint fills
 	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"), then the slab over each room ("<room key>/slab",
 	// the top band of its level), then the carpentry of each opening ("<wall>/opening/<opening>", ADR-0013), then each
 	// piece of furniture in model order ("furniture/<piece>", ADR-0016; an imported model with one section per material,
-	// finished "asset:<uuid>#<material>" unless the piece has a finish, ADR-0017). Joins and rooms are solved per level,
-	// and each level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
+	// finished "asset:<uuid>#<material>" unless the piece has a finish, ADR-0017), then each column ("column/<id>", as tall
+	// as its level) and each run of the building services ("service/<id>", in its kind's colour), ADR-0021. Joins and rooms
+	// are solved per level, and each level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ModelProvider& models = {});
 
 	// compileScene of the project as previewed by the overlay, plus view styles: previewed walls and furniture are Preview

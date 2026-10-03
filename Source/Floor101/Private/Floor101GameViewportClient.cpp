@@ -148,7 +148,11 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		f101::cad::Ray3 Ray;
 		if (GetCursorRay(Ray))
 		{
-			if (bDown)
+			if (Event == IE_DoubleClick)
+			{
+				(void)Document->Edit([&Ray](EditController& Editor) { return Editor.pointerDoubleClicked(Ray); });
+			}
+			else if (bDown)
 			{
 				(void)Document->Edit([&Ray](EditController& Editor) { return Editor.pointerPressed(Ray); });
 			}
@@ -245,6 +249,9 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::O) { return EFloor101KeyCommand::WindowTool; }
 	if (Key == EKeys::M) { return EFloor101KeyCommand::PaintTool; }
 	if (Key == EKeys::A) { return EFloor101KeyCommand::FurnitureTool; }
+	if (Key == EKeys::C) { return EFloor101KeyCommand::ColumnTool; }
+	if (Key == EKeys::I) { return EFloor101KeyCommand::ServicesTool; }
+	if (Key == EKeys::X) { return EFloor101KeyCommand::ServicesLayer; }
 	if (Key == EKeys::Escape) { return EFloor101KeyCommand::Cancel; }
 	if (Key == EKeys::Enter) { return EFloor101KeyCommand::Confirm; }
 	if (Key == EKeys::Delete) { return EFloor101KeyCommand::Delete; }
@@ -304,6 +311,13 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	case EFloor101KeyCommand::FurnitureTool:
 		Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Furniture); }));
 		break;
+	case EFloor101KeyCommand::ColumnTool: Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Column); })); break;
+	case EFloor101KeyCommand::ServicesTool:
+		Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Services); }));
+		break;
+	case EFloor101KeyCommand::ServicesLayer:
+		Edit(Always([](EditController& Editor) { Editor.setShowServices(!Editor.showsServices()); }));
+		break;
 	case EFloor101KeyCommand::Cancel: Edit(Always([](EditController& Editor) { Editor.cancel(); })); break;
 	case EFloor101KeyCommand::Confirm: Edit([](EditController& Editor) { return Editor.confirm(); }); break;
 	case EFloor101KeyCommand::Delete: Edit([](EditController& Editor) { return Editor.deleteSelection(); }); break;
@@ -316,12 +330,12 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 		break;
 	case EFloor101KeyCommand::Flip:
 	{
-		// Only with a door, a window or a piece of furniture at hand: elsewhere (e.g. typing "3.55 m") the space stays a
-		// character.
+		// Only with a door, a window, a piece of furniture or a column at hand: elsewhere (e.g. typing "3.55 m") the space
+		// stays a character.
 		const EditController& Editor = Document.GetEditController();
 		const bool bTool = Editor.mode() == f101::cad::EditMode::Door || Editor.mode() == f101::cad::EditMode::Window ||
-			Editor.mode() == f101::cad::EditMode::Furniture;
-		if (!bTool && !Editor.selectedOpening() && !Editor.selectedFurniture())
+			Editor.mode() == f101::cad::EditMode::Furniture || Editor.mode() == f101::cad::EditMode::Column;
+		if (!bTool && !Editor.selectedOpening() && !Editor.selectedFurniture() && !Editor.selectedColumn())
 		{
 			return false;
 		}

@@ -10,6 +10,8 @@
 #include "Floor101DocumentSubsystem.generated.h"
 
 class FFloor101SceneReconciler;
+class UMaterialInterface;
+class UMeshComponent;
 
 namespace f101::cad
 {
@@ -46,7 +48,7 @@ struct FFloor101RoomView
 // What an export for Twinmotion wrote (ADR-0020).
 struct FFloor101GltfSummary
 {
-	int32 Objects = 0; // walls, floors, slabs, doors and windows, pieces of furniture
+	int32 Objects = 0; // walls, floors, slabs, doors and windows, pieces of furniture, columns, runs of the services
 	int32 Materials = 0;
 	int32 Images = 0;
 	int64 Triangles = 0;
@@ -103,6 +105,9 @@ public:
 	AActor* FindRoomSlabActor(const FString& RoomKey) const;
 	// Transient actor of a piece of furniture, or null (e.g. on a hidden level).
 	AActor* FindFurnitureActor(const f101::cad::FurnitureId& Id) const;
+	// Transient actor of a column, or of a run of the building services (null while their layer is hidden), ADR-0021.
+	AActor* FindColumnActor(const f101::cad::ColumnId& Id) const;
+	AActor* FindServiceRunActor(const f101::cad::ServiceRunId& Id) const;
 	// Rooms of the edited level (of every level when all are shown) as last shown, following the current gesture.
 	const TArray<FFloor101RoomView>& GetRooms() const { return Rooms; }
 
@@ -111,7 +116,8 @@ public:
 	void SetPlanView(bool bShown);
 	bool IsPlanView() const { return bPlanView; }
 	const f101::drawing::PlanDrawing& GetPlanDrawing() const;
-	// Exports the plan of a level (nil: the edited one), without editing marks, as .svg or .png by the path's extension.
+	// Exports the plan of a level (nil: the edited one), without editing marks (with the runs of the building services
+	// while their layer is shown), as .svg or .png by the path's extension.
 	// The status says where it went. PNG needs a renderer (not with -nullrhi).
 	f101::Status ExportPlan(const FString& Path, const f101::cad::LevelId& Level);
 	// Next to the project file (or the default one): "<file name>-<level>.<Extension>", e.g. "casa-planta-baja.svg".
@@ -127,9 +133,9 @@ public:
 	// Next to the project file (or the default one): "<file name>-foto-<date>-<time>.png".
 	FString GetDefaultPhotoPath() const;
 
-	// Export for Twinmotion (ADR-0020): the whole project (every level with its slabs, doors and windows, furniture, the
-	// materials and their images) as binary glTF (.glb), names in the UI's language. The status says where it went and
-	// what it holds.
+	// Export for Twinmotion (ADR-0020): the whole project (every level with its slabs, doors and windows, furniture, columns
+	// and the runs of the building services, the materials and their images) as binary glTF (.glb), names in the UI's
+	// language. The status says where it went and what it holds.
 	f101::Result<FFloor101GltfSummary> ExportGltf(const FString& Path);
 	// Next to the project file (or the default one): "<file name>.glb".
 	FString GetDefaultGltfPath() const;
@@ -173,6 +179,9 @@ private:
 	void RegisterAssetFinishes();
 	// Renders the drawing offscreen (fitted, 5 mm per pixel at most, 4096 px wide at most) and saves it as a PNG.
 	f101::Status SavePlanPng(const f101::drawing::PlanDrawing& Drawing, const FString& Path) const;
+	// The map's own ground (its static meshes, e.g. the template's floor) turns see-through like the architecture while
+	// the services layer is shown, so runs under the ground floor show too (ADR-0021); off, its materials come back.
+	void SetGroundGhosted(bool bGhosted);
 
 	// TPimplPtr: UHT-generated code destroys members where these types are incomplete.
 	TPimplPtr<f101::cad::Document> Document;
@@ -192,4 +201,15 @@ private:
 	uint64 SavedChangeCount = 0;
 	bool bInEdit = false; // inside Edit(): the document listener leaves the resync to Edit()
 	TArray<FFloor101RoomView> Rooms;
+
+	// The ground's material slots made see-through, and their own materials (kept referenced) to put back.
+	struct FGhostedSlot
+	{
+		TWeakObjectPtr<UMeshComponent> Component;
+		int32 Index = 0;
+	};
+	TArray<FGhostedSlot> GhostedSlots;
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInterface>> GroundMaterials; // parallel to GhostedSlots
+	bool bGroundGhosted = false;
 };

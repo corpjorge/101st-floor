@@ -1,6 +1,7 @@
 #include "F101/Cad/Picking.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 
@@ -94,6 +95,112 @@ namespace f101::cad
 				(!nearest || tMin < nearest->distance))
 			{
 				nearest = FurnitureHit{piece.id, tMin};
+			}
+		}
+		return nearest;
+	}
+
+	std::optional<ColumnHit> pickColumn(const Project& project, const Ray3& ray, const LevelId& level)
+	{
+		const Level* onLevel = project.findLevel(level);
+		if (!onLevel)
+		{
+			return std::nullopt;
+		}
+		std::optional<ColumnHit> nearest;
+		for (const Column& column : project.columns)
+		{
+			double tMin = 0.0;
+			double tMax = std::numeric_limits<double>::infinity();
+			if (column.level != level || !clipSlab(ray.originZ, ray.directionZ, 0.0, static_cast<double>(onLevel->heightMm), tMin, tMax))
+			{
+				continue;
+			}
+			const double originX = ray.originX - static_cast<double>(column.position.x_mm);
+			const double originY = ray.originY - static_cast<double>(column.position.y_mm);
+			bool entered = false;
+			if (column.shape == ColumnShape::Round)
+			{
+				// Where the ray is inside the circle in plan: |origin + t direction| <= radius.
+				const double radius = static_cast<double>(column.widthMm) / 2.0;
+				const double a = ray.directionX * ray.directionX + ray.directionY * ray.directionY;
+				const double b = 2.0 * (originX * ray.directionX + originY * ray.directionY);
+				const double c = originX * originX + originY * originY - radius * radius;
+				if (a < 1e-18)
+				{
+					entered = c <= 0.0; // straight down or up: inside the circle or not
+				}
+				else if (const double discriminant = b * b - 4.0 * a * c; discriminant >= 0.0)
+				{
+					const double root = std::sqrt(discriminant);
+					tMin = std::max(tMin, (-b - root) / (2.0 * a));
+					tMax = std::min(tMax, (-b + root) / (2.0 * a));
+					entered = tMin <= tMax;
+				}
+			}
+			else
+			{
+				// In the column's own frame, from its footprint: an axis-aligned box.
+				const std::array<PlanPoint, 4> corners = columnFootprint(column);
+				const double width = static_cast<double>(column.widthMm);
+				const double depth = static_cast<double>(column.depthMm);
+				const PlanPoint x{(corners[1].x_mm - corners[0].x_mm) / width, (corners[1].y_mm - corners[0].y_mm) / width};
+				const PlanPoint y{(corners[3].x_mm - corners[0].x_mm) / depth, (corners[3].y_mm - corners[0].y_mm) / depth};
+				entered = clipSlab(originX * x.x_mm + originY * x.y_mm, ray.directionX * x.x_mm + ray.directionY * x.y_mm,
+						-width / 2.0, width / 2.0, tMin, tMax) &&
+					clipSlab(originX * y.x_mm + originY * y.y_mm, ray.directionX * y.x_mm + ray.directionY * y.y_mm,
+						-depth / 2.0, depth / 2.0, tMin, tMax);
+			}
+			if (entered && (!nearest || tMin < nearest->distance))
+			{
+				nearest = ColumnHit{column.id, tMin};
+			}
+		}
+		return nearest;
+	}
+
+	std::optional<ServiceRunHit> pickServiceRun(const Project& project, const Ray3& ray, const LevelId& level, double toleranceMm)
+	{
+		const auto dot = [](double ax, double ay, double az, double bx, double by, double bz) { return ax * bx + ay * by + az * bz; };
+		const double a = dot(ray.directionX, ray.directionY, ray.directionZ, ray.directionX, ray.directionY, ray.directionZ);
+		if (a < 1e-18)
+		{
+			return std::nullopt;
+		}
+		std::optional<ServiceRunHit> nearest;
+		for (const ServiceRun& run : project.services)
+		{
+			if (run.level != level)
+			{
+				continue;
+			}
+			const double reach = static_cast<double>(serviceKindInfo(run.kind).diameterMm) / 2.0 + toleranceMm;
+			for (std::size_t index = 1; index < run.points.size(); ++index)
+			{
+				// Closest approach of the ray (t >= 0) and the segment from `from` (s in [0, 1]).
+				const ServicePoint& from = run.points[index - 1];
+				const ServicePoint& to = run.points[index];
+				const double sx = static_cast<double>(to.x_mm - from.x_mm);
+				const double sy = static_cast<double>(to.y_mm - from.y_mm);
+				const double sz = static_cast<double>(to.z_mm - from.z_mm);
+				const double rx = ray.originX - static_cast<double>(from.x_mm);
+				const double ry = ray.originY - static_cast<double>(from.y_mm);
+				const double rz = ray.originZ - static_cast<double>(from.z_mm);
+				const double b = dot(ray.directionX, ray.directionY, ray.directionZ, sx, sy, sz);
+				const double c = dot(ray.directionX, ray.directionY, ray.directionZ, rx, ry, rz);
+				const double e = dot(sx, sy, sz, sx, sy, sz);
+				const double f = dot(sx, sy, sz, rx, ry, rz);
+				const double denominator = a * e - b * b;
+				double t = denominator > 1e-9 * a * e ? std::max(0.0, (b * f - c * e) / denominator) : 0.0;
+				const double s = std::clamp((b * t + f) / e, 0.0, 1.0);
+				t = std::max(0.0, (b * s - c) / a);
+				const double gapX = rx + ray.directionX * t - sx * s;
+				const double gapY = ry + ray.directionY * t - sy * s;
+				const double gapZ = rz + ray.directionZ * t - sz * s;
+				if (std::sqrt(dot(gapX, gapY, gapZ, gapX, gapY, gapZ)) <= reach && (!nearest || t < nearest->distance))
+				{
+					nearest = ServiceRunHit{run.id, t};
+				}
 			}
 		}
 		return nearest;

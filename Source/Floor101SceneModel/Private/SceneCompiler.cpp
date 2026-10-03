@@ -4,6 +4,7 @@
 #include "F101/Geometry/FurnitureBuilder.h"
 #include "F101/Geometry/PolygonGeometry.h"
 #include "F101/Geometry/Rooms.h"
+#include "F101/Geometry/ServicesBuilder.h"
 #include "F101/Geometry/WallGeometryBuilder.h"
 #include "F101/Geometry/WallJoins.h"
 
@@ -45,6 +46,16 @@ namespace f101::scene
 	SceneNodeId furnitureNodeId(const cad::FurnitureId& id)
 	{
 		return SceneNodeId{"furniture/" + cad::toString(id)};
+	}
+
+	SceneNodeId columnNodeId(const cad::ColumnId& id)
+	{
+		return SceneNodeId{"column/" + cad::toString(id)};
+	}
+
+	SceneNodeId serviceRunNodeId(const cad::ServiceRunId& id)
+	{
+		return SceneNodeId{"service/" + cad::toString(id)};
 	}
 
 	std::uint64_t hashMesh(const geometry::MeshData& mesh)
@@ -158,15 +169,21 @@ namespace f101::scene
 			std::vector<NodeStyle> wallStyles;
 			std::vector<SceneNodeId> furnitureIds;
 			std::vector<NodeStyle> furnitureStyles;
+			std::vector<SceneNodeId> columnIds;
+			std::vector<NodeStyle> columnStyles;
+			std::vector<SceneNodeId> serviceIds;
+			std::vector<NodeStyle> serviceStyles;
 		};
 
 		// Walls, joint fills, room floors, slabs, carpentry and furniture of a project (with the node ids and styles of
 		// `shown`), level by level: joins and rooms never mix levels, and each level's geometry is lifted to its elevation.
 		// `activeLevel` (with `showAll` false) hides the levels above it and its own slabs and dims the levels below it.
 		// Each section gets its finish (ADR-0012); the floor of `selectedRoom` is Selected. `symbols`: door swings on the
-		// floors of the levels that are not dimmed (ADR-0014), last.
+		// floors of the levels that are not dimmed (ADR-0014), last. Columns always; the runs of the building services when
+		// `services`, and then (`xray`) the walls, joints, floors, slabs and carpentry that are not selected, previewed or
+		// dimmed are Ghost (ADR-0021).
 		Scene compileProject(const cad::Project& project, const Presentation& shown, const cad::LevelId& activeLevel, bool showAll,
-			const std::string& selectedRoom, bool symbols, const ModelProvider& models)
+			const std::string& selectedRoom, bool symbols, bool services, bool xray, const ModelProvider& models)
 		{
 			const std::vector<LevelGroup> groups = levelGroups(project);
 			std::optional<std::size_t> active;
@@ -181,6 +198,8 @@ namespace f101::scene
 			std::vector<SceneNode> slabs;
 			std::vector<SceneNode> openings;
 			std::vector<std::optional<SceneNode>> furnitureNodes(project.furniture.size());
+			std::vector<std::optional<SceneNode>> columnNodes(project.columns.size());
+			std::vector<std::optional<SceneNode>> serviceNodes(project.services.size());
 			std::vector<SceneNode> swings;
 			Scene scene;
 			for (std::size_t groupIndex = 0; groupIndex < groups.size(); ++groupIndex)
@@ -356,6 +375,56 @@ namespace f101::scene
 						: shown.furnitureStyles[index];
 					furnitureNodes[index] = std::move(node);
 				}
+				const double levelHeight = static_cast<double>(group.info ? group.info->heightMm : cad::DefaultLevelHeightMm);
+				for (std::size_t index = 0; index < project.columns.size(); ++index)
+				{
+					const cad::Column& column = project.columns[index];
+					if (!project.levels.empty() && column.level != group.level)
+					{
+						continue;
+					}
+					SceneNode node;
+					node.id = shown.columnIds[index];
+					node.sourceKind = SourceKind::Column;
+					node.sourceId = cad::toString(column.id);
+					node.level = group.level;
+					node.name = "Column " + node.sourceId.substr(0, 8);
+					node.mesh = geometry::buildColumnMesh(column, levelHeight);
+					if (node.mesh.sections.empty())
+					{
+						continue;
+					}
+					translateZ(node.mesh, dz);
+					node.finishes = sectionFinishes(node.mesh, {}, cad::resolveColumnFinish(column));
+					node.contentHash = hashNode(node.mesh, node.finishes);
+					node.style = context && shown.columnStyles[index] == NodeStyle::Normal ? NodeStyle::Context : shown.columnStyles[index];
+					columnNodes[index] = std::move(node);
+				}
+				for (std::size_t index = 0; index < project.services.size(); ++index)
+				{
+					const cad::ServiceRun& run = project.services[index];
+					const bool previewed = shown.serviceStyles[index] == NodeStyle::Preview;
+					if ((!project.levels.empty() && run.level != group.level) || (!services && !previewed))
+					{
+						continue;
+					}
+					SceneNode node;
+					node.id = shown.serviceIds[index];
+					node.sourceKind = SourceKind::Service;
+					node.sourceId = cad::toString(run.id);
+					node.level = group.level;
+					node.name = std::string(cad::serviceKindInfo(run.kind).id) + " " + node.sourceId.substr(0, 8);
+					node.mesh = geometry::buildServiceRunMesh(run);
+					if (node.mesh.sections.empty())
+					{
+						continue;
+					}
+					translateZ(node.mesh, dz);
+					node.finishes = sectionFinishes(node.mesh, {}, cad::serviceKindInfo(run.kind).finish);
+					node.contentHash = hashNode(node.mesh, node.finishes);
+					node.style = context && shown.serviceStyles[index] == NodeStyle::Normal ? NodeStyle::Context : shown.serviceStyles[index];
+					serviceNodes[index] = std::move(node);
+				}
 			}
 
 			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size() +
@@ -374,16 +443,32 @@ namespace f101::scene
 					scene.nodes.push_back(std::move(node));
 				}
 			}
-			for (std::optional<SceneNode>& node : furnitureNodes)
+			for (std::vector<std::optional<SceneNode>>* group : {&furnitureNodes, &columnNodes, &serviceNodes})
 			{
-				if (node)
+				for (std::optional<SceneNode>& node : *group)
 				{
-					scene.nodes.push_back(std::move(*node));
+					if (node)
+					{
+						scene.nodes.push_back(std::move(*node));
+					}
 				}
 			}
 			for (SceneNode& node : swings)
 			{
 				scene.nodes.push_back(std::move(node));
+			}
+			if (xray)
+			{
+				// X-ray (ADR-0021): the architecture turns see-through so the runs inside walls and floors show.
+				for (SceneNode& node : scene.nodes)
+				{
+					const bool architecture = node.sourceKind == SourceKind::Wall || node.sourceKind == SourceKind::Joint ||
+						node.sourceKind == SourceKind::Room || node.sourceKind == SourceKind::Slab || node.sourceKind == SourceKind::Opening;
+					if (architecture && node.style == NodeStyle::Normal)
+					{
+						node.style = NodeStyle::Ghost;
+					}
+				}
 			}
 			return scene;
 		}
@@ -400,9 +485,19 @@ namespace f101::scene
 		{
 			shown.furnitureIds.push_back(furnitureNodeId(piece.id));
 		}
+		for (const cad::Column& column : project.columns)
+		{
+			shown.columnIds.push_back(columnNodeId(column.id));
+		}
+		for (const cad::ServiceRun& run : project.services)
+		{
+			shown.serviceIds.push_back(serviceRunNodeId(run.id));
+		}
 		shown.wallStyles.assign(project.walls.size(), NodeStyle::Normal);
 		shown.furnitureStyles.assign(project.furniture.size(), NodeStyle::Normal);
-		return compileProject(project, shown, cad::LevelId(), true, std::string(), false, models);
+		shown.columnStyles.assign(project.columns.size(), NodeStyle::Normal);
+		shown.serviceStyles.assign(project.services.size(), NodeStyle::Normal);
+		return compileProject(project, shown, cad::LevelId(), true, std::string(), false, true, false, models);
 	}
 
 	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay, const ModelProvider& models)
@@ -464,8 +559,58 @@ namespace f101::scene
 			shown.furnitureStyles.push_back(NodeStyle::Preview);
 		}
 
+		for (const cad::Column& column : project.columns)
+		{
+			shown.columnIds.push_back(columnNodeId(column.id));
+			shown.columnStyles.push_back(!overlay.selectedColumn.isNil() && column.id == overlay.selectedColumn ? NodeStyle::Selected : NodeStyle::Normal);
+		}
+		std::size_t addedColumns = 0;
+		for (const cad::Column& preview : overlay.previewColumns)
+		{
+			if (!cad::validateColumn(preview).ok())
+			{
+				continue;
+			}
+			const auto existing = std::find_if(previewed.columns.begin(), previewed.columns.end(),
+				[&preview](const cad::Column& column) { return !preview.id.isNil() && column.id == preview.id; });
+			if (existing != previewed.columns.end())
+			{
+				*existing = preview;
+				shown.columnStyles[static_cast<std::size_t>(existing - previewed.columns.begin())] = NodeStyle::Preview;
+				continue;
+			}
+			previewed.columns.push_back(preview);
+			shown.columnIds.push_back(SceneNodeId{"preview/column/" + std::to_string(addedColumns++)});
+			shown.columnStyles.push_back(NodeStyle::Preview);
+		}
+		for (const cad::ServiceRun& run : project.services)
+		{
+			shown.serviceIds.push_back(serviceRunNodeId(run.id));
+			shown.serviceStyles.push_back(
+				!overlay.selectedServiceRun.isNil() && run.id == overlay.selectedServiceRun ? NodeStyle::Selected : NodeStyle::Normal);
+		}
+		std::size_t addedRuns = 0;
+		for (const cad::ServiceRun& preview : overlay.previewServiceRuns)
+		{
+			if (!cad::validateServiceRun(preview).ok())
+			{
+				continue;
+			}
+			const auto existing = std::find_if(previewed.services.begin(), previewed.services.end(),
+				[&preview](const cad::ServiceRun& run) { return !preview.id.isNil() && run.id == preview.id; });
+			if (existing != previewed.services.end())
+			{
+				*existing = preview;
+				shown.serviceStyles[static_cast<std::size_t>(existing - previewed.services.begin())] = NodeStyle::Preview;
+				continue;
+			}
+			previewed.services.push_back(preview);
+			shown.serviceIds.push_back(SceneNodeId{"preview/service/" + std::to_string(addedRuns++)});
+			shown.serviceStyles.push_back(NodeStyle::Preview);
+		}
+
 		Scene scene = compileProject(previewed, shown, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom,
-			overlay.symbols, models);
+			overlay.symbols, overlay.services, overlay.services, models);
 		// Handles stand on the level being edited.
 		const double markerElevation = static_cast<double>(cad::levelElevationMm(project, overlay.activeLevel));
 		for (std::size_t index = 0; index < overlay.markers.size(); ++index)

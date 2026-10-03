@@ -14,6 +14,7 @@ namespace f101::cad
 		constexpr std::uint8_t K = static_cast<std::uint8_t>(Surface::Carpentry);
 		constexpr std::uint8_t G = static_cast<std::uint8_t>(Surface::Glazing);
 		constexpr std::uint8_t U = static_cast<std::uint8_t>(Surface::Furniture);
+		constexpr std::uint8_t S = static_cast<std::uint8_t>(Surface::Services);
 
 		std::string_view surfaceName(Surface surface)
 		{
@@ -24,6 +25,7 @@ namespace f101::cad
 			case Surface::Ceiling: return "ceilings";
 			case Surface::Carpentry: return "doors and window frames";
 			case Surface::Furniture: return "furniture";
+			case Surface::Services: return "building services";
 			default: return "glazing";
 			}
 		}
@@ -89,7 +91,7 @@ namespace f101::cad
 		constexpr std::pair<FinishCategory, std::string_view> FinishCategoryIds[] = {{FinishCategory::Paint, "paint"},
 			{FinishCategory::Tiles, "tiles"}, {FinishCategory::Wood, "wood"}, {FinishCategory::Stone, "stone"},
 			{FinishCategory::Textile, "textile"}, {FinishCategory::Joinery, "joinery"}, {FinishCategory::Fabric, "fabric"},
-			{FinishCategory::Glass, "glass"}};
+			{FinishCategory::Glass, "glass"}, {FinishCategory::Services, "services"}};
 	}
 
 	std::string_view finishCategoryId(FinishCategory category)
@@ -208,6 +210,11 @@ namespace f101::cad
 			// Glass.
 			glass("glass-clear", G, {214, 228, 230}, 0.03, 0.18),
 			glass("glass-black", U, {22, 22, 24}, 0.08, 1.0),
+			// Building services (ADR-0021): each kind of run in its colour.
+			plain("service-electrical", Category::Services, S, {46, 156, 72}, 0.5),
+			plain("service-water", Category::Services, S, {238, 238, 234}, 0.4),
+			plain("service-sewage", Category::Services, S, {232, 186, 34}, 0.5),
+			plain("service-gas", Category::Services, S, {212, 172, 64}, 0.3),
 		};
 		return catalogue;
 	}

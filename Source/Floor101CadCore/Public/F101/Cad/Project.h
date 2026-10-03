@@ -1,10 +1,12 @@
 #pragma once
 
 #include "F101/Cad/Asset.h"
+#include "F101/Cad/Column.h"
 #include "F101/Cad/Export.h"
 #include "F101/Cad/Finishes.h"
 #include "F101/Cad/Furniture.h"
 #include "F101/Cad/Level.h"
+#include "F101/Cad/Services.h"
 #include "F101/Cad/Wall.h"
 
 #include <cstddef>
@@ -36,6 +38,8 @@ namespace f101::cad
 		std::vector<RoomFinish> roomFinishes; // only rooms with a finish of their own
 		std::vector<Furniture> furniture;     // creation order (ADR-0016)
 		std::vector<Asset> assets;            // imported textures and models, in import order (ADR-0017)
+		std::vector<Column> columns;          // creation order (ADR-0021)
+		std::vector<ServiceRun> services;     // runs of the building services, creation order (ADR-0021)
 
 		const Wall* findWall(const WallId& id) const
 		{
@@ -68,6 +72,30 @@ namespace f101::cad
 				if (piece.id == id)
 				{
 					return &piece;
+				}
+			}
+			return nullptr;
+		}
+
+		const Column* findColumn(const ColumnId& id) const
+		{
+			for (const Column& column : columns)
+			{
+				if (column.id == id)
+				{
+					return &column;
+				}
+			}
+			return nullptr;
+		}
+
+		const ServiceRun* findServiceRun(const ServiceRunId& id) const
+		{
+			for (const ServiceRun& run : services)
+			{
+				if (run.id == id)
+				{
+					return &run;
 				}
 			}
 			return nullptr;
@@ -135,7 +163,9 @@ namespace f101::cad
 	FLOOR101CADCORE_API std::optional<FurnitureType> furnitureSpec(const Project& project, std::string_view type);
 	// validateFurniture, and its type (a catalogue type or a model of the project) and finish (validateFinishIn).
 	FLOOR101CADCORE_API Status validateFurnitureIn(const Project& project, const Furniture& furniture);
-	// How many wall faces, openings, room surfaces and pieces of furniture use an asset.
+	// validateColumn, and its finish (validateFinishIn for walls).
+	FLOOR101CADCORE_API Status validateColumnIn(const Project& project, const Column& column);
+	// How many wall faces, openings, room surfaces, pieces of furniture and columns use an asset.
 	FLOOR101CADCORE_API std::size_t assetUses(const Project& project, const AssetId& asset);
 
 	// Height of a level's floor above the first level's floor (the sum of the heights below it); 0 for an unknown level.

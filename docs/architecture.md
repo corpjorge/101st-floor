@@ -1,6 +1,6 @@
 # Arquitectura
 
-Estado: **aprobada (Fase D, 2026-09-28); MVP 12 implementado.** Decisiones importantes en `docs/adr/`.
+Estado: **aprobada (Fase D, 2026-09-28); MVP 13 implementado.** Decisiones importantes en `docs/adr/`.
 
 ## Principio
 
@@ -34,15 +34,15 @@ CMake (tests sin Unreal). Ver ADR-0002.
 
 | Módulo | Tipo | Namespace | Depende de | Contenido |
 |---|---|---|---|---|
-| `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController`, mobiliario (`Furniture`, catálogo), `project.json` |
-| `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`) y tramos que ocupan en cada muro (`wallObstructions`), `WallGeometryBuilder` sobre huellas (con huecos), carpintería de huecos (`buildOpeningMesh`), polígonos y prismas, habitaciones (`detectRooms`), suelos y forjados, muebles (`furnitureShape`, `buildFurnitureMesh`) |
-| `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos y habitaciones), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos, carpintería, muebles; con `ViewOverlay` que compila el proyecto como quedaría); más adelante materiales portables, luces, cámaras, `SceneDiff` |
-| `Floor101Drawing` | C++ puro | `f101::drawing` | CadCore, Geometry | planos 2D de una planta (`buildPlanDrawing`: muros cortados, carpintería, muebles, cotas, habitaciones, marcas de edición) y su SVG (`writeSvg`); paleta común (ADR-0015) |
+| `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController`, mobiliario (`Furniture`, catálogo), pilares e instalaciones (`Column`, `ServiceRun`, ADR-0021), `project.json` |
+| `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`) y tramos que ocupan en cada muro (`wallObstructions`), `WallGeometryBuilder` sobre huellas (con huecos), carpintería de huecos (`buildOpeningMesh`), polígonos y prismas, habitaciones (`detectRooms`), suelos y forjados, muebles (`furnitureShape`, `buildFurnitureMesh`), pilares y tuberías (`buildColumnMesh`, `buildServiceRunMesh`) |
+| `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos y habitaciones), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos, carpintería, muebles, pilares, tuberías; con `ViewOverlay` que compila el proyecto como quedaría y la capa de instalaciones con la arquitectura en `Ghost`); más adelante materiales portables, luces, cámaras, `SceneDiff` |
+| `Floor101Drawing` | C++ puro | `f101::drawing` | CadCore, Geometry | planos 2D de una planta (`buildPlanDrawing`: muros y pilares cortados, carpintería, muebles, cotas, habitaciones, tuberías con la capa, marcas de edición) y su SVG (`writeSvg`); paleta común (ADR-0015) |
 | `Floor101Assets` | C++ puro | `f101::assets` | CadCore, Geometry (nlohmann/json interno) | assets importados (ADR-0017): cabeceras PNG/JPEG, lectores glTF 2.0 (`.gltf`, `.glb`) y OBJ/MTL, normalización de un modelo al marco del mueble (`normalizeModel`), importación con sus dependencias a `assets/<uuid>/` (`importAsset`), medida con otros ajustes, copia al guardar en otra carpeta y `ModelCache`; biblioteca integrada (ADR-0019): manifiestos de `Library/`, `loadLibrary`, `importLibraryFurniture`/`importLibraryTexture` |
-| `Floor101Exporters` | C++ puro | `f101::exporters` | CadCore, Geometry, SceneModel, Assets (nlohmann/json interno) | exportación de la escena a formatos de intercambio (ADR-0020): glTF 2.0 binario para Twinmotion (`writeGlb`, `exportProjectGlb`: plantas, grupos por clase, materiales con sus imágenes, metros con Y arriba) y codificador PNG propio (`encodePng`, `zlibCompress`) |
+| `Floor101Exporters` | C++ puro | `f101::exporters` | CadCore, Geometry, SceneModel, Assets (nlohmann/json interno) | exportación de la escena a formatos de intercambio (ADR-0020): glTF 2.0 binario para Twinmotion (`writeGlb`, `exportProjectGlb`: plantas, grupos por clase (con Pilares e Instalaciones), materiales con sus imágenes, metros con Y arriba) y codificador PNG propio (`encodePng`, `zlibCompress`) |
 | `Floor101UnrealAdapter` | Unreal | — | SceneModel, Engine, GeometryFramework, ImageCore | reconciliación `Scene` → actores con `UDynamicMeshComponent` (hash + estilo); estilos de vista con materiales tintados; acabados de imágenes importadas; imágenes de la biblioteca para la UI; conversión de unidades y ejes en ambos sentidos; tests de integración |
 | `Floor101` | Unreal, módulo principal | — | CadCore, Geometry, SceneModel, Drawing, Assets, Exporters, UnrealAdapter, Slate, UMG | aplicación: `UFloor101DocumentSubsystem` (posee `Document` y `EditController` de cada mundo; guardar/abrir; plano 2D y su exportación; importar assets; biblioteca integrada; Modo Foto; exportación para Twinmotion), nombres de los catálogos en español (`Floor101Names`), path tracing del Modo Foto (`Floor101::PathTracing`), diálogo de archivo nativo, entrada (`UFloor101GameViewportClient`), cámara orbital u ortográfica, game mode, overlay Slate `SFloor101Overlay` y capa del plano `SFloor101PlanView`, comandos de consola `f101.*`, `RenderCheck` |
-| `Floor101Editor` | Unreal, **solo editor** | — | Floor101, CadCore, Geometry, SceneModel, Assets, ToolsetRegistry | herramientas de desarrollo: toolset MCP `Floor101DocumentToolset` (plantas, paredes en mm, huecos, muebles, acabados, assets, biblioteca, deshacer/rehacer, guardar/abrir, planos, exportación para Twinmotion; actúa en PIE si está activo) y el commandlet que genera los materiales. Nunca entra en el juego |
+| `Floor101Editor` | Unreal, **solo editor** | — | Floor101, CadCore, Geometry, SceneModel, Assets, ToolsetRegistry | herramientas de desarrollo: toolset MCP `Floor101DocumentToolset` (plantas, paredes en mm, huecos, muebles, pilares, instalaciones y su capa, acabados, assets, biblioteca, deshacer/rehacer, guardar/abrir, planos, exportación para Twinmotion; actúa en PIE si está activo) y el commandlet que genera los materiales. Nunca entra en el juego |
 
 La dirección de dependencias se hace cumplir en compilación: un módulo solo ve las cabeceras de sus dependencias
 declaradas (UBT y CMake), y UBT tampoco enlaza dependencias transitivas. Por ejemplo, el adaptador no puede llamar a
@@ -251,7 +251,20 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 - **Aplicación:** botón "Twinmotion (.glb)" (junto al proyecto, `<proyecto>.glb`), consola `f101.Export.Gltf` y MCP
   `ExportGltf`; nombres en el idioma de la UI. `Scripts/CheckGltf.ps1` da una segunda opinión con Blender.
 
-## Interacción y UI (MVP 1–12, ADR-0008)
+## Pilares e instalaciones (MVP 13, ADR-0021)
+
+- **Modelo:** `Column` (planta, centro, rectangular o redondo, ancho, fondo, giro, acabado de muro; tan alto como su
+  planta) y `ServiceRun` (planta, tipo de red y una polilínea de puntos `x, y, z` con z sobre el suelo de su planta). El
+  tipo fija color y diámetro: electricidad verde 25 mm, agua blanca 25 mm, aguas negras amarilla 110 mm, gas dorada
+  22 mm (acabados del catálogo para `Surface::Services`). `project.json` esquema 10.
+- **Derivado:** caja o cilindro para el pilar; tubo con codos esféricos y extremos planos para el tramo
+  (`ServicesBuilder`). En la escena, los pilares siempre; los tramos con la capa de instalaciones, que deja muros,
+  suelos, forjados y carpintería en `Ghost`; en el plano, pilares cortados y tuberías con vaina oscura bajo su color.
+- **Ratón:** Pilar (C) se ajusta a esquinas, ejes de muro y rejilla; Instalación (I) dibuja por tramos a la altura
+  elegida (bajo el suelo, pared, techo o escrita), con subidas verticales al cambiar de altura; doble clic o Enter
+  terminan. X muestra u oculta la capa; con ella el suelo del mapa también se vuelve translúcido.
+
+## Interacción y UI (MVP 1–13, ADR-0008)
 
 - **Lógica en el núcleo:** `EditController` (modos Seleccionar/Muro/Puerta/Ventana/Pintar/Amueblar, selección de muros,
   huecos, muebles y habitaciones, arrastre de esquinas, huecos y muebles, propiedades, acabados, deshacer/rehacer) y
@@ -262,15 +275,16 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 - **Unreal traduce:** `UFloor101GameViewportClient` convierte el cursor en rayo de escena, las teclas en comandos
   (`MapKey`) y los caracteres en texto de la herramienta; `AFloor101EditingPawn` es una cámara orbital (derecho orbita,
   central desplaza, rueda acerca, F encuadra, T vista en planta; sigue a la planta activa). RePág/AvPág cambian de planta,
-  L muestra todas, M elige Pintar, A elige Amueblar, Espacio cambia las bisagras del hueco que se coloca o del
-  seleccionado (o gira 90° el mueble que se coloca o el seleccionado), Tab alterna el plano 2D y R el Modo Foto. Mientras se escribe una longitud, las letras de sus unidades (m, c) son texto. `AFloor101GameMode` y el viewport client se configuran
+  L muestra todas, M elige Pintar, A elige Amueblar, C Pilar, I Instalación, X la capa de instalaciones, Espacio cambia las bisagras del hueco que se coloca o del
+  seleccionado (o gira 90° el mueble o el pilar que se coloca o el seleccionado), Tab alterna el plano 2D y R el Modo Foto. Mientras se escribe una longitud, las letras de sus unidades (m, c) son texto. `AFloor101GameMode` y el viewport client se configuran
   en `Config/DefaultEngine.ini` y rigen también en PIE.
 - **UI:** Slate en C++ (`SFloor101Overlay`, textos en español): barra con modos, deshacer/rehacer, encuadrar, cenital,
   plano 2D, ruta de archivo, Guardar/Abrir, exportar el plano (SVG, PNG), Foto y "Twinmotion (.glb)", y la fila de plantas (planta activa con su cota, subir, bajar, nueva planta, ver
   todas); panel de propiedades del muro seleccionado (longitud, espesor, altura, acabado de cada cara nombrada por su
   orientación, eliminar), del hueco seleccionado (ancho, alto, antepecho, posición, tipo, bisagras, sentido, apertura,
-  carpintería, eliminar), del mueble seleccionado (ancho, fondo, alto, giro, girar 90°, acabado, eliminar), de la
-  habitación seleccionada (área, suelo, techo), el tipo de las puertas o ventanas que se van a colocar (en Puerta y Ventana), la paleta de
+  carpintería, eliminar), del mueble seleccionado (ancho, fondo, alto, giro, girar 90°, acabado, eliminar), del pilar
+  seleccionado (forma, medidas, giro, acabado), de la tubería seleccionada (tipo, longitud, puntos, alturas), de la
+  habitación seleccionada (área, suelo, techo), el tipo de las puertas o ventanas que se van a colocar (en Puerta y Ventana), la forma y medidas del pilar (en Pilar), el tipo y la altura de la tubería (en Instalación), la paleta de
   Pintar (pestañas Paredes/Suelos, secciones por categoría con las fotografías de la biblioteca, texturas importadas e
   "Importar textura…"), el catálogo de Amueblar (pestañas por categoría con fichas con imagen, modelos importados e
   "Importar modelo…") o, sin selección, la planta activa (nombre, altura, forjado, eliminar); en Modo Foto, solo el
@@ -287,9 +301,9 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 
 | Nivel | Qué | Herramienta | Se ejecuta con |
 |---|---|---|---|
-| Unitarios (sin Unreal) | CadCore, Geometry, SceneModel, Drawing, Assets, Exporters (`Tests/Unit/`, exportación en `PngTests.cpp` y `GltfExportTests.cpp`, mobiliario en `FurnitureTests.cpp`, assets en `AssetTests.cpp` y `AssetImportTests.cpp` con muestras exportadas con Blender en `Tests/Data/Assets`, biblioteca en `LibraryTests.cpp`, que también comprueba la `Library/` real) | CMake + Ninja (VS Build Tools) + MSVC 14.50 + **doctest** 2.5.3 (`ThirdParty/doctest`) | `Test.ps1` (segundos) |
+| Unitarios (sin Unreal) | CadCore, Geometry, SceneModel, Drawing, Assets, Exporters (`Tests/Unit/`, exportación en `PngTests.cpp` y `GltfExportTests.cpp`, mobiliario en `FurnitureTests.cpp`, pilares e instalaciones en `ServicesTests.cpp`, assets en `AssetTests.cpp` y `AssetImportTests.cpp` con muestras exportadas con Blender en `Tests/Data/Assets`, biblioteca en `LibraryTests.cpp`, que también comprueba la `Library/` real) | CMake + Ninja (VS Build Tools) + MSVC 14.50 + **doctest** 2.5.3 (`ThirdParty/doctest`) | `Test.ps1` (segundos) |
 | Arquitectura | módulos puros sin cabeceras ni tipos de Unreal; `Build.cs` solo con `Core` y módulos puros | script + compilación CMake | `Test.ps1` |
-| Integración Unreal | adaptador (`Floor101.Adapter.*`): actor, componente, acabados (material base, textura, material por sección), bounds 355×12×240 cm, triángulos según `GetTriNormal`, regeneración a 420 cm sin escalar, estilos de vista, muro con puerta (7 secciones); interacción (`Floor101.Interaction.*`): mapa de teclas, cámara, flujo completo por el subsistema con `project.json`, habitación con suelo, área y arrastre de esquina, plantas (forjado, planta de abajo atenuada, muro dibujado en la cota de su planta, ocultar y ver todas), acabados (pintar y seleccionar habitación), carpintería (vidrio translúcido, rechazo en una T, arrastre, Esc), tipos de hueco (hoja abierta, símbolo sin sombra, colocar con Espacio, corredera), plano 2D (dibujo, cámara ortográfica, exportación SVG/PNG), muebles (colocar contra un muro, seleccionar, arrastrar, girar, borrar, plano, guardar y abrir), assets (importar textura, GLB y OBJ, pintar, colocar, materiales e imágenes, guardar en otra carpeta y reabrir), biblioteca (silla y laminado de la `Library/` real, una vez por proyecto), Modo Foto (sin marcas de edición), exportación para Twinmotion (el `.glb` releído y su PNG decodificado por Unreal igual que la textura de la aplicación); toolset (`Floor101.Editor.*`) | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
+| Integración Unreal | adaptador (`Floor101.Adapter.*`): actor, componente, acabados (material base, textura, material por sección), bounds 355×12×240 cm, triángulos según `GetTriNormal`, regeneración a 420 cm sin escalar, estilos de vista, muro con puerta (7 secciones); interacción (`Floor101.Interaction.*`): mapa de teclas, cámara, flujo completo por el subsistema con `project.json`, habitación con suelo, área y arrastre de esquina, plantas (forjado, planta de abajo atenuada, muro dibujado en la cota de su planta, ocultar y ver todas), acabados (pintar y seleccionar habitación), carpintería (vidrio translúcido, rechazo en una T, arrastre, Esc), tipos de hueco (hoja abierta, símbolo sin sombra, colocar con Espacio, corredera), plano 2D (dibujo, cámara ortográfica, exportación SVG/PNG), muebles (colocar contra un muro, seleccionar, arrastrar, girar, borrar, plano, guardar y abrir), assets (importar textura, GLB y OBJ, pintar, colocar, materiales e imágenes, guardar en otra carpeta y reabrir), biblioteca (silla y laminado de la `Library/` real, una vez por proyecto), Modo Foto (sin marcas de edición), exportación para Twinmotion (el `.glb` releído y su PNG decodificado por Unreal igual que la textura de la aplicación), instalaciones (pilar en la esquina, capa con muros y suelo del mapa translúcidos, tubería por clics, plano y SVG, guardar y abrir); toolset (`Floor101.Editor.*`) | Unreal Automation (`UnrealEditor-Cmd -nullrhi`) o MCP `AutomationTestToolset` | `Test.ps1 -Integration` |
 | Render | DX12/SM6/HWRT/Lumen y path tracing del Modo Foto | `CheckRendering.ps1` | manual o en la validación de cada fase |
 | MCP | handshake, toolsets, lectura | `CheckMcp.ps1` | manual o en la validación de cada fase |
 
@@ -314,7 +328,7 @@ paredes generadas contribuyan a la GI de Lumen (cards por bounding box). Si no b
 Modo Foto (MVP 11, ADR-0018): el path tracer de Unreal en el mismo viewport, progresivo y con denoiser. Nanite se
 reserva para assets densos (Blender); las paredes son geometría simple.
 
-## Estado de implementación (MVP 12, 2026-09-30)
+## Estado de implementación (MVP 13, 2026-09-30)
 
 MVP 0: los cinco módulos de producto más `Floor101Editor` y la pared de referencia 3550 → 4200 mm por todo el pipeline
 (`docs/mvp0-report.md`). MVP 1: herramienta de muro interactiva con longitud escrita, selección, borrar, longitud,
@@ -337,10 +351,12 @@ muebles, diálogo de archivo nativo, `project.json` esquema 8) (`docs/mvp10-repo
 tracing, catálogo con variantes (80 acabados por categoría, Pintar suelos con pestañas), biblioteca integrada de 53
 muebles y 14 texturas fotográficas, tipo de puerta o ventana elegido antes de colocarla y `project.json` esquema 9
 (`docs/mvp11-report.md`). MVP 12: exportación para Twinmotion en glTF binario (módulo puro `Floor101Exporters`,
-botón, consola y MCP) (`docs/mvp12-report.md`). Detalle por capa: `docs/cad-core.md`, `docs/geometry.md`,
+botón, consola y MCP) (`docs/mvp12-report.md`). MVP 13: pilares rectangulares y redondos e instalaciones de
+electricidad, agua, aguas negras y gas dibujadas por tramos, capa con rayos X y `project.json` esquema 10
+(`docs/mvp13-report.md`). Detalle por capa: `docs/cad-core.md`, `docs/geometry.md`,
 `docs/scene-model.md`, `docs/drawing.md`, `docs/exporters.md`, `docs/unreal-integration.md`.
 
-## Fuera del MVP 12 (la arquitectura no lo bloquea)
+## Fuera del MVP 13 (la arquitectura no lo bloquea)
 
 Escaleras y huecos en forjados, sótanos, voladizos y terrazas, cubiertas inclinadas, forjados editables, puertas
 plegables y oscilobatientes, correderas de superficie, huecos no rectangulares, nombres y propiedades
@@ -348,4 +364,6 @@ persistentes de habitaciones (entidad `Room`), acabados con relieve (mapas de no
 Movie Render Queue, sincronización en vivo con Twinmotion (Datasmith Direct Link), exportación USD, más formatos de import (FBX, USD, extensiones glTF como Draco o KTX2), mapas de
 normales y metal de los modelos, biblioteca del usuario compartida entre proyectos, cotas a caras e interiores, cajetín y
 escala gráfica en los planos, exportación PDF/DXF, diálogo nativo para guardar y abrir proyectos, traducción de los
-mensajes del núcleo, reasignación de teclas, recompilación incremental para proyectos grandes.
+mensajes del núcleo, reasignación de teclas, recompilación incremental para proyectos grandes, pilares que corten
+habitaciones o se unan a muros, trazado automático de instalaciones con pendientes, accesorios y cálculo de diámetros,
+vigas y estructura de cubierta.

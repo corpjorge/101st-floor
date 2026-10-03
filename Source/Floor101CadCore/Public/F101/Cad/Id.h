@@ -63,4 +63,10 @@ namespace f101::cad
 
 	struct AssetTag;
 	using AssetId = TypedId<AssetTag>;
+
+	struct ColumnTag;
+	using ColumnId = TypedId<ColumnTag>;
+
+	struct ServiceRunTag;
+	using ServiceRunId = TypedId<ServiceRunTag>;
 }

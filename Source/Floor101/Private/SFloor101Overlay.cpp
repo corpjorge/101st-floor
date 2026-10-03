@@ -474,7 +474,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
 			[
-				ModeButton(LOCTEXT("Select", "Seleccionar (V)"), LOCTEXT("SelectTip", "Selecciona muros, huecos, muebles y habitaciones; arrastra extremos, huecos y muebles"), EditMode::Select)
+				ModeButton(LOCTEXT("Select", "Seleccionar (V)"), LOCTEXT("SelectTip", "Selecciona muros, huecos, muebles, pilares, instalaciones y habitaciones; arrastra extremos, huecos, muebles, pilares y tuberías"), EditMode::Select)
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
 			[
@@ -497,6 +497,18 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 				ModeButton(LOCTEXT("Furniture", "Amueblar (A)"),
 					LOCTEXT("FurnitureTip", "Coloca muebles: elige uno en el panel y haz clic en el suelo; cerca de un muro se apoya en él"),
 					EditMode::Furniture)
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				ModeButton(LOCTEXT("Column", "Pilar (C)"),
+					LOCTEXT("ColumnTip", "Coloca pilares de hormigón, rectangulares o redondos: se ajustan a las esquinas y a los ejes de los muros"),
+					EditMode::Column)
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				ModeButton(LOCTEXT("Services", "Instalación (I)"),
+					LOCTEXT("ServicesTip", "Dibuja por tramos las tuberías de electricidad, agua, aguas negras o gas: elige el tipo y la altura en el panel"),
+					EditMode::Services)
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 2.0f, 2.0f, 2.0f)
 			[
@@ -569,6 +581,25 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 				})
 				[
 					SNew(STextBlock).Text(LOCTEXT("Plan", "Plano 2D (Tab)")).Font(Font(10, true))
+				]
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
+			[
+				SNew(SButton)
+				.IsFocusable(false)
+				.ToolTipText(LOCTEXT("ServicesLayerTip",
+					"Capa de instalaciones: muestra las tuberías y vuelve transparentes muros, suelos, forjados y carpintería para verlas por dentro"))
+				.ButtonColorAndOpacity_Lambda([this]()
+				{
+					const UFloor101DocumentSubsystem* S = Document.Get();
+					return S && S->GetEditController().showsServices() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+				})
+				.OnClicked_Lambda([this]()
+				{
+					return Run([](EditController& Editor) { Editor.setShowServices(!Editor.showsServices()); return f101::Status::success(); });
+				})
+				[
+					SNew(STextBlock).Text(LOCTEXT("ServicesLayer", "Rayos X (X)")).Font(Font(10, true))
 				]
 			]
 		]
@@ -661,7 +692,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 				.ToolTipText_Lambda([this]()
 				{
 					const UFloor101DocumentSubsystem* S = Document.Get();
-					return FText::Format(LOCTEXT("GltfTip", "Exporta la casa entera (todas las plantas, puertas, ventanas, muebles, materiales y texturas) a {0}, para importarla en Twinmotion"),
+					return FText::Format(LOCTEXT("GltfTip", "Exporta la casa entera (todas las plantas, puertas, ventanas, muebles, pilares, instalaciones, materiales y texturas) a {0}, para importarla en Twinmotion"),
 						S ? FText::FromString(S->GetDefaultGltfPath()) : FText::GetEmpty());
 				})
 				.OnClicked_Lambda([this]()
@@ -882,21 +913,23 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 	return SNew(SBox)
 		.WidthOverride_Lambda([this]()
 		{
-			// Wider for the palettes' pictures: three furniture tiles, or eight swatches, a row.
+			// Wider for the palettes' pictures (three furniture tiles, or eight swatches, a row) and the services' height presets.
 			const UFloor101DocumentSubsystem* S = Document.Get();
 			const EditMode Mode = S ? S->GetEditController().mode() : EditMode::Select;
-			return FOptionalSize(Mode == EditMode::Furniture || Mode == EditMode::Paint ? 330.0f : 260.0f);
+			return FOptionalSize(Mode == EditMode::Furniture || Mode == EditMode::Paint || Mode == EditMode::Services ? 330.0f : 260.0f);
 		})
 		.Visibility_Lambda([this]()
 		{
 			const UFloor101DocumentSubsystem* S = Document.Get();
 			const EditMode Mode = S ? S->GetEditController().mode() : EditMode::Select;
-			const bool bTool =Mode == EditMode::Paint || Mode == EditMode::Furniture || Mode == EditMode::Door || Mode == EditMode::Window;
+			const bool bTool = Mode == EditMode::Paint || Mode == EditMode::Furniture || Mode == EditMode::Door || Mode == EditMode::Window ||
+				Mode == EditMode::Column || Mode == EditMode::Services;
 			if (IsPhotoMode())
 			{
 				return EVisibility::Collapsed;
 			}
-			return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() || GetSelectedRoom() || IsLevelPanelShown() || bTool
+			return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() || GetSelectedColumn() || GetSelectedServiceRun() ||
+				GetSelectedRoom() || IsLevelPanelShown() || bTool
 				? EVisibility::Visible : EVisibility::Collapsed;
 		})
 		[
@@ -1029,6 +1062,22 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				[
 					MakeFurniturePalette()
 				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeColumnSection()
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeColumnPalette()
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeServiceRunSection()
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					MakeServicesPalette()
+				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 				[
 					SNew(STextBlock)
@@ -1042,7 +1091,8 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					.IsFocusable(false)
 					.Visibility_Lambda([this]()
 					{
-						return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() ? EVisibility::Visible : EVisibility::Collapsed;
+						return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() || GetSelectedColumn() || GetSelectedServiceRun()
+							? EVisibility::Visible : EVisibility::Collapsed;
 					})
 					.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteSelection(); }); })
 					[
@@ -1484,7 +1534,7 @@ bool SFloor101Overlay::IsLevelPanelShown() const
 {
 	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
 	return Subsystem && Subsystem->GetEditController().mode() == EditMode::Select && !GetSelectedWall() && !GetSelectedOpening() &&
-		!GetSelectedFurniture() && !GetSelectedRoom() && GetActiveLevel();
+		!GetSelectedFurniture() && !GetSelectedColumn() && !GetSelectedServiceRun() && !GetSelectedRoom() && GetActiveLevel();
 }
 
 std::optional<f101::cad::Furniture> SFloor101Overlay::GetSelectedFurniture() const
@@ -1588,6 +1638,425 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
 			.Text(LOCTEXT("FurnitureHint", "Arrástralo para moverlo: se ajusta a la rejilla y se apoya en los muros."))
+		];
+}
+
+std::optional<f101::cad::Column> SFloor101Overlay::GetSelectedColumn() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	if (!Subsystem || Subsystem->GetEditController().mode() != EditMode::Select)
+	{
+		return std::nullopt;
+	}
+	return Subsystem->GetEditController().selectedColumn();
+}
+
+std::optional<f101::cad::ServiceRun> SFloor101Overlay::GetSelectedServiceRun() const
+{
+	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
+	if (!Subsystem || Subsystem->GetEditController().mode() != EditMode::Select)
+	{
+		return std::nullopt;
+	}
+	return Subsystem->GetEditController().selectedServiceRun();
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeColumnShapeButtons(TFunction<std::optional<f101::cad::ColumnShape>()> Current,
+	TFunction<f101::Status(f101::cad::EditController&, f101::cad::ColumnShape)> Apply)
+{
+	TSharedRef<SHorizontalBox> Row = SNew(SHorizontalBox);
+	for (const f101::cad::ColumnShape Shape : {f101::cad::ColumnShape::Rectangle, f101::cad::ColumnShape::Round})
+	{
+		Row->AddSlot().FillWidth(1.0f).Padding(1.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.HAlign(HAlign_Center)
+			.ButtonColorAndOpacity_Lambda([Current, Shape]()
+			{
+				return Current() == Shape ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor(0.35f, 0.35f, 0.38f));
+			})
+			.OnClicked_Lambda([this, Apply, Shape]() { return Run([&Apply, Shape](EditController& Editor) { return Apply(Editor, Shape); }); })
+			[
+				SNew(STextBlock).Text(Floor101::ColumnShapeName(Shape)).Font(Font(10))
+			]
+		];
+	}
+	return Row;
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeServiceKindButtons(TFunction<std::optional<f101::cad::ServiceKind>()> Current,
+	TFunction<f101::Status(f101::cad::EditController&, f101::cad::ServiceKind)> Apply)
+{
+	TSharedRef<SVerticalBox> List = SNew(SVerticalBox);
+	for (const f101::cad::ServiceKindInfo& Info : f101::cad::serviceKinds())
+	{
+		const f101::cad::ServiceKind Kind = Info.kind;
+		List->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(FText::Format(LOCTEXT("ServiceKindTip", "{0}: tubo de {1} mm de diámetro"), Floor101::ServiceKindName(Kind),
+				FText::AsNumber(Info.diameterMm)))
+			.ButtonColorAndOpacity_Lambda([Current, Kind]()
+			{
+				return Current() == Kind ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor(0.35f, 0.35f, 0.38f));
+			})
+			.OnClicked_Lambda([this, Apply, Kind]() { return Run([&Apply, Kind](EditController& Editor) { return Apply(Editor, Kind); }); })
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+				[
+					MakeSwatch(std::string(Info.finish), 14.0f)
+				]
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Text(Floor101::ServiceKindName(Kind)).Font(Font(10))
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(FText::Format(LOCTEXT("ServiceDiameter", "Ø {0} mm"), FText::AsNumber(Info.diameterMm)))
+					.Font(Font(9))
+					.ColorAndOpacity(MutedColor)
+				]
+			]
+		];
+	}
+	return List;
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeColumnSection()
+{
+	auto Size = [this](std::int64_t f101::cad::Column::* Field)
+	{
+		return [this, Field]() -> TOptional<double>
+		{
+			const std::optional<f101::cad::Column> Selected = GetSelectedColumn();
+			return Selected ? TOptional<double>(static_cast<double>((*Selected).*Field)) : TOptional<double>();
+		};
+	};
+	auto ShownFor = [this](bool bRound)
+	{
+		return [this, bRound]()
+		{
+			const std::optional<f101::cad::Column> Selected = GetSelectedColumn();
+			return Selected && (Selected->shape == f101::cad::ColumnShape::Round) == bRound ? EVisibility::Visible : EVisibility::Collapsed;
+		};
+	};
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([this]() { return GetSelectedColumn() ? EVisibility::Visible : EVisibility::Collapsed; })
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("SelectedColumn", "Pilar seleccionado")).Font(Font(11, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakeColumnShapeButtons([this]() -> std::optional<f101::cad::ColumnShape>
+				{
+					const std::optional<f101::cad::Column> Selected = GetSelectedColumn();
+					return Selected ? std::optional<f101::cad::ColumnShape>(Selected->shape) : std::nullopt;
+				},
+				[](EditController& Editor, f101::cad::ColumnShape Shape) { return Editor.setColumnShape(Shape); })
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox).Visibility_Lambda(ShownFor(true))
+			[
+				MakePropertyRow(LOCTEXT("ColumnDiameter", "Diámetro"), Size(&f101::cad::Column::widthMm), &EditController::setColumnWidth)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox).Visibility_Lambda(ShownFor(false))
+			[
+				MakePropertyRow(LOCTEXT("ColumnWidth", "Ancho"), Size(&f101::cad::Column::widthMm), &EditController::setColumnWidth)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox).Visibility_Lambda(ShownFor(false))
+			[
+				MakePropertyRow(LOCTEXT("ColumnDepth", "Fondo"), Size(&f101::cad::Column::depthMm), &EditController::setColumnDepth)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox).Visibility_Lambda(ShownFor(false))
+			[
+				MakeTextRow(LOCTEXT("ColumnRotation", "Giro"), [this]()
+				{
+					const std::optional<f101::cad::Column> Selected = GetSelectedColumn();
+					if (!Selected)
+					{
+						return FText::GetEmpty();
+					}
+					FNumberFormattingOptions Hundredths;
+					Hundredths.SetMaximumFractionalDigits(2);
+					return FText::Format(LOCTEXT("ColumnDegrees", "{0}°"),
+						FText::AsNumber(static_cast<double>(Selected->rotationCentidegrees) / 100.0, &Hundredths));
+				}, &EditController::setColumnRotation)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 2.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.Visibility_Lambda(ShownFor(false))
+			.ToolTipText(LOCTEXT("RotateColumnTip", "Gira el pilar 90° en sentido antihorario sobre su centro"))
+			.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.flip(); }); })
+			[
+				SNew(STextBlock).Text(LOCTEXT("RotateColumn", "Girar 90° (Espacio)")).Font(Font(9))
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Text(LOCTEXT("ColumnFinish", "Acabado")).Font(Font(10))
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				MakeFinishCombo(f101::cad::Surface::Wall,
+					[this]() -> FString
+					{
+						const std::optional<f101::cad::Column> Selected = GetSelectedColumn();
+						return Selected ? FString(UTF8_TO_TCHAR(std::string(f101::cad::resolveColumnFinish(*Selected)).c_str())) : FString();
+					},
+					[](EditController& Editor, const std::string& Finish) { return Editor.setColumnFinish(Finish); })
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("ColumnHint", "Arrástralo para moverlo: se ajusta a las esquinas y a los ejes de los muros. Llega del suelo al forjado de su planta."))
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeColumnPalette()
+{
+	// The settings of the Column mode, while it is on.
+	auto Settings = [this]() -> const f101::cad::EditSettings*
+	{
+		const UFloor101DocumentSubsystem* S = Document.Get();
+		return S && S->GetEditController().mode() == EditMode::Column ? &S->GetEditController().settings() : nullptr;
+	};
+	auto ShownFor = [Settings](bool bRound)
+	{
+		return [Settings, bRound]()
+		{
+			const f101::cad::EditSettings* Current = Settings();
+			return Current && (Current->columnShape == f101::cad::ColumnShape::Round) == bRound ? EVisibility::Visible : EVisibility::Collapsed;
+		};
+	};
+	auto SizeText = [Settings](std::int64_t f101::cad::EditSettings::* Field)
+	{
+		return [Settings, Field]()
+		{
+			const f101::cad::EditSettings* Current = Settings();
+			return Current ? LengthText(static_cast<double>(Current->*Field)) : FText::GetEmpty();
+		};
+	};
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([Settings]() { return Settings() ? EVisibility::Visible : EVisibility::Collapsed; })
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("ColumnTitle", "Pilar: forma y medidas")).Font(Font(11, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakeColumnShapeButtons([Settings]() -> std::optional<f101::cad::ColumnShape>
+				{
+					const f101::cad::EditSettings* Current = Settings();
+					return Current ? std::optional<f101::cad::ColumnShape>(Current->columnShape) : std::nullopt;
+				},
+				[](EditController& Editor, f101::cad::ColumnShape Shape) { return Editor.setNewColumnShape(Shape); })
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox).Visibility_Lambda(ShownFor(true))
+			[
+				MakeTextRow(LOCTEXT("NewColumnDiameter", "Diámetro"), SizeText(&f101::cad::EditSettings::columnWidthMm), &EditController::setNewColumnWidth)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox).Visibility_Lambda(ShownFor(false))
+			[
+				MakeTextRow(LOCTEXT("NewColumnWidth", "Ancho"), SizeText(&f101::cad::EditSettings::columnWidthMm), &EditController::setNewColumnWidth)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(SBox).Visibility_Lambda(ShownFor(false))
+			[
+				MakeTextRow(LOCTEXT("NewColumnDepth", "Fondo"), SizeText(&f101::cad::EditSettings::columnDepthMm), &EditController::setNewColumnDepth)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("ColumnPaletteHint",
+				"Clic para colocarlo, de hormigón y del suelo al forjado. Se ajusta a las esquinas y a los ejes de los muros; Espacio lo gira 90°. Medidas de 10 a 300 cm."))
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeServiceRunSection()
+{
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([this]() { return GetSelectedServiceRun() ? EVisibility::Visible : EVisibility::Collapsed; })
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("SelectedRun", "Instalación seleccionada")).Font(Font(11, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakeServiceKindButtons([this]() -> std::optional<f101::cad::ServiceKind>
+				{
+					const std::optional<f101::cad::ServiceRun> Selected = GetSelectedServiceRun();
+					return Selected ? std::optional<f101::cad::ServiceKind>(Selected->kind) : std::nullopt;
+				},
+				[](EditController& Editor, f101::cad::ServiceKind Kind) { return Editor.setServiceRunKind(Kind); })
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 2.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(10))
+			.AutoWrapText(true)
+			.Text_Lambda([this]()
+			{
+				const std::optional<f101::cad::ServiceRun> Selected = GetSelectedServiceRun();
+				if (!Selected)
+				{
+					return FText::GetEmpty();
+				}
+				std::int64_t Low = Selected->points.front().z_mm;
+				std::int64_t High = Low;
+				for (const f101::cad::ServicePoint& Point : Selected->points)
+				{
+					Low = std::min(Low, Point.z_mm);
+					High = std::max(High, Point.z_mm);
+				}
+				const FText Heights = Low == High ? LengthText(static_cast<double>(Low))
+					: FText::Format(LOCTEXT("RunHeights", "{0} a {1}"), LengthText(static_cast<double>(Low)), LengthText(static_cast<double>(High)));
+				return FText::Format(LOCTEXT("RunInfo", "Longitud {0} · {1} puntos · altura {2}"),
+					LengthText(f101::cad::serviceRunLengthMm(*Selected)), FText::AsNumber(static_cast<int32>(Selected->points.size())), Heights);
+			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("RunHint", "Arrastra la tubería para moverla entera o un asa para mover ese codo. X oculta las instalaciones."))
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeServicesPalette()
+{
+	// The settings of the Services mode, while it is on.
+	auto Settings = [this]() -> const f101::cad::EditSettings*
+	{
+		const UFloor101DocumentSubsystem* S = Document.Get();
+		return S && S->GetEditController().mode() == EditMode::Services ? &S->GetEditController().settings() : nullptr;
+	};
+	// A height preset: highlighted while it is the height of the next points.
+	auto HeightButton = [this, Settings](const FText& Label, const FText& ToolTip, TFunction<std::int64_t()> Height)
+	{
+		return SNew(SButton)
+			.IsFocusable(false)
+			.HAlign(HAlign_Center)
+			.ToolTipText(ToolTip)
+			.ButtonColorAndOpacity_Lambda([Settings, Height]()
+			{
+				const f101::cad::EditSettings* Current = Settings();
+				return Current && Current->serviceHeightMm == Height() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor(0.35f, 0.35f, 0.38f));
+			})
+			.OnClicked_Lambda([this, Height]()
+			{
+				const std::int64_t Millimeters = Height();
+				return Run([Millimeters](EditController& Editor) { return Editor.setServiceHeightMm(Millimeters); });
+			})
+			[
+				SNew(STextBlock).Text(Label).Font(Font(9))
+			];
+	};
+	// Just under the slab of the active level.
+	auto CeilingHeight = [this]() -> std::int64_t
+	{
+		const f101::cad::Level* Level = GetActiveLevel();
+		return (Level ? Level->clearHeightMm() : f101::cad::DefaultLevelHeightMm - f101::cad::DefaultSlabThicknessMm) - 100;
+	};
+
+	return SNew(SVerticalBox)
+		.Visibility_Lambda([Settings]() { return Settings() ? EVisibility::Visible : EVisibility::Collapsed; })
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("ServicesTitle", "Instalación: tipo y altura")).Font(Font(11, true))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakeServiceKindButtons([Settings]() -> std::optional<f101::cad::ServiceKind>
+				{
+					const f101::cad::EditSettings* Current = Settings();
+					return Current ? std::optional<f101::cad::ServiceKind>(Current->serviceKind) : std::nullopt;
+				},
+				[](EditController& Editor, f101::cad::ServiceKind Kind) { return Editor.setServiceKind(Kind); })
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(1.0f)
+			[
+				HeightButton(LOCTEXT("UnderFloor", "Bajo suelo"), LOCTEXT("UnderFloorTip", "A 10 cm bajo el suelo de la planta"), []() { return std::int64_t(-100); })
+			]
+			+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(1.0f)
+			[
+				HeightButton(LOCTEXT("InWall", "Pared"), LOCTEXT("InWallTip", "A 30 cm del suelo, a la altura de los enchufes"), []() { return std::int64_t(300); })
+			]
+			+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(1.0f)
+			[
+				HeightButton(LOCTEXT("Ceiling", "Techo"), LOCTEXT("CeilingTip", "A 10 cm bajo el forjado de la planta"), CeilingHeight)
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakePropertyRow(LOCTEXT("ServiceHeight", "Altura"), [Settings]() -> TOptional<double>
+			{
+				const f101::cad::EditSettings* Current = Settings();
+				return Current ? TOptional<double>(static_cast<double>(Current->serviceHeightMm)) : TOptional<double>();
+			}, &EditController::setServiceHeight)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(10))
+			.Text_Lambda([this]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				const std::size_t Points = S ? S->GetEditController().runPoints().size() : 0;
+				return Points == 0 ? LOCTEXT("RunNotStarted", "Clic en la planta para empezar")
+					: FText::Format(LOCTEXT("RunPoints", "{0} puntos colocados"), FText::AsNumber(static_cast<int32>(Points)));
+			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock)
+			.Font(Font(9))
+			.ColorAndOpacity(MutedColor)
+			.AutoWrapText(true)
+			.Text(LOCTEXT("ServicesPaletteHint",
+				"Clic: añade un punto (se ajusta a los muros, la rejilla y los ángulos) · doble clic o Enter: termina · Retroceso: quita el último · Esc: descarta. Cambiar la altura a mitad sube o baja en vertical."))
 		];
 }
 
@@ -2395,6 +2864,27 @@ FText SFloor101Overlay::GetHintText() const
 		return FText::Format(LOCTEXT("HintFurniture", "Amueblar: {0} · clic en el suelo: colocarlo · cerca de un muro se apoya en él de espaldas · Espacio: girar 90° · Esc o clic derecho: volver a Seleccionar"),
 			FurnitureName(Editor.settings().furnitureType, &Subsystem->GetDocument().project()));
 	}
+	if (Editor.mode() == EditMode::Column)
+	{
+		return FText::Format(LOCTEXT("HintColumn", "Pilar {0} · clic: colocarlo · se ajusta a las esquinas y a los ejes de los muros · Espacio: girar 90° · Esc o clic derecho: volver a Seleccionar"),
+			Floor101::ColumnShapeName(Editor.settings().columnShape).ToLower());
+	}
+	if (Editor.mode() == EditMode::Services)
+	{
+		const FText Kind = Floor101::ServiceKindName(Editor.settings().serviceKind);
+		const FText Height = LengthText(static_cast<double>(Editor.settings().serviceHeightMm));
+		return Editor.runPoints().empty()
+			? FText::Format(LOCTEXT("HintServicesIdle", "Instalación: {0} a {1} · clic: primer punto · X: ocultar las instalaciones · Esc o clic derecho: volver a Seleccionar"), Kind, Height)
+			: FText::Format(LOCTEXT("HintServicesDrawing", "Instalación: {0} a {1} · clic: siguiente punto · doble clic o Enter: terminar · Retroceso: quitar el último · Esc o clic derecho: descartar"), Kind, Height);
+	}
+	if (Editor.isDragging() && Editor.selectedColumn())
+	{
+		return LOCTEXT("HintDraggingColumn", "Moviendo pilar · se ajusta a las esquinas, a los ejes de los muros y a la rejilla · suelta para aplicar · Esc o clic derecho: cancelar");
+	}
+	if (Editor.isDragging() && Editor.selectedServiceRun())
+	{
+		return LOCTEXT("HintDraggingRun", "Moviendo instalación · se ajusta a la rejilla (un codo, también a los muros) · suelta para aplicar · Esc o clic derecho: cancelar");
+	}
 	if (Editor.isDraggingOpening())
 	{
 		return LOCTEXT("HintDraggingOpening", "Moviendo hueco · se ajusta a la rejilla y se aparta de los muros que se unen · suelta para aplicar · Esc o clic derecho: cancelar");
@@ -2419,8 +2909,16 @@ FText SFloor101Overlay::GetHintText() const
 	{
 		return LOCTEXT("HintSelectedFurniture", "Seleccionar · arrastra el mueble para moverlo · Espacio: girar 90° · medidas, giro y acabado en el panel · Supr: eliminar");
 	}
+	if (Editor.selectedColumn())
+	{
+		return LOCTEXT("HintSelectedColumn", "Seleccionar · arrastra el pilar para moverlo · Espacio: girar 90° · forma, medidas y acabado en el panel · Supr: eliminar");
+	}
+	if (Editor.selectedServiceRun())
+	{
+		return LOCTEXT("HintSelectedRun", "Seleccionar · arrastra la tubería para moverla o un asa para mover ese codo · tipo en el panel · Supr: eliminar");
+	}
 	return Editor.selection().isNil()
-		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco, mueble o habitación · W: muros · P: puertas · O: ventanas · M: pintar · A: amueblar · Tab: plano 2D · RePág/AvPág: planta")
+		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco, mueble, pilar, instalación o habitación · W: muros · P: puertas · O: ventanas · M: pintar · A: amueblar · C: pilares · I: instalaciones · X: rayos X · Tab: plano 2D · RePág/AvPág: planta")
 		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 
@@ -2470,6 +2968,23 @@ FText SFloor101Overlay::GetCursorText() const
 		return FText::GetEmpty();
 	}
 	const EditController& Editor = Subsystem->GetEditController();
+	if (Editor.mode() == EditMode::Services)
+	{
+		// The height of the next point and, while drawing, how long the stretch to it is in plan.
+		const std::optional<f101::cad::ServicePoint>& At = Editor.runPointer();
+		if (!At)
+		{
+			return FText::GetEmpty();
+		}
+		const FText Height = FText::Format(LOCTEXT("CursorRunHeight", "altura {0}"), LengthText(static_cast<double>(At->z_mm)));
+		if (Editor.runPoints().empty())
+		{
+			return Height;
+		}
+		const f101::cad::ServicePoint& Last = Editor.runPoints().back();
+		const double Stretch = std::hypot(static_cast<double>(At->x_mm - Last.x_mm), static_cast<double>(At->y_mm - Last.y_mm));
+		return FText::Format(LOCTEXT("CursorRunStretch", "{0} · {1}"), LengthText(Stretch), Height);
+	}
 	// The wall being drawn, the selected wall whose corner is being dragged, or the wall of the dragged opening.
 	const f101::cad::EditView View = Editor.view();
 	const auto Shown = std::find_if(View.previewWalls.begin(), View.previewWalls.end(),

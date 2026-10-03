@@ -125,7 +125,7 @@ namespace f101::cad
 		Level level;
 	};
 
-	// Removes a level with every wall and piece of furniture on it; the levels above move down. The last level cannot be
+	// Removes a level with every wall, piece of furniture, column and service run on it; the levels above move down. The last level cannot be
 	// removed.
 	struct DeleteLevelCommand
 	{
@@ -170,11 +170,46 @@ namespace f101::cad
 		AssetId asset;
 	};
 
+	// Adds a column (ADR-0021); a new id is assigned (the given one is ignored), and a nil level is the first one.
+	struct AddColumnCommand
+	{
+		Column column;
+	};
+
+	// Replaces the column with the same id: level, place, shape, size, rotation and finish.
+	struct ChangeColumnCommand
+	{
+		Column column;
+	};
+
+	struct DeleteColumnCommand
+	{
+		ColumnId column;
+	};
+
+	// Adds a run of a building service (ADR-0021); a new id is assigned, and a nil level is the first one.
+	struct AddServiceRunCommand
+	{
+		ServiceRun run;
+	};
+
+	// Replaces the run with the same id: level, kind and points.
+	struct ChangeServiceRunCommand
+	{
+		ServiceRun run;
+	};
+
+	struct DeleteServiceRunCommand
+	{
+		ServiceRunId run;
+	};
+
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
 		SetRoomFinishCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
-		ChangeAssetCommand, DeleteAssetCommand>;
+		ChangeAssetCommand, DeleteAssetCommand, AddColumnCommand, ChangeColumnCommand, DeleteColumnCommand,
+		AddServiceRunCommand, ChangeServiceRunCommand, DeleteServiceRunCommand>;
 
 	// Short name for undo/redo UI, e.g. "Create wall".
 	FLOOR101CADCORE_API std::string_view commandLabel(const Command& command);
@@ -225,6 +260,23 @@ namespace f101::cad
 		std::optional<Asset> after;
 	};
 
+	// Same for a column and for a run of a building service (ADR-0021).
+	struct ColumnChange
+	{
+		ColumnId id;
+		std::size_t index = 0;
+		std::optional<Column> before;
+		std::optional<Column> after;
+	};
+
+	struct ServiceRunChange
+	{
+		ServiceRunId id;
+		std::size_t index = 0;
+		std::optional<ServiceRun> before;
+		std::optional<ServiceRun> after;
+	};
+
 	// A validated, reversible edit (ADR-0006): undo applies the `before` states, redo the `after` states.
 	struct Transaction
 	{
@@ -234,10 +286,13 @@ namespace f101::cad
 		std::vector<RoomFinishChange> roomFinishes;
 		std::vector<FurnitureChange> furniture;
 		std::vector<AssetChange> assets;
+		std::vector<ColumnChange> columns;
+		std::vector<ServiceRunChange> services;
 
 		bool empty() const
 		{
-			return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty() && assets.empty();
+			return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty() && assets.empty() && columns.empty() &&
+				services.empty();
 		}
 	};
 
@@ -257,6 +312,12 @@ namespace f101::cad
 		std::vector<AssetId> addedAssets;
 		std::vector<AssetId> modifiedAssets;
 		std::vector<AssetId> removedAssets;
+		std::vector<ColumnId> addedColumns;
+		std::vector<ColumnId> modifiedColumns;
+		std::vector<ColumnId> removedColumns;
+		std::vector<ServiceRunId> addedServiceRuns;
+		std::vector<ServiceRunId> modifiedServiceRuns;
+		std::vector<ServiceRunId> removedServiceRuns;
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;
@@ -296,6 +357,8 @@ namespace f101::cad
 		FLOOR101CADCORE_API Result<LevelId> addLevel(std::int64_t heightMm = DefaultLevelHeightMm,
 			std::int64_t slabThicknessMm = DefaultSlabThicknessMm);
 		FLOOR101CADCORE_API Result<FurnitureId> addFurniture(const Furniture& furniture);
+		FLOOR101CADCORE_API Result<ColumnId> addColumn(const Column& column);
+		FLOOR101CADCORE_API Result<ServiceRunId> addServiceRun(const ServiceRun& run);
 
 		// Openings added or changed must stay clear of the walls joined to their host (ADR-0013), pockets of sliding doors
 		// included (ADR-0014). The Geometry Engine provides the spans (geometry::makeWallObstructions); without it only the
@@ -324,8 +387,8 @@ namespace f101::cad
 		WallObstructions obstructions;
 	};
 
-	// Checks a whole project: at least one level, every level, wall, piece of furniture and asset valid, every id unique,
-	// every wall and piece of furniture on an existing level, every imported texture and model they use in the project
+	// Checks a whole project: at least one level, every level, wall, piece of furniture, asset, column and service run valid,
+	// every id unique, every wall, piece of furniture, column and run on an existing level, every imported texture and model they use in the project
 	// (and allowing that surface), and the top of the building inside the model range.
 	FLOOR101CADCORE_API Status validateProject(const Project& project);
 }

@@ -37,6 +37,16 @@ namespace f101::cad
 			return Error{ErrorCode::NotFound, "No asset with id " + toString(id)};
 		}
 
+		Error columnNotFound(const ColumnId& id)
+		{
+			return Error{ErrorCode::NotFound, "No column with id " + toString(id)};
+		}
+
+		Error serviceRunNotFound(const ServiceRunId& id)
+		{
+			return Error{ErrorCode::NotFound, "No service run with id " + toString(id)};
+		}
+
 		// The imported textures a wall uses exist and allow its faces and its openings' carpentry (ADR-0017).
 		Status validateWallFinishesIn(const Project& project, const Wall& wall)
 		{
@@ -84,6 +94,8 @@ namespace f101::cad
 		const std::string& keyOf(const RoomFinish& finish) { return finish.room; }
 		const FurnitureId& keyOf(const Furniture& furniture) { return furniture.id; }
 		const AssetId& keyOf(const Asset& asset) { return asset.id; }
+		const ColumnId& keyOf(const Column& column) { return column.id; }
+		const ServiceRunId& keyOf(const ServiceRun& run) { return run.id; }
 
 		template <typename Entity, typename Id>
 		std::optional<std::size_t> findIndex(const std::vector<Entity>& entities, const Id& id)
@@ -165,6 +177,8 @@ namespace f101::cad
 			sortChanges(transaction.furniture, forward, changes.addedFurniture, changes.modifiedFurniture,
 				changes.removedFurniture);
 			sortChanges(transaction.assets, forward, changes.addedAssets, changes.modifiedAssets, changes.removedAssets);
+			sortChanges(transaction.columns, forward, changes.addedColumns, changes.modifiedColumns, changes.removedColumns);
+			sortChanges(transaction.services, forward, changes.addedServiceRuns, changes.modifiedServiceRuns, changes.removedServiceRuns);
 			return changes;
 		}
 
@@ -234,6 +248,12 @@ namespace f101::cad
 			std::string_view operator()(const AddAssetCommand&) const { return "Import asset"; }
 			std::string_view operator()(const ChangeAssetCommand&) const { return "Change asset"; }
 			std::string_view operator()(const DeleteAssetCommand&) const { return "Delete asset"; }
+			std::string_view operator()(const AddColumnCommand&) const { return "Add column"; }
+			std::string_view operator()(const ChangeColumnCommand&) const { return "Change column"; }
+			std::string_view operator()(const DeleteColumnCommand&) const { return "Delete column"; }
+			std::string_view operator()(const AddServiceRunCommand&) const { return "Add service run"; }
+			std::string_view operator()(const ChangeServiceRunCommand&) const { return "Change service run"; }
+			std::string_view operator()(const DeleteServiceRunCommand&) const { return "Delete service run"; }
 		};
 	}
 
@@ -337,6 +357,38 @@ namespace f101::cad
 			if (!project.findLevel(piece.level))
 			{
 				return Error{ErrorCode::InvalidArgument, "Furniture " + toString(piece.id) + " is not on a level of the project"};
+			}
+		}
+		std::set<ColumnId> columnIds;
+		for (const Column& column : project.columns)
+		{
+			if (Status valid = validateColumnIn(project, column); !valid)
+			{
+				return valid;
+			}
+			if (column.id.isNil() || !columnIds.insert(column.id).second)
+			{
+				return Error{ErrorCode::InvalidArgument, "Duplicate or nil column id " + toString(column.id)};
+			}
+			if (!project.findLevel(column.level))
+			{
+				return Error{ErrorCode::InvalidArgument, "Column " + toString(column.id) + " is not on a level of the project"};
+			}
+		}
+		std::set<ServiceRunId> runIds;
+		for (const ServiceRun& run : project.services)
+		{
+			if (Status valid = validateServiceRun(run); !valid)
+			{
+				return valid;
+			}
+			if (run.id.isNil() || !runIds.insert(run.id).second)
+			{
+				return Error{ErrorCode::InvalidArgument, "Duplicate or nil service run id " + toString(run.id)};
+			}
+			if (!project.findLevel(run.level))
+			{
+				return Error{ErrorCode::InvalidArgument, "Service run " + toString(run.id) + " is not on a level of the project"};
 			}
 		}
 		return Status::success();
@@ -591,6 +643,128 @@ namespace f101::cad
 						FurnitureChange{model.furniture[piece].id, piece, model.furniture[piece], std::nullopt});
 				}
 			}
+			for (std::size_t column = 0; column < model.columns.size(); ++column)
+			{
+				if (model.columns[column].level == removal->level)
+				{
+					transaction.columns.push_back(ColumnChange{model.columns[column].id, column, model.columns[column], std::nullopt});
+				}
+			}
+			for (std::size_t run = 0; run < model.services.size(); ++run)
+			{
+				if (model.services[run].level == removal->level)
+				{
+					transaction.services.push_back(ServiceRunChange{model.services[run].id, run, model.services[run], std::nullopt});
+				}
+			}
+			return transaction;
+		}
+		if (const auto* add = std::get_if<AddColumnCommand>(&command))
+		{
+			Column column = add->column;
+			column.id = ColumnId{newUuid()};
+			const Result<LevelId> level = resolveLevel(model, column.level);
+			if (!level)
+			{
+				return level.error();
+			}
+			column.level = level.value();
+			if (Status valid = validateColumnIn(model, column); !valid)
+			{
+				return valid.error();
+			}
+			Transaction transaction{label, {}, {}, {}};
+			transaction.columns.push_back(ColumnChange{column.id, model.columns.size(), std::nullopt, column});
+			return transaction;
+		}
+		if (const auto* change = std::get_if<ChangeColumnCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.columns, change->column.id);
+			if (!index)
+			{
+				return columnNotFound(change->column.id);
+			}
+			Column column = change->column;
+			const Result<LevelId> level = resolveLevel(model, column.level);
+			if (!level)
+			{
+				return level.error();
+			}
+			column.level = level.value();
+			if (Status valid = validateColumnIn(model, column); !valid)
+			{
+				return valid.error();
+			}
+			Transaction transaction{label, {}, {}, {}};
+			if (!(column == model.columns[*index]))
+			{
+				transaction.columns.push_back(ColumnChange{column.id, *index, model.columns[*index], column});
+			}
+			return transaction;
+		}
+		if (const auto* removal = std::get_if<DeleteColumnCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.columns, removal->column);
+			if (!index)
+			{
+				return columnNotFound(removal->column);
+			}
+			Transaction transaction{label, {}, {}, {}};
+			transaction.columns.push_back(ColumnChange{removal->column, *index, model.columns[*index], std::nullopt});
+			return transaction;
+		}
+		if (const auto* add = std::get_if<AddServiceRunCommand>(&command))
+		{
+			ServiceRun run = add->run;
+			run.id = ServiceRunId{newUuid()};
+			const Result<LevelId> level = resolveLevel(model, run.level);
+			if (!level)
+			{
+				return level.error();
+			}
+			run.level = level.value();
+			if (Status valid = validateServiceRun(run); !valid)
+			{
+				return valid.error();
+			}
+			Transaction transaction{label, {}, {}, {}};
+			transaction.services.push_back(ServiceRunChange{run.id, model.services.size(), std::nullopt, run});
+			return transaction;
+		}
+		if (const auto* change = std::get_if<ChangeServiceRunCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.services, change->run.id);
+			if (!index)
+			{
+				return serviceRunNotFound(change->run.id);
+			}
+			ServiceRun run = change->run;
+			const Result<LevelId> level = resolveLevel(model, run.level);
+			if (!level)
+			{
+				return level.error();
+			}
+			run.level = level.value();
+			if (Status valid = validateServiceRun(run); !valid)
+			{
+				return valid.error();
+			}
+			Transaction transaction{label, {}, {}, {}};
+			if (!(run == model.services[*index]))
+			{
+				transaction.services.push_back(ServiceRunChange{run.id, *index, model.services[*index], run});
+			}
+			return transaction;
+		}
+		if (const auto* removal = std::get_if<DeleteServiceRunCommand>(&command))
+		{
+			const std::optional<std::size_t> index = findIndex(model.services, removal->run);
+			if (!index)
+			{
+				return serviceRunNotFound(removal->run);
+			}
+			Transaction transaction{label, {}, {}, {}};
+			transaction.services.push_back(ServiceRunChange{removal->run, *index, model.services[*index], std::nullopt});
 			return transaction;
 		}
 		if (const auto* add = std::get_if<AddFurnitureCommand>(&command))
@@ -869,6 +1043,22 @@ namespace f101::cad
 		{
 			changes.addedAssets.push_back(asset.id);
 		}
+		for (const Column& column : model.columns)
+		{
+			changes.removedColumns.push_back(column.id);
+		}
+		for (const Column& column : replacement.columns)
+		{
+			changes.addedColumns.push_back(column.id);
+		}
+		for (const ServiceRun& run : model.services)
+		{
+			changes.removedServiceRuns.push_back(run.id);
+		}
+		for (const ServiceRun& run : replacement.services)
+		{
+			changes.addedServiceRuns.push_back(run.id);
+		}
 		model = std::move(replacement);
 		undoStack.clear();
 		redoStack.clear();
@@ -939,6 +1129,26 @@ namespace f101::cad
 		return applied.value().furniture.front().id;
 	}
 
+	Result<ColumnId> Document::addColumn(const Column& column)
+	{
+		const Result<Transaction> applied = execute(AddColumnCommand{column});
+		if (!applied)
+		{
+			return applied.error();
+		}
+		return applied.value().columns.front().id;
+	}
+
+	Result<ServiceRunId> Document::addServiceRun(const ServiceRun& run)
+	{
+		const Result<Transaction> applied = execute(AddServiceRunCommand{run});
+		if (!applied)
+		{
+			return applied.error();
+		}
+		return applied.value().services.front().id;
+	}
+
 	void Document::apply(const Transaction& transaction, bool forward)
 	{
 		// Levels and assets first: walls, finishes and furniture being restored refer to them.
@@ -947,6 +1157,8 @@ namespace f101::cad
 		applyChanges(model.walls, transaction.walls, forward);
 		applyChanges(model.roomFinishes, transaction.roomFinishes, forward);
 		applyChanges(model.furniture, transaction.furniture, forward);
+		applyChanges(model.columns, transaction.columns, forward);
+		applyChanges(model.services, transaction.services, forward);
 		notify(changeSetOf(transaction, forward));
 	}
 

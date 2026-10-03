@@ -20,6 +20,8 @@ const FName UFloor101FinishLibrary::RepeatUParameter(TEXT("RepeatU"));
 const FName UFloor101FinishLibrary::RepeatVParameter(TEXT("RepeatV"));
 const FName UFloor101FinishLibrary::OpacityParameter(TEXT("Opacity"));
 const FLinearColor UFloor101FinishLibrary::ContextTint(0.42f, 0.44f, 0.48f);
+const FLinearColor UFloor101FinishLibrary::GhostTint(0.62f, 0.68f, 0.76f);
+const float UFloor101FinishLibrary::GhostOpacity = 0.12f;
 
 namespace
 {
@@ -99,6 +101,23 @@ UMaterialInterface* UFloor101FinishLibrary::GetGlassMaterial()
 		}
 	}
 	return GlassMaterial;
+}
+
+UMaterialInterface* UFloor101FinishLibrary::GetGhostMaterial()
+{
+	if (!GhostMaterial)
+	{
+		UMaterialInterface* Glass = GetGlassMaterial();
+		if (!Glass)
+		{
+			return nullptr;
+		}
+		GhostMaterial = UMaterialInstanceDynamic::Create(Glass, this, TEXT("MI_Floor101Ghost"));
+		GhostMaterial->SetVectorParameterValue(TintParameter, GhostTint);
+		GhostMaterial->SetScalarParameterValue(OpacityParameter, GhostOpacity);
+		GhostMaterial->SetScalarParameterValue(RoughnessParameter, 0.6f);
+	}
+	return GhostMaterial;
 }
 
 UTexture2D* UFloor101FinishLibrary::GetImageTexture(const FString& Path, bool bFlip, float RepeatUMeters, float RepeatVMeters,

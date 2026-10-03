@@ -36,12 +36,19 @@ namespace f101::exporters
 		std::string slabs = "Slabs";
 		std::string openings = "Doors and windows";
 		std::string furniture = "Furniture";
+		std::string columns = "Columns";
+		std::string services = "Building services";
 		std::string wall = "Wall";
 		std::string joint = "Joint";
 		std::string floor = "Floor";
 		std::string slab = "Slab";
 		std::string door = "Door";
 		std::string window = "Window";
+		std::string column = "Column";
+		std::string electrical = "Electrical"; // runs of each kind (ADR-0021)
+		std::string water = "Water supply";
+		std::string sewage = "Sewage";
+		std::string gas = "Gas";
 		// Catalogue finishes and furniture types by id; an id without a name is shown as is. Imported assets show their
 		// own names.
 		std::map<std::string, std::string, std::less<>> finishNames;
@@ -81,8 +88,9 @@ namespace f101::exporters
 	};
 
 	// Writes `scene` as binary glTF 2.0: a root node, one node per level of `project` (bottom to top) with a group per
-	// kind (walls and joints, floors, slabs, doors and windows, furniture), and one node per scene node with a mesh of one
-	// primitive per section. Node names are stable and unique ("Wall 3f2a9c1e", "Sofa 7117ade1"); the scene node id,
+	// kind (walls and joints, floors, slabs, doors and windows, furniture, columns, building services), and one node per
+	// scene node with a mesh of one primitive per section. Node names are stable and unique ("Wall 3f2a9c1e", "Sofa
+	// 7117ade1", "Gas 0c4e81d2"); the scene node id,
 	// finish id and level id go in `extras` (f101NodeId, f101FinishId, f101LevelId) so a tool can match them on reimport.
 	// One material per finish id in order of first use; images are shared when their bytes are equal. Deterministic.
 	FLOOR101EXPORTERS_API GltfExport writeGlb(const scene::Scene& scene, const cad::Project& project,

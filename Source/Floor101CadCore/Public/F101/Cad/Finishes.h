@@ -26,6 +26,7 @@ namespace f101::cad
 		Carpentry = 8, // frames and leaves of doors and windows (ADR-0013)
 		Glazing = 16,  // window panes
 		Furniture = 32, // furniture and fittings (ADR-0016)
+		Services = 64,  // pipes and conduits of the building services (ADR-0021): their kind's colour, never chosen
 	};
 
 	enum class FinishPattern
@@ -50,6 +51,7 @@ namespace f101::cad
 		Joinery,  // lacquers and metals for doors, windows and furniture
 		Fabric,   // upholstery and bedding
 		Glass,
+		Services, // the colours of the building services' pipes (ADR-0021)
 	};
 
 	struct Rgb8
@@ -87,7 +89,7 @@ namespace f101::cad
 	// Door handles and other fittings (not chosen by the user).
 	inline constexpr std::string_view HardwareFinish = "aluminium-anthracite";
 
-	// "paint", "tiles", "wood", "stone", "textile", "joinery", "fabric", "glass" (library files).
+	// "paint", "tiles", "wood", "stone", "textile", "joinery", "fabric", "glass", "services" (library files).
 	FLOOR101CADCORE_API std::string_view finishCategoryId(FinishCategory category);
 	FLOOR101CADCORE_API std::optional<FinishCategory> parseFinishCategory(std::string_view id);
 

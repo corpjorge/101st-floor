@@ -4,7 +4,10 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+#include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -89,6 +92,11 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("O: window"), Map(EKeys::O) == Command::WindowTool);
 	TestTrue(TEXT("M: paint"), Map(EKeys::M) == Command::PaintTool);
 	TestTrue(TEXT("A: furniture"), Map(EKeys::A) == Command::FurnitureTool);
+	TestTrue(TEXT("C: column"), Map(EKeys::C) == Command::ColumnTool);
+	TestTrue(TEXT("I: services run"), Map(EKeys::I) == Command::ServicesTool);
+	TestTrue(TEXT("X: services layer"), Map(EKeys::X) == Command::ServicesLayer);
+	TestTrue(TEXT("C typed in a length is text ('355 cm')"),
+		UFloor101GameViewportClient::MapKey(EKeys::C, false, false, false, true) == Command::None);
 	TestTrue(TEXT("Ctrl+O is still open"), Map(EKeys::O, true) == Command::Open);
 	TestTrue(TEXT("Esc: cancel"), Map(EKeys::Escape) == Command::Cancel);
 	TestTrue(TEXT("Enter: confirm"), Map(EKeys::Enter) == Command::Confirm);
@@ -750,13 +758,133 @@ bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Furniture"), TEXT("project.json")));
 	TestTrue(TEXT("saved"), Document->SaveProject(Path).ok());
 	FString Json;
-	TestTrue(TEXT("schema 9 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 9")) &&
+	TestTrue(TEXT("schema 10 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 10")) &&
 		Json.Contains(TEXT("\"type\": \"sofa\"")));
 	TestTrue(TEXT("removed before opening"), Document->GetMutableDocument().execute(f101::cad::DeleteFurnitureCommand{Sofa}).ok());
 	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
 	TestTrue(TEXT("the sofa is back from the file"), Document->GetDocument().project().findFurniture(Sofa) != nullptr);
 	TestNotNull(TEXT("with its actor"), FindNode(TestWorld.World, NodeId));
 	IFileManager::Get().DeleteDirectory(*FPaths::GetPath(Path), false, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ServicesInteractionTest, "Floor101.Interaction.Services", TestFlags)
+bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("document subsystem"), Document) || !TestNotNull(TEXT("finish library"), Library))
+	{
+		return false;
+	}
+	// The map's own ground, like the template's floor.
+	AStaticMeshActor* Ground = TestWorld.World->SpawnActor<AStaticMeshActor>();
+	UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+	UMaterialInterface* GroundMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/WorldGridMaterial.WorldGridMaterial"));
+	if (!TestNotNull(TEXT("ground"), Ground) || !TestNotNull(TEXT("plane mesh"), Plane) || !TestNotNull(TEXT("ground material"), GroundMaterial))
+	{
+		return false;
+	}
+	Ground->GetStaticMeshComponent()->SetStaticMesh(Plane);
+	Ground->GetStaticMeshComponent()->SetMaterial(0, GroundMaterial);
+	const f101::cad::WallId Wall = Document->GetMutableDocument().addWall({0, 0}, {4000, 0}, 120, 2800).value();
+	const AFloor101SceneNodeActor* WallActor = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Wall));
+	if (!TestNotNull(TEXT("the wall's actor"), WallActor))
+	{
+		return false;
+	}
+	UMaterialInterface* const Plaster = WallActor->GetDisplayMaterial();
+
+	// Column mode (C): the preview snaps to the wall's end; a click places a concrete column as tall as the level.
+	(void)Document->Edit([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Column); return f101::Status::success(); });
+	Document->UpdatePointer(Down(3920.0, 90.0));
+	TestNotNull(TEXT("previewed"), FindNode(TestWorld.World, TEXT("preview/column/0")));
+	TestTrue(TEXT("click places it"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(3920.0, 90.0)); }).ok());
+	const std::vector<f101::cad::Column>& Columns = Document->GetDocument().project().columns;
+	if (!TestEqual(TEXT("one column"), static_cast<int32>(Columns.size()), 1))
+	{
+		return false;
+	}
+	const f101::cad::ColumnId Column = Columns[0].id;
+	TestTrue(TEXT("on the wall's end"), Columns[0].position == f101::cad::Point2D{4000, 0});
+	const AFloor101SceneNodeActor* ColumnActor = Cast<AFloor101SceneNodeActor>(Document->FindColumnActor(Column));
+	if (!TestNotNull(TEXT("its actor"), ColumnActor))
+	{
+		return false;
+	}
+	TestEqual(TEXT("30 cm wide"), ColumnActor->GetMeshBounds().GetSize().X, 30.0, 1e-6);
+	TestEqual(TEXT("as tall as the level"), ColumnActor->GetMeshBounds().GetSize().Z, 280.0, 1e-6);
+	TestTrue(TEXT("in concrete"), ColumnActor->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("concrete")));
+
+	// Services mode (I) shows the layer: the walls see-through. A run in three clicks, the last one twice (a double click).
+	(void)Document->Edit([](EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Services);
+		return Editor.setServiceKind(f101::cad::ServiceKind::Electrical);
+	});
+	TestTrue(TEXT("the layer is on"), Document->GetEditController().showsServices());
+	TestTrue(TEXT("the wall is a ghost"), WallActor->GetDisplayMaterial() == Library->GetGhostMaterial() && Library->GetGhostMaterial() != nullptr);
+	TestTrue(TEXT("the column stays solid"), ColumnActor->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("concrete")));
+	TestTrue(TEXT("the map's ground too is a ghost, for the runs under the ground floor"),
+		Ground->GetStaticMeshComponent()->GetMaterial(0) == Library->GetGhostMaterial());
+	for (const FVector2D& At : {FVector2D(500.0, 600.0), FVector2D(3500.0, 600.0), FVector2D(3500.0, 600.0)})
+	{
+		Document->UpdatePointer(Down(At.X, At.Y));
+		TestTrue(TEXT("click"), Document->Edit([&At](EditController& Editor) { return Editor.pointerPressed(Down(At.X, At.Y)); }).ok());
+		TestTrue(TEXT("release"), Document->Edit([&At](EditController& Editor) { return Editor.pointerReleased(Down(At.X, At.Y)); }).ok());
+	}
+	const std::vector<f101::cad::ServiceRun>& Runs = Document->GetDocument().project().services;
+	if (!TestEqual(TEXT("one run"), static_cast<int32>(Runs.size()), 1))
+	{
+		return false;
+	}
+	const f101::cad::ServiceRunId Run = Runs[0].id;
+	TestTrue(TEXT("two points at 30 cm"), Runs[0].points == std::vector<f101::cad::ServicePoint>{{500, 600, 300}, {3500, 600, 300}});
+	TestEqual(TEXT("one undoable step"), FString(UTF8_TO_TCHAR(std::string(Document->GetDocument().undoLabel()).c_str())), FString(TEXT("Add service run")));
+	const AFloor101SceneNodeActor* RunActor = Cast<AFloor101SceneNodeActor>(Document->FindServiceRunActor(Run));
+	if (!TestNotNull(TEXT("the run's actor"), RunActor))
+	{
+		return false;
+	}
+	TestTrue(TEXT("green"), RunActor->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("service-electrical")));
+	TestEqual(TEXT("300 cm long"), RunActor->GetMeshBounds().GetSize().X, 300.0, 1e-6);
+	TestEqual(TEXT("at 30 cm"), RunActor->GetMeshBounds().GetCenter().Z, 30.0, 0.01);
+
+	// The plan draws the column and, with the layer, the run; so does the exported SVG.
+	Document->SetPlanView(true);
+	const f101::drawing::PlanDrawing& Plan = Document->GetPlanDrawing();
+	TestTrue(TEXT("the run on the plan"), std::any_of(Plan.strokes.begin(), Plan.strokes.end(),
+		[](const f101::drawing::Stroke& Stroke) { return Stroke.ink == f101::drawing::Ink::ServiceElectrical; }));
+	Document->SetPlanView(false);
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Services")));
+	const FString SvgPath = FPaths::Combine(Folder, TEXT("plano.svg"));
+	FString Svg;
+	TestTrue(TEXT("plan exported"), Document->ExportPlan(SvgPath, f101::cad::LevelId()).ok() && FFileHelper::LoadFileToString(Svg, *SvgPath));
+	TestTrue(TEXT("with the green run"), Svg.Contains(TEXT("#2e9c48")));
+
+	// X hides the layer: no run, the wall solid again; selecting the run shows it again.
+	(void)Document->Edit([](EditController& Editor) { Editor.setShowServices(false); return f101::Status::success(); });
+	TestNull(TEXT("the run is hidden"), Document->FindServiceRunActor(Run));
+	TestTrue(TEXT("the wall is solid"), WallActor->GetDisplayMaterial() == Plaster);
+	TestTrue(TEXT("the ground has its material back"), Ground->GetStaticMeshComponent()->GetMaterial(0) == GroundMaterial);
+	TestTrue(TEXT("select the run"), Document->Edit([Run](EditController& Editor) { return Editor.selectServiceRun(Run); }).ok());
+	TestNotNull(TEXT("shown again"), Document->FindServiceRunActor(Run));
+	TestTrue(TEXT("tinted as selected"), Cast<AFloor101SceneNodeActor>(Document->FindServiceRunActor(Run))->GetDisplayMaterial() !=
+		Library->GetFinishMaterial(TEXT("service-electrical")));
+	TestTrue(TEXT("turned to water"), Document->Edit([](EditController& Editor) { return Editor.setServiceRunKind(f101::cad::ServiceKind::Water); }).ok());
+
+	// Saved and opened with the project.
+	const FString Path = FPaths::Combine(Folder, TEXT("project.json"));
+	TestTrue(TEXT("saved"), Document->SaveProject(Path).ok());
+	FString Json;
+	TestTrue(TEXT("schema 10 with the column and the run"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 10")) &&
+		Json.Contains(TEXT("\"columns\"")) && Json.Contains(TEXT("\"kind\": \"water\"")));
+	TestTrue(TEXT("removed before opening"), Document->GetMutableDocument().execute(f101::cad::DeleteColumnCommand{Column}).ok());
+	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
+	TestNotNull(TEXT("the column is back"), Document->FindColumnActor(Column));
+	TestTrue(TEXT("the run is back"), Document->GetDocument().project().findServiceRun(Run) != nullptr);
+	IFileManager::Get().DeleteDirectory(*Folder, false, true);
 	return true;
 }
 
@@ -862,8 +990,8 @@ bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("saved elsewhere"), Document->SaveProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
 	TestTrue(TEXT("the texture went along"), !TextureFile.IsEmpty() && FPaths::FileExists(FPaths::Combine(Moved, TextureFile)));
 	FString Json;
-	TestTrue(TEXT("schema 9 with its assets"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Moved, TEXT("project.json"))) &&
-		Json.Contains(TEXT("\"schemaVersion\": 9")) && Json.Contains(TEXT("\"file\": \"assets/")));
+	TestTrue(TEXT("schema 10 with its assets"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Moved, TEXT("project.json"))) &&
+		Json.Contains(TEXT("\"schemaVersion\": 10")) && Json.Contains(TEXT("\"file\": \"assets/")));
 	TestTrue(TEXT("opened again"), Document->OpenProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
 	TestEqual(TEXT("three assets"), static_cast<int32>(Document->GetDocument().project().assets.size()), 3);
 	TestTrue(TEXT("the model still shows"), Document->GetAssetProblem(Armchair.value()).IsEmpty() &&

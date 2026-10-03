@@ -68,6 +68,11 @@ ADR-0019: muebles y texturas con categoría, medidas y autor; `AddFromLibrary` c
 o devuelve el ya añadido, y su `Ref` vale como tipo de mueble o acabado; `GetFinishes` y `GetFurnitureTypes` informan
 `Category`), `ExportGltf` (todo el proyecto como `.glb` para Twinmotion, ADR-0020; ruta vacía = `<proyecto>.glb`
 junto al proyecto; devuelve ruta, objetos, materiales, imágenes, triángulos, bytes y avisos; otra extensión falla),
+`GetColumns`/`AddColumn`/`SetColumn`/`SetColumnFinish`/`RemoveColumn` (pilares, ADR-0021: rectangulares o redondos,
+centro, ancho y fondo o diámetro, giro y acabado de muro; ancho 0 = 30 cm), `GetServiceRuns`/`AddServiceRun`/
+`SetServiceRun`/`RemoveServiceRun` (tramos de electricidad, agua, aguas negras o gas por sus puntos `XMm, YMm, ZMm`, con
+z sobre el suelo de su planta; devuelven longitud y diámetro), `SetServicesView` (la capa de instalaciones: sin ella los
+tramos no tienen actor; `GetFinishes` informa `bForServices`),
 `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`

@@ -103,7 +103,20 @@ namespace f101::cad
 		{
 			uses += static_cast<std::size_t>(piece.type == ref) + static_cast<std::size_t>(piece.finish == ref);
 		}
+		for (const Column& column : project.columns)
+		{
+			uses += static_cast<std::size_t>(column.finish == ref);
+		}
 		return uses;
+	}
+
+	Status validateColumnIn(const Project& project, const Column& column)
+	{
+		if (Status valid = validateColumn(column); !valid)
+		{
+			return valid;
+		}
+		return validateFinishIn(project, column.finish, Surface::Wall);
 	}
 
 	std::int64_t levelElevationMm(const Project& project, const LevelId& level)
