@@ -46,7 +46,9 @@ suelo y por el techo, así que hay que poder verlas a través de la arquitectura
   altura a mitad sube o baja en vertical. En Seleccionar, un pilar se selecciona antes que el muro en el que está y se
   arrastra con el mismo ajuste; con la capa, una tubería se selecciona a través de los muros (radio + 80 mm), se
   arrastra entera por la rejilla y sus asas mueven un codo (con su subida). Propiedades: forma, medidas, giro y acabado
-  del pilar; tipo de la tubería. **X** muestra u oculta la capa.
+  del pilar; tipo de la tubería. **X** muestra u oculta la capa; con ella, cada red se ve u oculta por separado
+  (`ServiceKindSet` en la vista; fila "Redes" con Todas y Ninguna, 2026-10-02): el 3D, el plano 2D y el plano exportado
+  la siguen, una red oculta no se selecciona, y dibujar, seleccionar o cambiar el tipo de una tubería muestra su red.
 - **Unreal:** estilo `Ghost` con `MI_Floor101Ghost` (el vidrio generado, gris azulado, opacidad 0,12, sin sombras); con
   la capa, el suelo propio del mapa (sus `AStaticMeshActor`) toma el mismo material para que se vean los tramos bajo la
   planta baja, y recupera los suyos al quitarla. El doble clic llega al controlador como su propio evento
@@ -56,7 +58,8 @@ suelo y por el techo, así que hay que poder verlas a través de la arquitectura
 - **Exportación glTF:** grupos "Pilares" e "Instalaciones" por planta; objetos "Pilar 3f2a9c1e", "Gas 0c4e81d2";
   materiales con los nombres de la UI ("Hormigón visto", "Tubo de gas dorado"…).
 - **MCP:** `GetColumns`, `AddColumn`, `SetColumn`, `SetColumnFinish`, `RemoveColumn`, `GetServiceRuns`,
-  `AddServiceRun`, `SetServiceRun`, `RemoveServiceRun`, `SetServicesView`; `GetFinishes` indica `bForServices`.
+  `AddServiceRun`, `SetServiceRun`, `RemoveServiceRun`, `SetServicesView` (capa y redes que muestra), `GetServicesView`;
+  `GetFinishes` indica `bForServices`.
 
 ## Consecuencias
 - Los pilares no cortan habitaciones ni se unen a muros: se dibujan encima; el área de la habitación no los descuenta.

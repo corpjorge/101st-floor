@@ -16,6 +16,7 @@
 #include "F101/Cad/EditController.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101EditingPawn.h"
+#include "Floor101FileActions.h"
 #include "Floor101FinishLibrary.h"
 #include "Floor101GameViewportClient.h"
 #include "Floor101SceneNodeActor.h"
@@ -117,6 +118,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Ctrl+Shift+Z: redo"), Map(EKeys::Z, true, true) == Command::Redo);
 	TestTrue(TEXT("Ctrl+Y: redo"), Map(EKeys::Y, true) == Command::Redo);
 	TestTrue(TEXT("Ctrl+S: save"), Map(EKeys::S, true) == Command::Save);
+	TestTrue(TEXT("Ctrl+Shift+S: save as"), Map(EKeys::S, true, true) == Command::SaveAs);
 	TestTrue(TEXT("Ctrl+O: open"), Map(EKeys::O, true) == Command::Open);
 	TestTrue(TEXT("Ctrl+W is not W"), Map(EKeys::W, true) == Command::None);
 	TestTrue(TEXT("held Backspace repeats"), Map(EKeys::BackSpace, false, false, true) == Command::Backspace);
@@ -865,6 +867,28 @@ bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("plan exported"), Document->ExportPlan(SvgPath, f101::cad::LevelId()).ok() && FFileHelper::LoadFileToString(Svg, *SvgPath));
 	TestTrue(TEXT("with the green run"), Svg.Contains(TEXT("#2e9c48")));
 
+	// Each network can be hidden: without electricity, no green run in 3D, in the plan or in the exported plan.
+	(void)Document->Edit([](EditController& Editor)
+	{
+		Editor.setServiceKindShown(f101::cad::ServiceKind::Electrical, false);
+		return f101::Status::success();
+	});
+	TestNull(TEXT("the wiring is hidden"), Document->FindServiceRunActor(Run));
+	TestTrue(TEXT("the walls stay see-through"), WallActor->GetDisplayMaterial() == Library->GetGhostMaterial());
+	Document->SetPlanView(true);
+	TestFalse(TEXT("nor on the plan"), std::any_of(Plan.strokes.begin(), Plan.strokes.end(),
+		[](const f101::drawing::Stroke& Stroke) { return Stroke.ink == f101::drawing::Ink::ServiceElectrical; }));
+	Document->SetPlanView(false);
+	FString SvgWithout;
+	TestTrue(TEXT("plan exported without it"), Document->ExportPlan(SvgPath, f101::cad::LevelId()).ok() &&
+		FFileHelper::LoadFileToString(SvgWithout, *SvgPath) && !SvgWithout.Contains(TEXT("#2e9c48")));
+	(void)Document->Edit([](EditController& Editor)
+	{
+		Editor.setServiceKindShown(f101::cad::ServiceKind::Electrical, true);
+		return f101::Status::success();
+	});
+	TestNotNull(TEXT("shown again"), Document->FindServiceRunActor(Run));
+
 	// X hides the layer: no run, the wall solid again; selecting the run shows it again.
 	(void)Document->Edit([](EditController& Editor) { Editor.setShowServices(false); return f101::Status::success(); });
 	TestNull(TEXT("the run is hidden"), Document->FindServiceRunActor(Run));
@@ -886,6 +910,46 @@ bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
 	TestNotNull(TEXT("the column is back"), Document->FindColumnActor(Column));
 	TestTrue(TEXT("the run is back"), Document->GetDocument().project().findServiceRun(Run) != nullptr);
+	IFileManager::Get().DeleteDirectory(*Folder, false, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FilePathsTest, "Floor101.Interaction.FilePaths", TestFlags)
+bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document))
+	{
+		return false;
+	}
+	// The user's own remembered places are put back at the end.
+	const FString UserProject = FFloor101FileActions::GetLastProjectPath();
+	const FString UserTwinmotion = FFloor101FileActions::GetLastTwinmotionFolder();
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101FilePaths")));
+	const FString Path = FPaths::Combine(Folder, TEXT("mi casa.json"));
+
+	// Remembered between sessions (the user's settings).
+	FFloor101FileActions::RememberProjectPath(Path);
+	FFloor101FileActions::RememberTwinmotionFolder(Folder);
+	TestEqual(TEXT("project remembered"), FFloor101FileActions::GetLastProjectPath(), Path);
+	TestEqual(TEXT("Twinmotion folder remembered"), FFloor101FileActions::GetLastTwinmotionFolder(), Folder);
+
+	// "Guardar" on a project that has a file writes it there, without asking, and remembers it.
+	(void)Document->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800);
+	TestTrue(TEXT("saved once"), Document->SaveProject(Path).ok());
+	(void)Document->GetMutableDocument().addWall({3000, 0}, {3000, 2000}, 120, 2800);
+	TestTrue(TEXT("unsaved change"), Document->HasUnsavedChanges());
+	FFloor101FileActions::RememberProjectPath(FString());
+	FFloor101FileActions::Save(*Document);
+	TestFalse(TEXT("saved to its file"), Document->HasUnsavedChanges());
+	TestEqual(TEXT("same file"), Document->GetProjectPath(), Path);
+	TestEqual(TEXT("and remembered"), FFloor101FileActions::GetLastProjectPath(), Path);
+	FString Json;
+	TestTrue(TEXT("with both walls"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("[\n        3000,\n        2000\n      ]")));
+
+	FFloor101FileActions::RememberProjectPath(UserProject);
+	FFloor101FileActions::RememberTwinmotionFolder(UserTwinmotion);
 	IFileManager::Get().DeleteDirectory(*Folder, false, true);
 	return true;
 }

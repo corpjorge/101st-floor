@@ -37,6 +37,7 @@ namespace f101::scene
 		// The building services layer (ADR-0021): on, the runs are shown and the walls, floors, slabs and carpentry turn
 		// see-through (Ghost) so the runs inside them can be seen; off, the runs are left out (previews still show).
 		bool services = false;
+		cad::ServiceKindSet serviceKinds; // the networks the layer shows (runs being previewed show whatever their kind)
 		cad::ColumnId selectedColumn;       // nil: none
 		std::vector<cad::Column> previewColumns; // like previewFurniture: an existing id replaces it, a nil id is added
 		cad::ServiceRunId selectedServiceRun;    // nil: none

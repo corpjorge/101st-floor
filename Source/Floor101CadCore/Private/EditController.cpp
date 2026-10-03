@@ -308,6 +308,7 @@ namespace f101::cad
 		if (mode == EditMode::Services)
 		{
 			servicesShown = true; // the runs being drawn among the others, the architecture seen through
+			serviceKindsShown.set(editSettings.serviceKind, true);
 		}
 		currentMode = mode;
 		if (planPoint)
@@ -925,7 +926,7 @@ namespace f101::cad
 		const std::optional<FurnitureHit> pieceHit = pickFurniture(model, ray, activeLevel());
 		const std::optional<ColumnHit> columnHit = pickColumn(model, ray, activeLevel());
 		const std::optional<ServiceRunHit> runHit =
-			servicesShown ? pickServiceRun(model, ray, activeLevel(), editSettings.servicePickToleranceMm) : std::nullopt;
+			servicesShown ? pickServiceRun(model, ray, activeLevel(), editSettings.servicePickToleranceMm, serviceKindsShown) : std::nullopt;
 		constexpr double Far = std::numeric_limits<double>::infinity();
 		const double wallDistance = wallHit ? wallHit->distance : Far;
 		const double pieceDistance = pieceHit ? pieceHit->distance : Far;
@@ -1777,9 +1778,21 @@ namespace f101::cad
 		}
 	}
 
+	void EditController::setServiceKindShown(ServiceKind kind, bool shown)
+	{
+		serviceKindsShown.set(kind, shown);
+		const ServiceRun* selectedRun = selectedRunId.isNil() ? nullptr : document.project().findServiceRun(selectedRunId);
+		if (!shown && selectedRun && selectedRun->kind == kind)
+		{
+			runDrag.reset();
+			selectedRunId = ServiceRunId();
+		}
+	}
+
 	Status EditController::setServiceKind(ServiceKind kind)
 	{
 		editSettings.serviceKind = kind;
+		serviceKindsShown.set(kind, true); // what is drawn is seen
 		return Status::success();
 	}
 
@@ -1808,7 +1821,7 @@ namespace f101::cad
 	std::optional<ServiceRun> EditController::selectedServiceRun() const
 	{
 		const ServiceRun* run = !servicesShown || selectedRunId.isNil() ? nullptr : document.project().findServiceRun(selectedRunId);
-		return run ? std::optional<ServiceRun>(*run) : std::nullopt;
+		return run && serviceKindsShown.contains(run->kind) ? std::optional<ServiceRun>(*run) : std::nullopt;
 	}
 
 	Status EditController::selectServiceRun(const ServiceRunId& id)
@@ -1822,6 +1835,7 @@ namespace f101::cad
 		changeLevel(run->level);
 		clearSelection();
 		servicesShown = true;
+		serviceKindsShown.set(run->kind, true);
 		selectedRunId = id;
 		return Status::success();
 	}
@@ -1834,6 +1848,7 @@ namespace f101::cad
 			return nothingSelected();
 		}
 		changed->kind = kind;
+		serviceKindsShown.set(kind, true); // it stays in sight
 		runDrag.reset();
 		return toStatus(document.execute(ChangeServiceRunCommand{*changed}));
 	}
@@ -2060,6 +2075,7 @@ namespace f101::cad
 		result.showAllLevels = allLevels;
 		result.selectedRoom = selectedRoom();
 		result.showServices = servicesShown;
+		result.serviceKinds = serviceKindsShown;
 		const Project& project = document.project();
 		if (currentMode == EditMode::Column)
 		{

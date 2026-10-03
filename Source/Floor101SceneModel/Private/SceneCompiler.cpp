@@ -179,11 +179,11 @@ namespace f101::scene
 		// `shown`), level by level: joins and rooms never mix levels, and each level's geometry is lifted to its elevation.
 		// `activeLevel` (with `showAll` false) hides the levels above it and its own slabs and dims the levels below it.
 		// Each section gets its finish (ADR-0012); the floor of `selectedRoom` is Selected. `symbols`: door swings on the
-		// floors of the levels that are not dimmed (ADR-0014), last. Columns always; the runs of the building services when
-		// `services`, and then (`xray`) the walls, joints, floors, slabs and carpentry that are not selected, previewed or
-		// dimmed are Ghost (ADR-0021).
+		// floors of the levels that are not dimmed (ADR-0014), last. Columns always; the runs of the building services of
+		// the `kinds` shown when `services` (previewed runs always), and then (`xray`) the walls, joints, floors, slabs and
+		// carpentry that are not selected, previewed or dimmed are Ghost (ADR-0021).
 		Scene compileProject(const cad::Project& project, const Presentation& shown, const cad::LevelId& activeLevel, bool showAll,
-			const std::string& selectedRoom, bool symbols, bool services, bool xray, const ModelProvider& models)
+			const std::string& selectedRoom, bool symbols, bool services, cad::ServiceKindSet kinds, bool xray, const ModelProvider& models)
 		{
 			const std::vector<LevelGroup> groups = levelGroups(project);
 			std::optional<std::size_t> active;
@@ -404,7 +404,7 @@ namespace f101::scene
 				{
 					const cad::ServiceRun& run = project.services[index];
 					const bool previewed = shown.serviceStyles[index] == NodeStyle::Preview;
-					if ((!project.levels.empty() && run.level != group.level) || (!services && !previewed))
+					if ((!project.levels.empty() && run.level != group.level) || (!(services && kinds.contains(run.kind)) && !previewed))
 					{
 						continue;
 					}
@@ -497,7 +497,7 @@ namespace f101::scene
 		shown.furnitureStyles.assign(project.furniture.size(), NodeStyle::Normal);
 		shown.columnStyles.assign(project.columns.size(), NodeStyle::Normal);
 		shown.serviceStyles.assign(project.services.size(), NodeStyle::Normal);
-		return compileProject(project, shown, cad::LevelId(), true, std::string(), false, true, false, models);
+		return compileProject(project, shown, cad::LevelId(), true, std::string(), false, true, cad::ServiceKindSet{}, false, models);
 	}
 
 	Scene compileScene(const cad::Project& project, const ViewOverlay& overlay, const ModelProvider& models)
@@ -610,7 +610,7 @@ namespace f101::scene
 		}
 
 		Scene scene = compileProject(previewed, shown, overlay.activeLevel, overlay.showAllLevels, overlay.selectedRoom,
-			overlay.symbols, overlay.services, overlay.services, models);
+			overlay.symbols, overlay.services, overlay.serviceKinds, overlay.services, models);
 		// Handles stand on the level being edited.
 		const double markerElevation = static_cast<double>(cad::levelElevationMm(project, overlay.activeLevel));
 		for (std::size_t index = 0; index < overlay.markers.size(); ++index)

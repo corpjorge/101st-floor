@@ -915,16 +915,38 @@ void UFloor101DocumentToolset::RemoveServiceRun(const FString& RunId)
 	}
 }
 
-void UFloor101DocumentToolset::SetServicesView(bool bShown)
+void UFloor101DocumentToolset::SetServicesView(bool bShown, const TArray<EFloor101ServiceKind>& Kinds)
 {
 	if (UFloor101DocumentSubsystem* Subsystem = GetSubsystem())
 	{
-		(void)Subsystem->Edit([bShown](f101::cad::EditController& Editor)
+		(void)Subsystem->Edit([bShown, &Kinds](f101::cad::EditController& Editor)
 		{
+			for (const f101::cad::ServiceKindInfo& Info : f101::cad::serviceKinds())
+			{
+				Editor.setServiceKindShown(Info.kind, Kinds.Contains(static_cast<EFloor101ServiceKind>(Info.kind)));
+			}
 			Editor.setShowServices(bShown);
 			return f101::Status::success();
 		});
 	}
+}
+
+FFloor101ServicesViewInfo UFloor101DocumentToolset::GetServicesView()
+{
+	FFloor101ServicesViewInfo Info;
+	if (const UFloor101DocumentSubsystem* Subsystem = GetSubsystem())
+	{
+		const f101::cad::EditController& Editor = Subsystem->GetEditController();
+		Info.bShown = Editor.showsServices();
+		for (const f101::cad::ServiceKindInfo& Kind : f101::cad::serviceKinds())
+		{
+			if (Editor.shownServiceKinds().contains(Kind.kind))
+			{
+				Info.Kinds.Add(static_cast<EFloor101ServiceKind>(Kind.kind));
+			}
+		}
+	}
+	return Info;
 }
 
 namespace

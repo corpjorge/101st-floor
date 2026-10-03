@@ -921,3 +921,94 @@ TEST_CASE_FIXTURE(Building, "columns and runs are edited on the active level; ch
 	CHECK(editor.runPoints().empty());
 	CHECK_FALSE(editor.runPointer().has_value());
 }
+
+TEST_CASE("a set of networks holds any of the four kinds; every kind by default")
+{
+	ServiceKindSet kinds;
+	for (const ServiceKindInfo& info : serviceKinds())
+	{
+		CHECK(kinds.contains(info.kind));
+	}
+	kinds.set(ServiceKind::Water, false);
+	CHECK_FALSE(kinds.contains(ServiceKind::Water));
+	CHECK(kinds.contains(ServiceKind::Gas));
+	CHECK_FALSE(kinds == ServiceKindSet{});
+	kinds.set(ServiceKind::Water, true);
+	CHECK(kinds == ServiceKindSet{});
+	for (const ServiceKindInfo& info : serviceKinds())
+	{
+		kinds.set(info.kind, false);
+	}
+	CHECK(kinds.bits == 0);
+}
+
+TEST_CASE_FIXTURE(Building, "each network can be shown or hidden: the scene, the plan and picking follow; previews always show")
+{
+	const ServiceRunId wiring = document.addServiceRun(runOf(ServiceKind::Electrical, {{0, 0, 300}, {4000, 0, 300}})).value();
+	const ServiceRunId water = document.addServiceRun(runOf(ServiceKind::Water, {{0, 0, 2400}, {4000, 0, 2400}})).value();
+	ServiceKindSet noWiring;
+	noWiring.set(ServiceKind::Electrical, false);
+
+	scene::ViewOverlay overlay;
+	overlay.activeLevel = ground;
+	overlay.services = true;
+	overlay.serviceKinds = noWiring;
+	const scene::Scene filtered = scene::compileScene(document.project(), overlay);
+	CHECK(findNode(filtered, "service/" + toString(wiring)) == nullptr);
+	CHECK(findNode(filtered, "service/" + toString(water)) != nullptr);
+	ServiceRun moved = *document.project().findServiceRun(wiring);
+	moved.points[1].x_mm = 3000;
+	overlay.previewServiceRuns = {moved};
+	CHECK(findNode(scene::compileScene(document.project(), overlay), "service/" + toString(wiring)) != nullptr);
+	CHECK(findNode(scene::compileScene(document.project()), "service/" + toString(wiring)) != nullptr); // exports: all
+
+	drawing::PlanOverlay plan;
+	plan.services = true;
+	plan.serviceKinds = noWiring;
+	const drawing::PlanDrawing withoutWiring = drawing::buildPlanDrawing(document.project(), ground, plan);
+	CHECK(count(withoutWiring, drawing::Ink::ServiceElectrical) == 0);
+	CHECK(count(withoutWiring, drawing::Ink::ServiceWater) == 1);
+	plan.serviceKinds = ServiceKindSet{};
+	CHECK(count(drawing::buildPlanDrawing(document.project(), ground, plan), drawing::Ink::ServiceElectrical) == 1);
+
+	// The wiring is nearer the ray's end: with it hidden, the water above is picked.
+	CHECK(pickServiceRun(document.project(), down(2000.0, 0.0), ground, 80.0)->run == water);
+	CHECK(pickServiceRun(document.project(), Ray3{2000.0, 0.0, -1000.0, 0.0, 0.0, 1.0}, ground, 80.0)->run == wiring);
+	CHECK(pickServiceRun(document.project(), Ray3{2000.0, 0.0, -1000.0, 0.0, 0.0, 1.0}, ground, 80.0, noWiring)->run == water);
+}
+
+TEST_CASE_FIXTURE(Building, "the editor shows networks one by one: hiding one drops its selected run; drawing or selecting shows it")
+{
+	const ServiceRunId wiring = document.addServiceRun(runOf(ServiceKind::Electrical, {{0, 0, 300}, {4000, 0, 300}})).value();
+	editor.setShowServices(true);
+	CHECK(editor.shownServiceKinds() == ServiceKindSet{});
+	REQUIRE(editor.pointerPressed(down(2000.0, 0.0)).ok());
+	REQUIRE(editor.pointerReleased(down(2000.0, 0.0)).ok());
+	REQUIRE(editor.selectedServiceRun().has_value());
+
+	editor.setServiceKindShown(ServiceKind::Electrical, false);
+	CHECK_FALSE(editor.shownServiceKinds().contains(ServiceKind::Electrical));
+	CHECK_FALSE(editor.view().serviceKinds.contains(ServiceKind::Electrical));
+	CHECK_FALSE(editor.selectedServiceRun().has_value());
+	REQUIRE(editor.pointerPressed(down(2000.0, 0.0)).ok()); // not picked while hidden
+	CHECK_FALSE(editor.selectedServiceRun().has_value());
+	REQUIRE(editor.pointerReleased(down(2000.0, 0.0)).ok());
+
+	REQUIRE(editor.selectServiceRun(wiring).ok());
+	CHECK(editor.shownServiceKinds().contains(ServiceKind::Electrical));
+	editor.setServiceKindShown(ServiceKind::Gas, false);
+	REQUIRE(editor.setServiceRunKind(ServiceKind::Gas).ok());
+	CHECK(editor.shownServiceKinds().contains(ServiceKind::Gas)); // the run stays in sight
+	CHECK(editor.selectedServiceRun().has_value());
+
+	editor.setServiceKindShown(ServiceKind::Water, false);
+	editor.setMode(EditMode::Services);
+	REQUIRE(editor.setServiceKind(ServiceKind::Water).ok());
+	CHECK(editor.shownServiceKinds().contains(ServiceKind::Water));
+	editor.setServiceKindShown(ServiceKind::Sewage, false);
+	editor.cancel();
+	REQUIRE(editor.setServiceKind(ServiceKind::Sewage).ok());
+	editor.setServiceKindShown(ServiceKind::Sewage, false);
+	editor.setMode(EditMode::Services);
+	CHECK(editor.shownServiceKinds().contains(ServiceKind::Sewage)); // entering the mode shows what it draws
+}

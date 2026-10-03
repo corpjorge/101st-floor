@@ -28,13 +28,13 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
     (`geometry::furnitureShape`: almohadas, edredón, cojines, cubetas, fuegos, desagüe...), en trazos finos grises.
     Un modelo importado (ADR-0017) solo dibuja su huella.
   - **Pilares** (ADR-0021): cortados como los muros, relleno sólido de su huella (rectángulo o polígono de 32 lados).
-  - **Instalaciones** (con `PlanOverlay::services`, la capa): el recorrido en planta de cada tramo de la planta con una
-    vaina oscura (`ServiceCasingMm` a cada lado) bajo un trazo del color de su tipo, tan ancho como su tubo y nunca
-    menos de `MinServiceCoreMm`, para que el agua blanca se vea sobre papel blanco; donde sube o baja sobre el mismo
-    punto, un anillo. Los tramos en vista previa se dibujan aunque la capa esté apagada.
+  - **Instalaciones** (con `PlanOverlay::services`, la capa, de las redes de `serviceKinds`): el recorrido en planta de
+    cada tramo de la planta con una vaina oscura (`ServiceCasingMm` a cada lado) bajo un trazo del color de su tipo, tan
+    ancho como su tubo y nunca menos de `MinServiceCoreMm`, para que el agua blanca se vea sobre papel blanco; donde sube
+    o baja sobre el mismo punto, un anillo. Los tramos en vista previa se dibujan aunque la capa esté apagada.
   - **Marcas de edición** (`PlanOverlay`, solo en la vista 2D): muro, mueble, pilar y tubería seleccionados, vistas
     previas de muros, muebles, pilares y tuberías (sustituyen por id o se añaden) y asas. La exportación del plano lleva
-    las instalaciones si su capa está activa, nunca las marcas.
+    las redes que se ven si su capa está activa (con todas, alguna o ninguna), nunca las marcas.
 - `writeSvg(drawing, {scale, marginMm})`: documento SVG independiente, hoja blanca con el tamaño en mm de papel a la
   escala pedida, unidades de usuario en mm de planta con el norte arriba; polígonos, polilíneas (discontinuas con
   `stroke-dasharray`), textos girados y escapados. Determinista.

@@ -485,6 +485,22 @@ struct FFloor101ServiceRunInfo
 	TObjectPtr<AActor> Actor;
 };
 
+/**
+ * The building-services layer of the view.
+ */
+USTRUCT(BlueprintType)
+struct FFloor101ServicesViewInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bShown = false;
+
+	/** The networks the layer shows. */
+	UPROPERTY()
+	TArray<EFloor101ServiceKind> Kinds;
+};
+
 UENUM(BlueprintType)
 enum class EFloor101AssetKind : uint8
 {
@@ -940,11 +956,19 @@ public:
 	static void RemoveServiceRun(const FString& RunId);
 
 	/**
-	 * Shows or hides the building-services layer of the view: shown, the runs appear and the walls, floors, slabs, doors
-	 * and windows turn see-through; hidden, the runs are left out. Columns always show.
+	 * Shows or hides the building-services layer of the view: shown, the runs of the networks listed appear (in 3D, in the
+	 * 2D plan and in exported plans) and the walls, floors, slabs, doors and windows turn see-through; hidden, no run
+	 * shows. Columns always show.
+	 * @param Kinds The networks the layer shows; the others are hidden.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
-	static void SetServicesView(bool bShown);
+	static void SetServicesView(bool bShown, const TArray<EFloor101ServiceKind>& Kinds);
+
+	/**
+	 * Returns whether the building-services layer is shown and which networks it shows.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101ServicesViewInfo GetServicesView();
 
 	/**
 	 * Returns the project's imported assets (textures and models) in import order.

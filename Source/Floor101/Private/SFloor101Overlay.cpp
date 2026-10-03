@@ -10,6 +10,7 @@
 #include "F101/Cad/Units.h"
 #include "F101/Drawing/PlanDrawing.h"
 #include "Floor101DocumentSubsystem.h"
+#include "Floor101FileActions.h"
 #include "Floor101FileDialog.h"
 #include "Floor101FinishLibrary.h"
 #include "Floor101GameViewportClient.h"
@@ -262,7 +263,6 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 {
 	Document = InArgs._Document;
 	ViewportClient = InArgs._ViewportClient;
-	PathText = GetPathOrDefault();
 
 	// Only the panels take the mouse; everything else lets clicks through to the viewport.
 	auto PlanShown = [this]()
@@ -418,12 +418,6 @@ const f101::cad::Wall* SFloor101Overlay::GetSelectedWall() const
 	}
 	const f101::cad::WallId Selected = Subsystem->GetEditController().selection();
 	return Selected.isNil() ? nullptr : Subsystem->GetDocument().project().findWall(Selected);
-}
-
-FString SFloor101Overlay::GetPathOrDefault() const
-{
-	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
-	return Subsystem && !Subsystem->GetProjectPath().IsEmpty() ? Subsystem->GetProjectPath() : UFloor101DocumentSubsystem::GetDefaultProjectPath();
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
@@ -612,50 +606,63 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			[
 				SNew(STextBlock).Text(LOCTEXT("File", "Archivo")).Font(Font(10))
 			]
-			+ SHorizontalBox::Slot().AutoWidth()
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
+				// The file being edited, as it is now (opened, saved or "save as"); new: not saved yet.
 				SNew(SBox)
-				.WidthOverride(420.0f)
+				.WidthOverride(360.0f)
 				[
-					SNew(SEditableTextBox)
+					SNew(STextBlock)
 					.Font(Font(9))
-					.Text_Lambda([this]() { return FText::FromString(PathText); })
-					.OnTextCommitted_Lambda([this](const FText& Text, ETextCommit::Type Commit)
+					.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+					.Text_Lambda([this]()
 					{
-						if (Commit != ETextCommit::OnCleared)
-						{
-							PathText = Text.ToString().TrimStartAndEnd();
-						}
-						if (Commit == ETextCommit::OnEnter)
-						{
-							FSlateApplication::Get().SetAllUserFocusToGameViewport();
-						}
+						const UFloor101DocumentSubsystem* S = Document.Get();
+						return S && !S->GetProjectPath().IsEmpty() ? FText::FromString(S->GetProjectPath())
+							: LOCTEXT("NewProject", "Casa nueva, sin guardar");
+					})
+					.ToolTipText_Lambda([this]()
+					{
+						const UFloor101DocumentSubsystem* S = Document.Get();
+						return S && !S->GetProjectPath().IsEmpty() ? FText::FromString(S->GetProjectPath()) : FText::GetEmpty();
 					})
 				]
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 2.0f, 0.0f)
 			[
-				ActionButton(LOCTEXT("Save", "Guardar"), LOCTEXT("SaveTip", "Guarda project.json en la ruta indicada (Ctrl+S)"), true,
+				ActionButton(LOCTEXT("Save", "Guardar"),
+					LOCTEXT("SaveTip", "Guarda la casa en su archivo; si es nueva, pregunta dónde (Ctrl+S)"), true,
 					FOnClicked::CreateLambda([this]()
 					{
 						if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
 						{
-							(void)Subsystem->SaveProject(PathText);
+							FFloor101FileActions::Save(*Subsystem);
 						}
-						FSlateApplication::Get().SetAllUserFocusToGameViewport();
 						return FReply::Handled();
 					}))
 			]
 			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
 			[
-				ActionButton(LOCTEXT("Open", "Abrir"), LOCTEXT("OpenTip", "Abre el project.json de la ruta indicada (Ctrl+O)"), true,
+				ActionButton(LOCTEXT("SaveAs", "Guardar como…"),
+					LOCTEXT("SaveAsTip", "Elige la carpeta y el nombre del archivo de la casa; se recuerda para la próxima vez (Ctrl+Shift+S)"), true,
 					FOnClicked::CreateLambda([this]()
 					{
 						if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
 						{
-							(void)Subsystem->OpenProject(PathText);
+							FFloor101FileActions::SaveAs(*Subsystem);
 						}
-						FSlateApplication::Get().SetAllUserFocusToGameViewport();
+						return FReply::Handled();
+					}))
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+			[
+				ActionButton(LOCTEXT("Open", "Abrir…"), LOCTEXT("OpenTip", "Abre una casa guardada (Ctrl+O)"), true,
+					FOnClicked::CreateLambda([this]()
+					{
+						if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
+						{
+							FFloor101FileActions::Open(*Subsystem);
+						}
 						return FReply::Handled();
 					}))
 			]
@@ -689,23 +696,17 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			[
 				SNew(SButton)
 				.IsFocusable(false)
-				.ToolTipText_Lambda([this]()
-				{
-					const UFloor101DocumentSubsystem* S = Document.Get();
-					return FText::Format(LOCTEXT("GltfTip", "Exporta la casa entera (todas las plantas, puertas, ventanas, muebles, pilares, instalaciones, materiales y texturas) a {0}, para importarla en Twinmotion"),
-						S ? FText::FromString(S->GetDefaultGltfPath()) : FText::GetEmpty());
-				})
+				.ToolTipText(LOCTEXT("GltfTip", "Exporta la casa entera (todas las plantas, puertas, ventanas, muebles, pilares, instalaciones, materiales y texturas) a un .glb para importarlo en Twinmotion; eliges dónde, y la carpeta se recuerda para la próxima vez"))
 				.OnClicked_Lambda([this]()
 				{
 					if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
 					{
-						(void)Subsystem->ExportGltf(Subsystem->GetDefaultGltfPath());
+						FFloor101FileActions::ExportTwinmotion(*Subsystem);
 					}
-					FSlateApplication::Get().SetAllUserFocusToGameViewport();
 					return FReply::Handled();
 				})
 				[
-					SNew(STextBlock).Text(LOCTEXT("Gltf", "Twinmotion (.glb)")).Font(Font(10))
+					SNew(STextBlock).Text(LOCTEXT("Gltf", "Twinmotion (.glb)…")).Font(Font(10))
 				]
 			]
 		]
@@ -714,7 +715,95 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		.Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
 			MakeLevelRow()
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0.0f, 6.0f, 0.0f, 0.0f)
+		[
+			MakeNetworksRow()
 		]);
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeNetworksRow()
+{
+	auto Shown = [this](f101::cad::ServiceKind Kind)
+	{
+		const UFloor101DocumentSubsystem* S = Document.Get();
+		return S && S->GetEditController().shownServiceKinds().contains(Kind);
+	};
+	auto SetAll = [this](bool bShown)
+	{
+		return Run([bShown](EditController& Editor)
+		{
+			for (const f101::cad::ServiceKindInfo& Info : f101::cad::serviceKinds())
+			{
+				Editor.setServiceKindShown(Info.kind, bShown);
+			}
+			return f101::Status::success();
+		});
+	};
+	TSharedRef<SHorizontalBox> Row = SNew(SHorizontalBox)
+		.Visibility_Lambda([this]()
+		{
+			const UFloor101DocumentSubsystem* S = Document.Get();
+			return S && S->GetEditController().showsServices() ? EVisibility::Visible : EVisibility::Collapsed;
+		})
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+		[
+			SNew(STextBlock).Text(LOCTEXT("Networks", "Redes:")).Font(Font(10))
+		];
+	for (const f101::cad::ServiceKindInfo& Info : f101::cad::serviceKinds())
+	{
+		const f101::cad::ServiceKind Kind = Info.kind;
+		Row->AddSlot().AutoWidth().Padding(2.0f, 0.0f)
+		[
+			SNew(SButton)
+			.IsFocusable(false)
+			.ToolTipText(FText::Format(LOCTEXT("NetworkTip", "Ver u ocultar la red de {0}: en 3D, en el plano 2D y en el plano exportado"),
+				Floor101::ServiceKindName(Kind).ToLower()))
+			.ButtonColorAndOpacity_Lambda([Shown, Kind]()
+			{
+				return Shown(Kind) ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor(0.35f, 0.35f, 0.38f));
+			})
+			.OnClicked_Lambda([this, Shown, Kind]()
+			{
+				const bool bShow = !Shown(Kind);
+				return Run([Kind, bShow](EditController& Editor) { Editor.setServiceKindShown(Kind, bShow); return f101::Status::success(); });
+			})
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 4.0f, 0.0f)
+				[
+					MakeSwatch(std::string(Info.finish), 12.0f)
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Text(Floor101::ServiceKindName(Kind)).Font(Font(10))
+				]
+			]
+		];
+	}
+	Row->AddSlot().AutoWidth().Padding(10.0f, 0.0f, 2.0f, 0.0f)
+	[
+		SNew(SButton)
+		.IsFocusable(false)
+		.ToolTipText(LOCTEXT("AllNetworksTip", "Ver las cuatro redes"))
+		.OnClicked_Lambda([SetAll]() { return SetAll(true); })
+		[
+			SNew(STextBlock).Text(LOCTEXT("AllNetworks", "Todas")).Font(Font(10))
+		]
+	];
+	Row->AddSlot().AutoWidth().Padding(2.0f, 0.0f)
+	[
+		SNew(SButton)
+		.IsFocusable(false)
+		.ToolTipText(LOCTEXT("NoNetworksTip", "Ocultar todas las redes (los muros siguen transparentes; X vuelve a la vista normal)"))
+		.OnClicked_Lambda([SetAll]() { return SetAll(false); })
+		[
+			SNew(STextBlock).Text(LOCTEXT("NoNetworks", "Ninguna")).Font(Font(10))
+		]
+	];
+	return Row;
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakePlanExportButton(const FString& Extension)

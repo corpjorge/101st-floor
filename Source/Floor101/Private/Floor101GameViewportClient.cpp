@@ -7,6 +7,7 @@
 #include "Floor101.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101EditingPawn.h"
+#include "Floor101FileActions.h"
 #include "Floor101PathTracing.h"
 #include "Floor101SceneSpace.h"
 #include "Framework/Application/SlateApplication.h"
@@ -227,7 +228,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 		}
 		if (Key == EKeys::S)
 		{
-			return EFloor101KeyCommand::Save;
+			return bShift ? EFloor101KeyCommand::SaveAs : EFloor101KeyCommand::Save;
 		}
 		if (Key == EKeys::O)
 		{
@@ -276,7 +277,6 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	{
 		return [Action](EditController& Editor) { Action(Editor); return f101::Status::success(); };
 	};
-	const FString Path = Document.GetProjectPath().IsEmpty() ? UFloor101DocumentSubsystem::GetDefaultProjectPath() : Document.GetProjectPath();
 
 	const EditController& Current = Document.GetEditController();
 	const bool bTypingLength = Current.mode() == f101::cad::EditMode::Wall && Current.wallTool().state() == f101::cad::WallTool::State::Drafting;
@@ -300,8 +300,9 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	case EFloor101KeyCommand::None: return false;
 	case EFloor101KeyCommand::Undo: Edit([](EditController& Editor) { return Editor.undo(); }); break;
 	case EFloor101KeyCommand::Redo: Edit([](EditController& Editor) { return Editor.redo(); }); break;
-	case EFloor101KeyCommand::Save: (void)Document.SaveProject(Path); break;
-	case EFloor101KeyCommand::Open: (void)Document.OpenProject(Path); break;
+	case EFloor101KeyCommand::Save: FFloor101FileActions::Save(Document); break;
+	case EFloor101KeyCommand::SaveAs: FFloor101FileActions::SaveAs(Document); break;
+	case EFloor101KeyCommand::Open: FFloor101FileActions::Open(Document); break;
 	case EFloor101KeyCommand::Backspace: Edit(Always([](EditController& Editor) { Editor.backspace(); })); break;
 	case EFloor101KeyCommand::WallTool: Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Wall); })); break;
 	case EFloor101KeyCommand::SelectTool: Edit(Always([](EditController& Editor) { Editor.setMode(f101::cad::EditMode::Select); })); break;

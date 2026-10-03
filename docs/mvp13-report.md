@@ -70,3 +70,23 @@ Corregido durante la prueba real:
 `Source/Floor101/…/{Floor101DocumentSubsystem,Floor101GameViewportClient,SFloor101Overlay,Floor101Names}`;
 `Source/Floor101Editor/…/Floor101DocumentToolset`; `Tests/Unit/ServicesTests.cpp`;
 `docs/adr/ADR-0021-columns-and-building-services.md`.
+
+## Después del MVP 13 (2026-10-02)
+- **Mensajes al arrancar:** el traceback rojo de Python (el `init_unreal.py` de ToolsetRegistry, plugin solo de editor,
+  ejecutado en `-game`) desaparece lanzando con `-DisablePython`; el aviso amarillo "[VSM] Non-Nanite Marking Job Queue
+  overflow" lo provocaban el suelo y la esfera del cielo del mapa plantilla (81–575 páginas de sombra cada uno; ninguna
+  malla del proyecto llega al umbral): ya no proyectan sombra, la imagen no cambia. Detalle en `docs/rendering-rtx.md`.
+- **Ver el plano con o sin redes:** con la capa de instalaciones, la fila "Redes" (Electricidad, Agua, Aguas negras,
+  Gas, Todas, Ninguna) elige qué redes se ven en 3D, en el plano 2D y en el plano exportado (SVG/PNG). Una red oculta no
+  se selecciona; dibujar, seleccionar o cambiar el tipo de una tubería muestra su red. MCP: `SetServicesView(capa,
+  redes)` y `GetServicesView`. Probado con el ratón: cada botón quita o pone su red en el plano; con "Ninguna" el SVG
+  exportado no tiene ningún color de tubería y con solo Gas tiene el dorado y su vaina. 265 unitarios y 56 de
+  integración en verde.
+- **Guardar como y elegir dónde (2026-10-03):** "Guardar como…" (Ctrl+Shift+S) y "Abrir…" (Ctrl+O) usan los diálogos
+  de Windows; "Guardar" (Ctrl+S) escribe en el archivo actual y, si la casa es nueva, pregunta dónde. "Twinmotion
+  (.glb)…" pregunta dónde escribir el `.glb`. Las últimas ubicaciones elegidas (casa y Twinmotion) se recuerdan entre
+  sesiones (`GameUserSettings.ini`, `[Floor101.Paths]`) y los diálogos se abren allí. El campo "Archivo" muestra ahora
+  el archivo de verdad: antes se rellenaba una vez al arrancar y "Guardar" podía escribir en el de por defecto aunque
+  hubiera otro abierto. Probado con el ratón: guardar una casa nueva con Ctrl+S en otra carpeta, exportar el `.glb` a
+  una subcarpeta, reiniciar el juego y ver que Abrir y Twinmotion proponen esas carpetas; cancelar no hace nada.
+  `Floor101.Interaction.FilePaths` cubre "Guardar" y las ubicaciones recordadas. 265 unitarios y 57 de integración.

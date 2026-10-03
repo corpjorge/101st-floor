@@ -71,7 +71,8 @@ junto al proyecto; devuelve ruta, objetos, materiales, imágenes, triángulos, b
 `GetColumns`/`AddColumn`/`SetColumn`/`SetColumnFinish`/`RemoveColumn` (pilares, ADR-0021: rectangulares o redondos,
 centro, ancho y fondo o diámetro, giro y acabado de muro; ancho 0 = 30 cm), `GetServiceRuns`/`AddServiceRun`/
 `SetServiceRun`/`RemoveServiceRun` (tramos de electricidad, agua, aguas negras o gas por sus puntos `XMm, YMm, ZMm`, con
-z sobre el suelo de su planta; devuelven longitud y diámetro), `SetServicesView` (la capa de instalaciones: sin ella los
+z sobre el suelo de su planta; devuelven longitud y diámetro), `SetServicesView`/`GetServicesView` (la capa de instalaciones y
+las redes que muestra, en 3D, en el plano y en el plano exportado: sin ella, o con su red oculta, los
 tramos no tienen actor; `GetFinishes` informa `bForServices`),
 `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el

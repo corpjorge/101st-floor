@@ -21,12 +21,12 @@ modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8
 > probado sin Unreal. Siguiente MVP: pendiente de decisión.
 
 ## Controles
-W: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de colocarla) · M: pintar (pestañas Paredes / Suelos) · A: amueblar (pestañas por categoría) · C: pilar · I: instalación (clic por punto, doble clic o Enter para terminar; tipo y altura en el panel) · X: rayos X (ver las instalaciones) · V: seleccionar · R: Modo Foto (path tracing; "Guardar imagen") · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
-Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+O: guardar / abrir · Esc o clic derecho: cancelar ·
+W: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de colocarla) · M: pintar (pestañas Paredes / Suelos) · A: amueblar (pestañas por categoría) · C: pilar · I: instalación (clic por punto, doble clic o Enter para terminar; tipo y altura en el panel) · X: rayos X (ver las instalaciones; la fila "Redes" elige electricidad, agua, aguas negras o gas, también en el plano y su exportación) · V: seleccionar · R: Modo Foto (path tracing; "Guardar imagen") · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
+Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+Shift+S / Ctrl+O: guardar / guardar como (eliges carpeta y nombre) / abrir · Esc o clic derecho: cancelar ·
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
 cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble o el pilar · con un mueble, un pilar o una tubería seleccionados, arrastrarlo: moverlo (las asas de una tubería mueven un codo) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
 F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · "Plano: SVG / PNG": exportar el plano ·
-"Twinmotion (.glb)": exportar la casa entera junto al proyecto (en Twinmotion: Importar → el `.glb`) ·
+"Twinmotion (.glb)…": exportar la casa entera donde elijas (se recuerdan las últimas carpetas) (en Twinmotion: Importar → el `.glb`) ·
 "Importar textura…" (en Pintar) / "Importar modelo…" (en Amueblar): traer una imagen o un modelo 3D al proyecto ·
 RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detalle en
 [docs/unreal-integration.md](docs/unreal-integration.md#controles).

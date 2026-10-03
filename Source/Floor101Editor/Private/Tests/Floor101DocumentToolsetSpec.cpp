@@ -394,7 +394,9 @@ void FFloor101DocumentToolsetSpec::Define()
 			const FFloor101FinishInfo* Gold = Finishes.FindByPredicate([](const FFloor101FinishInfo& F) { return F.Id == TEXT("service-gas"); });
 			TestTrue(TEXT("the gas colour is only for runs"), Gold && Gold->bForServices && !Gold->bForWalls && Gold->Category == TEXT("services"));
 
-			UFloor101DocumentToolset::SetServicesView(false);
+			const TArray<EFloor101ServiceKind> AllKinds{EFloor101ServiceKind::Electrical, EFloor101ServiceKind::Water,
+				EFloor101ServiceKind::Sewage, EFloor101ServiceKind::Gas};
+			UFloor101DocumentToolset::SetServicesView(false, AllKinds);
 			const TArray<FFloor101ServicePoint> Points{{135000, 0, -100}, {135000, 0, 2400}, {138000, 0, 2400}};
 			const FFloor101ServiceRunInfo Run = UFloor101DocumentToolset::AddServiceRun(TEXT(""), EFloor101ServiceKind::Gas, Points);
 			TestFalse(TEXT("id"), Run.Id.IsEmpty());
@@ -403,7 +405,9 @@ void FFloor101DocumentToolsetSpec::Define()
 			TestEqual(TEXT("gas pipe"), Run.DiameterMm, int64(22));
 			TestNull(TEXT("hidden without the layer"), Run.Actor.Get());
 
-			UFloor101DocumentToolset::SetServicesView(true);
+			UFloor101DocumentToolset::SetServicesView(true, AllKinds);
+			const FFloor101ServicesViewInfo View = UFloor101DocumentToolset::GetServicesView();
+			TestTrue(TEXT("the layer is on with every network"), View.bShown && View.Kinds == AllKinds);
 			const FFloor101ServiceRunInfo Shown = UFloor101DocumentToolset::GetServiceRuns().Last();
 			TestEqual(TEXT("listed"), Shown.Id, Run.Id);
 			if (TestNotNull(TEXT("shown with the layer"), Shown.Actor.Get()))
@@ -417,7 +421,12 @@ void FFloor101DocumentToolsetSpec::Define()
 			TestTrue(TEXT("water now"), Water.Kind == EFloor101ServiceKind::Water);
 			TestEqual(TEXT("its pipe"), Water.DiameterMm, int64(25));
 			TestEqual(TEXT("undo"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change service run")));
-			UFloor101DocumentToolset::SetServicesView(false);
+
+			// Without the gas network the run has no actor; the layer still shows the others.
+			UFloor101DocumentToolset::SetServicesView(true, {EFloor101ServiceKind::Electrical, EFloor101ServiceKind::Water});
+			TestNull(TEXT("gas hidden"), UFloor101DocumentToolset::GetServiceRuns().Last().Actor.Get());
+			TestEqual(TEXT("two networks shown"), UFloor101DocumentToolset::GetServicesView().Kinds.Num(), 2);
+			UFloor101DocumentToolset::SetServicesView(false, AllKinds);
 
 			UFloor101DocumentToolset::RemoveServiceRun(Run.Id);
 			TestFalse(TEXT("removed"), UFloor101DocumentToolset::GetServiceRuns().ContainsByPredicate(

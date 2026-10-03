@@ -789,9 +789,10 @@ f101::Status UFloor101DocumentSubsystem::ExportPlan(const FString& Path, const f
 	{
 		return Fail("Cannot create the folder " + std::string(TCHAR_TO_UTF8(*Directory)));
 	}
-	// No editing marks; the runs of the building services when their layer is shown (ADR-0021).
+	// No editing marks; the runs of the building services when their layer is shown, of the networks it shows (ADR-0021).
 	f101::drawing::PlanOverlay Layers;
 	Layers.services = Editor->showsServices();
+	Layers.serviceKinds = Editor->shownServiceKinds();
 	const f101::drawing::PlanDrawing Drawing = f101::drawing::buildPlanDrawing(Model, Target, Layers, PlanTexts());
 	if (Extension == TEXT("svg"))
 	{
@@ -905,6 +906,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.selectedFurniture = View.selectedFurniture;
 	Overlay.previewFurniture = View.previewFurniture;
 	Overlay.services = View.showServices;
+	Overlay.serviceKinds = View.serviceKinds;
 	Overlay.selectedColumn = View.selectedColumn;
 	Overlay.previewColumns = View.previewColumns;
 	Overlay.selectedServiceRun = View.selectedServiceRun;
@@ -918,6 +920,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		Overlay.activeLevel = Levels.activeLevel;
 		Overlay.showAllLevels = Levels.showAllLevels;
 		Overlay.services = Levels.services;
+		Overlay.serviceKinds = Levels.serviceKinds;
 		Overlay.symbols = false;
 	}
 
@@ -940,6 +943,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		Marks.selectedFurniture = View.selectedFurniture;
 		Marks.previewFurniture = View.previewFurniture;
 		Marks.services = View.showServices;
+		Marks.serviceKinds = View.serviceKinds;
 		Marks.selectedColumn = View.selectedColumn;
 		Marks.previewColumns = View.previewColumns;
 		Marks.selectedServiceRun = View.selectedServiceRun;

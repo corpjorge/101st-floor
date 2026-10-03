@@ -48,7 +48,7 @@ Twinmotion (`docs/exporters.md`, ADR-0020).
   inválidos se omiten. Los muebles de las plantas de abajo llevan `Context`.
   Pilares e instalaciones (ADR-0021): `selectedColumn`/`previewColumns` y `selectedServiceRun`/`previewServiceRuns` como
   los muebles (`preview/column/<i>`, `preview/service/<i>`). Los tramos solo se compilan con `ViewOverlay::services` (la
-  capa de instalaciones) o mientras están en vista previa; con la capa, muros, uniones, suelos, forjados y carpintería
+  capa de instalaciones, de las redes de `serviceKinds`) o mientras están en vista previa; con la capa, muros, uniones, suelos, forjados y carpintería
   con estilo `Normal` pasan a `Ghost` (translúcidos); los pilares no. `compileScene(project)` lleva siempre los tramos.
   Símbolos (ADR-0014): la escena de edición añade, al final, el arco de cada puerta abatible o de dos hojas de las plantas
   no atenuadas (`<wall uuid>/opening/<opening uuid>/swing`, `sourceKind` `Opening`, estilo `Symbol`); la de exportación

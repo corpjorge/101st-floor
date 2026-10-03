@@ -59,10 +59,10 @@ namespace f101::cad
 		double distance = 0.0; // along the ray to where it passes closest to the run, in units of the direction's length
 	};
 
-	// Nearest run on `level` that the ray passes within its pipe's radius plus `toleranceMm` of, in front of its origin.
-	// The ray is in the level's space.
+	// Nearest run on `level`, of the `kinds` shown, that the ray passes within its pipe's radius plus `toleranceMm` of, in
+	// front of its origin. The ray is in the level's space.
 	FLOOR101CADCORE_API std::optional<ServiceRunHit> pickServiceRun(const Project& project, const Ray3& ray,
-		const LevelId& level, double toleranceMm);
+		const LevelId& level, double toleranceMm, ServiceKindSet kinds = {});
 
 	// Entry distance of the ray into an axis-aligned square post centred on `center` (e.g. an endpoint handle), from the
 	// floor to `heightMm`, `sizeMm` wide; nullopt if it misses.

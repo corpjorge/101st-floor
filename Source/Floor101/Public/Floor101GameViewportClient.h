@@ -19,7 +19,8 @@ enum class EFloor101KeyCommand : uint8
 	None,
 	Undo,
 	Redo,
-	Save,
+	Save,   // the current file, or "save as" for a new project
+	SaveAs, // Ctrl+Shift+S: asks where
 	Open,
 	Backspace,
 	WallTool,
@@ -53,7 +54,7 @@ enum class EFloor101KeyCommand : uint8
 // Keys: W wall, P door, O window, M paint, A furniture, C column, I services run, X services layer, V select, Enter, Esc,
 // Backspace, Delete, F frame all, T top view,
 // Tab 2D plan, R photo, Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
-// Ctrl+S save, Ctrl+O open.
+// Ctrl+S save, Ctrl+Shift+S save as, Ctrl+O open (the system's dialogs).
 // The camera follows the edited level: its focus moves up or down with the level's elevation.
 UCLASS()
 class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient

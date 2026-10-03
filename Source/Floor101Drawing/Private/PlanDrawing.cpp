@@ -11,6 +11,7 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <iterator>
 #include <limits>
 #include <optional>
 #include <utility>
@@ -582,9 +583,14 @@ namespace f101::drawing
 			}
 		}
 
-		// Runs of the building services: with the layer on, or while a gesture previews them.
-		const std::vector<cad::ServiceRun> none;
-		const auto runs = overlaid(overlay.services ? project.services : none, overlay.selectedServiceRun, overlay.previewServiceRuns,
+		// Runs of the building services: those of the networks shown with the layer on, and any a gesture previews.
+		std::vector<cad::ServiceRun> shown;
+		if (overlay.services)
+		{
+			std::copy_if(project.services.begin(), project.services.end(), std::back_inserter(shown),
+				[&overlay](const cad::ServiceRun& run) { return overlay.serviceKinds.contains(run.kind); });
+		}
+		const auto runs = overlaid(shown, overlay.selectedServiceRun, overlay.previewServiceRuns,
 			Ink::ServiceCasing, [](const cad::ServiceRun& run) { return cad::validateServiceRun(run).ok(); });
 		for (const auto& [run, ink] : runs)
 		{

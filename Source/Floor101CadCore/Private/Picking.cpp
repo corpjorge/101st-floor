@@ -159,7 +159,8 @@ namespace f101::cad
 		return nearest;
 	}
 
-	std::optional<ServiceRunHit> pickServiceRun(const Project& project, const Ray3& ray, const LevelId& level, double toleranceMm)
+	std::optional<ServiceRunHit> pickServiceRun(const Project& project, const Ray3& ray, const LevelId& level, double toleranceMm,
+		ServiceKindSet kinds)
 	{
 		const auto dot = [](double ax, double ay, double az, double bx, double by, double bz) { return ax * bx + ay * by + az * bz; };
 		const double a = dot(ray.directionX, ray.directionY, ray.directionZ, ray.directionX, ray.directionY, ray.directionZ);
@@ -170,7 +171,7 @@ namespace f101::cad
 		std::optional<ServiceRunHit> nearest;
 		for (const ServiceRun& run : project.services)
 		{
-			if (run.level != level)
+			if (run.level != level || !kinds.contains(run.kind))
 			{
 				continue;
 			}

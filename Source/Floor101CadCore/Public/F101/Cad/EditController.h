@@ -102,6 +102,8 @@ namespace f101::cad
 		std::vector<Column> previewColumns;
 		// The building-services layer (ADR-0021): the runs shown, the architecture seen through.
 		bool showServices = false;
+		// Which networks the layer shows (in 3D, in the plan and in the exported plan).
+		ServiceKindSet serviceKinds;
 		ServiceRunId selectedServiceRun; // nil: none
 		// The run being drawn (nil id) or the selected one where a drag would leave it (its own id).
 		std::vector<ServiceRun> previewServiceRuns;
@@ -136,7 +138,8 @@ namespace f101::cad
 	// last point back and Esc drops the run. A height changed while drawing rises or drops on the spot from the last
 	// point. With the layer
 	// shown, in Select mode a click on a run (seen through the walls) selects it: dragging it moves it on the grid,
-	// dragging one of the handles at its bends moves that bend.
+	// dragging one of the handles at its bends moves that bend. The layer shows the networks chosen
+	// (setServiceKindShown); drawing, selecting or retyping a run shows its network.
 	// Levels (ADR-0011): everything happens on the active level. Pointer rays are taken to that level's elevation, and
 	// picking, snapping, handles and corner moves only see its walls. Changing level drops the selection and any gesture.
 	class EditController
@@ -250,7 +253,11 @@ namespace f101::cad
 		bool showsServices() const { return servicesShown; }
 		// Hiding the layer leaves the Services mode and drops a selected run.
 		FLOOR101CADCORE_API void setShowServices(bool show);
-		// The kind of the next runs, and of the one being drawn.
+		// Which networks the layer shows: hiding one drops a selected run of that kind; the runs of a hidden kind are not
+		// picked.
+		const ServiceKindSet& shownServiceKinds() const { return serviceKindsShown; }
+		FLOOR101CADCORE_API void setServiceKindShown(ServiceKind kind, bool shown);
+		// The kind of the next runs, and of the one being drawn; its network is shown.
 		FLOOR101CADCORE_API Status setServiceKind(ServiceKind kind);
 		// The height of the next points over the level's floor, typed like a length ("-10" goes under the floor) or in mm.
 		FLOOR101CADCORE_API Status setServiceHeight(std::string_view text);
@@ -259,9 +266,9 @@ namespace f101::cad
 		// (nullopt while the pointer points at nothing).
 		const std::vector<ServicePoint>& runPoints() const { return runDraft; }
 		const std::optional<ServicePoint>& runPointer() const { return runCursor; }
-		// The selected run; nullopt if none, if it no longer exists or if the layer is hidden.
+		// The selected run; nullopt if none, if it no longer exists or if the layer or its network is hidden.
 		FLOOR101CADCORE_API std::optional<ServiceRun> selectedServiceRun() const;
-		// Shows the layer.
+		// Shows the layer and the run's network.
 		FLOOR101CADCORE_API Status selectServiceRun(const ServiceRunId& id);
 		FLOOR101CADCORE_API Status setServiceRunKind(ServiceKind kind);
 
@@ -438,6 +445,7 @@ namespace f101::cad
 		std::optional<ColumnDrag> columnDrag;
 		std::optional<Column> columnAt; // Column mode placement
 		bool servicesShown = false;
+		ServiceKindSet serviceKindsShown;
 		ServiceRunId selectedRunId;
 		std::optional<RunDrag> runDrag;
 		std::vector<ServicePoint> runDraft;     // Services mode: the run being drawn

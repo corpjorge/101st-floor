@@ -101,7 +101,8 @@ namespace f101::drawing
 		cad::ColumnId selectedColumn; // nil: none
 		// Columns as the current gesture would leave them: one with an existing id replaces it, one with a nil id is added.
 		std::vector<cad::Column> previewColumns;
-		bool services = false; // draw the runs of the building services (the layer of the editing view)
+		bool services = false; // draw the runs of the building services (the layer of the editing view)...
+		cad::ServiceKindSet serviceKinds; // ...of these networks
 		cad::ServiceRunId selectedServiceRun; // nil: none
 		// Runs as the current gesture would leave them, drawn even with the layer off: one with an existing id replaces
 		// it, one with a nil id is added.
@@ -142,8 +143,8 @@ namespace f101::drawing
 	// - each room's name ("Room 1"...) and net area at its label point;
 	// - each piece of furniture: its outline and the details of its type (a mattress, a basin, a hob) as thin lines;
 	// - each column: cut, as a solid fill of its outline (ADR-0021);
-	// - with the overlay's services layer, each run on the level: its plan path (a casing, then its kind's colour on
-	//   top), and a ring where it rises or drops on the spot.
+	// - with the overlay's services layer, each run on the level of the networks it shows: its plan path (a casing, then
+	//   its kind's colour on top), and a ring where it rises or drops on the spot.
 	// The overlay tints the selected and previewed walls, furniture, columns and runs and adds the handles.
 	FLOOR101DRAWING_API PlanDrawing buildPlanDrawing(const cad::Project& project, const cad::LevelId& level,
 		const PlanOverlay& overlay = {}, const DrawingTexts& texts = {});

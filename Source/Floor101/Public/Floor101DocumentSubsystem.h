@@ -117,7 +117,7 @@ public:
 	bool IsPlanView() const { return bPlanView; }
 	const f101::drawing::PlanDrawing& GetPlanDrawing() const;
 	// Exports the plan of a level (nil: the edited one), without editing marks (with the runs of the building services
-	// while their layer is shown), as .svg or .png by the path's extension.
+	// of the networks shown while their layer is shown), as .svg or .png by the path's extension.
 	// The status says where it went. PNG needs a renderer (not with -nullrhi).
 	f101::Status ExportPlan(const FString& Path, const f101::cad::LevelId& Level);
 	// Next to the project file (or the default one): "<file name>-<level>.<Extension>", e.g. "casa-planta-baja.svg".

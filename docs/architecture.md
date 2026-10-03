@@ -248,7 +248,7 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
   importadas como su archivo) y la repetición horneada en los UV. Metros con Y arriba.
 - **Twinmotion solo presenta:** recibe una copia; cada cambio se exporta de nuevo y se refresca la importación (con "Use
   scene materials" conserva sus materiales). Direct Link queda para después y reutilizará esta conversión.
-- **Aplicación:** botón "Twinmotion (.glb)" (junto al proyecto, `<proyecto>.glb`), consola `f101.Export.Gltf` y MCP
+- **Aplicación:** botón "Twinmotion (.glb)…" (diálogo para elegir dónde; propone la última carpeta usada, si no junto al proyecto, `<proyecto>.glb`), consola `f101.Export.Gltf` y MCP
   `ExportGltf`; nombres en el idioma de la UI. `Scripts/CheckGltf.ps1` da una segunda opinión con Blender.
 
 ## Pilares e instalaciones (MVP 13, ADR-0021)
@@ -262,7 +262,8 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
   suelos, forjados y carpintería en `Ghost`; en el plano, pilares cortados y tuberías con vaina oscura bajo su color.
 - **Ratón:** Pilar (C) se ajusta a esquinas, ejes de muro y rejilla; Instalación (I) dibuja por tramos a la altura
   elegida (bajo el suelo, pared, techo o escrita), con subidas verticales al cambiar de altura; doble clic o Enter
-  terminan. X muestra u oculta la capa; con ella el suelo del mapa también se vuelve translúcido.
+  terminan. X muestra u oculta la capa; con ella el suelo del mapa también se vuelve translúcido, y la fila "Redes"
+  elige qué redes se ven (electricidad, agua, aguas negras, gas, todas o ninguna) en 3D, en el plano y en su exportación.
 
 ## Interacción y UI (MVP 1–13, ADR-0008)
 
@@ -279,7 +280,7 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
   seleccionado (o gira 90° el mueble o el pilar que se coloca o el seleccionado), Tab alterna el plano 2D y R el Modo Foto. Mientras se escribe una longitud, las letras de sus unidades (m, c) son texto. `AFloor101GameMode` y el viewport client se configuran
   en `Config/DefaultEngine.ini` y rigen también en PIE.
 - **UI:** Slate en C++ (`SFloor101Overlay`, textos en español): barra con modos, deshacer/rehacer, encuadrar, cenital,
-  plano 2D, ruta de archivo, Guardar/Abrir, exportar el plano (SVG, PNG), Foto y "Twinmotion (.glb)", y la fila de plantas (planta activa con su cota, subir, bajar, nueva planta, ver
+  plano 2D, archivo actual, Guardar, "Guardar como…" y "Abrir…" con los diálogos de Windows (recuerdan la última carpeta), exportar el plano (SVG, PNG), Foto y "Twinmotion (.glb)", y la fila de plantas (planta activa con su cota, subir, bajar, nueva planta, ver
   todas); panel de propiedades del muro seleccionado (longitud, espesor, altura, acabado de cada cara nombrada por su
   orientación, eliminar), del hueco seleccionado (ancho, alto, antepecho, posición, tipo, bisagras, sentido, apertura,
   carpintería, eliminar), del mueble seleccionado (ancho, fondo, alto, giro, girar 90°, acabado, eliminar), del pilar
@@ -295,7 +296,7 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 - **Vista:** selección (naranja), vista previa (azul), asas (amarillo) y símbolos de apertura (líneas oscuras) son un
   `ViewOverlay` que se compila con el proyecto y nunca se guarda.
 - **Archivo:** `project.json` (ADR-0007) y, si hay assets, la carpeta `assets/` a su lado (ADR-0017); ruta por defecto
-  `Documentos/101st Floor/project.json`; Ctrl+S / Ctrl+O o `f101.Project.Save|Open [ruta]`; `f101.Asset.Import <ruta>`; `f101.Export.Gltf [ruta]` (ADR-0020).
+  `Documentos/101st Floor/project.json`; Ctrl+S / Ctrl+Shift+S / Ctrl+O (diálogos de Windows) o `f101.Project.Save|Open [ruta]`; `f101.Asset.Import <ruta>`; `f101.Export.Gltf [ruta]` (ADR-0020).
 
 ## Tests
 

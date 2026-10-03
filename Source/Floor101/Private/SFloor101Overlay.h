@@ -57,6 +57,8 @@ private:
 		TFunction<f101::Status(f101::cad::EditController&, f101::cad::ColumnShape)> Apply);
 	TSharedRef<SWidget> MakeServiceKindButtons(TFunction<std::optional<f101::cad::ServiceKind>()> Current,
 		TFunction<f101::Status(f101::cad::EditController&, f101::cad::ServiceKind)> Apply);
+	// With the services layer: which networks are seen, in 3D, in the plan and in the exported plan.
+	TSharedRef<SWidget> MakeNetworksRow();
 	// The built-in library (ADR-0019). A tile of a palette grid: a picture with its name under it, framed in orange while
 	// IsActive.
 	TSharedRef<SWidget> MakeCatalogueTile(const TSharedRef<SWidget>& Picture, const FText& Name, const FText& ToolTip,
@@ -122,11 +124,9 @@ private:
 	FText GetCursorText() const;
 	// Plan millimetres to this widget in the 2D plan view (camera straight down, north up); unset without a camera.
 	TOptional<FFloor101PlanMapping> GetPlanMapping(const FGeometry& Geometry) const;
-	FString GetPathOrDefault() const;
 
 	TWeakObjectPtr<UFloor101DocumentSubsystem> Document;
 	TWeakObjectPtr<UFloor101GameViewportClient> ViewportClient;
-	FString PathText;
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
 	// Finish ids each surface allows, for the drop-downs (on the heap: SComboBox keeps a pointer to the list).
 	TMap<uint8, TSharedPtr<TArray<TSharedPtr<FString>>>> FinishOptions;

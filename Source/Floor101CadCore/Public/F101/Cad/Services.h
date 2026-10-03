@@ -36,6 +36,21 @@ namespace f101::cad
 	FLOOR101CADCORE_API const ServiceKindInfo& serviceKindInfo(ServiceKind kind);
 	FLOOR101CADCORE_API std::optional<ServiceKind> parseServiceKind(std::string_view id);
 
+	// Which kinds of run a view shows (the networks of the services layer): every kind unless told otherwise.
+	struct ServiceKindSet
+	{
+		std::uint8_t bits = 0x0F; // bit i: ServiceKind i
+
+		bool contains(ServiceKind kind) const { return ((bits >> static_cast<unsigned>(kind)) & 1U) != 0U; }
+		void set(ServiceKind kind, bool shown)
+		{
+			const auto bit = static_cast<std::uint8_t>(1U << static_cast<unsigned>(kind));
+			bits = shown ? static_cast<std::uint8_t>(bits | bit) : static_cast<std::uint8_t>(bits & ~bit);
+		}
+
+		friend bool operator==(const ServiceKindSet&, const ServiceKindSet&) = default;
+	};
+
 	// A point of a run: plan mm local to its level, and the height of the pipe's axis over the level's floor.
 	struct ServicePoint
 	{
