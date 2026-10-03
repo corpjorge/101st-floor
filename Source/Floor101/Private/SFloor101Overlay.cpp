@@ -14,6 +14,7 @@
 #include "Floor101FileDialog.h"
 #include "Floor101FinishLibrary.h"
 #include "Floor101GameViewportClient.h"
+#include "Floor101Hdr.h"
 #include "Floor101Names.h"
 #include "Floor101PathTracing.h"
 #include "Floor101SceneSpace.h"
@@ -681,7 +682,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 0.0f, 2.0f, 0.0f)
 			[
 				ActionButton(LOCTEXT("Photo", "Foto (R)"),
-					LOCTEXT("PhotoTip", "Imagen fotorrealista con path tracing de la vista actual, para guardarla como PNG"), true,
+					LOCTEXT("PhotoTip", "Imagen fotorrealista con path tracing: PNG en SDR o EXR con HDR activo"), true,
 					FOnClicked::CreateLambda([this]()
 					{
 						if (UFloor101GameViewportClient* Client = ViewportClient.Get())
@@ -708,6 +709,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 				[
 					SNew(STextBlock).Text(LOCTEXT("Gltf", "Twinmotion (.glb)…")).Font(Font(10))
 				]
+			]
+			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+			[
+				MakeHdrButton()
 			]
 		]
 		+ SVerticalBox::Slot()
@@ -1471,6 +1476,33 @@ bool SFloor101Overlay::IsPhotoMode() const
 	return Client && Client->IsPhotoMode();
 }
 
+TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
+{
+	return SNew(SButton)
+		.IsFocusable(false)
+		.IsEnabled_Lambda([this]() { return Floor101::HDR::Query(ViewportClient.Get()).bAvailable; })
+		.ToolTipText_Lambda([this]() { return Floor101::HDR::Tooltip(Floor101::HDR::Query(ViewportClient.Get())); })
+		.ButtonColorAndOpacity_Lambda([this]()
+		{
+			return Floor101::HDR::Query(ViewportClient.Get()).bEnabled ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+		})
+		.OnClicked_Lambda([this]()
+		{
+			Floor101::HDR::SetEnabled(ViewportClient.Get(), !Floor101::HDR::Query(ViewportClient.Get()).bEnabled);
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			return FReply::Handled();
+		})
+		[
+			SNew(STextBlock).Font(Font(10, true))
+			.Text_Lambda([this]()
+			{
+				const Floor101::HDR::FStatus Status = Floor101::HDR::Query(ViewportClient.Get());
+				return Status.bEnabled ? LOCTEXT("HDRDisable", "Desactivar HDR")
+					: Status.bAvailable ? LOCTEXT("HDREnable", "Activar HDR") : LOCTEXT("HDRUnavailable", "HDR no disponible");
+			})
+		];
+}
+
 TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 {
 	auto PanelButton = [this](const FText& Label, const FText& ToolTip, TFunction<void(UFloor101GameViewportClient&)> Action)
@@ -1544,6 +1576,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 				[
+					MakeHdrButton()
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+				[
 					SNew(STextBlock)
 					.Font(Font(10))
 					.Text_Lambda([]()
@@ -1579,7 +1615,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
 				[
 					PanelButton(LOCTEXT("PhotoSave", "Guardar imagen"),
-						LOCTEXT("PhotoSaveTip", "Guarda la imagen actual como PNG junto al proyecto"),
+						LOCTEXT("PhotoSaveTip", "Guarda la imagen junto al proyecto: PNG con HDR desactivado; EXR para conservar HDR"),
 						[this](UFloor101GameViewportClient&)
 						{
 							if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
@@ -1614,7 +1650,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 					.ColorAndOpacity(MutedColor)
 					.AutoWrapText(true)
 					.Text(LOCTEXT("PhotoHint",
-						"La imagen se afina muestra a muestra y empieza de nuevo si mueves la cámara. Guárdala cuando esté lista."))
+						"La imagen se afina muestra a muestra y empieza de nuevo si mueves la cámara. Guárdala cuando esté lista. HDR se guarda como EXR; desactívalo para guardar PNG."))
 				])
 		];
 }

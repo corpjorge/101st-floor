@@ -24,5 +24,7 @@
 | [0020](ADR-0020-gltf-export-twinmotion.md) | Exportación glTF (`.glb`) para Twinmotion: módulo puro `Floor101Exporters` contra la escena neutral, metros con Y arriba, nombres estables por planta y clase, materiales con sus imágenes (PNG propio), repetición horneada en los UV | aceptado y verificado |
 | [0021](ADR-0021-columns-and-building-services.md) | Pilares (rectangulares y redondos, tan altos como su planta) e instalaciones (electricidad, agua, aguas negras, gas) como polilíneas 3D por tramos con color y diámetro por red; capa con rayos X (estilo `Ghost`); `project.json` esquema 10 | aceptado y verificado |
 
+| [0022](ADR-0022-hdr-display-output.md) | HDR opcional por pantalla, botón y preferencia local; metadatos de Windows; fotos EXR/PNG y comprobación HDR→SDR | aceptado y verificado |
+
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

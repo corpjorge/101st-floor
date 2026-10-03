@@ -44,6 +44,8 @@ git clone https://github.com/corpjorge/101st-floor.git; cd 101st-floor
 .\Scripts\Run.ps1              # abre 101st Floor con la pared de referencia (-Demo:$false: documento vacío)
 .\Scripts\CreateDesktopShortcut.ps1  # acceso directo "101st Floor" en el escritorio que ejecuta Run.ps1
 .\Scripts\CheckRendering.ps1   # valida DX12, SM6, GPU, ray tracing, Lumen HWRT, VSM, Nanite y el path tracing del Modo Foto
+.\Scripts\CheckHdr.ps1         # consulta HDR10/EDID, señal y luminancia declarada del monitor
+.\Scripts\CheckHdrOutput.ps1   # valida HDR/SDR real (-EnableWindowsHdrForTest: activa Windows HDR temporalmente)
 .\Scripts\RunEditorMcp.ps1     # abre Unreal Editor con el servidor MCP (desarrollo con Claude Code)
 .\Scripts\CheckMcp.ps1         # prueba de humo del MCP (handshake, toolsets, operación read-only)
 .\Scripts\GenerateAssets.ps1   # regenera los materiales de acabados y vidrio (Content/Floor101) desde código
@@ -59,4 +61,5 @@ Poly Haven. Sus binarios van por Git LFS (`git lfs install` antes de clonar).
 - [docs/cad-core.md](docs/cad-core.md) · [docs/geometry.md](docs/geometry.md) · [docs/scene-model.md](docs/scene-model.md) · [docs/drawing.md](docs/drawing.md) · [docs/exporters.md](docs/exporters.md) · [docs/unreal-integration.md](docs/unreal-integration.md) — cada capa
 - [docs/build.md](docs/build.md) — toolchain, compilación y localización del motor
 - [docs/rendering-rtx.md](docs/rendering-rtx.md) — configuración de render y cómo se verifica
+- [docs/hdr.md](docs/hdr.md) — botón HDR, monitor comprobado y fotos EXR/PNG
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización

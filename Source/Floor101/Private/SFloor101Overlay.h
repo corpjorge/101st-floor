@@ -104,6 +104,7 @@ private:
 	TSharedRef<SWidget> MakeFlipRow(TFunction<FText()> Label, TFunction<FText()> Value, f101::Status (f101::cad::EditController::*Flip)());
 	// Photo mode (ADR-0018): its samples, quality, saving the image and leaving it.
 	TSharedRef<SWidget> MakePhotoPanel();
+	TSharedRef<SWidget> MakeHdrButton();
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 
