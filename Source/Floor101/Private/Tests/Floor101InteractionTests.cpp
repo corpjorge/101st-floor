@@ -35,6 +35,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
+#include "Misc/ConfigCacheIni.h"
 
 #include <algorithm>
 
@@ -986,6 +987,13 @@ bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
 	// The user's own remembered places are put back at the end.
 	const FString UserProject = FFloor101FileActions::GetLastProjectPath();
 	const FString UserTwinmotion = FFloor101FileActions::GetLastTwinmotionFolder();
+	TArray<FString> UserRecent;
+	GConfig->GetArray(TEXT("Floor101.Paths"), TEXT("RecentProjects"), UserRecent, GGameUserSettingsIni);
+	ON_SCOPE_EXIT
+	{
+		GConfig->SetArray(TEXT("Floor101.Paths"), TEXT("RecentProjects"), UserRecent, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	};
 	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101FilePaths")));
 	const FString Path = FPaths::Combine(Folder, TEXT("mi casa.json"));
 
@@ -1376,4 +1384,31 @@ bool FFloor101ExportInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NewProjectTest, "Floor101.Interaction.NewProject", InteractionTestFlags)
+bool FFloor101NewProjectTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) { return false; }
+	const auto Wall = Document->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800).value();
+	(void)Document->Edit([Wall](EditController& Editor) { return Editor.select(Wall); });
+	TestTrue(TEXT("previous project has unsaved work"), Document->HasUnsavedChanges());
+	TestTrue(TEXT("cancelled replacement preserves project"), !FFloor101FileActions::PrepareExit(*Document,
+		[]() { return EAppReturnType::Cancel; }, []() {}));
+	TestEqual(TEXT("cancel retains walls"), Document->GetDocument().project().walls.size(), std::size_t{1});
+	const FString Path = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101NewProject.json"));
+	ON_SCOPE_EXIT { IFileManager::Get().Delete(*Path); };
+	TestTrue(TEXT("save existing file"), Document->SaveProject(Path).ok());
+	TestTrue(TEXT("fresh project created"), Document->NewProject().ok());
+	const auto& Fresh = Document->GetDocument().project();
+	TestTrue(TEXT("fresh document is valid"), f101::cad::validateProject(Fresh).ok());
+	TestTrue(TEXT("fresh document is empty"), Fresh.walls.empty() && Fresh.assets.empty() && Fresh.furniture.empty());
+	TestEqual(TEXT("fresh document has a usable level"), Fresh.levels.size(), std::size_t{1});
+	TestTrue(TEXT("fresh document has no file"), Document->GetProjectPath().IsEmpty());
+	TestFalse(TEXT("fresh document is clean"), Document->HasUnsavedChanges());
+	TestFalse(TEXT("old history cannot be undone into new document"), Document->GetDocument().canUndo());
+	TestFalse(TEXT("old history cannot be redone"), Document->GetDocument().canRedo());
+	TestTrue(TEXT("old selection is cleared"), Document->GetEditController().selection().isNil());
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

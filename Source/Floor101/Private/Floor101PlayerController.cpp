@@ -38,6 +38,7 @@ void AFloor101PlayerController::BeginPlay()
 			.ViewportClient(Cast<UFloor101GameViewportClient>(Viewport));
 		Viewport->AddViewportWidgetContent(Overlay.ToSharedRef());
 		Floor101::UIReview::Start(StaticCastSharedRef<SFloor101Overlay>(Overlay.ToSharedRef()), Cast<UFloor101GameViewportClient>(Viewport));
+		StaticCastSharedRef<SFloor101Overlay>(Overlay.ToSharedRef())->ShowStartup();
 	}
 }
 

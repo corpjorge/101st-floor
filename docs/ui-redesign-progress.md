@@ -3,6 +3,10 @@
 Rama `codex/ui-redesign`. Estudio aprobado por el usuario. Cada etapa se guarda
 en un commit independiente; no fusionar hasta recibir la solicitud.
 
+Etapas 1–6 completadas. La propuesta está en `ui-redesign.md`; las capturas
+siguientes corresponden a la aplicación real. Pendiente: revisión del usuario
+y cualquier publicación o fusión que solicite posteriormente.
+
 ## Etapa 2 — organización
 
 - Barra superior con proyecto, Diseñar/Recorrer/Foto, Guardar, Deshacer/Rehacer,
@@ -90,3 +94,39 @@ selección, Recorrer, Foto y rejilla inspeccionadas. Pendiente: catálogos e ini
 ![Recorrer](images/ui-redesign/stage5-walk.png)
 ![Foto](images/ui-redesign/stage5-photo.png)
 ![Rejilla](images/ui-redesign/stage5-grid.png)
+
+## Etapa 6 — catálogos e inicio
+
+- Muebles paramétricos con miniaturas derivadas de su geometría; modelos de la
+  biblioteca con sus imágenes y créditos. Materiales con muestras grandes y
+  nombres. Los modelos importados sin fotografía muestran un icono de modelo;
+  se mantienen importación, medidas, acabados y eliminación.
+- Búsqueda por palabras, sin distinguir mayúsculas ni tildes. Buscar muebles
+  consulta todas las categorías; materiales conserva la separación Paredes/Suelos.
+  Filtro Solo favoritos, estrella propia y estado sin resultados; preferencias
+  persistentes independientes del proyecto y de Deshacer/Rehacer.
+- Inicio con Nuevo proyecto, Continuar, Abrir, ocho recientes, Opciones y Salir.
+  Pulsar la marca abre Inicio; Esc vuelve al escritorio. Archivos ausentes se
+  identifican y deshabilitan. Nuevo/Abrir ofrece guardar, descartar o cancelar
+  cuando hay cambios pendientes. Un proyecto nuevo conserva un nivel válido.
+- Tarjetas legibles con fondos neutros; paneles y entrada modal consistentes.
+  Cerrar Opciones sobre Inicio mantiene bloqueados el CAD y la cámara.
+- Escribir en buscadores o propiedades no activa herramientas, añade medidas
+  ni mueve la cámara. La barra de progreso de Foto utiliza también el acento arena.
+
+Validación: compilación correcta, 275 pruebas unitarias (13 035 comprobaciones)
+y 74 de integración, sin fallos. Cinco nuevas regresiones cubren búsqueda y
+favoritos, recientes, documento nuevo, menús superpuestos y foco de escritura.
+Capturas inspeccionadas a 1920 × 1080 y 800 × 600. Comprobación de GPU correcta:
+DX12/SM6, ray tracing, Lumen HWRT, sombras virtuales, Nanite y Foto a 64 muestras.
+Log local: `Saved/RenderCheck/RenderCheck-20261003-234920.log`.
+
+![Inicio](images/ui-redesign/stage6-home.png)
+![Muebles](images/ui-redesign/stage6-furniture.png)
+![Materiales](images/ui-redesign/stage6-materials.png)
+![Búsqueda de muebles](images/ui-redesign/stage6-search.png)
+![Favoritos](images/ui-redesign/stage6-favorites.png)
+![Búsqueda de materiales](images/ui-redesign/stage6-materials-search.png)
+![Inicio pequeño](images/ui-redesign/stage6-small-home.png)
+![Catálogo pequeño](images/ui-redesign/stage6-small-furniture.png)
+![Opciones pequeñas](images/ui-redesign/stage6-small-options.png)

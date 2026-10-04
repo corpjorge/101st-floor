@@ -25,6 +25,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	void ShowStartup();
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 	virtual FReply OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
 	// Development-only command-line capture: exercises the actual Slate surface without changing user preferences.
@@ -42,6 +43,14 @@ private:
 	TSharedRef<SWidget> MakeViewMenu();
 	TSharedRef<SWidget> MakeUtilityMenu();
 	TSharedRef<SWidget> MakeOptionsPanel();
+	TSharedRef<SWidget> MakeHomePanel();
+	void OpenHome();
+	void CloseHome();
+	void EnterWorkspace(bool bFrame);
+	void RefreshModalInput();
+	TArray<FString> RecentProjects() const;
+	bool bHomeOpen = false;
+	bool bHasEnteredWorkspace = false;
 	void OpenOptions();
 	void CloseOptions();
 	bool bOptionsOpen = false;
@@ -81,7 +90,14 @@ private:
 	// The built-in library (ADR-0019). A tile of a palette grid: a picture with its name under it, framed in orange while
 	// IsActive.
 	TSharedRef<SWidget> MakeCatalogueTile(const TSharedRef<SWidget>& Picture, const FText& Name, const FText& ToolTip,
-		TFunction<bool()> IsActive, TFunction<FReply()> OnClicked);
+		TFunction<bool()> IsActive, TFunction<FReply()> OnClicked, const FString& Key, bool bModel);
+	TSharedRef<SWidget> MakeCatalogueFilters(bool bModel);
+	bool CatalogueHasResults(bool bModel) const;
+	TSet<FString> FavoriteKeys;
+	FString FurnitureQuery;
+	FString MaterialQuery;
+	bool bFurnitureFavoritesOnly = false;
+	bool bMaterialFavoritesOnly = false;
 	// The picture of an image file (library thumbnails and photographs), or a grey swatch if it cannot be read.
 	const FSlateBrush* GetPictureBrush(const FString& Path);
 	// Adds a library item to the project (once) and uses it: Amueblar places the model, Pintar applies the texture.
@@ -152,6 +168,7 @@ private:
 
 	TWeakObjectPtr<UFloor101DocumentSubsystem> Document;
 	TWeakObjectPtr<UFloor101GameViewportClient> ViewportClient;
+	TSharedPtr<SComboButton> PropertiesMenu;
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
 	// Finish ids each surface allows, for the drop-downs (on the heap: SComboBox keeps a pointer to the list).
 	TMap<uint8, TSharedPtr<TArray<TSharedPtr<FString>>>> FinishOptions;

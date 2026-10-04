@@ -57,7 +57,35 @@ FString FFloor101FileActions::GetLastTwinmotionFolder()
 
 void FFloor101FileActions::RememberProjectPath(const FString& Path)
 {
+	auto Recent = GetRecentProjects();
 	WriteSetting(LastProjectKey, Path);
+	if (!GConfig || Path.IsEmpty()) { return; }
+	FString Full = FPaths::ConvertRelativePathToFull(Path);
+	FPaths::NormalizeFilename(Full);
+	FPaths::CollapseRelativeDirectories(Full);
+	Recent.RemoveAll([&Full](const FString& Existing) { return Existing.Equals(Full, ESearchCase::IgnoreCase); });
+	Recent.Insert(Full, 0);
+	if (Recent.Num() > 8) { Recent.SetNum(8); }
+	GConfig->SetArray(PathsSection, TEXT("RecentProjects"), Recent, GGameUserSettingsIni);
+	GConfig->Flush(false, GGameUserSettingsIni);
+}
+
+TArray<FString> FFloor101FileActions::GetRecentProjects()
+{
+	TArray<FString> Recent;
+	if (GConfig) { GConfig->GetArray(PathsSection, TEXT("RecentProjects"), Recent, GGameUserSettingsIni); }
+	if (Recent.IsEmpty() && !GetLastProjectPath().IsEmpty()) { Recent.Add(FPaths::ConvertRelativePathToFull(GetLastProjectPath())); }
+	TArray<FString> Result;
+	for (FString Path : Recent)
+	{
+		if (Path.IsEmpty()) { continue; }
+		Path = FPaths::ConvertRelativePathToFull(Path);
+		FPaths::NormalizeFilename(Path);
+		FPaths::CollapseRelativeDirectories(Path);
+		if (!Result.ContainsByPredicate([&Path](const FString& Existing) { return Existing.Equals(Path, ESearchCase::IgnoreCase); })) { Result.Add(Path); }
+		if (Result.Num() == 8) { break; }
+	}
+	return Result;
 }
 
 void FFloor101FileActions::RememberTwinmotionFolder(const FString& Folder)
@@ -98,18 +126,34 @@ void FFloor101FileActions::SaveAs(UFloor101DocumentSubsystem& Document)
 	GiveFocusBack();
 }
 
-void FFloor101FileActions::Open(UFloor101DocumentSubsystem& Document)
+bool FFloor101FileActions::Open(UFloor101DocumentSubsystem& Document)
 {
 	const FString Last = GetLastProjectPath();
 	const FString Start = !Document.GetProjectPath().IsEmpty() ? Document.GetProjectPath()
 		: !Last.IsEmpty() ? Last : UFloor101DocumentSubsystem::GetDefaultProjectPath();
 	FString Path;
-	if (FFloor101FileDialog::OpenFile(LOCTEXT("OpenTitle", "Abrir una casa"), ProjectFiles().ToString(), TEXT("*.json"), Path, Start) &&
-		Document.OpenProject(Path))
-	{
-		RememberProjectPath(Path);
-	}
+	const bool Opened = FFloor101FileDialog::OpenFile(LOCTEXT("OpenTitle", "Abrir una casa"), ProjectFiles().ToString(), TEXT("*.json"), Path, Start)
+		&& OpenPath(Document, Path);
 	GiveFocusBack();
+	return Opened;
+}
+
+bool FFloor101FileActions::OpenPath(UFloor101DocumentSubsystem& Document, const FString& Path)
+{
+	if (!ConfirmReplace(Document) || !Document.OpenProject(Path)) { return false; }
+	RememberProjectPath(Path);
+	GiveFocusBack();
+	return true;
+}
+
+bool FFloor101FileActions::ConfirmReplace(UFloor101DocumentSubsystem& Document)
+{
+	return PrepareExit(Document, []()
+	{
+		return FMessageDialog::Open(EAppMsgType::YesNoCancel, EAppReturnType::Cancel,
+			LOCTEXT("ReplaceUnsaved", "Hay cambios sin guardar. ¿Quieres guardarlos antes de cambiar de proyecto?\n\nSí: guardar y continuar.\nNo: descartar los cambios.\nCancelar: seguir trabajando."),
+			LOCTEXT("ReplaceTitle", "Cambiar de proyecto"));
+	}, [&Document]() { Save(Document); });
 }
 
 bool FFloor101FileActions::PrepareExit(UFloor101DocumentSubsystem& Document, TFunctionRef<EAppReturnType::Type()> Prompt,

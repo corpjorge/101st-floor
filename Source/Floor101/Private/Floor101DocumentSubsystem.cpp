@@ -415,6 +415,19 @@ f101::Status UFloor101DocumentSubsystem::SaveProject(const FString& Path)
 	return Saved;
 }
 
+f101::Status UFloor101DocumentSubsystem::NewProject()
+{
+	f101::cad::Document Empty(f101::cad::makeRandomUuidSource());
+	Editor->reset();
+	ProjectPath.Empty();
+	ReferenceWallId = {};
+	const f101::Status Replaced = Document->replaceProject(Empty.project());
+	if (!Replaced) { SetStatus(ToText(Replaced.error().message), true); return Replaced; }
+	SavedChangeCount = ChangeCount;
+	SetStatus(LOCTEXT("NewStudioProject", "Nuevo proyecto"), false);
+	return Replaced;
+}
+
 f101::Status UFloor101DocumentSubsystem::OpenProject(const FString& Path)
 {
 	f101::Result<f101::cad::Project> Loaded = f101::cad::loadProjectFile(ToFilesystemPath(Path));

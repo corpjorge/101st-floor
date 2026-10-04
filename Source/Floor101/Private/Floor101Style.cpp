@@ -48,6 +48,15 @@ namespace Floor101::Studio
 		return Style;
 	}
 
+	const FProgressBarStyle& Progress()
+	{
+		static const FProgressBarStyle Style = FProgressBarStyle(FCoreStyle::Get().GetWidgetStyle<FProgressBarStyle>("ProgressBar"))
+			.SetBackgroundImage(FSlateRoundedBoxBrush(Color(TEXT("1D2327")), 2.0f))
+			.SetFillImage(FSlateRoundedBoxBrush(Color(TEXT("D6AD78")), 2.0f))
+			.SetMarqueeImage(FSlateRoundedBoxBrush(Color(TEXT("D6AD78")), 2.0f));
+		return Style;
+	}
+
 	const FEditableTextBoxStyle& TextBox()
 	{
 		static const FEditableTextBoxStyle Style = FEditableTextBoxStyle(FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox"))

@@ -90,6 +90,7 @@ public:
 	// project.json (ADR-0007). Opening replaces the document and clears the undo history.
 	f101::Status SaveProject(const FString& Path);
 	f101::Status OpenProject(const FString& Path);
+	f101::Status NewProject();
 	// File the document was last saved to or opened from; empty if none.
 	const FString& GetProjectPath() const { return ProjectPath; }
 	// True after any change since the last save or open (an undo back to the saved state still counts as a change).

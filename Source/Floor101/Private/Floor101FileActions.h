@@ -14,7 +14,9 @@ struct FFloor101FileActions
 	// Ctrl+Shift+S: asks where (proposing the current file, else the last folder used).
 	static void SaveAs(UFloor101DocumentSubsystem& Document);
 	// Ctrl+O: asks which project.json to open.
-	static void Open(UFloor101DocumentSubsystem& Document);
+	static bool Open(UFloor101DocumentSubsystem& Document);
+	static bool OpenPath(UFloor101DocumentSubsystem& Document, const FString& Path);
+	static bool ConfirmReplace(UFloor101DocumentSubsystem& Document);
 	// Clean documents close immediately. Dirty documents offer save, discard or cancel; a cancelled/failed save stays open.
 	static bool ConfirmExit(UFloor101DocumentSubsystem& Document);
 	static bool PrepareExit(UFloor101DocumentSubsystem& Document, TFunctionRef<EAppReturnType::Type()> Prompt,
@@ -24,6 +26,7 @@ struct FFloor101FileActions
 
 	// The remembered places; empty while there is none.
 	static FString GetLastProjectPath();
+	static TArray<FString> GetRecentProjects();
 	static FString GetLastTwinmotionFolder();
 	static void RememberProjectPath(const FString& Path);
 	static void RememberTwinmotionFolder(const FString& Folder);

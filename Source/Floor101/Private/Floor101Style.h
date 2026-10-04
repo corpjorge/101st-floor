@@ -10,4 +10,5 @@ namespace Floor101::Studio
 	const FComboButtonStyle& ComboButton();
 	const FComboBoxStyle& ComboBox();
 	const FEditableTextBoxStyle& TextBox();
+	const FProgressBarStyle& Progress();
 }

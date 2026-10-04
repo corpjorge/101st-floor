@@ -80,6 +80,7 @@ public:
 	bool RequestExit();
 	// A dedicated options/start screen owns input while open; CAD and held movement keys stay inactive.
 	void SetInterfaceOpen(bool bOpen, FSimpleDelegate Close = FSimpleDelegate());
+	bool IsInterfaceOpen() const { return bInterfaceOpen; }
 
 	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
 	void FrameProject();

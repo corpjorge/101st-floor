@@ -16,6 +16,7 @@
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
 #include "UnrealClient.h"
+#include "Widgets/SWidget.h"
 
 namespace
 {
@@ -32,6 +33,13 @@ namespace
 	{
 		return Key == EKeys::LeftControl || Key == EKeys::RightControl || Key == EKeys::LeftAlt || Key == EKeys::RightAlt
 			|| Key == EKeys::LeftCommand || Key == EKeys::RightCommand;
+	}
+
+	bool StudioTextEntryFocused()
+	{
+		const TSharedPtr<SWidget> Focused = FSlateApplication::IsInitialized() ? FSlateApplication::Get().GetKeyboardFocusedWidget() : nullptr;
+		return Focused && (Focused->GetType() == FName(TEXT("SEditableText")) || Focused->GetType() == FName(TEXT("SEditableTextBox"))
+			|| Focused->GetType() == FName(TEXT("SMultiLineEditableText")) || Focused->GetType() == FName(TEXT("SMultiLineEditableTextBox")));
 	}
 }
 
@@ -241,6 +249,8 @@ void UFloor101GameViewportClient::SetNavigationMode(bool bNavigate)
 
 bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 {
+	// Slate can bubble unhandled letter-key events; typing a search must never switch CAD tools.
+	if (StudioTextEntryFocused() && !EventArgs.Key.IsMouseButton()) { NavigationKeys.Reset(); return true; }
 	if (bInterfaceOpen)
 	{
 		if (EventArgs.Key == EKeys::Escape && EventArgs.Event == IE_Pressed)
@@ -333,7 +343,7 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 
 bool UFloor101GameViewportClient::InputAxis(const FInputKeyEventArgs& EventArgs)
 {
-	if (bInterfaceOpen) { return true; }
+	if (bInterfaceOpen || StudioTextEntryFocused()) { return true; }
 	if (EventArgs.Key == EKeys::MouseWheelAxis && GetEditingTarget())
 	{
 		if (AFloor101EditingPawn* Pawn = GetEditingPawn())
@@ -515,7 +525,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 
 bool UFloor101GameViewportClient::InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character)
 {
-	if (bInterfaceOpen) { return true; }
+	if (bInterfaceOpen || StudioTextEntryFocused()) { return true; }
 	if (bNavigationMode || bOrbiting)
 	{
 		return true;
