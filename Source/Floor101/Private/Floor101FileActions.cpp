@@ -4,7 +4,8 @@
 #include "Floor101FileDialog.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/ConfigCacheIni.h"
-#include "Misc/MessageDialog.h"
+#include "Engine/World.h"
+#include "Floor101GameViewportClient.h"
 #include "Misc/Paths.h"
 
 #define LOCTEXT_NAMESPACE "Floor101Overlay"
@@ -126,34 +127,39 @@ void FFloor101FileActions::SaveAs(UFloor101DocumentSubsystem& Document)
 	GiveFocusBack();
 }
 
-bool FFloor101FileActions::Open(UFloor101DocumentSubsystem& Document)
+void FFloor101FileActions::Open(UFloor101DocumentSubsystem& Document, FSimpleDelegate OnOpened)
 {
 	const FString Last = GetLastProjectPath();
 	const FString Start = !Document.GetProjectPath().IsEmpty() ? Document.GetProjectPath()
 		: !Last.IsEmpty() ? Last : UFloor101DocumentSubsystem::GetDefaultProjectPath();
 	FString Path;
-	const bool Opened = FFloor101FileDialog::OpenFile(LOCTEXT("OpenTitle", "Abrir una casa"), ProjectFiles().ToString(), TEXT("*.json"), Path, Start)
-		&& OpenPath(Document, Path);
-	GiveFocusBack();
-	return Opened;
-}
-
-bool FFloor101FileActions::OpenPath(UFloor101DocumentSubsystem& Document, const FString& Path)
-{
-	if (!ConfirmReplace(Document) || !Document.OpenProject(Path)) { return false; }
-	RememberProjectPath(Path);
-	GiveFocusBack();
-	return true;
-}
-
-bool FFloor101FileActions::ConfirmReplace(UFloor101DocumentSubsystem& Document)
-{
-	return PrepareExit(Document, []()
+	if (FFloor101FileDialog::OpenFile(LOCTEXT("OpenTitle", "Abrir una casa"), ProjectFiles().ToString(), TEXT("*.json"), Path, Start))
 	{
-		return FMessageDialog::Open(EAppMsgType::YesNoCancel, EAppReturnType::Cancel,
-			LOCTEXT("ReplaceUnsaved", "Hay cambios sin guardar. ¿Quieres guardarlos antes de cambiar de proyecto?\n\nSí: guardar y continuar.\nNo: descartar los cambios.\nCancelar: seguir trabajando."),
-			LOCTEXT("ReplaceTitle", "Cambiar de proyecto"));
-	}, [&Document]() { Save(Document); });
+		OpenPath(Document, Path, OnOpened);
+	}
+	// A deferred confirmation owns focus until it is resolved.
+	const auto* Client = Document.GetWorld() ? Cast<UFloor101GameViewportClient>(Document.GetWorld()->GetGameViewport()) : nullptr;
+	if (!Client || !Client->IsInterfaceOpen()) { GiveFocusBack(); }
+}
+
+void FFloor101FileActions::OpenPath(UFloor101DocumentSubsystem& Document, const FString& Path, FSimpleDelegate OnOpened)
+{
+	RequestReplace(Document, FSimpleDelegate::CreateLambda([WeakDocument = TWeakObjectPtr<UFloor101DocumentSubsystem>(&Document), Path, OnOpened]()
+	{
+		if (auto* D = WeakDocument.Get(); D && D->OpenProject(Path))
+		{
+			RememberProjectPath(Path);
+			GiveFocusBack();
+			OnOpened.ExecuteIfBound();
+		}
+	}));
+}
+
+bool FFloor101FileActions::RequestReplace(UFloor101DocumentSubsystem& Document, FSimpleDelegate Proceed)
+{
+	if (!Document.HasUnsavedChanges()) { Proceed.ExecuteIfBound(); return true; }
+	auto* Client = Document.GetWorld() ? Cast<UFloor101GameViewportClient>(Document.GetWorld()->GetGameViewport()) : nullptr;
+	return Client && Client->RequestUnsavedAction(false, Proceed);
 }
 
 bool FFloor101FileActions::PrepareExit(UFloor101DocumentSubsystem& Document, TFunctionRef<EAppReturnType::Type()> Prompt,
@@ -165,18 +171,6 @@ bool FFloor101FileActions::PrepareExit(UFloor101DocumentSubsystem& Document, TFu
 	if (Choice != EAppReturnType::Yes) { return false; }
 	SaveDocument();
 	return !Document.HasUnsavedChanges();
-}
-
-bool FFloor101FileActions::ConfirmExit(UFloor101DocumentSubsystem& Document)
-{
-	const bool bExit = PrepareExit(Document, []()
-	{
-		return FMessageDialog::Open(EAppMsgType::YesNoCancel, EAppReturnType::Cancel,
-			LOCTEXT("ExitUnsaved", "Hay cambios sin guardar. ¿Quieres guardarlos antes de salir?\n\nSí: guardar y salir.\nNo: salir sin guardar.\nCancelar: seguir trabajando."),
-			LOCTEXT("ExitTitle", "Salir de 101st Floor"));
-	}, [&Document]() { Save(Document); });
-	if (!bExit) { GiveFocusBack(); }
-	return bExit;
 }
 
 void FFloor101FileActions::ExportTwinmotion(UFloor101DocumentSubsystem& Document)

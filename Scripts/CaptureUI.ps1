@@ -5,11 +5,12 @@
 [CmdletBinding()]
 param(
     [string]$Output = 'Saved/UI/design.png',
-    [ValidateSet('design', 'options', 'walk', 'photo', 'furniture', 'materials', 'home', 'grid', 'selection', 'search', 'favorites', 'materials-search')]
+    [ValidateSet('design', 'options', 'walk', 'photo', 'furniture', 'materials', 'home', 'grid', 'selection', 'search', 'favorites', 'materials-search', 'unsaved')]
     [string]$Screen = 'design',
     [string]$Project = '',
     [int]$ResX = 1920,
-    [int]$ResY = 1080
+    [int]$ResY = 1080,
+    [switch]$Fullscreen
 )
 . "$PSScriptRoot/Common.ps1"
 $uiEngine = Find-UnrealEngine
@@ -17,7 +18,8 @@ $uiCapturePath = [IO.Path]::GetFullPath((Join-Path $RepoRoot $Output))
 if (-not $uiCapturePath.StartsWith($RepoRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Capture output must stay inside the repository.'
 }
-$uiArguments = @("`"$UProjectPath`"", '-game', '-DisablePython', '-windowed', "-ResX=$ResX", "-ResY=$ResY",
+$uiWindowMode = if ($Fullscreen) { '-fullscreen' } else { '-windowed' }
+$uiArguments = @("`"$UProjectPath`"", '-game', '-DisablePython', $uiWindowMode, "-ResX=$ResX", "-ResY=$ResY",
     '-ForceRes', '-unattended', '-nosplash', "-F101UICapture=`"$uiCapturePath`"", "-F101UIScreen=$Screen")
 if ($Project) {
     $uiProjectPath = [IO.Path]::GetFullPath((Join-Path $RepoRoot $Project))

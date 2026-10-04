@@ -26,6 +26,9 @@ public:
 
 	void Construct(const FArguments& InArgs);
 	void ShowStartup();
+	void ShowUnsavedPrompt(bool bExit, FSimpleDelegate Proceed);
+	void ResolveUnsavedPrompt(EAppReturnType::Type Choice);
+	bool IsUnsavedPromptOpen() const { return bUnsavedPromptOpen; }
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 	virtual FReply OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
 	// Development-only command-line capture: exercises the actual Slate surface without changing user preferences.
@@ -44,9 +47,16 @@ private:
 	TSharedRef<SWidget> MakeUtilityMenu();
 	TSharedRef<SWidget> MakeOptionsPanel();
 	TSharedRef<SWidget> MakeHomePanel();
+	TSharedRef<SWidget> MakeUnsavedPanel();
+	bool bUnsavedPromptOpen = false;
+	bool bUnsavedExit = false;
+	bool bResolvingUnsaved = false;
+	bool bUnsavedSaveFailed = false;
+	FSimpleDelegate PendingUnsavedAction;
 	void OpenHome();
 	void CloseHome();
 	void EnterWorkspace(bool bFrame);
+	void EnterNewProject();
 	void RefreshModalInput();
 	TArray<FString> RecentProjects() const;
 	bool bHomeOpen = false;

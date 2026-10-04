@@ -276,6 +276,7 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 {
 	Document = InArgs._Document;
 	ViewportClient = InArgs._ViewportClient;
+	if (auto* Client = ViewportClient.Get()) { Client->UnsavedPrompt.BindSP(this, &SFloor101Overlay::ShowUnsavedPrompt); }
 	for (const FString& Key : Floor101::Catalogue::Favorites()) { FavoriteKeys.Add(Key); }
 	auto PlanShown = [this]() { const auto* S = Document.Get(); return S && S->IsPlanView(); };
 	ChildSlot
@@ -321,6 +322,7 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 		]
 		+ SOverlay::Slot()[MakeHomePanel()]
 		+ SOverlay::Slot()[MakeOptionsPanel()]
+		+ SOverlay::Slot()[MakeUnsavedPanel()]
 	];
 }
 
@@ -662,6 +664,11 @@ void SFloor101Overlay::CloseOptions()
 
 FReply SFloor101Overlay::OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event)
 {
+	if (bUnsavedPromptOpen)
+	{
+		if (Event.GetKey() == EKeys::Escape) { ResolveUnsavedPrompt(EAppReturnType::Cancel); }
+		return FReply::Handled();
+	}
 	if (bOptionsOpen && Event.GetKey() == EKeys::Escape) { CloseOptions(); return FReply::Handled(); }
 	if (bHomeOpen && Event.GetKey() == EKeys::Escape) { CloseHome(); return FReply::Handled(); }
 	return SCompoundWidget::OnKeyDown(Geometry, Event);
@@ -742,6 +749,15 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 #if WITH_DEV_AUTOMATION_TESTS
 void SFloor101Overlay::PrepareReview(const FString& Screen)
 {
+	if (Screen == TEXT("unsaved"))
+	{
+		OpenHome();
+		if (auto* D = Document.Get())
+		{
+			(void)D->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800); // transient capture-only edit, never saved
+			FFloor101FileActions::RequestReplace(*D, FSimpleDelegate::CreateSP(this, &SFloor101Overlay::EnterNewProject));
+		}
+	}
 	if (Screen == TEXT("home")) { OpenHome(); }
 	if (Screen == TEXT("selection") && Document.IsValid() && !Document->GetDocument().project().walls.empty())
 	{

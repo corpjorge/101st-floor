@@ -34,11 +34,12 @@ void SFloor101Overlay::RefreshModalInput()
 {
 	if (auto* Client = ViewportClient.Get())
 	{
-		const FSimpleDelegate Close = bOptionsOpen ? FSimpleDelegate::CreateSP(this, &SFloor101Overlay::CloseOptions)
+		const FSimpleDelegate Close = bUnsavedPromptOpen ? FSimpleDelegate::CreateSP(this, &SFloor101Overlay::ResolveUnsavedPrompt, EAppReturnType::Cancel)
+			: bOptionsOpen ? FSimpleDelegate::CreateSP(this, &SFloor101Overlay::CloseOptions)
 			: FSimpleDelegate::CreateSP(this, &SFloor101Overlay::CloseHome);
-		Client->SetInterfaceOpen(bOptionsOpen || bHomeOpen, Close);
+		Client->SetInterfaceOpen(bUnsavedPromptOpen || bOptionsOpen || bHomeOpen, Close);
 	}
-	if (bOptionsOpen || bHomeOpen) { FSlateApplication::Get().SetKeyboardFocus(AsShared()); }
+	if (bUnsavedPromptOpen || bOptionsOpen || bHomeOpen) { FSlateApplication::Get().SetKeyboardFocus(AsShared()); }
 	else { FSlateApplication::Get().SetAllUserFocusToGameViewport(); }
 }
 
@@ -93,7 +94,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHomePanel()
 			.ToolTipText_Lambda([Path]() { return FText::FromString(Path()); })
 			.OnClicked_Lambda([this, Path]()
 			{
-				if (auto* D = Document.Get(); D && FFloor101FileActions::OpenPath(*D, Path())) { EnterWorkspace(true); }
+				if (auto* D = Document.Get()) { FFloor101FileActions::OpenPath(*D, Path(), FSimpleDelegate::CreateSP(this, &SFloor101Overlay::EnterWorkspace, true)); }
 				return FReply::Handled();
 			})
 			[
@@ -130,7 +131,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHomePanel()
 				[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(12.0, 12.0))
 					+ SWrapBox::Slot()[Action(FText::FromString(TEXT("Nuevo proyecto")), FOnClicked::CreateLambda([this]()
 					{
-						if (auto* D = Document.Get(); D && FFloor101FileActions::ConfirmReplace(*D) && D->NewProject()) { EnterWorkspace(true); }
+						if (auto* D = Document.Get())
+						{
+							FFloor101FileActions::RequestReplace(*D, FSimpleDelegate::CreateSP(this, &SFloor101Overlay::EnterNewProject));
+						}
 						return FReply::Handled();
 					}))]
 					+ SWrapBox::Slot()[Action(FText::FromString(TEXT("Continuar")), FOnClicked::CreateLambda([this]()
@@ -143,7 +147,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHomePanel()
 								bool bFound = false;
 								for (const FString& Path : RecentProjects())
 								{
-									if (IFileManager::Get().FileExists(*Path)) { bFound = true; if (FFloor101FileActions::OpenPath(*D, Path)) { EnterWorkspace(true); } break; }
+									if (IFileManager::Get().FileExists(*Path)) { bFound = true; FFloor101FileActions::OpenPath(*D, Path, FSimpleDelegate::CreateSP(this, &SFloor101Overlay::EnterWorkspace, true)); break; }
 								}
 								if (!bFound && D->HasUnsavedChanges()) { EnterWorkspace(false); }
 							}
@@ -157,7 +161,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHomePanel()
 					}))]
 					+ SWrapBox::Slot()[Action(FText::FromString(TEXT("Abrir proyecto…")), FOnClicked::CreateLambda([this]()
 					{
-						if (auto* D = Document.Get(); D && FFloor101FileActions::Open(*D)) { EnterWorkspace(true); }
+						if (auto* D = Document.Get()) { FFloor101FileActions::Open(*D, FSimpleDelegate::CreateSP(this, &SFloor101Overlay::EnterWorkspace, true)); }
 						return FReply::Handled();
 					}))]
 				]
@@ -174,4 +178,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHomePanel()
 				]
 			]]
 		];
+}
+
+void SFloor101Overlay::EnterNewProject()
+{
+	if (auto* D = Document.Get(); D && D->NewProject()) { EnterWorkspace(true); }
 }

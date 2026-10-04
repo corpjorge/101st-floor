@@ -14,11 +14,10 @@ struct FFloor101FileActions
 	// Ctrl+Shift+S: asks where (proposing the current file, else the last folder used).
 	static void SaveAs(UFloor101DocumentSubsystem& Document);
 	// Ctrl+O: asks which project.json to open.
-	static bool Open(UFloor101DocumentSubsystem& Document);
-	static bool OpenPath(UFloor101DocumentSubsystem& Document, const FString& Path);
-	static bool ConfirmReplace(UFloor101DocumentSubsystem& Document);
+	static void Open(UFloor101DocumentSubsystem& Document, FSimpleDelegate OnOpened = FSimpleDelegate());
+	static void OpenPath(UFloor101DocumentSubsystem& Document, const FString& Path, FSimpleDelegate OnOpened = FSimpleDelegate());
+	static bool RequestReplace(UFloor101DocumentSubsystem& Document, FSimpleDelegate Proceed);
 	// Clean documents close immediately. Dirty documents offer save, discard or cancel; a cancelled/failed save stays open.
-	static bool ConfirmExit(UFloor101DocumentSubsystem& Document);
 	static bool PrepareExit(UFloor101DocumentSubsystem& Document, TFunctionRef<EAppReturnType::Type()> Prompt,
 		TFunctionRef<void()> SaveDocument);
 	// Asks where to write the .glb for Twinmotion (the last folder used for it, else next to the project).

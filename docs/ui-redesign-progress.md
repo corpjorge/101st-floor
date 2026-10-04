@@ -130,3 +130,26 @@ Log local: `Saved/RenderCheck/RenderCheck-20261003-234920.log`.
 ![Inicio pequeÃ±o](images/ui-redesign/stage6-small-home.png)
 ![CatÃ¡logo pequeÃ±o](images/ui-redesign/stage6-small-furniture.png)
 ![Opciones pequeÃ±as](images/ui-redesign/stage6-small-options.png)
+
+
+## Corrección — cambios sin guardar dentro del juego (2026-10-04)
+
+- Sustituido el cuadro nativo de Windows por un aviso Slate centrado sobre la
+  propia pantalla del juego. Mantiene el estilo Estudio y se ajusta al tamaño
+  disponible; Guardar, Descartar y Cancelar quedan accesibles en pantalla completa.
+- Nuevo, Abrir, recientes y Salir conservan su acción pendiente hasta resolver el
+  aviso. Cancelar y Esc mantienen el documento; el guardado debe completarse antes
+  de continuar. Un guardado fallido o cancelado mantiene disponibles las opciones.
+- La confirmación tiene prioridad sobre Inicio/Opciones y bloquea edición y
+  movimiento detrás del panel. Peticiones repetidas no sustituyen la acción ni
+  ejecutan dos veces la continuación; al cerrar se restaura el menú correspondiente.
+
+Validación: compilación correcta, 275 pruebas unitarias y 76 de integración,
+ningún fallo. Dos nuevas regresiones ejercitan el overlay real, verifican que no
+se crea otra ventana, comprueban Cancelar/Esc, Descartar, guardado correcto,
+guardado fallido y recuperación de entrada. Capturas reales del flujo de cambio
+con modificaciones, en pantalla completa a 2560 × 1440 y ventana de 800 × 600.
+Rama `codex/ui-redesign`, sin fusionar.
+
+![Aviso en pantalla completa](images/ui-redesign/fix-unsaved-fullscreen.png)
+![Aviso en ventana pequeña](images/ui-redesign/fix-unsaved-small.png)

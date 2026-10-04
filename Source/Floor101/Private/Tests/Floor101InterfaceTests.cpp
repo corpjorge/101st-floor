@@ -5,6 +5,10 @@
 #include "Floor101GameViewportClient.h"
 #include "Floor101Display.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Floor101DocumentSubsystem.h"
+#include "F101/Cad/Document.h"
+#include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
 #include "InputCoreTypes.h"
 #include "Misc/ScopeExit.h"
@@ -143,6 +147,92 @@ bool FFloor101SearchInputTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("typing cannot append CAD dimensions"), Client->InputChar(nullptr, 0, TEXT('3')));
 	TestTrue(TEXT("search focus prevents wheel zoom"), Client->InputAxis(FInputKeyEventArgs(nullptr, FInputDeviceId::CreateFromInternalId(0), EKeys::MouseWheelAxis, IE_Axis, 0ULL)));
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101UnsavedModalTest, "Floor101.Interface.UnsavedModal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFloor101UnsavedModalTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("Floor101UnsavedModalWorld"));
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	ON_SCOPE_EXIT { GEngine->DestroyWorldContext(World); World->DestroyWorld(false); };
+	auto* D = World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), D)) { return false; }
+	(void)D->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800);
+	auto* Client = NewObject<UFloor101GameViewportClient>(GEngine);
+	const TSharedRef<SFloor101Overlay> Overlay = SNew(SFloor101Overlay).Document(D).ViewportClient(Client);
+	int32 Proceeds = 0;
+	int32 Replaced = 0;
+	const FSimpleDelegate Proceed = FSimpleDelegate::CreateLambda([&Proceeds]() { ++Proceeds; });
+	const FInputKeyEventArgs Escape(nullptr, FInputDeviceId::CreateFromInternalId(0), EKeys::Escape, IE_Pressed, 0ULL);
+	const int32 WindowsBefore = FSlateApplication::Get().GetTopLevelWindows().Num();
+	Overlay->PrepareReview(TEXT("home"));
+	GEngine->GetWorldContextFromWorldChecked(World).GameViewport = Client;
+	TestTrue(TEXT("replacement routes to the viewport prompt"), FFloor101FileActions::RequestReplace(*D, Proceed));
+	TestTrue(TEXT("confirmation is visible inside overlay"), Overlay->IsUnsavedPromptOpen());
+	TestEqual(TEXT("confirmation creates no separate window"), FSlateApplication::Get().GetTopLevelWindows().Num(), WindowsBefore);
+	TestTrue(TEXT("confirmation blocks keyboard editing"), Client->InputChar(nullptr, 0, TEXT('3')));
+	TestTrue(TEXT("confirmation blocks camera wheel"), Client->InputAxis(FInputKeyEventArgs(nullptr, FInputDeviceId::CreateFromInternalId(0), EKeys::MouseWheelAxis, IE_Axis, 0ULL)));
+	Client->InputKey(Escape);
+	TestFalse(TEXT("Escape cancels confirmation"), Overlay->IsUnsavedPromptOpen());
+	TestEqual(TEXT("cancel does not run pending action"), Proceeds, 0);
+	TestTrue(TEXT("cancel preserves unsaved model"), D->HasUnsavedChanges() && D->GetDocument().project().walls.size() == 1);
+	TestTrue(TEXT("cancel keeps underlying home modal active"), Client->IsInterfaceOpen());
+	Client->InputKey(Escape);
+	TestFalse(TEXT("leaving home restores viewport input"), Client->IsInterfaceOpen());
+	Client->RequestUnsavedAction(true, Proceed);
+	Client->RequestUnsavedAction(false, FSimpleDelegate::CreateLambda([&Replaced]() { ++Replaced; }));
+	Overlay->ResolveUnsavedPrompt(EAppReturnType::No);
+	Overlay->ResolveUnsavedPrompt(EAppReturnType::No);
+	TestEqual(TEXT("discard continues exactly once"), Proceeds, 1);
+	TestEqual(TEXT("repeated requests cannot replace pending action"), Replaced, 0);
+	TestFalse(TEXT("discard releases modal input"), Client->IsInterfaceOpen());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101UnsavedSaveTest, "Floor101.Interface.UnsavedSave",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFloor101UnsavedSaveTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("Floor101UnsavedSaveWorld"));
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	const FString Path = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101UnsavedSave.json"));
+	const FString OriginalLast = FFloor101FileActions::GetLastProjectPath();
+	TArray<FString> OriginalRecent;
+	GConfig->GetArray(TEXT("Floor101.Paths"), TEXT("RecentProjects"), OriginalRecent, GGameUserSettingsIni);
+	ON_SCOPE_EXIT
+	{
+		IFileManager::Get().Delete(*Path);
+		IFileManager::Get().DeleteDirectory(*(Path + TEXT(".tmp")), false, false);
+		GConfig->SetString(TEXT("Floor101.Paths"), TEXT("LastProject"), *OriginalLast, GGameUserSettingsIni);
+		GConfig->SetArray(TEXT("Floor101.Paths"), TEXT("RecentProjects"), OriginalRecent, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+		GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
+	};
+	auto* D = World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), D) || !TestTrue(TEXT("initial save"), D->SaveProject(Path).ok())) { return false; }
+	(void)D->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800);
+	auto* Client = NewObject<UFloor101GameViewportClient>(GEngine);
+	const TSharedRef<SFloor101Overlay> Overlay = SNew(SFloor101Overlay).Document(D).ViewportClient(Client);
+	int32 Proceeds = 0;
+	Client->RequestUnsavedAction(false, FSimpleDelegate::CreateLambda([&Proceeds]() { ++Proceeds; }));
+	TestTrue(TEXT("create a blocked temporary save path"), IFileManager::Get().MakeDirectory(*(Path + TEXT(".tmp")), false));
+	AddExpectedMessagePlain(TEXT("F101: Cannot write"), ELogVerbosity::Warning);
+	Overlay->ResolveUnsavedPrompt(EAppReturnType::Yes);
+	TestEqual(TEXT("failed save never continues"), Proceeds, 0);
+	TestTrue(TEXT("failed save keeps work and modal available"), D->HasUnsavedChanges() && Overlay->IsUnsavedPromptOpen() && Client->IsInterfaceOpen());
+	Overlay->ResolveUnsavedPrompt(EAppReturnType::Cancel);
+	TestFalse(TEXT("failed save can still be cancelled"), Overlay->IsUnsavedPromptOpen());
+	IFileManager::Get().DeleteDirectory(*(Path + TEXT(".tmp")), false, false);
+	Client->RequestUnsavedAction(false, FSimpleDelegate::CreateLambda([&Proceeds]() { ++Proceeds; }));
+	Overlay->ResolveUnsavedPrompt(EAppReturnType::Yes);
+	TestEqual(TEXT("successful save continues once"), Proceeds, 1);
+	TestFalse(TEXT("save clears dirty state"), D->HasUnsavedChanges());
+	TestFalse(TEXT("save closes confirmation"), Overlay->IsUnsavedPromptOpen());
+	TestFalse(TEXT("save restores editing input"), Client->IsInterfaceOpen());
+	// The asynchronous callback must also survive removal of the surface without executing.
+	Client->UnsavedPrompt.Unbind();
+	TestFalse(TEXT("missing UI refuses an unsaved action"), Client->RequestUnsavedAction(true, FSimpleDelegate()));
 	return true;
 }
 #endif

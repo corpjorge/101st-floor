@@ -80,7 +80,24 @@ bool UFloor101GameViewportClient::RequestExit()
 	bPanning = false;
 	UWorld* CurrentWorld = GetWorld();
 	UFloor101DocumentSubsystem* Document = CurrentWorld ? CurrentWorld->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
-	if (Document && !FFloor101FileActions::ConfirmExit(*Document)) { return false; }
+	if (Document && Document->HasUnsavedChanges())
+	{
+		return RequestUnsavedAction(true, FSimpleDelegate::CreateWeakLambda(this, [this]() { CompleteExit(); }));
+	}
+	return CompleteExit();
+}
+
+bool UFloor101GameViewportClient::RequestUnsavedAction(bool bExit, FSimpleDelegate Proceed)
+{
+	if (!UnsavedPrompt.IsBound()) { return false; } // missing UI never discards unsaved work
+	UnsavedPrompt.Execute(bExit, Proceed);
+	return true;
+}
+
+bool UFloor101GameViewportClient::CompleteExit()
+{
+	if (!Viewport) { return false; }
+	UWorld* CurrentWorld = GetWorld();
 	if (CurrentWorld && CurrentWorld->WorldType == EWorldType::PIE)
 	{
 		OnCloseRequested().Broadcast(Viewport); // queue this play session's end; the editor owns viewport cleanup

@@ -8,6 +8,7 @@
 
 class AFloor101EditingPawn;
 class UFloor101DocumentSubsystem;
+DECLARE_DELEGATE_TwoParams(FFloor101UnsavedPrompt, bool, FSimpleDelegate);
 
 namespace f101::cad
 {
@@ -78,6 +79,9 @@ public:
 	int32 GetNavigationSpeedLevel() const;
 	// Standard game exit (ends only the play session in PIE), after protecting unsaved work.
 	bool RequestExit();
+	// The overlay owns an asynchronous prompt inside the viewport, never a separate native window.
+	FFloor101UnsavedPrompt UnsavedPrompt;
+	bool RequestUnsavedAction(bool bExit, FSimpleDelegate Proceed);
 	// A dedicated options/start screen owns input while open; CAD and held movement keys stay inactive.
 	void SetInterfaceOpen(bool bOpen, FSimpleDelegate Close = FSimpleDelegate());
 	bool IsInterfaceOpen() const { return bInterfaceOpen; }
@@ -105,6 +109,7 @@ public:
 	static EFloor101KeyCommand MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat, bool bTypingLength = false, bool bNavigating = false);
 
 private:
+	bool CompleteExit();
 	// Null while the console is open, input is ignored or the world has no document.
 	UFloor101DocumentSubsystem* GetEditingTarget();
 	AFloor101EditingPawn* GetEditingPawn() const;

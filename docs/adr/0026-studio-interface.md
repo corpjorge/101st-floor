@@ -31,6 +31,12 @@ Opciones mantienen la prioridad de entrada mientras haya un menú superpuesto.
 Nuevo proyecto reutiliza el reemplazo validado del documento, con un nivel
 inicial y sin historial anterior; cambiar de proyecto protege cambios sin guardar.
 
+La confirmación de cambios pendientes vive dentro del mismo overlay Slate del
+juego, por encima de Inicio y Opciones. Es asíncrona: guarda la acción pendiente
+y continúa solo al descartarlos explícitamente o completar el guardado. Cancelar
+y Esc conservan el documento; un guardado cancelado o fallido mantiene el aviso.
+No usa ventanas modales nativas, que pueden quedar inaccesibles en pantalla completa.
+
 ## Límites
 
 Dimensiones, selección, cortes de muros, acabados e historial permanecen en sus
