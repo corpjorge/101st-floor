@@ -19,6 +19,8 @@
 	#include "Windows/AllowWindowsPlatformTypes.h"
 	#include <windows.h>
 	#include "Windows/HideWindowsPlatformTypes.h"
+	// Keep the Windows resource macro out of later Unreal files in unity builds.
+	#undef LoadImage
 #endif
 
 #define LOCTEXT_NAMESPACE "Floor101Display"

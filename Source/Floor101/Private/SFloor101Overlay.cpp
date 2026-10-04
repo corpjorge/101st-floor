@@ -20,6 +20,8 @@
 #include "Floor101Names.h"
 #include "Floor101PathTracing.h"
 #include "Floor101Preferences.h"
+#include "Floor101Style.h"
+#include "SFloor101ToolIcon.h"
 #include "InputCoreTypes.h"
 #include "Floor101SceneSpace.h"
 #include "Fonts/FontMeasure.h"
@@ -56,16 +58,16 @@ namespace
 	using f101::cad::EditController;
 	using f101::cad::EditMode;
 
-	const FLinearColor PanelColor(0.015f, 0.015f, 0.02f, 0.8f);
-	const FLinearColor ActiveButtonColor(1.0f, 0.5f, 0.12f);
+	const FLinearColor PanelColor = Floor101::Studio::Color(TEXT("252B30"));
+	const FLinearColor ActiveButtonColor = Floor101::Studio::Color(TEXT("D6AD78"));
 	const FLinearColor ErrorColor(1.0f, 0.4f, 0.35f);
-	const FLinearColor MutedColor(0.7f, 0.7f, 0.72f);
+	const FLinearColor MutedColor = Floor101::Studio::Color(TEXT("B3BAB9"));
 	const FLinearColor RoomLabelColor(0.05f, 0.18f, 0.3f, 0.85f);
 	const FVector2D CursorLabelOffset(18.0, 18.0);
 
 	FSlateFontInfo Font(int32 Size, bool bBold = false)
 	{
-		return FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", Size);
+		return Floor101::Studio::Font(Size, bBold);
 	}
 
 	FText LengthText(double Millimeters)
@@ -191,7 +193,8 @@ namespace
 		return SNew(SBorder)
 			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 			.BorderBackgroundColor(PanelColor)
-			.Padding(FMargin(8.0f, 6.0f))
+			.ForegroundColor(Floor101::Studio::Color(TEXT("EEF0EC")))
+			.Padding(FMargin(12.0f, 10.0f))
 			[
 				Content
 			];
@@ -409,7 +412,7 @@ bool SFloor101Overlay::IsDesignMode() const
 
 TSharedRef<SWidget> SFloor101Overlay::MakeFullscreenButton()
 {
-	return SNew(SButton).IsFocusable(false)
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false)
 		.ToolTipText(LOCTEXT("StudioFullscreenTip", "Pantalla completa dedicada a resolución nativa (F11)"))
 		.OnClicked_Lambda([this]()
 		{
@@ -417,39 +420,43 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFullscreenButton()
 			FSlateApplication::Get().SetAllUserFocusToGameViewport();
 			return FReply::Handled();
 		})
-		[SNew(STextBlock).Font(Font(10)).Text(LOCTEXT("StudioFullscreen", "Pantalla completa"))];
+		[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text(LOCTEXT("StudioFullscreen", "Pantalla completa"))];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 {
 	auto Button = [](const FText& Text, FOnClicked Click, TAttribute<bool> Enabled = true)
 	{
-		return SNew(SButton).IsFocusable(false).IsEnabled(Enabled).OnClicked(Click)
-			[SNew(STextBlock).Text(Text).Font(Font(10))];
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).IsEnabled(Enabled).OnClicked(Click)
+			[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Text).Font(Font(10))];
 	};
-	auto Mode = [this, Button](const FText& Text, int32 Index)
+	auto Mode = [this](const FText& Text, int32 Index)
 	{
-		return Button(Text, FOnClicked::CreateLambda([this, Index]()
-		{
-			if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(14.0f, 7.0f)).IsFocusable(false)
+			.ForegroundColor_Lambda([this, Index]()
 			{
-				Client->SetPhotoMode(Index == 2);
-				Client->SetNavigationMode(Index == 1);
-			}
-			FSlateApplication::Get().SetAllUserFocusToGameViewport();
-			return FReply::Handled();
-		}));
+				const auto* Client = ViewportClient.Get();
+				const bool Active = Index == 0 ? IsDesignMode() : Index == 1 ? Client && Client->IsNavigationMode() && !IsPhotoMode() : IsPhotoMode();
+				return FSlateColor(Active ? ActiveButtonColor : Floor101::Studio::Color(TEXT("EEF0EC")));
+			})
+			.OnClicked_Lambda([this, Index]()
+			{
+				if (auto* Client = ViewportClient.Get()) { Client->SetPhotoMode(Index == 2); Client->SetNavigationMode(Index == 1); }
+				FSlateApplication::Get().SetAllUserFocusToGameViewport();
+				return FReply::Handled();
+			})
+			[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Text).Font(Font(10))];
 	};
 	TSharedRef<SWrapBox> Header = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0));
 	Header->AddSlot().VAlign(VAlign_Center)
 	[
-		SNew(STextBlock).Text(LOCTEXT("StudioBrand", "101st FLOOR")).Font(Font(16, true))
+		SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioBrand", "101st FLOOR")).Font(Font(16, true))
 	];
 	Header->AddSlot().VAlign(VAlign_Center)
 	[
 		SNew(SBox).MaxDesiredWidth(230.0f)
 		[
-			SNew(STextBlock).Font(Font(10)).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 			.Text_Lambda([this]()
 			{
 				const UFloor101DocumentSubsystem* S = Document.Get();
@@ -478,8 +485,8 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 	Views->AddSlot()[MakeViewMenu()];
 	Views->AddSlot()
 	[
-		SNew(SComboButton).OnGetMenuContent_Lambda([this]() { return Panel(MakeLevelRow()); })
-		.ButtonContent()[SNew(STextBlock).Font(Font(10)).Text_Lambda([this]()
+		SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f)).OnGetMenuContent_Lambda([this]() { return Panel(MakeLevelRow()); })
+		.ButtonContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text_Lambda([this]()
 		{
 			const auto* S = Document.Get();
 			return S ? LevelName(S->GetDocument().project(), S->GetEditController().activeLevel()) : LOCTEXT("StudioLevel", "Plantas");
@@ -488,13 +495,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 	Views->AddSlot()[MakeUtilityMenu()];
 	Views->AddSlot()
 	[
-		SNew(SComboButton).Visibility_Lambda([this]() { return ViewSize.X < 950.0 && IsDesignMode() ? EVisibility::Visible : EVisibility::Collapsed; })
+		SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f)).Visibility_Lambda([this]() { return ViewSize.X < 950.0 && IsDesignMode() ? EVisibility::Visible : EVisibility::Collapsed; })
 		.OnGetMenuContent_Lambda([this]()
 		{
 			return SNew(SBox).MaxDesiredHeight(static_cast<float>(FMath::Max(180.0, ViewSize.Y - 140.0)))
 				[SNew(SScrollBox) + SScrollBox::Slot()[MakePropertiesPanel()]];
 		})
-		.ButtonContent()[SNew(STextBlock).Font(Font(10)).Text(LOCTEXT("StudioProperties", "Propiedades"))]
+		.ButtonContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text(LOCTEXT("StudioProperties", "Propiedades"))]
 	];
 	Views->AddSlot()
 	[
@@ -528,27 +535,36 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolRail()
 		const FText Name = Entry.Value;
 		Tools->AddSlot().AutoHeight().Padding(0.0f, 3.0f)
 		[
-			SNew(SButton).IsFocusable(false).HAlign(HAlign_Left).ContentPadding(FMargin(8.0f, 8.0f)).ToolTipText(Name)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).HAlign(HAlign_Left).ContentPadding(FMargin(8.0f, 8.0f)).ToolTipText(Name)
 			.ButtonColorAndOpacity_Lambda([this, Mode]()
 			{
 				const auto* S = Document.Get();
 				return S && S->GetEditController().mode() == Mode ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
 			})
 			.OnClicked_Lambda([this, Mode]() { return Run([Mode](EditController& E) { E.setMode(Mode); return f101::Status::success(); }); })
-			[SNew(STextBlock).Font(Font(10)).Text_Lambda([this, Name]()
+			.ForegroundColor_Lambda([this, Mode]()
 			{
-				return ViewSize.X < 1200.0 ? FText::FromString(Name.ToString().Right(1)) : Name;
-			})]
+				const auto* S = Document.Get();
+				return FSlateColor(S && S->GetEditController().mode() == Mode ? ActiveButtonColor : Floor101::Studio::Color(TEXT("EEF0EC")));
+			})
+			[SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(SFloor101ToolIcon).Mode(Mode)]
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center).Padding(8.0f, 0.0f)
+				[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text(FText::FromString(Name.ToString().LeftChop(4)))
+					.Visibility_Lambda([this]() { return ViewSize.X >= 1200.0 ? EVisibility::Visible : EVisibility::Collapsed; })]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+				[SNew(STextBlock).ColorAndOpacity(MutedColor).Font(Font(9)).Text(FText::FromString(Name.ToString().Right(1)))
+					.Visibility_Lambda([this]() { return ViewSize.X >= 1200.0 ? EVisibility::Visible : EVisibility::Collapsed; })]]
 		];
 	}
-	return SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(ViewSize.X < 1200.0 ? 54.0f : 166.0f); })
+	return SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(ViewSize.X < 1200.0 ? 66.0f : 198.0f); })
 		.Visibility_Lambda([this]() { return IsDesignMode() ? EVisibility::Visible : EVisibility::Collapsed; })
 		[SNew(SScrollBox) + SScrollBox::Slot()[Panel(Tools)]];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeFileMenu()
 {
-	return SNew(SComboButton)
+	return SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f))
 		.OnGetMenuContent_Lambda([this]()
 		{
 			FMenuBuilder Menu(true, nullptr);
@@ -563,12 +579,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFileMenu()
 			Menu.AddWidget(MakePlanExportButton(TEXT("png")), LOCTEXT("StudioPng", "Plano PNG"));
 			return Menu.MakeWidget();
 		})
-		.ButtonContent()[SNew(STextBlock).Text(LOCTEXT("StudioDocument", "Documento")).Font(Font(10))];
+		.ButtonContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioDocument", "Documento")).Font(Font(10))];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
 {
-	return SNew(SComboButton)
+	return SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f))
 		.OnGetMenuContent_Lambda([this]()
 		{
 			FMenuBuilder Menu(true, nullptr);
@@ -594,13 +610,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
 			Menu.AddWidget(MakeNetworksRow(), FText::GetEmpty());
 			return Menu.MakeWidget();
 		})
-		.ButtonContent()[SNew(STextBlock).Text(LOCTEXT("StudioView", "Vista")).Font(Font(10))];
+		.ButtonContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioView", "Vista")).Font(Font(10))];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeUtilityMenu()
 {
-	return SNew(SButton).IsFocusable(false).OnClicked_Lambda([this]() { OpenOptions(); return FReply::Handled(); })
-		[SNew(STextBlock).Text(LOCTEXT("StudioOptions", "Opciones")).Font(Font(10))];
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).OnClicked_Lambda([this]() { OpenOptions(); return FReply::Handled(); })
+		[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioOptions", "Opciones")).Font(Font(10))];
 }
 
 void SFloor101Overlay::OpenOptions()
@@ -629,12 +645,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 	const FText Pages[] = {LOCTEXT("StudioDisplayPage", "Pantalla"), LOCTEXT("StudioGraphicsPage", "Gráficos"), LOCTEXT("StudioControlsPage", "Controles")};
 	for (int32 I = 0; I < UE_ARRAY_COUNT(Pages); ++I)
 	{
-		Tabs->AddSlot()[SNew(SButton).IsFocusable(false)
+		Tabs->AddSlot()[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false)
 			.ButtonColorAndOpacity_Lambda([this, I]() { return OptionsPage == I ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White); })
 			.OnClicked_Lambda([this, I]() { OptionsPage = I; return FReply::Handled(); })
-			[SNew(STextBlock).Text(Pages[I]).Font(Font(12))]];
+			[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Pages[I]).Font(Font(12))]];
 	}
-	TSharedRef<SWidget> Quality = SNew(SComboButton).OnGetMenuContent_Lambda([]()
+	TSharedRef<SWidget> Quality = SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f)).OnGetMenuContent_Lambda([]()
 	{
 		FMenuBuilder Menu(true, nullptr);
 		const FText Names[] = {LOCTEXT("StudioLightQuality", "Fluida"), LOCTEXT("StudioBalancedQuality", "Equilibrada"), LOCTEXT("StudioHighQuality", "Alta")};
@@ -645,7 +661,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 				FIsActionChecked::CreateLambda([I]() { return Floor101::Preferences::GraphicsQuality() == I; })), NAME_None, EUserInterfaceActionType::RadioButton);
 		}
 		return Menu.MakeWidget();
-	}).ButtonContent()[SNew(STextBlock).Font(Font(12)).Text_Lambda([]()
+	}).ButtonContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).Text_Lambda([]()
 	{
 		const TCHAR* Names[] = {TEXT("Fluida"), TEXT("Equilibrada"), TEXT("Alta")};
 		return FText::FromString(FString(TEXT("Calidad gráfica: ")) + Names[Floor101::Preferences::GraphicsQuality()]);
@@ -662,9 +678,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 				+ SVerticalBox::Slot().AutoHeight().Padding(12.0f)
 				[
 					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text(LOCTEXT("StudioOptionsHeading", "Opciones")).Font(Font(22))]
-					+ SHorizontalBox::Slot().AutoWidth()[SNew(SButton).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
-						[SNew(STextBlock).Text(LOCTEXT("StudioCloseOptions", "Cerrar · Esc")).Font(Font(11))]]
+					+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioOptionsHeading", "Opciones")).Font(Font(22))]
+					+ SHorizontalBox::Slot().AutoWidth()[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
+						[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioCloseOptions", "Cerrar · Esc")).Font(Font(11))]]
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(12.0f, 4.0f)[Tabs]
 				+ SVerticalBox::Slot().FillHeight(1.0f).Padding(12.0f, 16.0f)
@@ -678,19 +694,19 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 1 ? EVisibility::Visible : EVisibility::Collapsed; })
 							+ SVerticalBox::Slot().AutoHeight()[Quality]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
-							[SNew(STextBlock).Font(Font(12)).AutoWrapText(true).ColorAndOpacity(MutedColor)
+							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).ColorAndOpacity(MutedColor)
 								.Text(LOCTEXT("StudioQualityPolicy", "Los perfiles ajustan detalle y sombras. Conservan Lumen y el render al 100 %; no cambian HDR ni la sincronización vertical. La calidad de la fotografía se elige en Foto."))]]
 						+ SVerticalBox::Slot().AutoHeight()
 						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 2 ? EVisibility::Visible : EVisibility::Collapsed; })
 							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
-							[SNew(STextBlock).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
+							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
 								"Recorrer: N · Moverse: WASD · Subir/bajar: E/Q · Acelerar: Shift\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: W · Puerta: P · Ventana: O\nMateriales: M · Muebles: A · Columna: C · Instalaciones: I\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
-				[SNew(SButton).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
-					[SNew(STextBlock).Text(LOCTEXT("StudioOptionsDone", "Listo")).Font(Font(12))]])
+				[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
+					[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioOptionsDone", "Listo")).Font(Font(12))]])
 			]
 		];
 }
@@ -735,14 +751,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNetworksRow()
 		})
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("Networks", "Redes:")).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Networks", "Redes:")).Font(Font(10))
 		];
 	for (const f101::cad::ServiceKindInfo& Info : f101::cad::serviceKinds())
 	{
 		const f101::cad::ServiceKind Kind = Info.kind;
 		Row->AddSlot().AutoWidth().Padding(2.0f, 0.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(FText::Format(LOCTEXT("NetworkTip", "Ver u ocultar la red de {0}: en 3D, en el plano 2D y en el plano exportado"),
 				Floor101::ServiceKindName(Kind).ToLower()))
@@ -763,29 +779,29 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNetworksRow()
 				]
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 				[
-					SNew(STextBlock).Text(Floor101::ServiceKindName(Kind)).Font(Font(10))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Floor101::ServiceKindName(Kind)).Font(Font(10))
 				]
 			]
 		];
 	}
 	Row->AddSlot().AutoWidth().Padding(10.0f, 0.0f, 2.0f, 0.0f)
 	[
-		SNew(SButton)
+		SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.ToolTipText(LOCTEXT("AllNetworksTip", "Ver las cuatro redes"))
 		.OnClicked_Lambda([SetAll]() { return SetAll(true); })
 		[
-			SNew(STextBlock).Text(LOCTEXT("AllNetworks", "Todas")).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("AllNetworks", "Todas")).Font(Font(10))
 		]
 	];
 	Row->AddSlot().AutoWidth().Padding(2.0f, 0.0f)
 	[
-		SNew(SButton)
+		SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.ToolTipText(LOCTEXT("NoNetworksTip", "Ocultar todas las redes (los muros siguen transparentes; X vuelve a la vista normal)"))
 		.OnClicked_Lambda([SetAll]() { return SetAll(false); })
 		[
-			SNew(STextBlock).Text(LOCTEXT("NoNetworks", "Ninguna")).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("NoNetworks", "Ninguna")).Font(Font(10))
 		]
 	];
 	return Row;
@@ -793,7 +809,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNetworksRow()
 
 TSharedRef<SWidget> SFloor101Overlay::MakePlanExportButton(const FString& Extension)
 {
-	return SNew(SButton)
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.ToolTipText_Lambda([this, Extension]()
 		{
@@ -811,7 +827,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePlanExportButton(const FString& Extens
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).Text(FText::FromString(Extension.ToUpper())).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(FText::FromString(Extension.ToUpper())).Font(Font(10))
 		];
 }
 
@@ -819,13 +835,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
 {
 	auto LevelButton = [](const FText& Label, const FText& ToolTip, TAttribute<bool> Enabled, FOnClicked OnClicked)
 	{
-		return SNew(SButton)
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(ToolTip)
 			.IsEnabled(Enabled)
 			.OnClicked(OnClicked)
 			[
-				SNew(STextBlock).Text(Label).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(10))
 			];
 	};
 	auto ActiveIndex = [this]() -> std::size_t
@@ -839,17 +855,17 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
 		return S ? S->GetDocument().project().levels.size() : 0;
 	};
 
-	return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+	return SNew(SWrapBox).UseAllottedSize(true)
+		+ SWrapBox::Slot().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("LevelLabel", "Planta")).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("LevelLabel", "Planta")).Font(Font(10))
 		]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 8.0f, 0.0f)
+		+ SWrapBox::Slot().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 8.0f, 0.0f)
 		[
 			SNew(SBox)
 			.MinDesiredWidth(170.0f)
 			[
-				SNew(STextBlock)
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 				.Font(Font(10, true))
 				.Text_Lambda([this]()
 				{
@@ -865,27 +881,27 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
 				})
 			]
 		]
-		+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+		+ SWrapBox::Slot().Padding(2.0f, 0.0f)
 		[
 			LevelButton(LOCTEXT("LevelUp", "▲ Subir"), LOCTEXT("LevelUpTip", "Editar la planta de arriba (RePág)"),
 				TAttribute<bool>::CreateLambda([ActiveIndex, LevelCount]() { return ActiveIndex() + 1 < LevelCount(); }),
 				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.levelUp(); }); }))
 		]
-		+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+		+ SWrapBox::Slot().Padding(2.0f, 0.0f)
 		[
 			LevelButton(LOCTEXT("LevelDown", "▼ Bajar"), LOCTEXT("LevelDownTip", "Editar la planta de abajo (AvPág)"),
 				TAttribute<bool>::CreateLambda([ActiveIndex]() { return ActiveIndex() > 0; }),
 				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.levelDown(); }); }))
 		]
-		+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
+		+ SWrapBox::Slot().Padding(2.0f, 0.0f)
 		[
 			LevelButton(LOCTEXT("AddLevel", "+ Nueva planta"),
 				LOCTEXT("AddLevelTip", "Añade una planta encima de todas, igual que la de arriba, y pasa a editarla"), true,
 				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.addLevel(); }); }))
 		]
-		+ SHorizontalBox::Slot().AutoWidth().Padding(8.0f, 0.0f, 2.0f, 0.0f)
+		+ SWrapBox::Slot().Padding(8.0f, 0.0f, 2.0f, 0.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(LOCTEXT("AllLevelsTip", "Muestra todas las plantas con sus forjados; si no, solo la que editas y, atenuadas, las de abajo (L)"))
 			.ButtonColorAndOpacity_Lambda([this]()
@@ -898,7 +914,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
 				return Run([](EditController& Editor) { Editor.setShowAllLevels(!Editor.showsAllLevels()); return f101::Status::success(); });
 			})
 			[
-				SNew(STextBlock).Text(LOCTEXT("AllLevels", "Ver todas (L)")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("AllLevels", "Ver todas (L)")).Font(Font(10))
 			]
 		];
 }
@@ -917,14 +933,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeTextRow(const FText& Label, TFunction<
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 		[
-			SNew(STextBlock).Text(Label).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(10))
 		]
 		+ SHorizontalBox::Slot().AutoWidth()
 		[
 			SNew(SBox)
 			.WidthOverride(120.0f)
 			[
-				SNew(SEditableTextBox)
+				SNew(SEditableTextBox).Style(&Floor101::Studio::TextBox())
 				.Font(Font(10))
 				.SelectAllTextWhenFocused(true)
 				.Text_Lambda([CurrentText]() { return CurrentText(); })
@@ -1015,7 +1031,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					.Visibility_Lambda(WallVisible)
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 					[
-						SNew(STextBlock).Text(LOCTEXT("SelectedWall", "Muro seleccionado")).Font(Font(11, true))
+						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("SelectedWall", "Muro seleccionado")).Font(Font(11, true))
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 					[
@@ -1047,7 +1063,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					.Visibility_Lambda(OpeningVisible)
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 					[
-						SNew(STextBlock)
+						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 						.Font(Font(11, true))
 						.Text_Lambda([this]()
 						{
@@ -1089,7 +1105,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 						SNew(SHorizontalBox)
 						+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 						[
-							SNew(STextBlock).Text(LOCTEXT("OpeningFinish", "Carpintería")).Font(Font(10))
+							SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("OpeningFinish", "Carpintería")).Font(Font(10))
 						]
 						+ SHorizontalBox::Slot().AutoWidth()
 						[
@@ -1105,7 +1121,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 					[
-						SNew(STextBlock)
+						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 						.Font(Font(9))
 						.ColorAndOpacity(MutedColor)
 						.Text(LOCTEXT("OffsetHint", "Posición: desde el inicio del muro hasta el borde del hueco"))
@@ -1154,14 +1170,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 				[
-					SNew(STextBlock)
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 					.Font(Font(9))
 					.ColorAndOpacity(MutedColor)
-					.Text(LOCTEXT("UnitsHint", "Sin unidad = cm. También: 3.55 m, 3550 mm"))
+					.AutoWrapText(true).Text(LOCTEXT("UnitsHint", "Sin unidad = cm. También: 3.55 m, 3550 mm"))
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 8.0f, 0.0f, 0.0f)
 				[
-					SNew(SButton)
+					SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 					.IsFocusable(false)
 					.Visibility_Lambda([this]()
 					{
@@ -1170,7 +1186,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					})
 					.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteSelection(); }); })
 					[
-						SNew(STextBlock).Text(LOCTEXT("Delete", "Eliminar (Supr)")).Font(Font(10))
+						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Delete", "Eliminar (Supr)")).Font(Font(10))
 					]
 				])
 		];
@@ -1182,19 +1198,19 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFlipRow(TFunction<FText()> Label, TFun
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 		[
-			SNew(STextBlock).Font(Font(10)).Text_Lambda([Label]() { return Label(); })
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text_Lambda([Label]() { return Label(); })
 		]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
 		[
-			SNew(STextBlock).Font(Font(10)).Text_Lambda([Value]() { return Value(); })
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text_Lambda([Value]() { return Value(); })
 		]
 		+ SHorizontalBox::Slot().AutoWidth()
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.OnClicked_Lambda([this, Flip]() { return Run([Flip](EditController& Editor) { return (Editor.*Flip)(); }); })
 			[
-				SNew(STextBlock).Text(LOCTEXT("Flip", "Invertir")).Font(Font(9))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Flip", "Invertir")).Font(Font(9))
 			]
 		];
 }
@@ -1233,12 +1249,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningTypeSection()
 			.WidthOverride(150.0f)
 			.Visibility_Lambda(VisibleFor([Kind](const f101::cad::Opening& Opening) { return Opening.kind == Kind; }))
 			[
-				SNew(SComboBox<TSharedPtr<OpeningOperation>>)
+				SNew(SComboBox<TSharedPtr<OpeningOperation>>).ComboBoxStyle(&Floor101::Studio::ComboBox())
 				.IsFocusable(false)
 				.OptionsSource(Options)
 				.OnGenerateWidget_Lambda([Kind](TSharedPtr<OpeningOperation> Operation)
 				{
-					return SNew(STextBlock).Text(OperationName(Kind, *Operation)).Font(Font(9));
+					return SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(OperationName(Kind, *Operation)).Font(Font(9));
 				})
 				.OnSelectionChanged_Lambda([this](TSharedPtr<OpeningOperation> Operation, ESelectInfo::Type Info)
 				{
@@ -1249,7 +1265,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningTypeSection()
 					}
 				})
 				[
-					SNew(STextBlock)
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 					.Font(Font(9))
 					.ColorAndOpacity(FLinearColor::White)
 					.Text_Lambda([Selected, Kind]()
@@ -1267,7 +1283,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningTypeSection()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(LOCTEXT("OpeningType", "Tipo")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("OpeningType", "Tipo")).Font(Font(10))
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
@@ -1380,7 +1396,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningPalette()
 			const OpeningOperation Operation = Entry.Key;
 			List->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
 			[
-				SNew(SButton)
+				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 				.IsFocusable(false)
 				.ToolTipText(Entry.Value)
 				.ButtonColorAndOpacity_Lambda([Template, Operation]()
@@ -1393,7 +1409,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningPalette()
 					return Run([Kind, Operation](EditController& Editor) { return Editor.setNewOpeningOperation(Kind, Operation); });
 				})
 				[
-					SNew(STextBlock).Text(OperationName(Kind, Operation)).Font(Font(10))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(OperationName(Kind, Operation)).Font(Font(10))
 				]
 			];
 		}
@@ -1404,7 +1420,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningPalette()
 		.Visibility_Lambda([Template]() { return Template() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(11, true))
 			.Text_Lambda([Template]()
 			{
@@ -1415,7 +1431,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningPalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.Text_Lambda([Template]()
@@ -1441,7 +1457,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOpeningPalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -1458,7 +1474,7 @@ bool SFloor101Overlay::IsPhotoMode() const
 
 TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 {
-	return SNew(SButton)
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.IsEnabled_Lambda([this]() { return Floor101::HDR::Query(ViewportClient.Get()).bAvailable; })
 		.ToolTipText_Lambda([this]() { return Floor101::HDR::Tooltip(Floor101::HDR::Query(ViewportClient.Get())); })
@@ -1473,7 +1489,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).Font(Font(10, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10, true))
 			.Text_Lambda([this]()
 			{
 				const Floor101::HDR::FStatus Status = Floor101::HDR::Query(ViewportClient.Get());
@@ -1485,7 +1501,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeExitButton()
 {
-	return SNew(SButton)
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.ContentPadding(FMargin(16.0f, 6.0f))
 		.ToolTipText(LOCTEXT("ExitTip", "Cierra 101st Floor. Si hay cambios sin guardar, permite guardarlos, descartarlos o cancelar."))
@@ -1495,13 +1511,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeExitButton()
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).Text(LOCTEXT("Exit", "Salir")).Font(Font(10, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Exit", "Salir")).Font(Font(10, true))
 		];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeNavigationSpeed()
 {
-	return SNew(SComboButton)
+	return SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f))
 		.ToolTipText(LOCTEXT("NavigationSpeedTip", "Niveles 1–10: desde precisión hasta recorrido rápido. La velocidad elegida se guarda y no cambia al acercarte. Shift la multiplica por cuatro."))
 		.OnGetMenuContent_Lambda([this]()
 		{
@@ -1525,7 +1541,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationSpeed()
 		})
 		.ButtonContent()
 		[
-			SNew(STextBlock).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10))
 			.Text_Lambda([this]()
 			{
 				const UFloor101GameViewportClient* Client = ViewportClient.Get();
@@ -1538,7 +1554,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationSpeed()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeVSyncButton()
 {
-	return SNew(SButton)
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.ToolTipText(LOCTEXT("VSyncTip", "Activar sincroniza los fotogramas con el monitor para reducir cortes de imagen. Desactivar permite una frecuencia de fotogramas independiente. Se guarda para la próxima sesión."))
 		.ButtonColorAndOpacity_Lambda([]()
@@ -1552,7 +1568,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeVSyncButton()
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10))
 			.Text_Lambda([]()
 			{
 				return Floor101::Display::IsVSyncEnabled() ? LOCTEXT("VSyncOff", "Desactivar sincronización vertical")
@@ -1564,7 +1580,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeVSyncButton()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 {
-	return SNew(SButton)
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; arrastrar con botón derecho: mirar. También puedes usar derecho + WASD al editar."))
 		.ButtonColorAndOpacity_Lambda([this]()
@@ -1582,7 +1598,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).Font(Font(10, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10, true))
 			.Text_Lambda([this]()
 			{
 				const UFloor101GameViewportClient* Client = ViewportClient.Get();
@@ -1593,7 +1609,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 {
-	const TSharedRef<SWidget> Fullscreen = SNew(SButton)
+	const TSharedRef<SWidget> Fullscreen = SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
 		.IsEnabled_Lambda([this]() { return Floor101::Display::Query(ViewportClient.Get()).Native.X > 0; })
 		.ToolTipText(LOCTEXT("FullscreenTip", "Pantalla completa dedicada con la resolución nativa de este monitor y render al 100 %. F11 vuelve a la ventana anterior."))
@@ -1604,14 +1620,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).Font(Font(10, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10, true))
 			.Text_Lambda([this]()
 			{
 				return Floor101::Display::Query(ViewportClient.Get()).bFullscreen
 					? LOCTEXT("LeaveFullscreen", "Volver a ventana (F11)") : LOCTEXT("Fullscreen", "Pantalla completa (F11)");
 			})
 		];
-	const TSharedRef<SWidget> Resolution = SNew(SComboButton)
+	const TSharedRef<SWidget> Resolution = SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f))
 		.ToolTipText(LOCTEXT("ResolutionTip", "Elige una resolución admitida por este monitor. La opción nativa coincide con los píxeles de la pantalla; el render se mantiene al 100 %."))
 		.OnGetMenuContent_Lambda([this]()
 		{
@@ -1632,14 +1648,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 		})
 		.ButtonContent()
 		[
-			SNew(STextBlock).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10))
 			.Text_Lambda([this]()
 			{
 				const FIntPoint Size = Floor101::Display::Query(ViewportClient.Get()).Image;
 				return FText::FromString(FString::Printf(TEXT("Resolución: %d × %d"), Size.X, Size.Y));
 			})
 		];
-	const TSharedRef<SWidget> Status = SNew(STextBlock).Font(Font(9)).AutoWrapText(true)
+	const TSharedRef<SWidget> Status = SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(9)).AutoWrapText(true)
 		.Text_Lambda([this]() { return Floor101::Display::Describe(Floor101::Display::Query(ViewportClient.Get())); })
 		.ColorAndOpacity_Lambda([this]()
 		{
@@ -1653,14 +1669,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeVSyncButton()]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeHdrButton()]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)
-		[SNew(STextBlock).Font(Font(11)).AutoWrapText(true).ColorAndOpacity(MutedColor)
+		[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(11)).AutoWrapText(true).ColorAndOpacity(MutedColor)
 			.Text_Lambda([this]() { return Floor101::HDR::Tooltip(Floor101::HDR::Query(ViewportClient.Get())); })]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
 		[SNew(SExpandableArea).InitiallyCollapsed(true)
-			.HeaderContent()[SNew(STextBlock).Text(LOCTEXT("StudioAdvancedDisplay", "Información avanzada")).Font(Font(12))]
+			.HeaderContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioAdvancedDisplay", "Información avanzada")).Font(Font(12))]
 			.BodyContent()[SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[Status]
-				+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font(Font(11)).AutoWrapText(true)
+				+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(11)).AutoWrapText(true)
 					.Text_Lambda([this]() { return FText::FromString(Floor101::Display::Query(ViewportClient.Get()).MonitorName); })]]];
 }
 
@@ -1668,7 +1684,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 {
 	auto PanelButton = [this](const FText& Label, const FText& ToolTip, TFunction<void(UFloor101GameViewportClient&)> Action)
 	{
-		return SNew(SButton)
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(ToolTip)
 			.OnClicked_Lambda([this, Action]()
@@ -1681,7 +1697,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				return FReply::Handled();
 			})
 			[
-				SNew(STextBlock).Text(Label).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(10))
 			];
 	};
 	// Samples per pixel of each quality: more samples, less noise, longer.
@@ -1701,7 +1717,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 		const int32 Samples = Quality.Samples;
 		QualityRow->AddSlot().FillWidth(1.0f).Padding(0.0f, 0.0f, 4.0f, 0.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.HAlign(HAlign_Center)
 			.ToolTipText(FText::Format(LOCTEXT("PhotoQualityTip", "{0} muestras por píxel"), Samples))
@@ -1720,7 +1736,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				return FReply::Handled();
 			})
 			[
-				SNew(STextBlock).Text(Quality.Name).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Quality.Name).Font(Font(10))
 			]
 		];
 	}
@@ -1733,13 +1749,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 				[
-					SNew(STextBlock).Text(LOCTEXT("PhotoTitle", "Foto (path tracing)")).Font(Font(11, true))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("PhotoTitle", "Foto (path tracing)")).Font(Font(11, true))
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationButton()]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationSpeed()]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 				[
-					SNew(STextBlock)
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 					.Font(Font(10))
 					.Text_Lambda([]()
 					{
@@ -1765,7 +1781,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 				[
-					SNew(STextBlock).Text(LOCTEXT("PhotoQuality", "Calidad")).Font(Font(10))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("PhotoQuality", "Calidad")).Font(Font(10))
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 				[
@@ -1804,7 +1820,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 				[
-					SNew(STextBlock)
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 					.Font(Font(9))
 					.ColorAndOpacity(MutedColor)
 					.AutoWrapText(true)
@@ -1846,7 +1862,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 		.Visibility_Lambda([this]() { return GetSelectedFurniture() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(11, true))
 			.Text_Lambda([this]()
 			{
@@ -1884,12 +1900,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 2.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(LOCTEXT("RotateTip", "Gira el mueble 90° en sentido antihorario sobre su centro"))
 			.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.rotateFurniture(); }); })
 			[
-				SNew(STextBlock).Text(LOCTEXT("Rotate", "Girar 90° (Espacio)")).Font(Font(9))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Rotate", "Girar 90° (Espacio)")).Font(Font(9))
 			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
@@ -1897,7 +1913,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(LOCTEXT("FurnitureFinish", "Acabado")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("FurnitureFinish", "Acabado")).Font(Font(10))
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
@@ -1917,7 +1933,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -1953,7 +1969,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnShapeButtons(TFunction<std::opti
 	{
 		Row->AddSlot().FillWidth(1.0f).Padding(1.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.HAlign(HAlign_Center)
 			.ButtonColorAndOpacity_Lambda([Current, Shape]()
@@ -1962,7 +1978,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnShapeButtons(TFunction<std::opti
 			})
 			.OnClicked_Lambda([this, Apply, Shape]() { return Run([&Apply, Shape](EditController& Editor) { return Apply(Editor, Shape); }); })
 			[
-				SNew(STextBlock).Text(Floor101::ColumnShapeName(Shape)).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Floor101::ColumnShapeName(Shape)).Font(Font(10))
 			]
 		];
 	}
@@ -1978,7 +1994,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServiceKindButtons(TFunction<std::opti
 		const f101::cad::ServiceKind Kind = Info.kind;
 		List->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(FText::Format(LOCTEXT("ServiceKindTip", "{0}: tubo de {1} mm de diámetro"), Floor101::ServiceKindName(Kind),
 				FText::AsNumber(Info.diameterMm)))
@@ -1995,11 +2011,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServiceKindButtons(TFunction<std::opti
 				]
 				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 				[
-					SNew(STextBlock).Text(Floor101::ServiceKindName(Kind)).Font(Font(10))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Floor101::ServiceKindName(Kind)).Font(Font(10))
 				]
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 				[
-					SNew(STextBlock)
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 					.Text(FText::Format(LOCTEXT("ServiceDiameter", "Ø {0} mm"), FText::AsNumber(Info.diameterMm)))
 					.Font(Font(9))
 					.ColorAndOpacity(MutedColor)
@@ -2033,7 +2049,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnSection()
 		.Visibility_Lambda([this]() { return GetSelectedColumn() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("SelectedColumn", "Pilar seleccionado")).Font(Font(11, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("SelectedColumn", "Pilar seleccionado")).Font(Font(11, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
@@ -2085,13 +2101,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 2.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.Visibility_Lambda(ShownFor(false))
 			.ToolTipText(LOCTEXT("RotateColumnTip", "Gira el pilar 90° en sentido antihorario sobre su centro"))
 			.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.flip(); }); })
 			[
-				SNew(STextBlock).Text(LOCTEXT("RotateColumn", "Girar 90° (Espacio)")).Font(Font(9))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("RotateColumn", "Girar 90° (Espacio)")).Font(Font(9))
 			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
@@ -2099,7 +2115,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnSection()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(LOCTEXT("ColumnFinish", "Acabado")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ColumnFinish", "Acabado")).Font(Font(10))
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
@@ -2114,7 +2130,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -2151,7 +2167,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnPalette()
 		.Visibility_Lambda([Settings]() { return Settings() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("ColumnTitle", "Pilar: forma y medidas")).Font(Font(11, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ColumnTitle", "Pilar: forma y medidas")).Font(Font(11, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
@@ -2185,7 +2201,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeColumnPalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -2200,7 +2216,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServiceRunSection()
 		.Visibility_Lambda([this]() { return GetSelectedServiceRun() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("SelectedRun", "Instalación seleccionada")).Font(Font(11, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("SelectedRun", "Instalación seleccionada")).Font(Font(11, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
@@ -2213,7 +2229,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServiceRunSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(10))
 			.AutoWrapText(true)
 			.Text_Lambda([this]()
@@ -2238,7 +2254,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServiceRunSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -2257,7 +2273,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServicesPalette()
 	// A height preset: highlighted while it is the height of the next points.
 	auto HeightButton = [this, Settings](const FText& Label, const FText& ToolTip, TFunction<std::int64_t()> Height)
 	{
-		return SNew(SButton)
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.HAlign(HAlign_Center)
 			.ToolTipText(ToolTip)
@@ -2272,7 +2288,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServicesPalette()
 				return Run([Millimeters](EditController& Editor) { return Editor.setServiceHeightMm(Millimeters); });
 			})
 			[
-				SNew(STextBlock).Text(Label).Font(Font(9))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(9))
 			];
 	};
 	// Just under the slab of the active level.
@@ -2286,7 +2302,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServicesPalette()
 		.Visibility_Lambda([Settings]() { return Settings() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("ServicesTitle", "Instalación: tipo y altura")).Font(Font(11, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ServicesTitle", "Instalación: tipo y altura")).Font(Font(11, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
@@ -2323,7 +2339,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServicesPalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(10))
 			.Text_Lambda([this]()
 			{
@@ -2335,7 +2351,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeServicesPalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -2355,7 +2371,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeCatalogueTile(const TSharedRef<SWidget
 			.BorderBackgroundColor_Lambda([IsActive]() { return IsActive() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor(0.1f, 0.1f, 0.12f, 0.9f)); })
 			.Padding(2.0f)
 			[
-				SNew(SButton)
+				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 				.ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("NoBorder"))
 				.ContentPadding(2.0f)
 				.IsFocusable(false)
@@ -2372,7 +2388,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeCatalogueTile(const TSharedRef<SWidget
 						SNew(SBox)
 						.HeightOverride(26.0f) // two lines
 						[
-							SNew(STextBlock).Text(Name).Font(Font(8)).AutoWrapText(true).Justification(ETextJustify::Center)
+							SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Name).Font(Font(8)).AutoWrapText(true).Justification(ETextJustify::Center)
 						]
 					]
 				]
@@ -2445,7 +2461,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
 	{
 		Tabs->AddSlot().Padding(0.0f, 0.0f, 3.0f, 3.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ContentPadding(FMargin(5.0f, 1.0f))
 			.ButtonColorAndOpacity_Lambda([this, Category]()
@@ -2459,7 +2475,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
 				return FReply::Handled();
 			})
 			[
-				SNew(STextBlock).Text(FurnitureCategoryName(Category)).Font(Font(9, true))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(FurnitureCategoryName(Category)).Font(Font(9, true))
 			]
 		];
 
@@ -2478,7 +2494,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				[
-					SNew(STextBlock)
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 					.Text(FText::Format(LOCTEXT("ParametricPicture", "{0}\nmedidas libres"), FootprintText(Type.widthMm, Type.depthMm)))
 					.Font(Font(8, true))
 					.Justification(ETextJustify::Center)
@@ -2532,7 +2548,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
 		})
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("FurnitureTitle", "Amueblar: elige el mueble")).Font(Font(11, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("FurnitureTitle", "Amueblar: elige el mueble")).Font(Font(11, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 2.0f)
 		[
@@ -2540,7 +2556,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(10))
 			.AutoWrapText(true)
 			.Text_Lambda([this]()
@@ -2568,7 +2584,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurniturePalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -2592,7 +2608,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 		.Visibility_Lambda([this]() { return IsLevelPanelShown() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(11, true))
 			.Text_Lambda([this]()
 			{
@@ -2606,14 +2622,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(LOCTEXT("LevelName", "Nombre")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("LevelName", "Nombre")).Font(Font(10))
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
 				SNew(SBox)
 				.WidthOverride(120.0f)
 				[
-					SNew(SEditableTextBox)
+					SNew(SEditableTextBox).Style(&Floor101::Studio::TextBox())
 					.Font(Font(10))
 					.SelectAllTextWhenFocused(true)
 					.HintText_Lambda([this]()
@@ -2656,7 +2672,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -2674,7 +2690,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 8.0f, 0.0f, 0.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(LOCTEXT("DeleteLevelTip", "Elimina esta planta con sus muros y muebles (se puede deshacer)"))
 			.IsEnabled_Lambda([this]()
@@ -2684,7 +2700,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 			})
 			.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteActiveLevel(); }); })
 			[
-				SNew(STextBlock).Text(LOCTEXT("DeleteLevel", "Eliminar planta")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DeleteLevel", "Eliminar planta")).Font(Font(10))
 			]
 		];
 }
@@ -2749,7 +2765,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 			]
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(FinishName(Utf8, CurrentProject())).Font(Font(9))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(FinishName(Utf8, CurrentProject())).Font(Font(9))
 			];
 	};
 
@@ -2783,7 +2799,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 				SNew(SBox)
 				[
 					// The current finish, re-read every frame (undo, another tool...).
-					SNew(STextBlock)
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 					.Font(Font(9))
 					.Text_Lambda([this, Current]() { return FinishName(TCHAR_TO_UTF8(*Current()), CurrentProject()); })
 					.ColorAndOpacity(FLinearColor::White)
@@ -2799,7 +2815,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeWallFaceRow(f101::cad::WallSide Side)
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(10))
 			.Text_Lambda([this, Side]()
 			{
@@ -2836,7 +2852,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 			})
 			.Padding(2.0f)
 			[
-				SNew(SButton)
+				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 				.ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("NoBorder"))
 				.ContentPadding(0.0f)
 				.IsFocusable(false)
@@ -2873,7 +2889,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 			})
 			.Padding(2.0f)
 			[
-				SNew(SButton)
+				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 				.ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("NoBorder"))
 				.ContentPadding(0.0f)
 				.IsFocusable(false)
@@ -2921,7 +2937,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 			}
 			Groups->AddSlot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 2.0f)
 			[
-				SNew(STextBlock).Visibility_Lambda(Shown).Text(Section.Name).Font(Font(9, true)).ColorAndOpacity(MutedColor)
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Visibility_Lambda(Shown).Text(Section.Name).Font(Font(9, true)).ColorAndOpacity(MutedColor)
 			];
 			Groups->AddSlot().AutoHeight()
 			[
@@ -2931,7 +2947,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 	}
 	auto Tab = [this](const FText& Label, bool bFloors)
 	{
-		return SNew(SButton)
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ButtonColorAndOpacity_Lambda([this, bFloors]()
 			{
@@ -2944,7 +2960,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 				return FReply::Handled();
 			})
 			[
-				SNew(STextBlock).Text(Label).Font(Font(10, true))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(10, true))
 			];
 	};
 
@@ -2956,7 +2972,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 		})
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("PaintTitle", "Pintar: elige el acabado")).Font(Font(11, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("PaintTitle", "Pintar: elige el acabado")).Font(Font(11, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
 		[
@@ -2972,7 +2988,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(10))
 			.AutoWrapText(true)
 			.Text_Lambda([this]()
@@ -3000,7 +3016,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePaintPalette()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -3035,7 +3051,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		.Visibility_Lambda([this]() { return GetSelectedRoom() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(11, true))
 			.Text_Lambda([this]()
 			{
@@ -3051,7 +3067,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(LOCTEXT("RoomFloor", "Suelo")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("RoomFloor", "Suelo")).Font(Font(10))
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
@@ -3064,7 +3080,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).Text(LOCTEXT("RoomCeiling", "Techo")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("RoomCeiling", "Techo")).Font(Font(10))
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
@@ -3074,7 +3090,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			SNew(STextBlock)
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 			.Font(Font(9))
 			.ColorAndOpacity(MutedColor)
 			.AutoWrapText(true)
@@ -3214,40 +3230,25 @@ FText SFloor101Overlay::GetHintText() const
 
 TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
 {
-	return Panel(
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
-		[
-			SNew(STextBlock)
-			.Font(Font(10))
-			.Text_Lambda([this]() { return GetHintText(); })
-		]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(12.0f, 0.0f)
-		[
-			SNew(STextBlock)
-			.Font(Font(10))
-			.ColorAndOpacity_Lambda([this]()
-			{
-				const UFloor101DocumentSubsystem* S = Document.Get();
-				return S && S->IsStatusError() ? FSlateColor(ErrorColor) : FSlateColor(FLinearColor::White);
-			})
-			.Text_Lambda([this]() { const UFloor101DocumentSubsystem* S = Document.Get(); return S ? S->GetStatusMessage() : FText::GetEmpty(); })
-		]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-		[
-			SNew(STextBlock)
-			.Font(Font(9))
-			.ColorAndOpacity(MutedColor)
-			.Text_Lambda([this]()
-			{
-				const UFloor101DocumentSubsystem* S = Document.Get();
-				const bool bUnsaved = S && S->HasUnsavedChanges();
-				const FText Unsaved = bUnsaved ? LOCTEXT("Unsaved", "Sin guardar  ·  ") : FText::GetEmpty();
-				return S && S->IsPlanView()
-					? FText::Format(LOCTEXT("PlanCameraHint", "{0}Plano 2D · Rueda: zoom · Clic central: desplazar · Tab: volver a 3D"), Unsaved)
-					: FText::Format(LOCTEXT("CameraHint", "{0}N: navegar · Derecho + WASD: moverse · Rueda: acercar · Central: desplazar"), Unsaved);
-			})
-		]);
+	return Panel(SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(18.0, 6.0))
+		+ SWrapBox::Slot()
+		[SNew(SBox).MaxDesiredWidth_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Max(180.0, ViewSize.X * 0.52))); })
+			[SNew(STextBlock).Font(Font(9)).ColorAndOpacity(MutedColor).AutoWrapText(true)
+				.Text_Lambda([this]()
+				{
+					if (!IsDesignMode()) { return GetHintText(); }
+					const auto* S = Document.Get();
+					return S && S->GetEditController().mode() != EditMode::Select ? GetHintText()
+						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Navegar · N   |   Acercarse · Rueda");
+				})
+				.ToolTipText_Lambda([this]() { return GetHintText(); })]]
+		+ SWrapBox::Slot()
+		[SNew(SBox).MaxDesiredWidth_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Max(180.0, ViewSize.X * 0.4))); })
+			[SNew(STextBlock).Font(Font(9)).AutoWrapText(true)
+				.ColorAndOpacity_Lambda([this]() { const auto* S = Document.Get(); return FSlateColor(S && S->IsStatusError() ? ErrorColor : MutedColor); })
+				.Text_Lambda([this]() { const auto* S = Document.Get(); return S ? S->GetStatusMessage() : FText::GetEmpty(); })]]
+		+ SWrapBox::Slot()[SNew(STextBlock).Font(Font(9)).ColorAndOpacity(ActiveButtonColor)
+			.Text_Lambda([this]() { const auto* S = Document.Get(); return S && S->HasUnsavedChanges() ? LOCTEXT("StudioDirty", "Cambios sin guardar") : LOCTEXT("StudioUnits", "Unidades · cm"); })]);
 }
 
 FText SFloor101Overlay::GetCursorText() const
@@ -3332,11 +3333,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeCursorLabel()
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()
 			[
-				SNew(STextBlock).Font(Font(12, true)).Text_Lambda([this]() { return GetCursorText(); })
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12, true)).Text_Lambda([this]() { return GetCursorText(); })
 			]
 			+ SVerticalBox::Slot().AutoHeight()
 			[
-				SNew(STextBlock)
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 				.Font(Font(9))
 				.ColorAndOpacity(ErrorColor)
 				.Visibility_Lambda([TypedError]() { return TypedError().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
@@ -3451,14 +3452,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeEditRow(const FText& Label, TFunction<
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 		[
-			SNew(STextBlock).Text(Label).Font(Font(10))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(10))
 		]
 		+ SHorizontalBox::Slot().AutoWidth()
 		[
 			SNew(SBox)
 			.WidthOverride(120.0f)
 			[
-				SNew(SEditableTextBox)
+				SNew(SEditableTextBox).Style(&Floor101::Studio::TextBox())
 				.Font(Font(10))
 				.SelectAllTextWhenFocused(true)
 				.Text_Lambda([Current]() { return Current(); })
@@ -3524,7 +3525,7 @@ void SFloor101Overlay::RebuildImportedLists()
 				: FText::Format(LOCTEXT("ImageSize", "{0} × {1} px"), Asset.texture.pixelWidth, Asset.texture.pixelHeight);
 			List->AddSlot().AutoHeight().Padding(0.0f, 1.0f)
 			[
-				SNew(SButton)
+				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 				.IsFocusable(false)
 				.ButtonColorAndOpacity_Lambda([this, Ref, bModels]()
 				{
@@ -3544,11 +3545,11 @@ void SFloor101Overlay::RebuildImportedLists()
 					]
 					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 					[
-						SNew(STextBlock).Text(FText::FromString(UTF8_TO_TCHAR(Asset.name.c_str()))).Font(Font(10))
+						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(FText::FromString(UTF8_TO_TCHAR(Asset.name.c_str()))).Font(Font(10))
 					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 					[
-						SNew(STextBlock).Text(Detail).Font(Font(9)).ColorAndOpacity(MutedColor)
+						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Detail).Font(Font(9)).ColorAndOpacity(MutedColor)
 					]
 				]
 			];
@@ -3596,7 +3597,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedTextures()
 	return SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("ImportedTextures", "Texturas importadas")).Font(Font(10, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ImportedTextures", "Texturas importadas")).Font(Font(10, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight()
 		[
@@ -3604,12 +3605,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedTextures()
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 4.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(LOCTEXT("ImportTextureTip", "Trae una imagen PNG o JPEG al proyecto (se copia junto a project.json) para usarla como acabado"))
 			.OnClicked_Lambda([this]() { ImportFromDialog(false); return FReply::Handled(); })
 			[
-				SNew(STextBlock).Text(LOCTEXT("ImportTexture", "Importar textura…")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ImportTexture", "Importar textura…")).Font(Font(10))
 			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
@@ -3645,7 +3646,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedTextures()
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 4.0f, 0.0f, 0.0f)
 			[
-				SNew(SButton)
+				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 				.IsFocusable(false)
 				.ToolTipText(LOCTEXT("RemoveTextureTip", "Quita la textura del proyecto si ninguna superficie la usa (se puede deshacer)"))
 				.OnClicked_Lambda([this, Texture]()
@@ -3660,7 +3661,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedTextures()
 					return FReply::Handled();
 				})
 				[
-					SNew(STextBlock).Text(LOCTEXT("RemoveTexture", "Eliminar textura")).Font(Font(9))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("RemoveTexture", "Eliminar textura")).Font(Font(9))
 				]
 			]
 		];
@@ -3700,12 +3701,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 	};
 	auto Toggle = [](const FText& Label, const FText& ToolTip, TFunction<void()> OnClicked)
 	{
-		return SNew(SButton)
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(ToolTip)
 			.OnClicked_Lambda([OnClicked]() { OnClicked(); return FReply::Handled(); })
 			[
-				SNew(STextBlock).Text(Label).Font(Font(9))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(9))
 			];
 	};
 
@@ -3714,7 +3715,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 	return SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 4.0f)
 		[
-			SNew(STextBlock).Text(LOCTEXT("ImportedModels", "Modelos importados")).Font(Font(10, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ImportedModels", "Modelos importados")).Font(Font(10, true))
 		]
 		+ SVerticalBox::Slot().AutoHeight()
 		[
@@ -3722,12 +3723,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 4.0f)
 		[
-			SNew(SButton)
+			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
 			.ToolTipText(LOCTEXT("ImportModelTip", "Trae un modelo glTF (.glb, .gltf) u OBJ con sus texturas al proyecto para colocarlo como mueble"))
 			.OnClicked_Lambda([this]() { ImportFromDialog(true); return FReply::Handled(); })
 			[
-				SNew(STextBlock).Text(LOCTEXT("ImportModel", "Importar modelo…")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ImportModel", "Importar modelo…")).Font(Font(10))
 			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
@@ -3745,17 +3746,17 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 				[
-					SNew(STextBlock).Text(LOCTEXT("ModelUnits", "Unidades del archivo")).Font(Font(10))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ModelUnits", "Unidades del archivo")).Font(Font(10))
 				]
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
 					SNew(SBox)
 					.WidthOverride(120.0f)
 					[
-						SNew(SComboBox<TSharedPtr<ModelUnit>>)
+						SNew(SComboBox<TSharedPtr<ModelUnit>>).ComboBoxStyle(&Floor101::Studio::ComboBox())
 						.IsFocusable(false)
 						.OptionsSource(&ModelUnits)
-						.OnGenerateWidget_Lambda([UnitName](TSharedPtr<ModelUnit> Unit) { return SNew(STextBlock).Text(UnitName(*Unit)).Font(Font(9)); })
+						.OnGenerateWidget_Lambda([UnitName](TSharedPtr<ModelUnit> Unit) { return SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(UnitName(*Unit)).Font(Font(9)); })
 						.OnSelectionChanged_Lambda([Changed](TSharedPtr<ModelUnit> Unit, ESelectInfo::Type Info)
 						{
 							if (Unit && Info != ESelectInfo::Direct)
@@ -3765,7 +3766,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 							}
 						})
 						[
-							SNew(STextBlock)
+							SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 							.Font(Font(9))
 							.ColorAndOpacity(FLinearColor::White)
 							.Text_Lambda([Model, UnitName]() { const f101::cad::Asset* A = Model(); return A ? UnitName(A->model.unit) : FText::GetEmpty(); })
@@ -3797,12 +3798,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 					Changed([State](f101::cad::Asset& Asset) { Asset.model.againstWall = State == ECheckBoxState::Checked; });
 				})
 				[
-					SNew(STextBlock).Text(LOCTEXT("ModelAgainstWall", "Se apoya en los muros")).Font(Font(10))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ModelAgainstWall", "Se apoya en los muros")).Font(Font(10))
 				]
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 			[
-				SNew(STextBlock)
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 				.Font(Font(9))
 				.ColorAndOpacity(MutedColor)
 				.AutoWrapText(true)
@@ -3822,7 +3823,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 			[
-				SNew(STextBlock)
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
 				.Font(Font(9))
 				.ColorAndOpacity(ErrorColor)
 				.AutoWrapText(true)
@@ -3837,7 +3838,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 4.0f, 0.0f, 0.0f)
 			[
-				SNew(SButton)
+				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 				.IsFocusable(false)
 				.ToolTipText(LOCTEXT("RemoveModelTip", "Quita el modelo del proyecto si ningún mueble lo usa (se puede deshacer)"))
 				.OnClicked_Lambda([this, Model]()
@@ -3852,7 +3853,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 					return FReply::Handled();
 				})
 				[
-					SNew(STextBlock).Text(LOCTEXT("RemoveModel", "Eliminar modelo")).Font(Font(9))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("RemoveModel", "Eliminar modelo")).Font(Font(9))
 				]
 			]
 		];

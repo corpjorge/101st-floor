@@ -8,10 +8,10 @@
 
 namespace
 {
-	constexpr EAutomationTestFlags TestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
+	constexpr EAutomationTestFlags NavigationTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationKeyMapTest, "Floor101.Navigation.KeyMap", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationKeyMapTest, "Floor101.Navigation.KeyMap", NavigationTestFlags)
 bool FFloor101NavigationKeyMapTest::RunTest(const FString& Parameters)
 {
 	using Command = EFloor101KeyCommand;
@@ -45,7 +45,7 @@ bool FFloor101NavigationKeyMapTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationHeldKeysTest, "Floor101.Navigation.HeldKeys", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationHeldKeysTest, "Floor101.Navigation.HeldKeys", NavigationTestFlags)
 bool FFloor101NavigationHeldKeysTest::RunTest(const FString& Parameters)
 {
 	FFloor101NavigationKeys Keys;
@@ -97,7 +97,7 @@ bool FFloor101NavigationHeldKeysTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationShortcutsTest, "Floor101.Navigation.ShortcutsAndFocus", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationShortcutsTest, "Floor101.Navigation.ShortcutsAndFocus", NavigationTestFlags)
 bool FFloor101NavigationShortcutsTest::RunTest(const FString& Parameters)
 {
 	FFloor101NavigationKeys Keys;

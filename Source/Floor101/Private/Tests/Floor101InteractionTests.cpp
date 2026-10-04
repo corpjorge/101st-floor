@@ -39,8 +39,8 @@
 
 namespace
 {
-	constexpr EAutomationTestFlags TestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
-	constexpr double Tolerance = 1e-6;
+	constexpr EAutomationTestFlags InteractionTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
+	constexpr double InteractionTolerance = 1e-6;
 
 	using f101::cad::EditController;
 
@@ -80,7 +80,7 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101KeyMapTest, "Floor101.Interaction.KeyMap", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101KeyMapTest, "Floor101.Interaction.KeyMap", InteractionTestFlags)
 bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 {
 	using Command = EFloor101KeyCommand;
@@ -130,7 +130,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CameraPawnTest, "Floor101.Interaction.CameraPawn", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CameraPawnTest, "Floor101.Interaction.CameraPawn", InteractionTestFlags)
 bool FFloor101CameraPawnTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -180,7 +180,7 @@ bool FFloor101CameraPawnTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101EditFlowTest, "Floor101.Interaction.EditFlow", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101EditFlowTest, "Floor101.Interaction.EditFlow", InteractionTestFlags)
 bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -202,7 +202,7 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	AFloor101SceneNodeActor* Preview = FindNode(World, TEXT("preview/wall/0"));
 	if (TestNotNull(TEXT("preview actor while drawing"), Preview))
 	{
-		TestEqual(TEXT("preview follows the typed length"), Preview->GetMeshBounds().GetSize().X, 355.0, Tolerance);
+		TestEqual(TEXT("preview follows the typed length"), Preview->GetMeshBounds().GetSize().X, 355.0, InteractionTolerance);
 	}
 	TestTrue(TEXT("Enter creates the wall"), Document->Edit([](EditController& Editor) { return Editor.confirm(); }).ok());
 	TestFalse(TEXT("no status error"), Document->IsStatusError());
@@ -219,7 +219,7 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestEqual(TEXT("wall actor is 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, Tolerance);
+	TestEqual(TEXT("wall actor is 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, InteractionTolerance);
 
 	// Esc twice: stop the chain, back to Select. Then a click on the wall selects it and tints it.
 	(void)Document->Edit([](EditController& Editor) { Editor.cancel(); Editor.cancel(); return f101::Status::success(); });
@@ -232,9 +232,9 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 
 	// Properties panel: typed length, then undo.
 	TestTrue(TEXT("length 4.2 m"), Document->Edit([](EditController& Editor) { return Editor.setSelectionLength("4.2 m"); }).ok());
-	TestEqual(TEXT("same actor now 420 cm"), WallActor->GetMeshBounds().GetSize().X, 420.0, Tolerance);
+	TestEqual(TEXT("same actor now 420 cm"), WallActor->GetMeshBounds().GetSize().X, 420.0, InteractionTolerance);
 	TestTrue(TEXT("undo"), Document->Edit([](EditController& Editor) { return Editor.undo(); }).ok());
-	TestEqual(TEXT("back to 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, Tolerance);
+	TestEqual(TEXT("back to 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, InteractionTolerance);
 
 	// Errors reach the status bar (and the log, as warnings) and change nothing.
 	AddExpectedMessagePlain(TEXT("Wall thickness must be positive"), ELogVerbosity::Warning);
@@ -267,7 +267,7 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoomsTest, "Floor101.Interaction.Rooms", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoomsTest, "Floor101.Interaction.Rooms", InteractionTestFlags)
 bool FFloor101RoomsTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -328,7 +328,7 @@ bool FFloor101RoomsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallSplittingTest, "Floor101.Interaction.WallSplitting", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallSplittingTest, "Floor101.Interaction.WallSplitting", InteractionTestFlags)
 bool FFloor101WallSplittingTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -372,7 +372,7 @@ bool FFloor101WallSplittingTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LevelsTest, "Floor101.Interaction.Levels", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LevelsTest, "Floor101.Interaction.Levels", InteractionTestFlags)
 bool FFloor101LevelsTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -446,7 +446,7 @@ bool FFloor101LevelsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FinishesInteractionTest, "Floor101.Interaction.Finishes", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FinishesInteractionTest, "Floor101.Interaction.Finishes", InteractionTestFlags)
 bool FFloor101FinishesInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -499,7 +499,7 @@ bool FFloor101FinishesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CarpentryInteractionTest, "Floor101.Interaction.Carpentry", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CarpentryInteractionTest, "Floor101.Interaction.Carpentry", InteractionTestFlags)
 bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -543,7 +543,7 @@ bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OpeningTypesInteractionTest, "Floor101.Interaction.OpeningTypes", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OpeningTypesInteractionTest, "Floor101.Interaction.OpeningTypes", InteractionTestFlags)
 bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -604,7 +604,7 @@ bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PhotoModeTest, "Floor101.Interaction.PhotoMode", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PhotoModeTest, "Floor101.Interaction.PhotoMode", InteractionTestFlags)
 bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -644,7 +644,7 @@ bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewTest, "Floor101.Interaction.PlanView", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewTest, "Floor101.Interaction.PlanView", InteractionTestFlags)
 bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -737,7 +737,7 @@ bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FurnitureInteractionTest, "Floor101.Interaction.Furniture", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FurnitureInteractionTest, "Floor101.Interaction.Furniture", InteractionTestFlags)
 bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -816,7 +816,7 @@ bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ServicesInteractionTest, "Floor101.Interaction.Services", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ServicesInteractionTest, "Floor101.Interaction.Services", InteractionTestFlags)
 bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -960,7 +960,7 @@ bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FilePathsTest, "Floor101.Interaction.FilePaths", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FilePathsTest, "Floor101.Interaction.FilePaths", InteractionTestFlags)
 bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1000,7 +1000,7 @@ bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExitTest, "Floor101.Interaction.Exit", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExitTest, "Floor101.Interaction.Exit", InteractionTestFlags)
 bool FFloor101ExitTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1033,7 +1033,7 @@ bool FFloor101ExitTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101AssetsInteractionTest, "Floor101.Interaction.Assets", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101AssetsInteractionTest, "Floor101.Interaction.Assets", InteractionTestFlags)
 bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1161,7 +1161,7 @@ bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LibraryInteractionTest, "Floor101.Interaction.Library", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LibraryInteractionTest, "Floor101.Interaction.Library", InteractionTestFlags)
 bool FFloor101LibraryInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1253,7 +1253,7 @@ bool FFloor101LibraryInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExportInteractionTest, "Floor101.Interaction.Export", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExportInteractionTest, "Floor101.Interaction.Export", InteractionTestFlags)
 bool FFloor101ExportInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;

@@ -49,3 +49,22 @@ Las dos nuevas pruebas comprueban aislamiento de ajustes y prioridad de entrada
 del menú. Captura real inspeccionada. Pendiente: estilo, entorno y catálogos/inicio.
 
 ![Opciones](images/ui-redesign/stage3-options.png)
+
+## Etapa 4 — componentes Estudio
+
+- Paneles opacos en grafito, acento arena, botones planos con estados de foco,
+  texto Segoe UI del sistema (respaldo Roboto) y campos de edición consistentes.
+- Iconos geométricos propios para construcción, con nombres y atajos en ventanas
+  grandes y ayudas al pasar el cursor en ventanas pequeñas.
+- Texto legible a 800 × 600: la interfaz redistribuye filas y propiedades en lugar
+  de encoger toda la pantalla. Estado e indicación de unidades se ajustan al ancho.
+- Corregidas colisiones de nombres de pruebas y una macro Windows que afloraban
+  al reorganizar la compilación agrupada; no se desactivaron comprobaciones.
+
+Validación: compilación correcta, 275 pruebas unitarias y 69 de integración.
+Capturas reales inspeccionadas a 1920 × 1080 y 800 × 600. Pendiente: entorno,
+resaltado/medidas y catálogos/inicio (etapas 5–6).
+
+![Estudio](images/ui-redesign/stage4-style.png)
+![Ventana pequeña](images/ui-redesign/stage4-small-design.png)
+![Opciones pequeñas](images/ui-redesign/stage4-small-options.png)
