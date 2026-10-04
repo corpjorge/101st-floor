@@ -34,3 +34,18 @@ Para reproducir una captura después de compilar:
 comprobar otras pantallas. `-ResX 800 -ResY 600` comprueba ventanas pequeñas.
 La sesión abre únicamente el fixture indicado, captura la UI real y termina;
 no guarda ni sobrescribe el proyecto.
+
+## Etapa 3 — Opciones
+
+- Pantalla, Gráficos y Controles en un menú centrado. Resolución, HDR y VSync
+  salen del panel Foto. Pantalla/Imagen/Render y monitor en Información avanzada.
+- Perfiles Fluida/Equilibrada/Alta con preferencia local. Mantienen Lumen y
+  render al 100 %, aplicando únicamente escalabilidad; no reaplican HDR/VSync.
+- Velocidad accesible al recorrer, en Foto y en Controles. El menú bloquea
+  movimiento/edición detrás de él. Esc cierra primero Opciones y restaura el foco.
+
+Validación: compilación correcta, 275 pruebas unitarias y 69 de integración.
+Las dos nuevas pruebas comprueban aislamiento de ajustes y prioridad de entrada
+del menú. Captura real inspeccionada. Pendiente: estilo, entorno y catálogos/inicio.
+
+![Opciones](images/ui-redesign/stage3-options.png)

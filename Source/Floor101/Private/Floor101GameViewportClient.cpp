@@ -162,7 +162,7 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 
 	// The ray changes when the cursor or the camera moves; only then is the view recomputed.
 	f101::cad::Ray3 Ray;
-	if (Document && !bPhotoMode && !bNavigationMode && !bOrbiting && GetCursorRay(Ray))
+	if (Document && !bInterfaceOpen && !bPhotoMode && !bNavigationMode && !bOrbiting && GetCursorRay(Ray))
 	{
 		const FVector Origin(Ray.originX, Ray.originY, Ray.originZ);
 		const FVector Direction(Ray.directionX, Ray.directionY, Ray.directionZ);
@@ -175,9 +175,18 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 	}
 }
 
+void UFloor101GameViewportClient::SetInterfaceOpen(bool bOpen, FSimpleDelegate Close)
+{
+	bInterfaceOpen = bOpen;
+	CloseInterface = Close;
+	NavigationKeys.Reset();
+	bOrbiting = false;
+	bPanning = false;
+}
+
 bool UFloor101GameViewportClient::CanNavigate()
 {
-	return Viewport && Viewport->HasFocus() && Viewport->IsForegroundWindow() && !IgnoreInput()
+	return !bInterfaceOpen && Viewport && Viewport->HasFocus() && Viewport->IsForegroundWindow() && !IgnoreInput()
 		&& !(ViewportConsole && ViewportConsole->ConsoleActive());
 }
 
@@ -231,6 +240,15 @@ void UFloor101GameViewportClient::SetNavigationMode(bool bNavigate)
 
 bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 {
+	if (bInterfaceOpen)
+	{
+		if (EventArgs.Key == EKeys::Escape && EventArgs.Event == IE_Pressed)
+		{
+			const FSimpleDelegate RequestedClose = CloseInterface;
+			RequestedClose.ExecuteIfBound();
+		}
+		return true;
+	}
 	UE_LOG(LogFloor101, VeryVerbose, TEXT("F101: key %s %s"), *EventArgs.Key.ToString(),
 		*StaticEnum<EInputEvent>()->GetNameStringByValue(EventArgs.Event));
 	const FKey& Key = EventArgs.Key;
@@ -314,6 +332,7 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 
 bool UFloor101GameViewportClient::InputAxis(const FInputKeyEventArgs& EventArgs)
 {
+	if (bInterfaceOpen) { return true; }
 	if (EventArgs.Key == EKeys::MouseWheelAxis && GetEditingTarget())
 	{
 		if (AFloor101EditingPawn* Pawn = GetEditingPawn())
@@ -495,6 +514,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 
 bool UFloor101GameViewportClient::InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character)
 {
+	if (bInterfaceOpen) { return true; }
 	if (bNavigationMode || bOrbiting)
 	{
 		return true;

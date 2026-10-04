@@ -78,6 +78,8 @@ public:
 	int32 GetNavigationSpeedLevel() const;
 	// Standard game exit (ends only the play session in PIE), after protecting unsaved work.
 	bool RequestExit();
+	// A dedicated options/start screen owns input while open; CAD and held movement keys stay inactive.
+	void SetInterfaceOpen(bool bOpen, FSimpleDelegate Close = FSimpleDelegate());
 
 	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
 	void FrameProject();
@@ -124,5 +126,7 @@ private:
 	// Elevation of the edited level the camera last followed (mm); unset until the first tick with a document.
 	TOptional<double> FollowedElevationMm;
 	bool bPhotoMode = false;
+	bool bInterfaceOpen = false;
+	FSimpleDelegate CloseInterface;
 	int32 PhotoSamples = 256;
 };

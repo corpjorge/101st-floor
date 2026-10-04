@@ -25,6 +25,8 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	virtual bool SupportsKeyboardFocus() const override { return true; }
+	virtual FReply OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
 	// Development-only command-line capture: exercises the actual Slate surface without changing user preferences.
 #if WITH_DEV_AUTOMATION_TESTS
 	void PrepareReview(const FString& Screen);
@@ -39,10 +41,14 @@ private:
 	TSharedRef<SWidget> MakeFileMenu();
 	TSharedRef<SWidget> MakeViewMenu();
 	TSharedRef<SWidget> MakeUtilityMenu();
+	TSharedRef<SWidget> MakeOptionsPanel();
+	void OpenOptions();
+	void CloseOptions();
+	bool bOptionsOpen = false;
+	int32 OptionsPage = 0;
 	TSharedRef<SWidget> MakeFullscreenButton();
 	bool IsDesignMode() const;
 	FVector2D ViewSize = FVector2D(1920.0, 1080.0);
-	TSharedPtr<SComboButton> OptionsButton;
 	TSharedRef<SWidget> MakeLevelRow();
 	// Exports the edited level's plan next to the project file (ADR-0015); Extension: "svg" or "png".
 	TSharedRef<SWidget> MakePlanExportButton(const FString& Extension);

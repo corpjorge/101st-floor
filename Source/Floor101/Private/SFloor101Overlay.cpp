@@ -19,6 +19,8 @@
 #include "Floor101Hdr.h"
 #include "Floor101Names.h"
 #include "Floor101PathTracing.h"
+#include "Floor101Preferences.h"
+#include "InputCoreTypes.h"
 #include "Floor101SceneSpace.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
@@ -37,6 +39,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SConstraintCanvas.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Notifications/SProgressBar.h"
 #include "Widgets/SBoxPanel.h"
@@ -310,6 +313,7 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 			]
 			+ SVerticalBox::Slot().AutoHeight()[MakeStatusBar()]
 		]
+		+ SOverlay::Slot()[MakeOptionsPanel()]
 	];
 }
 
@@ -595,22 +599,106 @@ TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeUtilityMenu()
 {
-	return SAssignNew(OptionsButton, SComboButton)
-		.OnGetMenuContent_Lambda([this]()
+	return SNew(SButton).IsFocusable(false).OnClicked_Lambda([this]() { OpenOptions(); return FReply::Handled(); })
+		[SNew(STextBlock).Text(LOCTEXT("StudioOptions", "Opciones")).Font(Font(10))];
+}
+
+void SFloor101Overlay::OpenOptions()
+{
+	bOptionsOpen = true;
+	if (auto* Client = ViewportClient.Get()) { Client->SetInterfaceOpen(true, FSimpleDelegate::CreateSP(this, &SFloor101Overlay::CloseOptions)); }
+	FSlateApplication::Get().SetKeyboardFocus(AsShared());
+}
+
+void SFloor101Overlay::CloseOptions()
+{
+	bOptionsOpen = false;
+	if (auto* Client = ViewportClient.Get()) { Client->SetInterfaceOpen(false); }
+	FSlateApplication::Get().SetAllUserFocusToGameViewport();
+}
+
+FReply SFloor101Overlay::OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event)
+{
+	if (bOptionsOpen && Event.GetKey() == EKeys::Escape) { CloseOptions(); return FReply::Handled(); }
+	return SCompoundWidget::OnKeyDown(Geometry, Event);
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
+{
+	TSharedRef<SWrapBox> Tabs = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8.0, 8.0));
+	const FText Pages[] = {LOCTEXT("StudioDisplayPage", "Pantalla"), LOCTEXT("StudioGraphicsPage", "Gráficos"), LOCTEXT("StudioControlsPage", "Controles")};
+	for (int32 I = 0; I < UE_ARRAY_COUNT(Pages); ++I)
+	{
+		Tabs->AddSlot()[SNew(SButton).IsFocusable(false)
+			.ButtonColorAndOpacity_Lambda([this, I]() { return OptionsPage == I ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White); })
+			.OnClicked_Lambda([this, I]() { OptionsPage = I; return FReply::Handled(); })
+			[SNew(STextBlock).Text(Pages[I]).Font(Font(12))]];
+	}
+	TSharedRef<SWidget> Quality = SNew(SComboButton).OnGetMenuContent_Lambda([]()
+	{
+		FMenuBuilder Menu(true, nullptr);
+		const FText Names[] = {LOCTEXT("StudioLightQuality", "Fluida"), LOCTEXT("StudioBalancedQuality", "Equilibrada"), LOCTEXT("StudioHighQuality", "Alta")};
+		for (int32 I = 0; I < UE_ARRAY_COUNT(Names); ++I)
 		{
-			return SNew(SBox).WidthOverride(static_cast<float>(FMath::Min(340.0, ViewSize.X - 32.0)))
-				.MaxDesiredHeight(static_cast<float>(FMath::Max(180.0, ViewSize.Y - 140.0)))
-				[SNew(SScrollBox) + SScrollBox::Slot()[Panel(SNew(SVerticalBox)
-					+ SVerticalBox::Slot().AutoHeight()[MakeDisplayControls(true)]
-					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeHdrButton()])]];
-		})
-		.ButtonContent()[SNew(STextBlock).Text(LOCTEXT("StudioOptions", "Opciones")).Font(Font(10))];
+			Menu.AddMenuEntry(Names[I], FText::GetEmpty(), FSlateIcon(), FUIAction(
+				FExecuteAction::CreateLambda([I]() { Floor101::Preferences::SetGraphicsQuality(I); }), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([I]() { return Floor101::Preferences::GraphicsQuality() == I; })), NAME_None, EUserInterfaceActionType::RadioButton);
+		}
+		return Menu.MakeWidget();
+	}).ButtonContent()[SNew(STextBlock).Font(Font(12)).Text_Lambda([]()
+	{
+		const TCHAR* Names[] = {TEXT("Fluida"), TEXT("Equilibrada"), TEXT("Alta")};
+		return FText::FromString(FString(TEXT("Calidad gráfica: ")) + Names[Floor101::Preferences::GraphicsQuality()]);
+	})];
+	return SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.BorderBackgroundColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f)).HAlign(HAlign_Center).VAlign(VAlign_Center).Padding(12.0f)
+		.Visibility_Lambda([this]() { return bOptionsOpen ? EVisibility::Visible : EVisibility::Collapsed; })
+		.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
+		[
+			SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Min(720.0, ViewSize.X - 24.0))); })
+			.MaxDesiredHeight_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Max(120.0, ViewSize.Y - 24.0))); })
+			[
+				Panel(SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().Padding(12.0f)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).Text(LOCTEXT("StudioOptionsHeading", "Opciones")).Font(Font(22))]
+					+ SHorizontalBox::Slot().AutoWidth()[SNew(SButton).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
+						[SNew(STextBlock).Text(LOCTEXT("StudioCloseOptions", "Cerrar · Esc")).Font(Font(11))]]
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(12.0f, 4.0f)[Tabs]
+				+ SVerticalBox::Slot().FillHeight(1.0f).Padding(12.0f, 16.0f)
+				[
+					SNew(SScrollBox) + SScrollBox::Slot()
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot().AutoHeight()
+						[SNew(SBox).Visibility_Lambda([this]() { return OptionsPage == 0 ? EVisibility::Visible : EVisibility::Collapsed; })[MakeDisplayControls(true)]]
+						+ SVerticalBox::Slot().AutoHeight()
+						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 1 ? EVisibility::Visible : EVisibility::Collapsed; })
+							+ SVerticalBox::Slot().AutoHeight()[Quality]
+							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
+							[SNew(STextBlock).Font(Font(12)).AutoWrapText(true).ColorAndOpacity(MutedColor)
+								.Text(LOCTEXT("StudioQualityPolicy", "Los perfiles ajustan detalle y sombras. Conservan Lumen y el render al 100 %; no cambian HDR ni la sincronización vertical. La calidad de la fotografía se elige en Foto."))]]
+						+ SVerticalBox::Slot().AutoHeight()
+						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 2 ? EVisibility::Visible : EVisibility::Collapsed; })
+							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
+							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
+							[SNew(STextBlock).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
+								"Recorrer: N · Moverse: WASD · Subir/bajar: E/Q · Acelerar: Shift\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: W · Puerta: P · Ventana: O\nMateriales: M · Muebles: A · Columna: C · Instalaciones: I\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
+					]
+				]
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
+				[SNew(SButton).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
+					[SNew(STextBlock).Text(LOCTEXT("StudioOptionsDone", "Listo")).Font(Font(12))]])
+			]
+		];
 }
 
 #if WITH_DEV_AUTOMATION_TESTS
 void SFloor101Overlay::PrepareReview(const FString& Screen)
 {
-	if (Screen == TEXT("options") && OptionsButton) { OptionsButton->SetIsOpen(true); }
+	if (Screen == TEXT("options")) { OpenOptions(); }
 	if (UFloor101GameViewportClient* Client = ViewportClient.Get())
 	{
 		if (Screen == TEXT("walk")) { Client->SetNavigationMode(true); }
@@ -1558,36 +1646,22 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 			const Floor101::Display::FStatus State = Floor101::Display::Query(ViewportClient.Get());
 			return State.Native == State.Image && (!State.bWorldRendering || State.Image == State.Render) ? FSlateColor(MutedColor) : FSlateColor(ActiveButtonColor);
 		});
-	if (bCompact)
-	{
-		return SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationButton()]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationSpeed()]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				SNew(STextBlock).Font(Font(9)).AutoWrapText(true)
-				.Text(LOCTEXT("NavigationPhotoHint", "N + WASD: moverse · Q/E: bajar/subir · Shift: rápido · derecho: mirar"))
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Fullscreen]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Resolution]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeVSyncButton()]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Status];
-	}
+	(void)bCompact;
 	return SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight()
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[MakeNavigationButton()]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[MakeNavigationSpeed()]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[MakeVSyncButton()]
-		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f, 0.0f, 0.0f)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Fullscreen]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Resolution]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Status]
-		];
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[Resolution]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[Fullscreen]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeVSyncButton()]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeHdrButton()]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)
+		[SNew(STextBlock).Font(Font(11)).AutoWrapText(true).ColorAndOpacity(MutedColor)
+			.Text_Lambda([this]() { return Floor101::HDR::Tooltip(Floor101::HDR::Query(ViewportClient.Get())); })]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
+		[SNew(SExpandableArea).InitiallyCollapsed(true)
+			.HeaderContent()[SNew(STextBlock).Text(LOCTEXT("StudioAdvancedDisplay", "Información avanzada")).Font(Font(12))]
+			.BodyContent()[SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[Status]
+				+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Font(Font(11)).AutoWrapText(true)
+					.Text_Lambda([this]() { return FText::FromString(Floor101::Display::Query(ViewportClient.Get()).MonitorName); })]]];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
@@ -1661,14 +1735,8 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				[
 					SNew(STextBlock).Text(LOCTEXT("PhotoTitle", "Foto (path tracing)")).Font(Font(11, true))
 				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-				[
-					MakeDisplayControls(true)
-				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-				[
-					MakeHdrButton()
-				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationButton()]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationSpeed()]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 				[
 					SNew(STextBlock)
