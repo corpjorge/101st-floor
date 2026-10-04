@@ -1,11 +1,11 @@
 # Rediseño Estudio — implementación
 
-Rama `codex/ui-redesign`. Estudio aprobado por el usuario. Cada etapa se guarda
-en un commit independiente; no fusionar hasta recibir la solicitud.
+Rama de trabajo `codex/ui-redesign`. Estudio aprobado por el usuario. Cada etapa
+se guarda en un commit independiente. Integración en `main` autorizada el
+2026-10-04 tras validar el ajuste final de Salir.
 
-Etapas 1–6 completadas. La propuesta está en `ui-redesign.md`; las capturas
-siguientes corresponden a la aplicación real. Pendiente: revisión del usuario
-y cualquier publicación o fusión que solicite posteriormente.
+Etapas 1–6 y ajustes de revisión completados. La propuesta está en
+`ui-redesign.md`; las capturas siguientes corresponden a la aplicación real.
 
 ## Etapa 2 — organización
 
@@ -212,3 +212,20 @@ a 920 × 600, 800 × 600 y 1920 × 1080. Rama sin fusionar.
 ![Barra a 920 × 600](images/ui-redesign/feedback-toolbar-small.png)
 ![Barra a 800 × 600](images/ui-redesign/feedback-toolbar-800.png)
 ![Barra a 1920 × 1080](images/ui-redesign/feedback-toolbar-wide.png)
+
+
+## Salir rojo e integración autorizada (2026-10-04)
+
+- Salir usa un componente rojo con texto blanco y estados de pulsación/hover.
+  En la barra ocupa un espacio propio en la esquina superior derecha; queda
+  aislado de los modos y Guardar incluso cuando estos pasan a otra fila.
+- Se conserva el aviso de cambios pendientes dentro del juego y sus acciones
+  Guardar, Descartar y Cancelar. Inicio comparte el estilo rojo y su centrado.
+
+Validación: compilación correcta, 275 pruebas unitarias (13 035 comprobaciones)
+y 80 de integración sin fallos (`Saved/Automation/20261004-171239`), incluyendo
+salida, guardado y prioridad del aviso. Capturas reales revisadas a 1920 × 1080
+y 800 × 600. Usuario autoriza commit independiente, merge a `main` y push.
+
+![Salir aislado a 1920 × 1080](images/ui-redesign/exit-corner-wide.png)
+![Salir aislado a 800 × 600](images/ui-redesign/exit-corner-small.png)

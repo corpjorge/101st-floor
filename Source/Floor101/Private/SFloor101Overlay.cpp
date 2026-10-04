@@ -498,7 +498,6 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		if (auto* S = Document.Get()) { FFloor101FileActions::Save(*S); }
 		return FReply::Handled();
 	})))];
-	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(MakeExitButton(true))];
 
 	TSharedRef<SWrapBox> Views = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0));
 	Views->AddSlot()[MakeFileMenu()];
@@ -532,7 +531,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		})[MakeNavigationSpeed()]
 	];
 	return Panel(SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight()[Header]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Top)[Header]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Top).Padding(12.0f, 0.0f, 0.0f, 0.0f)
+			[HeaderItem(MakeExitButton(true))]
+		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)[Views]);
 }
 
@@ -1517,7 +1522,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeExitButton(bool bCompact)
 {
-	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).HAlign(HAlign_Center).VAlign(VAlign_Center)
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::ExitButton()).HAlign(HAlign_Center).VAlign(VAlign_Center)
 		.IsFocusable(false)
 		.ContentPadding(bCompact ? FMargin(10.0f, 6.0f) : FMargin(16.0f, 10.0f))
 		.ToolTipText(LOCTEXT("ExitTip", "Cierra 101st Floor. Si hay cambios sin guardar, permite guardarlos, descartarlos o cancelar."))

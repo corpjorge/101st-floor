@@ -35,6 +35,17 @@ namespace Floor101::Studio
 		return Style;
 	}
 
+	const FButtonStyle& ExitButton()
+	{
+		static const FButtonStyle Style = FButtonStyle(Button())
+			.SetNormal(FSlateRoundedBoxBrush(Color(TEXT("A6333D")), 4.0f))
+			.SetHovered(FSlateRoundedBoxBrush(Color(TEXT("BD404C")), 4.0f))
+			.SetPressed(FSlateRoundedBoxBrush(Color(TEXT("8F2831")), 4.0f))
+			.SetNormalForeground(FLinearColor::White).SetHoveredForeground(FLinearColor::White)
+			.SetPressedForeground(FLinearColor::White);
+		return Style;
+	}
+
 	const FComboButtonStyle& ComboButton()
 	{
 		static const FComboButtonStyle Style = FComboButtonStyle(FCoreStyle::Get().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
