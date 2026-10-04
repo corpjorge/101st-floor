@@ -25,6 +25,7 @@ W: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de coloca
 Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+Shift+S / Ctrl+O: guardar / guardar como (eliges carpeta y nombre) / abrir · Esc o clic derecho: cancelar ·
 N / "Navegar": WASD para moverse, Q/E para bajar/subir, Shift para ir más rápido, derecho para mirar; N/Esc vuelve a editar. **Velocidad** permite elegir niveles 1–10 (inicial: 3 m/s) y guarda la elección. También derecho + WASD al editar. [Navegación y zoom](docs/camera-navigation.md).
 **Sincronización vertical**: activar/desactivar desde la barra o Modo Foto; la elección se guarda. [Pantalla](docs/display.md).
+**Salir**, arriba a la derecha: cierra la aplicación; con cambios sin guardar permite guardar y salir, salir sin guardar o cancelar. Disponible también en Modo Foto y pantalla completa.
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
 cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble o el pilar · con un mueble, un pilar o una tubería seleccionados, arrastrarlo: moverlo (las asas de una tubería mueven un codo) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
 F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · F11 / "Pantalla completa": resolución nativa y vuelta a ventana · "Resolución": elegir modo y comprobar pantalla/imagen/render · "Plano: SVG / PNG": exportar el plano ·

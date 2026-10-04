@@ -33,6 +33,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 
 #include <algorithm>
 
@@ -951,6 +952,39 @@ bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
 	FFloor101FileActions::RememberProjectPath(UserProject);
 	FFloor101FileActions::RememberTwinmotionFolder(UserTwinmotion);
 	IFileManager::Get().DeleteDirectory(*Folder, false, true);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExitTest, "Floor101.Interaction.Exit", TestFlags)
+bool FFloor101ExitTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) { return false; }
+	int32 Prompts = 0;
+	int32 Saves = 0;
+	const auto Cancel = [&Prompts]() { ++Prompts; return EAppReturnType::Cancel; };
+	const auto CancelSave = [&Saves]() { ++Saves; };
+	TestTrue(TEXT("clean document exits without prompting"), FFloor101FileActions::PrepareExit(*Document, Cancel, CancelSave));
+	TestEqual(TEXT("no prompt for clean document"), Prompts, 0);
+	TestEqual(TEXT("no unnecessary save"), Saves, 0);
+	(void)Document->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800);
+	TestFalse(TEXT("cancel keeps unsaved work open"), FFloor101FileActions::PrepareExit(*Document, Cancel, CancelSave));
+	TestTrue(TEXT("cancel preserves dirty document"), Document->HasUnsavedChanges());
+	TestTrue(TEXT("explicit discard permits exit"), FFloor101FileActions::PrepareExit(*Document,
+		[]() { return EAppReturnType::No; }, CancelSave));
+	TestEqual(TEXT("discard never saves"), Saves, 0);
+	TestFalse(TEXT("cancelled or failed save cannot exit"), FFloor101FileActions::PrepareExit(*Document,
+		[]() { return EAppReturnType::Yes; }, CancelSave));
+	TestEqual(TEXT("save was attempted"), Saves, 1);
+	TestTrue(TEXT("unsaved work retained"), Document->HasUnsavedChanges());
+	const FString Path = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Exit/project.json"));
+	ON_SCOPE_EXIT { IFileManager::Get().Delete(*Path); };
+	TestTrue(TEXT("successful save permits exit"), FFloor101FileActions::PrepareExit(*Document,
+		[]() { return EAppReturnType::Yes; }, [&]() { TestTrue(TEXT("project saved"), Document->SaveProject(Path).ok()); }));
+	TestFalse(TEXT("saved work is clean"), Document->HasUnsavedChanges());
+	UFloor101GameViewportClient* Client = NewObject<UFloor101GameViewportClient>(GEngine);
+	TestFalse(TEXT("exit without a viewport is rejected"), Client->RequestExit());
 	return true;
 }
 

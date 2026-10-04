@@ -116,6 +116,7 @@ Desarrollo:
 | N / botón "Navegar"; derecho + WASD al editar | WASD desplaza la cámara, Q/E baja/sube, Shift acelera; derecho arrastrando mira desde la cámara. N/Esc vuelve a editar. En plano 2D, WASD desplaza el plano. [Detalle](camera-navigation.md) |
 | Selector "Velocidad" | niveles 1–10 (0,1–80 m/s); inicial 3 m/s, independiente del zoom; guarda la elección. Shift multiplica por cuatro |
 | Botón "Sincronización vertical" | activa/desactiva VSync inmediatamente y guarda la elección; conserva HDR y resolución |
+| Botón "Salir" (arriba a la derecha) | cierra la aplicación; con cambios sin guardar pregunta si guardar, descartar o cancelar. Cancelar el guardado o un error conserva la sesión. En PIE termina la sesión de juego |
 | "Resolución" y fila Pantalla / Imagen / Render | elegir un modo admitido por el monitor y comprobar dimensiones nativas, viewport efectivo y render interno antes de TSR. En plano 2D se indica "plano 2D"; detalle en [pantalla y resolución](display.md) |
 | Tab / botón "Plano 2D (Tab)" | plano 2D de la planta activa, editable como en 3D (rueda: zoom, central: desplazar); Tab o T vuelven a 3D |
 | "Plano: SVG / PNG" | exporta el plano de la planta activa junto al proyecto (`<proyecto>-<planta>.svg|png`) |

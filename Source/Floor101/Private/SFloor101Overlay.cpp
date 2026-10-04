@@ -326,14 +326,14 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 		+ SOverlay::Slot()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Top)
-		.Padding(10.0f)
+		.Padding(FMargin(10.0f, 50.0f, 10.0f, 10.0f))
 		[
 			MakePropertiesPanel()
 		]
 		+ SOverlay::Slot()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Top)
-		.Padding(10.0f)
+		.Padding(FMargin(10.0f, 50.0f, 10.0f, 10.0f))
 		[
 			MakePhotoPanel()
 		]
@@ -342,6 +342,10 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 		.VAlign(VAlign_Bottom)
 		[
 			MakeStatusBar()
+		]
+		+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Top).Padding(10.0f)
+		[
+			MakeExitButton()
 		]
 	];
 }
@@ -1514,6 +1518,22 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 				return Status.bEnabled ? LOCTEXT("HDRDisable", "Desactivar HDR")
 					: Status.bAvailable ? LOCTEXT("HDREnable", "Activar HDR") : LOCTEXT("HDRUnavailable", "HDR no disponible");
 			})
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeExitButton()
+{
+	return SNew(SButton)
+		.IsFocusable(false)
+		.ContentPadding(FMargin(16.0f, 6.0f))
+		.ToolTipText(LOCTEXT("ExitTip", "Cierra 101st Floor. Si hay cambios sin guardar, permite guardarlos, descartarlos o cancelar."))
+		.OnClicked_Lambda([this]()
+		{
+			if (UFloor101GameViewportClient* Client = ViewportClient.Get()) { Client->RequestExit(); }
+			return FReply::Handled();
+		})
+		[
+			SNew(STextBlock).Text(LOCTEXT("Exit", "Salir")).Font(Font(10, true))
 		];
 }
 

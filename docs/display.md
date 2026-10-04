@@ -28,6 +28,13 @@ fotogramas es independiente. El botón muestra la acción disponible según el e
 Se aplica inmediatamente y se guarda en `GameUserSettings.ini` (`bUseVSync`) para la próxima sesión. Este cambio
 conserva HDR, resolución, escala de render y límite de fotogramas.
 
+## Salir
+
+**Salir** está siempre arriba a la derecha, también en pantalla completa, plano 2D, navegación y Modo Foto.
+Con cambios sin guardar, el diálogo ofrece **Sí** (guardar y salir), **No** (salir sin guardar) o **Cancelar**.
+Cancelar la selección del archivo o un error al guardar conserva la sesión. Sin cambios, cierra directamente.
+En PIE, finaliza la sesión de juego mediante el cierre del viewport, conservando el editor.
+
 ## Comprobación reproducible
 
 ```powershell
@@ -42,6 +49,8 @@ menor → nativa → ventana anterior. También activa/desactiva VSync y verific
 Compara el viewport con la medición interna de render y guarda una captura en
 `Saved/HDR/Fullscreen-native.png`. El test restaura HDR de Windows y las preferencias previas; ejecútalo sin otras
 instancias abiertas. La verificación corresponde a UE 5.8.3 en el binario del editor con `-game`, no a un empaquetado.
+Al terminar, guarda solo el documento de prueba en `Saved/HDR/Exit-test.json` y usa la misma acción que **Salir**;
+comprueba que el proceso termina sin errores. `Floor101.Interaction.Exit` cubre las decisiones de guardado.
 
 ## Monitor comprobado (2026-10-03)
 
@@ -62,7 +71,8 @@ lo desactivó y restauró su estado inicial al finalizar.
 Se verificaron las operaciones de los controles; la selección manual y el aspecto perceptual quedan para revisión.
 Compilación Win64 Development, 265 tests unitarios (12.892 aserciones), 59 tests Unreal y comprobación de render
 DX12/SM6, Lumen HWRT y foto pasaron en la validación inicial. Los controles de velocidad y VSync se compilaron
-y pasaron 265 tests unitarios (12.892 aserciones) y 66 tests Unreal el 2026-10-03. El arranque respeta preferencias
+y pasaron 265 tests unitarios (12.892 aserciones) y 67 tests Unreal, incluido el cierre protegido, el 2026-10-03.
+La prueba real de **Salir** terminó con código 0, sin errores al apagar la aplicación. El arranque respeta preferencias
 guardadas y admite las opciones explícitas.
 
 ![Pantalla completa nativa: Pantalla, Imagen y Render a 2560 × 1440](images/fullscreen-native.png)

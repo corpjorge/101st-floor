@@ -76,6 +76,8 @@ public:
 	bool IsNavigationMode() const { return bNavigationMode; }
 	void SetNavigationSpeedLevel(int32 Level);
 	int32 GetNavigationSpeedLevel() const;
+	// Standard game exit (ends only the play session in PIE), after protecting unsaved work.
+	bool RequestExit();
 
 	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
 	void FrameProject();

@@ -4,7 +4,8 @@
 .DESCRIPTION
     Default: observes the current Windows HDR state. -EnableWindowsHdrForTest temporarily enables HDR on supported
     displays and restores their original state in finally. Application preferences are also restored.
-    -Display additionally checks native fullscreen, VSync on/off preserving HDR, a lower supported resolution and return to the previous window.
+    -Display additionally checks native fullscreen, VSync on/off preserving HDR, a lower supported resolution,
+    return to the previous window and graceful application exit through the Salir action.
 .EXAMPLE
     .\Scripts\CheckHdrOutput.ps1 -EnableWindowsHdrForTest
     .\Scripts\CheckHdrOutput.ps1 -Display -EnableWindowsHdrForTest

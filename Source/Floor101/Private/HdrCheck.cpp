@@ -38,10 +38,16 @@ namespace
 		FIntPoint LowerSize = FIntPoint::ZeroValue;
 		FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("HDR")));
 
-		bool Finish(bool bPassed, const TCHAR* Detail)
+		bool Finish(bool bPassed, const TCHAR* Detail, bool bCloseViewport = false)
 		{
+			if (bPassed && bCloseViewport)
+			{
+				UFloor101GameViewportClient* Client = GEngine ? Cast<UFloor101GameViewportClient>(GEngine->GameViewport) : nullptr;
+				bPassed = Client && Client->RequestExit(); // the same standard exit as the visible Salir button
+				UE_LOG(LogFloor101, Display, TEXT("F101HDRCheck: exit_requested=%d"), bPassed);
+			}
 			UE_LOG(LogFloor101, Display, TEXT("F101HDRCheck: result=%s detail=%s"), bPassed ? TEXT("PASS") : TEXT("FAIL"), Detail);
-			FPlatformMisc::RequestExit(false);
+			if (!bPassed || !bCloseViewport) { FPlatformMisc::RequestExit(false); }
 			return false;
 		}
 
@@ -253,7 +259,9 @@ namespace
 					const bool bPlanCorrect = !Display::Query(Client).bWorldRendering && Display::Describe(Display::Query(Client)).ToString().Contains(TEXT("plano 2D"));
 					Client->SetPlanView(false);
 					if (!Display::SetVSyncEnabled(bOriginalVSync, false)) { return Finish(false, TEXT("vsync_not_restored")); }
-					return Finish(bPlanCorrect, TEXT("native_and_selected_resolution"));
+					// Keep the unattended close test free of prompts. Only this diagnostic fixture is saved in Saved/HDR.
+					if (!Document->SaveProject(FPaths::Combine(Directory, TEXT("Exit-test.json"))).ok()) { return Finish(false, TEXT("exit_fixture_save_failed")); }
+					return Finish(bPlanCorrect, TEXT("native_and_selected_resolution_and_exit"), true);
 				}
 			}
 			return true;

@@ -109,6 +109,7 @@ private:
 	TSharedRef<SWidget> MakeNavigationButton();
 	TSharedRef<SWidget> MakeNavigationSpeed();
 	TSharedRef<SWidget> MakeVSyncButton();
+	TSharedRef<SWidget> MakeExitButton();
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 

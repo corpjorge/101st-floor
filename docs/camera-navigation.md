@@ -41,7 +41,7 @@ Las regresiones `CameraCloseZoom`, `CameraMovement` y `Floor101.Navigation.*` co
 del foco, cámara centrada al mirar, direcciones, diagonales, tiempo, plano 2D y prioridad de los atajos.
 `CameraSpeedPreference` comprueba el guardado y la recarga de la velocidad; `CameraMovement` verifica niveles,
 Shift y que el zoom no reduzca la velocidad.
-Compilación Win64 Development, 265 tests unitarios (12.892 aserciones) y 66 tests Unreal pasaron el 2026-10-03.
+Compilación Win64 Development, 265 tests unitarios (12.892 aserciones) y 67 tests Unreal pasaron el 2026-10-03.
 Decisión: [ADR-0024](adr/ADR-0024-camera-navigation.md).
 
-![Navegación, nivel de velocidad y sincronización vertical](images/camera-navigation.png)
+![Navegación, nivel de velocidad, sincronización vertical y Salir](images/camera-navigation.png)

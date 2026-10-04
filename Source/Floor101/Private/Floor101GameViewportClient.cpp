@@ -1,6 +1,7 @@
 #include "Floor101GameViewportClient.h"
 
 #include "Engine/Console.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
@@ -61,6 +62,25 @@ int32 UFloor101GameViewportClient::GetNavigationSpeedLevel() const
 {
 	const AFloor101EditingPawn* Pawn = GetEditingPawn();
 	return Pawn ? Pawn->GetNavigationSpeedLevel() : 5;
+}
+
+bool UFloor101GameViewportClient::RequestExit()
+{
+	if (!Viewport) { return false; }
+	NavigationKeys.Reset();
+	bOrbiting = false;
+	bPanning = false;
+	UWorld* CurrentWorld = GetWorld();
+	UFloor101DocumentSubsystem* Document = CurrentWorld ? CurrentWorld->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
+	if (Document && !FFloor101FileActions::ConfirmExit(*Document)) { return false; }
+	if (CurrentWorld && CurrentWorld->WorldType == EWorldType::PIE)
+	{
+		OnCloseRequested().Broadcast(Viewport); // queue this play session's end; the editor owns viewport cleanup
+		return true;
+	}
+	// QUIT defers teardown until the engine exits its frame. Keep the window/viewport alive for Slate shutdown.
+	UEngine* Engine = GetOuterUEngine();
+	return Engine && Engine->Exec(CurrentWorld, TEXT("QUIT"), *GLog);
 }
 
 bool UFloor101GameViewportClient::GetCursorRay(f101::cad::Ray3& OutRay) const

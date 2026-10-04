@@ -4,6 +4,7 @@
 #include "Floor101FileDialog.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/MessageDialog.h"
 #include "Misc/Paths.h"
 
 #define LOCTEXT_NAMESPACE "Floor101Overlay"
@@ -109,6 +110,29 @@ void FFloor101FileActions::Open(UFloor101DocumentSubsystem& Document)
 		RememberProjectPath(Path);
 	}
 	GiveFocusBack();
+}
+
+bool FFloor101FileActions::PrepareExit(UFloor101DocumentSubsystem& Document, TFunctionRef<EAppReturnType::Type()> Prompt,
+	TFunctionRef<void()> SaveDocument)
+{
+	if (!Document.HasUnsavedChanges()) { return true; }
+	const EAppReturnType::Type Choice = Prompt();
+	if (Choice == EAppReturnType::No) { return true; }
+	if (Choice != EAppReturnType::Yes) { return false; }
+	SaveDocument();
+	return !Document.HasUnsavedChanges();
+}
+
+bool FFloor101FileActions::ConfirmExit(UFloor101DocumentSubsystem& Document)
+{
+	const bool bExit = PrepareExit(Document, []()
+	{
+		return FMessageDialog::Open(EAppMsgType::YesNoCancel, EAppReturnType::Cancel,
+			LOCTEXT("ExitUnsaved", "Hay cambios sin guardar. ¿Quieres guardarlos antes de salir?\n\nSí: guardar y salir.\nNo: salir sin guardar.\nCancelar: seguir trabajando."),
+			LOCTEXT("ExitTitle", "Salir de 101st Floor"));
+	}, [&Document]() { Save(Document); });
+	if (!bExit) { GiveFocusBack(); }
+	return bExit;
 }
 
 void FFloor101FileActions::ExportTwinmotion(UFloor101DocumentSubsystem& Document)
