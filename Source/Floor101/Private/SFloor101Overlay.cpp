@@ -62,7 +62,7 @@ namespace
 	const FLinearColor ActiveButtonColor = Floor101::Studio::Color(TEXT("D6AD78"));
 	const FLinearColor ErrorColor(1.0f, 0.4f, 0.35f);
 	const FLinearColor MutedColor = Floor101::Studio::Color(TEXT("B3BAB9"));
-	const FLinearColor RoomLabelColor(0.05f, 0.18f, 0.3f, 0.85f);
+	const FLinearColor RoomLabelColor = Floor101::Studio::Color(TEXT("30373D"));
 	const FVector2D CursorLabelOffset(18.0, 18.0);
 
 	FSlateFontInfo Font(int32 Size, bool bBold = false)
@@ -294,7 +294,7 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 		[
 			SNew(SConstraintCanvas).Visibility_Lambda([this]() { return IsDesignMode() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 			+ SConstraintCanvas::Slot().Anchors(FAnchors(0.0f, 0.0f)).AutoSize(true)
-			.Offset_Lambda([this]() { return FMargin(CursorPosition.X + CursorLabelOffset.X, CursorPosition.Y + CursorLabelOffset.Y, 0.0f, 0.0f); })
+			.Offset_Lambda([this]() { return FMargin(FMath::Clamp(CursorPosition.X + CursorLabelOffset.X, 70.0, FMath::Max(70.0, ViewSize.X - 370.0)), FMath::Clamp(CursorPosition.Y + CursorLabelOffset.Y, 145.0, FMath::Max(145.0, ViewSize.Y - 120.0)), 0.0f, 0.0f); })
 			[MakeCursorLabel()]
 		]
 		+ SOverlay::Slot()
@@ -359,6 +359,25 @@ void SFloor101Overlay::Tick(const FGeometry& AllottedGeometry, const double InCu
 	if (FSlateApplication::IsInitialized())
 	{
 		CursorPosition = AllottedGeometry.AbsoluteToLocal(FSlateApplication::Get().GetCursorPos());
+	}
+	if (const auto* Selected = GetSelectedWall(); Selected && Document.IsValid() && Document->GetEditController().view().previewWalls.empty())
+	{
+		if (auto* Controller = Document->GetWorld()->GetFirstPlayerController())
+		{
+			const double Elevation = static_cast<double>(f101::cad::levelElevationMm(Document->GetDocument().project(), Selected->level));
+			FVector2D Pixel;
+			const auto Position = Floor101::Conversion::ToUnrealPosition({(static_cast<double>(Selected->start.x_mm) + Selected->end.x_mm) * 0.5,
+				(static_cast<double>(Selected->start.y_mm) + Selected->end.y_mm) * 0.5, Elevation + Selected->heightMm});
+			if (Controller->ProjectWorldLocationToScreen(FVector(Position), Pixel, true))
+			{
+				FVector2D ViewportPixels;
+				if (auto* Player = Controller->GetLocalPlayer(); Player && Player->ViewportClient)
+				{
+					Player->ViewportClient->GetViewportSize(ViewportPixels);
+					if (ViewportPixels.X > 0 && ViewportPixels.Y > 0) { CursorPosition = Pixel * ViewSize / ViewportPixels; }
+				}
+			}
+		}
 	}
 	// Imported assets (ADR-0017): the lists follow the library (import, rename, a model turned, undo, another project).
 	FString Signature;
@@ -593,6 +612,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
 				if (auto* C = ViewportClient.Get()) { C->FrameProject(); }
 				FSlateApplication::Get().SetAllUserFocusToGameViewport();
 			})));
+			Menu.AddMenuEntry(LOCTEXT("StudioGrid", "Rejilla de referencia · 1 m"), FText::GetEmpty(), FSlateIcon(), FUIAction(
+				FExecuteAction::CreateLambda([]() { Floor101::Preferences::SetShowGrid(!Floor101::Preferences::ShowGrid()); }), FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([]() { return Floor101::Preferences::ShowGrid(); })), NAME_None, EUserInterfaceActionType::ToggleButton);
 			Menu.AddMenuEntry(LOCTEXT("StudioTop", "Vista superior (T)"), FText::GetEmpty(), FSlateIcon(), FUIAction(FExecuteAction::CreateLambda([this]()
 			{
 				if (auto* C = ViewportClient.Get()) { C->ShowTopView(); }
@@ -714,6 +736,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 #if WITH_DEV_AUTOMATION_TESTS
 void SFloor101Overlay::PrepareReview(const FString& Screen)
 {
+	if (Screen == TEXT("selection") && Document.IsValid() && !Document->GetDocument().project().walls.empty())
+	{
+		const auto Id = Document->GetDocument().project().walls.front().id;
+		Run([Id](EditController& E) { return E.select(Id); });
+	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
 	if (UFloor101GameViewportClient* Client = ViewportClient.Get())
 	{
@@ -1711,11 +1738,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 		{256, LOCTEXT("PhotoMedium", "Media")},
 		{1024, LOCTEXT("PhotoHigh", "Alta")},
 	};
-	TSharedRef<SHorizontalBox> QualityRow = SNew(SHorizontalBox);
+	TSharedRef<SWrapBox> QualityRow = SNew(SWrapBox).UseAllottedSize(true);
 	for (const FQuality& Quality : Qualities)
 	{
 		const int32 Samples = Quality.Samples;
-		QualityRow->AddSlot().FillWidth(1.0f).Padding(0.0f, 0.0f, 4.0f, 0.0f)
+		QualityRow->AddSlot().Padding(0.0f, 0.0f, 4.0f, 0.0f)
 		[
 			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 			.IsFocusable(false)
@@ -1749,7 +1776,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 				[
-					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("PhotoTitle", "Foto (path tracing)")).Font(Font(11, true))
+					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("PhotoTitle", "Foto")).Font(Font(11, true))
 				]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationButton()]
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationSpeed()]
@@ -2775,7 +2802,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 	TSharedRef<SWidget> Widget = SNew(SBox)
 		.WidthOverride(150.0f)
 		[
-			SAssignNew(Combo, FCombo)
+			SAssignNew(Combo, FCombo).ComboBoxStyle(&Floor101::Studio::ComboBox())
 			.IsFocusable(false)
 			.OptionsSource(List.Get())
 			.OnComboBoxOpening_Lambda([Refresh, Self]()
@@ -3113,7 +3140,7 @@ FText SFloor101Overlay::GetHintText() const
 	}
 	if (IsPhotoMode())
 	{
-		return LOCTEXT("HintPhoto", "Foto (path tracing) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom · al mover la cámara la imagen empieza de nuevo · R o Esc: volver a editar");
+		return LOCTEXT("HintPhoto", "Foto · derecho arrastrando: orbitar · central: desplazar · rueda: zoom · al mover la cámara la imagen empieza de nuevo · R o Esc: volver a editar");
 	}
 	const EditController& Editor = Subsystem->GetEditController();
 	if (Editor.mode() == EditMode::Wall)
@@ -3286,6 +3313,11 @@ FText SFloor101Overlay::GetCursorText() const
 		[&View](const f101::cad::Wall& Wall) { return Wall.id == View.selectedWall; });
 	if (Shown == View.previewWalls.end())
 	{
+		if (const auto* Selected = GetSelectedWall())
+		{
+			return FText::Format(LOCTEXT("StudioWallMeasures", "L {0} · E {1} · H {2}"), LengthText(Selected->lengthMm()),
+				LengthText(static_cast<double>(Selected->thicknessMm)), LengthText(static_cast<double>(Selected->heightMm)));
+		}
 		return FText::GetEmpty();
 	}
 	if (Editor.isDraggingOpening())

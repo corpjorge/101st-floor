@@ -68,3 +68,25 @@ resaltado/medidas y catálogos/inicio (etapas 5–6).
 ![Estudio](images/ui-redesign/stage4-style.png)
 ![Ventana pequeña](images/ui-redesign/stage4-small-design.png)
 ![Opciones pequeñas](images/ui-redesign/stage4-small-options.png)
+
+## Etapa 5 — entorno y edición
+
+- Base neutra sin ajedrezado, atmósfera neutra, luz con sombras suaves y fondo
+  atmosférico sin dominante azul. Rejilla de referencia opcional de 1 m en «Vista»;
+  independiente del ajuste de precisión del CAD y oculta en Recorrer/Foto.
+- Selección con contorno arena que omite diagonales de triangulación y conserva
+  el color y las texturas originales. Medidas de longitud, espesor y altura
+  junto al muro; la etiqueta queda dentro de la ventana.
+- Recorrer y Foto ocultan selección, previews, marcadores y símbolos. Al volver
+  a Diseñar se restauran; el proyecto y su historial permanecen intactos.
+- Panel Foto con calidad que se redistribuye, sin recortar «Borrador»; campos
+  de acabados utilizan también el estilo común.
+
+Validación: compilación correcta, 275 pruebas unitarias y 69 de integración.
+Regresiones de color/textura y del cambio entre modos. Capturas reales de
+selección, Recorrer, Foto y rejilla inspeccionadas. Pendiente: catálogos e inicio.
+
+![Selección y medidas](images/ui-redesign/stage5-selection.png)
+![Recorrer](images/ui-redesign/stage5-walk.png)
+![Foto](images/ui-redesign/stage5-photo.png)
+![Rejilla](images/ui-redesign/stage5-grid.png)

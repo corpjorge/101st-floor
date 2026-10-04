@@ -8,4 +8,6 @@ namespace Floor101::Preferences
 	Scalability::FQualityLevels QualityLevels(int32 Profile);
 	void SetGraphicsQuality(int32 Profile, bool bSave = true);
 	void ApplySavedGraphics();
+	bool ShowGrid();
+	void SetShowGrid(bool bShow);
 }

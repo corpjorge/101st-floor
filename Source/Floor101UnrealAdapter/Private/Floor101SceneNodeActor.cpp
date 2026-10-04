@@ -17,9 +17,9 @@ namespace
 	{
 		switch (Style)
 		{
-		case f101::scene::NodeStyle::Selected: return FLinearColor(1.0f, 0.42f, 0.08f);
-		case f101::scene::NodeStyle::Preview: return FLinearColor(0.22f, 0.58f, 1.0f);
-		case f101::scene::NodeStyle::Handle: return FLinearColor(1.0f, 0.85f, 0.1f);
+		case f101::scene::NodeStyle::Selected: return FLinearColor::White;
+		case f101::scene::NodeStyle::Preview: return FLinearColor(0.74f, 0.63f, 0.46f);
+		case f101::scene::NodeStyle::Handle: return FLinearColor(0.67f, 0.42f, 0.19f);
 		case f101::scene::NodeStyle::Context: return FLinearColor(0.3f, 0.32f, 0.36f); // levels below the edited one
 		case f101::scene::NodeStyle::Symbol: return FLinearColor(0.02f, 0.03f, 0.05f); // plan symbols, e.g. door swings
 		case f101::scene::NodeStyle::Ghost: return FLinearColor(0.62f, 0.68f, 0.76f); // only without the glass material
@@ -75,6 +75,8 @@ UMaterialInterface* AFloor101SceneNodeActor::GetStyleMaterial(uint8 Style)
 void AFloor101SceneNodeActor::ApplyNode(const f101::scene::SceneNode& Node)
 {
 	SceneNodeId = UTF8_TO_TCHAR(Node.id.value.c_str());
+	bStudioSelected = Node.style == f101::scene::NodeStyle::Selected;
+	SelectionMaterials.Reset();
 	Tags.Reset();
 	Tags.Add(MakeNodeTag(SceneNodeId));
 #if WITH_EDITOR
@@ -98,9 +100,17 @@ void AFloor101SceneNodeActor::ApplyNode(const f101::scene::SceneNode& Node)
 		{
 			Material = Finishes->GetGhostMaterial();
 		}
-		else if ((Node.style == f101::scene::NodeStyle::Normal || bContext) && Finishes && Section < Node.finishes.size())
+		else if ((Node.style == f101::scene::NodeStyle::Normal || bContext || bStudioSelected) && Finishes && Section < Node.finishes.size())
 		{
 			Material = Finishes->GetFinishMaterial(UTF8_TO_TCHAR(Node.finishes[Section].c_str()), bContext);
+			if (bStudioSelected && Material)
+			{
+				auto* Selected = UMaterialInstanceDynamic::Create(Material->GetMaterial(), this);
+				Selected->CopyMaterialUniformParameters(Material);
+				// Selection is a contour, not a colour correction of the user's finish.
+				SelectionMaterials.Add(Selected);
+				Material = Selected;
+			}
 		}
 		Materials.Add(Material ? Material : GetStyleMaterial(static_cast<uint8>(Node.style)));
 	}

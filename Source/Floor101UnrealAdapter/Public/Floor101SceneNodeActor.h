@@ -7,6 +7,7 @@
 
 class UDynamicMeshComponent;
 class UMaterialInterface;
+class UMaterialInstanceDynamic;
 
 namespace f101::scene
 {
@@ -28,6 +29,7 @@ public:
 
 	UDynamicMeshComponent* GetMeshComponent() const { return MeshComponent; }
 	const FString& GetSceneNodeId() const { return SceneNodeId; }
+	bool IsStudioSelected() const { return bStudioSelected; }
 
 	// Material of the first section: its finish, or the tinted base material of the node's view style.
 	UMaterialInterface* GetDisplayMaterial() const;
@@ -42,6 +44,9 @@ public:
 
 private:
 	UMaterialInterface* GetStyleMaterial(uint8 Style);
+	bool bStudioSelected = false;
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> SelectionMaterials;
 
 	UPROPERTY(VisibleAnywhere, Category = "101st Floor")
 	TObjectPtr<UDynamicMeshComponent> MeshComponent;

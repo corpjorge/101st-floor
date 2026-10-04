@@ -127,6 +127,8 @@ public:
 	// viewport client path traces it (UFloor101GameViewportClient::SetPhotoMode).
 	void SetPhotoMode(bool bPhoto);
 	bool IsPhotoMode() const { return bPhotoMode; }
+	void SetConstructionAidsVisible(bool bVisible);
+	bool AreConstructionAidsVisible() const { return bConstructionAidsVisible && !bPhotoMode; }
 	// Writes the current view without UI as PNG (SDR) or EXR (HDR) and reports the path. The image is written a frame
 	// later; a photo is best saved once its samples are complete.
 	f101::Status SavePhoto(const FString& Path);
@@ -191,6 +193,7 @@ private:
 	TPimplPtr<f101::assets::ModelCache> Models;
 	bool bPlanView = false;
 	bool bPhotoMode = false;
+	bool bConstructionAidsVisible = true;
 	std::size_t ListenerHandle = 0;
 	f101::cad::WallId ReferenceWallId;
 

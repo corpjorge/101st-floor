@@ -1,8 +1,27 @@
 #include "Floor101Preferences.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 namespace Floor101::Preferences
 {
+	bool ShowGrid()
+	{
+		FString Review;
+		if (FParse::Value(FCommandLine::Get(), TEXT("F101UICapture="), Review))
+		{
+			FString Screen;
+			FParse::Value(FCommandLine::Get(), TEXT("F101UIScreen="), Screen);
+			return Screen == TEXT("grid"); // reproducible review; never changes the user's saved preference
+		}
+		bool bShow = false;
+		if (GConfig) { GConfig->GetBool(TEXT("Floor101.Interface"), TEXT("ShowGrid"), bShow, GGameUserSettingsIni); }
+		return bShow;
+	}
+	void SetShowGrid(bool bShow)
+	{
+		if (GConfig) { GConfig->SetBool(TEXT("Floor101.Interface"), TEXT("ShowGrid"), bShow, GGameUserSettingsIni); GConfig->Flush(false, GGameUserSettingsIni); }
+	}
 	int32 GraphicsQuality()
 	{
 		int32 Profile = FMath::Clamp(Scalability::GetQualityLevels().TextureQuality - 1, 0, 2);

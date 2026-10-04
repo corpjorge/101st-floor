@@ -14,6 +14,7 @@
 #include "F101/Assets/Library.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
+#include "F101/Cad/ProjectFile.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101EditingPawn.h"
 #include "Floor101FileActions.h"
@@ -641,6 +642,19 @@ bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
 	Document->SetPhotoMode(false);
 	TestNotNull(TEXT("back to editing: the swing"), FindNode(TestWorld.World, SwingNode));
 	TestTrue(TEXT("and the selection"), Wall->GetDisplayMaterial() != Plaster);
+	const auto OriginalProject = f101::cad::writeProjectJson(Document->GetDocument().project());
+	const bool UndoBefore = Document->GetDocument().canUndo();
+	Document->SetConstructionAidsVisible(false);
+	TestFalse(TEXT("walking hides construction aids"), Document->AreConstructionAidsVisible());
+	TestNull(TEXT("walking hides door swing"), FindNode(TestWorld.World, SwingNode));
+	TestTrue(TEXT("walking restores original finish"), Wall->GetDisplayMaterial() == Plaster);
+	TestTrue(TEXT("walking preserves selection in the controller"), Document->GetEditController().selection() == Host);
+	Document->SetPhotoMode(true);
+	Document->SetPhotoMode(false);
+	TestFalse(TEXT("leaving photo while walking keeps aids hidden"), Document->AreConstructionAidsVisible());
+	Document->SetConstructionAidsVisible(true);
+	TestNotNull(TEXT("editing restores swing"), FindNode(TestWorld.World, SwingNode));
+	TestTrue(TEXT("presentation preserves model and undo"), f101::cad::writeProjectJson(Document->GetDocument().project()) == OriginalProject && Document->GetDocument().canUndo() == UndoBefore);
 	return true;
 }
 

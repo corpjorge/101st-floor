@@ -229,6 +229,7 @@ void UFloor101GameViewportClient::SetNavigationMode(bool bNavigate)
 	}
 	bNavigationMode = bNavigate;
 	NavigationKeys.Reset();
+	if (UFloor101DocumentSubsystem* Document = GetEditingTarget()) { Document->SetConstructionAidsVisible(!bNavigate); }
 	if (bNavigate)
 	{
 		if (UFloor101DocumentSubsystem* Document = GetEditingTarget())

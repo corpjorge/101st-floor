@@ -16,6 +16,13 @@ para impedir cambios detrás del menú. Los perfiles gráficos aplican únicamen
 escalabilidad, manteniendo Lumen, render nativo y preferencias independientes de
 HDR/VSync (ADR-0022/0023).
 
+El entorno es un actor transitorio: material neutro solo en el suelo de la
+plantilla, atmósfera acromática, luz suave y rejilla opcional de referencia de
+1 m. No altera el snapping del CAD ni se exporta. Recorrer y Foto ocultan las
+ayudas al compilar la vista sin modificar selección, dimensiones o historial.
+La selección conserva colores y texturas; sus contornos omiten diagonales
+coplanares de la triangulación. Las medidas contextuales derivan del modelo.
+
 ## Límites
 
 Dimensiones, selección, cortes de muros, acabados e historial permanecen en sus

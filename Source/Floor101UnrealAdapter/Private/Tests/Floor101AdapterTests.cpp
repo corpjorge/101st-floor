@@ -188,9 +188,13 @@ bool FFloor101ViewStylesTest::RunTest(const FString& Parameters)
 	TestNotNull(TEXT("selected wall uses a tinted instance"), Tinted);
 	if (Tinted)
 	{
-		TestTrue(TEXT("tint overrides the colour"),
-			Tinted->GetVectorParameterValue(FHashedMaterialParameterInfo(AFloor101SceneNodeActor::ColorParameterName), Color, true));
-		TestTrue(TEXT("tint is orange"), Color.R > 0.9f && Color.B < 0.2f);
+		TestTrue(TEXT("selected material keeps the colour parameter"),
+			Tinted->GetVectorParameterValue(FHashedMaterialParameterInfo(AFloor101SceneNodeActor::ColorParameterName), Color));
+		FLinearColor OriginalColor;
+		DefaultMaterial->GetVectorParameterValue(FHashedMaterialParameterInfo(AFloor101SceneNodeActor::ColorParameterName), OriginalColor);
+		TestEqual(TEXT("selection preserves the exact finish colour"), Color, OriginalColor);
+		UTexture* Texture = nullptr;
+		TestTrue(TEXT("selected finish preserves its texture"), Tinted->GetTextureParameterValue(FHashedMaterialParameterInfo(TEXT("BaseTexture")), Texture) && Texture);
 	}
 
 	// A gesture previews walls: the dragged wall is replaced in place (same actor, preview tint, joined to the new
