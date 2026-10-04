@@ -328,6 +328,50 @@ bool FFloor101RoomsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallSplittingTest, "Floor101.Interaction.WallSplitting", TestFlags)
+bool FFloor101WallSplittingTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	UFloor101DocumentSubsystem* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), Document)) return false;
+	auto& Model = Document->GetMutableDocument();
+	const auto Host = Model.addWall({0, 0}, {10000, 0}, 120, 2800).value();
+	const auto Branch = Model.addWall({4000, 0}, {4000, 3000}, 120, 2800).value();
+	if (!TestEqual(TEXT("T creates three independent walls"), static_cast<int32>(Model.project().walls.size()), 3)) return false;
+	const auto Tail = Model.project().walls.back().id;
+	AFloor101SceneNodeActor* FirstActor = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Host));
+	AFloor101SceneNodeActor* TailActor = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Tail));
+	if (!TestNotNull(TEXT("first segment actor"), FirstActor) || !TestNotNull(TEXT("second segment actor"), TailActor)) return false;
+	TestTrue(TEXT("each segment has its own actor"), FirstActor != TailActor);
+	TestTrue(TEXT("first segment geometry stops at the joint"), FirstActor->GetMeshBounds().Max.X < 450.0);
+	TestTrue(TEXT("second segment geometry starts at the joint"), TailActor->GetMeshBounds().Min.X > 350.0);
+	TestNotNull(TEXT("branch actor"), Document->FindWallActor(Branch));
+	TestTrue(TEXT("select tail by clicking"), Document->Edit([](EditController& Editor)
+	{
+		const auto Pressed = Editor.pointerPressed(Down(8000.0, 20.0));
+		return Pressed ? Editor.pointerReleased(Down(8000.0, 20.0)) : Pressed;
+	}).ok());
+	TestTrue(TEXT("tail selected separately"), Document->GetEditController().selection() == Tail);
+	TestTrue(TEXT("paint only the tail"), Document->Edit([](EditController& Editor)
+	{
+		return Editor.setWallFinish(f101::cad::WallSide::Left, "brick-red");
+	}).ok());
+	TestTrue(TEXT("first segment finish unchanged"), Model.project().findWall(Host)->finishLeft.empty());
+	TestTrue(TEXT("tail finish saved"), Model.project().findWall(Tail)->finishLeft == "brick-red");
+	TestTrue(TEXT("delete only tail"), Document->Edit([](EditController& Editor) { return Editor.deleteSelection(); }).ok());
+	TestNull(TEXT("tail actor removed"), Document->FindWallActor(Tail));
+	TestTrue(TEXT("first segment actor preserved"), Document->FindWallActor(Host) == FirstActor);
+	TestTrue(TEXT("undo tail deletion"), Document->Edit([](EditController& Editor) { return Editor.undo(); }).ok());
+	TestNotNull(TEXT("tail actor restored"), Document->FindWallActor(Tail));
+	const FString Path = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101"), TEXT("WallSplitting"), TEXT("project.json"));
+	TestTrue(TEXT("save divided walls"), Document->SaveProject(Path).ok());
+	TestTrue(TEXT("reopen divided walls"), Document->OpenProject(Path).ok());
+	TestEqual(TEXT("three walls persist"), static_cast<int32>(Model.project().walls.size()), 3);
+	TestTrue(TEXT("tail identity and finish persist"), Model.project().findWall(Tail) && Model.project().findWall(Tail)->finishLeft == "brick-red");
+	IFileManager::Get().Delete(*Path, false, true, true);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LevelsTest, "Floor101.Interaction.Levels", TestFlags)
 bool FFloor101LevelsTest::RunTest(const FString& Parameters)
 {
@@ -466,12 +510,13 @@ bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 	}
 	// A 6 m wall with a wall joined in a T at 2 m, and a window on it.
 	f101::cad::Document& Model = Document->GetMutableDocument();
-	const f101::cad::WallId Host = Model.addWall({0, 0}, {6000, 0}, 120, 2800).value();
+	const f101::cad::WallId First = Model.addWall({0, 0}, {6000, 0}, 120, 2800).value();
 	(void)Model.addWall({2000, 0}, {2000, 3000}, 100, 2800);
+	const f101::cad::WallId Host = Model.project().walls.back().id; // right span starts at 2 m
 	TestFalse(TEXT("no window across the T (the subsystem checks joints)"),
-		Model.addOpening(Host, f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Window, 1500, 1200, 1200, 900}).ok());
+		Model.addOpening(First, f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Window, 1500, 1200, 1200, 900}).ok());
 	const f101::cad::OpeningId Window =
-		Model.addOpening(Host, f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Window, 3000, 1200, 1200, 900}).value();
+		Model.addOpening(Host, f101::cad::Opening{f101::cad::OpeningId{}, f101::cad::OpeningKind::Window, 1000, 1200, 1200, 900}).value();
 	const FString NodeId = UTF8_TO_TCHAR((f101::cad::toString(Host) + "/opening/" + f101::cad::toString(Window)).c_str());
 	TestNotNull(TEXT("its carpentry has an actor"), FindNode(TestWorld.World, NodeId));
 
@@ -480,7 +525,7 @@ bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("grab the hole"), Document->Edit([](EditController& Editor) { return Editor.pointerPressed(Down(3600.0, 30.0)); }).ok());
 	Document->UpdatePointer(Down(4430.0, 30.0));
 	TestTrue(TEXT("release"), Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(4430.0, 30.0)); }).ok());
-	TestEqual(TEXT("moved on the grid"), Document->GetDocument().project().findWall(Host)->findOpening(Window)->offsetMm, int64(3850));
+	TestEqual(TEXT("moved on the grid from the segment start"), Document->GetDocument().project().findWall(Host)->findOpening(Window)->offsetMm, int64(1850));
 	const AFloor101SceneNodeActor* Carpentry = FindNode(TestWorld.World, NodeId);
 	if (TestNotNull(TEXT("same carpentry actor"), Carpentry))
 	{
@@ -493,7 +538,7 @@ bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 	(void)Document->Edit([](EditController& Editor) { Editor.cancel(); return f101::Status::success(); });
 	TestFalse(TEXT("the drag is dropped"), Document->GetEditController().isDraggingOpening());
 	(void)Document->Edit([](EditController& Editor) { return Editor.pointerReleased(Down(5000.0, 30.0)); });
-	TestEqual(TEXT("not moved"), Document->GetDocument().project().findWall(Host)->findOpening(Window)->offsetMm, int64(3850));
+	TestEqual(TEXT("not moved"), Document->GetDocument().project().findWall(Host)->findOpening(Window)->offsetMm, int64(1850));
 	TestTrue(TEXT("still selected"), Document->GetEditController().selectedOpening().has_value());
 	return true;
 }

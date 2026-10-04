@@ -123,10 +123,13 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
 
 ## Uniones y habitaciones (MVP 2, ADR-0009)
 
-- **Derivadas, nunca guardadas:** en cada compilación el Geometry Engine resuelve cómo se unen los muros (inglete entre
+- **Geometría derivada:** en cada compilación el Geometry Engine resuelve cómo se unen los muros (inglete entre
   extremos que coinciden, corte en la cara del muro anfitrión en las T, relleno en nudos de tres o más) y detecta las
-  habitaciones como caras acotadas del grafo de ejes, con su suelo (caras interiores) y su área neta. `project.json` no
-  cambia.
+  habitaciones como caras acotadas del grafo de ejes, con su suelo (caras interiores) y su área neta.
+- **Tramos editables guardados (ADR-0025):** crear o modificar ejes divide las paredes de la misma planta en sus T y
+  cruces. Cada tramo tiene su ID, huecos y acabados; las divisiones son parte de la misma transacción. El Geometry Engine
+  transfiere acabados de habitaciones por un proveedor inyectado en `Document`, sin invertir dependencias. Abrir un
+  proyecto antiguo no lo divide automáticamente. Ver [división de paredes](wall-splitting.md).
 - **Esquinas:** `MoveJointCommand` mueve de una vez todos los extremos que comparten un punto; es lo que hace arrastrar
   el asa de una esquina.
 - **Vista previa = proyecto como quedaría:** el overlay sustituye o añade muros y se compila todo, así que ingletes,

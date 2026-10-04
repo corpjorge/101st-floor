@@ -26,6 +26,7 @@
 | [0022](ADR-0022-hdr-display-output.md) | HDR opcional por pantalla, botón y preferencia local; metadatos de Windows; fotos EXR/PNG y comprobación HDR→SDR | aceptado y verificado |
 | [0023](ADR-0023-native-fullscreen-resolution.md) | Pantalla completa nativa, selector de modos del monitor y medición del render interno al 100 % | aceptado y verificado |
 | [0024](ADR-0024-camera-navigation.md) | Modo Navegar, WASD/QE con prioridad de atajos y zoom continuo después del foco orbital | aceptado y verificado |
+| [0025](ADR-0025-wall-junction-segments.md) | Paredes divididas en tramos independientes al unir o cruzar ejes; conservar huecos, acabados y deshacer/rehacer | aceptado y verificado |
 
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

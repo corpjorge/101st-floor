@@ -82,7 +82,9 @@ TEST_CASE_FIXTURE(TwoWalls, "change length keeps start and direction")
 {
 	REQUIRE(document.execute(ChangeWallLengthCommand{first, 4200}).ok());
 	CHECK(wall(first).start == Point2D{0, 0});
-	CHECK(wall(first).end == Point2D{4200, 0});
+	CHECK(wall(first).end == Point2D{3550, 0}); // the existing joint becomes an independent span
+	CHECK(document.project().walls.back().start == Point2D{3550, 0});
+	CHECK(document.project().walls.back().end == Point2D{4200, 0});
 
 	REQUIRE(document.execute(ChangeWallLengthCommand{second, 2000}).ok());
 	CHECK(wall(second).start == Point2D{3550, 0});

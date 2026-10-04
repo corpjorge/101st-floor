@@ -68,4 +68,5 @@ Poly Haven. Sus binarios van por Git LFS (`git lfs install` antes de clonar).
 - [docs/hdr.md](docs/hdr.md) — botón HDR, monitor comprobado y fotos EXR/PNG
 - [docs/display.md](docs/display.md) — pantalla completa, resolución nativa y tamaño real de render
 - [docs/camera-navigation.md](docs/camera-navigation.md) — WASD, mirada y acercamiento continuo con la rueda
+- [docs/wall-splitting.md](docs/wall-splitting.md) — tramos independientes al unir o cruzar paredes
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización

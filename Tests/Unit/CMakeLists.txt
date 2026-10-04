@@ -51,6 +51,7 @@ add_executable(Floor101UnitTests
 	WallGeometryTests.cpp
 	SceneTests.cpp
 	CommandTests.cpp
+	WallSplittingTests.cpp
 	ProjectFileTests.cpp
 	SnappingTests.cpp
 	WallToolTests.cpp

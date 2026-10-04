@@ -112,15 +112,22 @@ TEST_CASE("walls come first, then joint fills, then the floors of the rooms they
 		REQUIRE(document.addWall(start, end, 120, 2400).ok());
 	}
 	const Scene scene = compileScene(document.project());
-	REQUIRE(scene.nodes.size() == 7 + 1 + 3 + 3);
-	const SceneNode& joint = scene.nodes[7];
-	CHECK(joint.sourceKind == SourceKind::Joint);
-	CHECK(joint.id.value == "00000000-0000-0000-0000-000000000006/joint-end"); // three ends meet at (2000, 1500); id 1 is the level
-	CHECK(geometry::computeBounds(joint.mesh).max.z == 2400.0);
+	REQUIRE(document.project().walls.size() == 10); // south, east and north split at their new T junctions
+	REQUIRE(scene.nodes.size() == 10 + 4 + 3 + 3);
+	for (std::size_t i = 0; i < 10; ++i)
+	{
+		CHECK(scene.nodes[i].sourceKind == SourceKind::Wall);
+		CHECK(scene.nodes[i].id == wallBodyNodeId(document.project().walls[i].id));
+	}
+	for (std::size_t i = 10; i < 14; ++i)
+	{
+		CHECK(scene.nodes[i].sourceKind == SourceKind::Joint);
+		CHECK(geometry::computeBounds(scene.nodes[i].mesh).max.z == 2400.0);
+	}
 	REQUIRE(scene.rooms.size() == 3);
 	for (std::size_t i = 0; i < 3; ++i)
 	{
-		const SceneNode& floor = scene.nodes[8 + i];
+		const SceneNode& floor = scene.nodes[14 + i];
 		CHECK(floor.sourceKind == SourceKind::Room);
 		CHECK(floor.id.value == scene.rooms[i].room.key + "/floor");
 		CHECK(floor.sourceId == scene.rooms[i].room.key);
@@ -128,7 +135,7 @@ TEST_CASE("walls come first, then joint fills, then the floors of the rooms they
 		CHECK(scene.rooms[i].level == document.project().levels[0].id);
 		CHECK(scene.rooms[i].elevationMm == 0);
 		// The slab over it fills the top band of the level: 2800 mm high, 250 mm thick.
-		const SceneNode& slab = scene.nodes[11 + i];
+		const SceneNode& slab = scene.nodes[17 + i];
 		CHECK(slab.sourceKind == SourceKind::Slab);
 		CHECK(slab.id.value == scene.rooms[i].room.key + "/slab");
 		CHECK(geometry::computeBounds(slab.mesh).min.z == 2550.0);

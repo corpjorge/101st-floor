@@ -292,6 +292,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
+	Document->setRoomFinishTransfer(f101::geometry::makeRoomFinishTransfer()); // wall segments retain room finishes (ADR-0025)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	PlanDrawing = MakePimpl<f101::drawing::PlanDrawing>();
 	Models = MakePimpl<f101::assets::ModelCache>();

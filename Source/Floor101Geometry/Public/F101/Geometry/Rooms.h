@@ -4,6 +4,7 @@
 #include "F101/Cad/Id.h"
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/Project.h"
+#include "F101/Cad/Document.h"
 #include "F101/Geometry/MeshData.h"
 
 #include <cstdint>
@@ -33,6 +34,7 @@ namespace f101::geometry
 
 	// For cad::EditController: the key of the room of `levelWalls` whose floor contains the point.
 	FLOOR101GEOMETRY_API cad::RoomLocator makeRoomLocator();
+	FLOOR101GEOMETRY_API cad::Document::RoomFinishTransfer makeRoomFinishTransfer();
 
 	inline constexpr double FloorThicknessMm = 10.0;
 	namespace floor_slots
