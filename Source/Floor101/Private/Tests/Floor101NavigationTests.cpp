@@ -5,13 +5,28 @@
 #include "Floor101GameViewportClient.h"
 #include "Floor101NavigationKeys.h"
 #include "InputCoreTypes.h"
+#include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "Slate/SceneViewport.h"
+#include "Widgets/SViewport.h"
+#include "Floor101DocumentSubsystem.h"
+#include "Floor101EditingPawn.h"
+#include "F101/Cad/EditController.h"
+#include "GameFramework/PlayerController.h"
+#include "Framework/Application/SlateApplication.h"
+#include "HAL/FileManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 
 namespace
 {
-	constexpr EAutomationTestFlags TestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
+	constexpr EAutomationTestFlags NavigationTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationKeyMapTest, "Floor101.Navigation.KeyMap", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationKeyMapTest, "Floor101.Navigation.KeyMap", NavigationTestFlags)
 bool FFloor101NavigationKeyMapTest::RunTest(const FString& Parameters)
 {
 	using Command = EFloor101KeyCommand;
@@ -19,10 +34,23 @@ bool FFloor101NavigationKeyMapTest::RunTest(const FString& Parameters)
 	{
 		return UFloor101GameViewportClient::MapKey(Key, bControl, bShift, bRepeat, false, bNavigating);
 	};
-	TestTrue(TEXT("W remains the wall shortcut while editing"), Map(EKeys::W, false) == Command::WallTool);
-	TestTrue(TEXT("A remains the furniture shortcut while editing"), Map(EKeys::A, false) == Command::FurnitureTool);
-	TestTrue(TEXT("S does not move the camera while editing"), Map(EKeys::S, false) == Command::None);
-	TestTrue(TEXT("D does not move the camera while editing"), Map(EKeys::D, false) == Command::None);
+	for (bool bWalk : {false, true})
+	{
+		for (const FKey& Key : {EKeys::W, EKeys::A, EKeys::S, EKeys::D, EKeys::Q, EKeys::E})
+		{
+			TestTrue(TEXT("movement works in design and walk without N"), Map(Key, bWalk) == Command::NavigationMove);
+		}
+		TestTrue(TEXT("B selects walls"), Map(EKeys::B, bWalk) == Command::WallTool);
+		TestTrue(TEXT("G selects furniture"), Map(EKeys::G, bWalk) == Command::FurnitureTool);
+	}
+	for (TCHAR Character : {TEXT('w'), TEXT('a'), TEXT('s'), TEXT('d'), TEXT('q'), TEXT('e'), TEXT('W')})
+	{
+		TestTrue(TEXT("movement characters never append CAD dimensions"), FFloor101NavigationKeys::IsMovementCharacter(Character));
+	}
+	for (TCHAR Character : {TEXT('3'), TEXT('m'), TEXT('c'), TEXT('.'), TEXT(',')})
+	{
+		TestFalse(TEXT("exact dimension characters remain available"), FFloor101NavigationKeys::IsMovementCharacter(Character));
+	}
 	for (const FKey& Key : {EKeys::W, EKeys::A, EKeys::S, EKeys::D, EKeys::Q, EKeys::E})
 	{
 		TestTrue(*FString::Printf(TEXT("%s moves while navigating"), *Key.ToString()), Map(Key, true) == Command::NavigationMove);
@@ -45,7 +73,7 @@ bool FFloor101NavigationKeyMapTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationHeldKeysTest, "Floor101.Navigation.HeldKeys", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationHeldKeysTest, "Floor101.Navigation.HeldKeys", NavigationTestFlags)
 bool FFloor101NavigationHeldKeysTest::RunTest(const FString& Parameters)
 {
 	FFloor101NavigationKeys Keys;
@@ -97,7 +125,7 @@ bool FFloor101NavigationHeldKeysTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationShortcutsTest, "Floor101.Navigation.ShortcutsAndFocus", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NavigationShortcutsTest, "Floor101.Navigation.ShortcutsAndFocus", NavigationTestFlags)
 bool FFloor101NavigationShortcutsTest::RunTest(const FString& Parameters)
 {
 	FFloor101NavigationKeys Keys;
@@ -110,9 +138,9 @@ bool FFloor101NavigationShortcutsTest::RunTest(const FString& Parameters)
 
 	Down.Add(EKeys::W);
 	Keys.HandleKey(EKeys::W, IE_Pressed, false, false);
-	Check(TEXT("editing key presses are not accepted for navigation"), FVector::ZeroVector);
+	Check(TEXT("presses without active camera input are not accepted"), FVector::ZeroVector);
 	Keys.HandleKey(EKeys::W, IE_Repeat, true, false);
-	Check(TEXT("entering navigation while W is held requires a fresh press"), FVector::ZeroVector);
+	Check(TEXT("restoring camera input while W is held requires a fresh press"), FVector::ZeroVector);
 	Keys.HandleKey(EKeys::W, IE_Released, false, false);
 	Keys.HandleKey(EKeys::W, IE_Pressed, true, false);
 	Check(TEXT("fresh navigation press is accepted"), FVector(1.0, 0.0, 0.0));
@@ -142,6 +170,90 @@ bool FFloor101NavigationShortcutsTest::RunTest(const FString& Parameters)
 	Check(TEXT("fresh input after focus returns works"), FVector(-1.0, 0.0, 0.0));
 	Keys.HandleKey(EKeys::LeftAlt, IE_Pressed, true, true);
 	Check(TEXT("Alt shortcut clears movement too"), FVector::ZeroVector);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NumberRowSpeedTest, "Floor101.Navigation.NumberRowSpeed", NavigationTestFlags)
+bool FFloor101NumberRowSpeedTest::RunTest(const FString& Parameters)
+{
+	const FKey NumberRow[] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,
+		EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero};
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(NumberRow); ++Index)
+	{
+		const FKey& Key = NumberRow[Index];
+		TestEqual(*FString::Printf(TEXT("%s selects level %d"), *Key.ToString(), Index + 1),
+			FFloor101NavigationKeys::SpeedLevelForKey(Key, false, false), Index + 1);
+		TestEqual(TEXT("wall length digits take priority"), FFloor101NavigationKeys::SpeedLevelForKey(Key, true, false), 0);
+		TestEqual(TEXT("modified digits never select speed"), FFloor101NavigationKeys::SpeedLevelForKey(Key, false, true), 0);
+	}
+	for (const FKey& Key : {EKeys::NumPadZero, EKeys::NumPadOne, EKeys::NumPadTwo, EKeys::NumPadThree,
+		EKeys::NumPadFour, EKeys::NumPadFive, EKeys::NumPadSix, EKeys::NumPadSeven, EKeys::NumPadEight, EKeys::NumPadNine, EKeys::W})
+	{
+		TestEqual(TEXT("numpad and movement do not select speed"), FFloor101NavigationKeys::SpeedLevelForKey(Key, false, false), 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NumberRowInputTest, "Floor101.Navigation.NumberRowInput", NavigationTestFlags)
+bool FFloor101NumberRowInputTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("Floor101SpeedKeyTestWorld"));
+	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Context.SetCurrentWorld(World);
+	ON_SCOPE_EXIT { GEngine->DestroyWorldContext(World); World->DestroyWorld(false); };
+	auto* Client = NewObject<UFloor101GameViewportClient>(GEngine);
+	auto* GameInstance = NewObject<UGameInstance>(GEngine);
+	World->SetGameInstance(GameInstance);
+	Context.OwningGameInstance = GameInstance;
+	Client->Init(Context, GameInstance, false);
+	const TSharedRef<SViewport> View = SNew(SViewport);
+	FSceneViewport Viewport(View);
+	Viewport.SetViewportClient(TStrongPtrVariant<FViewportClient>(Client));
+	Client->Viewport = &Viewport;
+	ON_SCOPE_EXIT { Client->Viewport = nullptr; };
+	auto* Controller = World->SpawnActor<APlayerController>();
+	auto* Pawn = World->SpawnActor<AFloor101EditingPawn>();
+	auto* Document = World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("controller"), Controller) || !TestNotNull(TEXT("pawn"), Pawn) || !TestNotNull(TEXT("document"), Document)) { return false; }
+	World->AddController(Controller); // Bare test worlds have not initialized actor registration.
+	Controller->Possess(Pawn);
+	if (!TestTrue(TEXT("viewport resolves the editing pawn"), World->GetFirstPlayerController() == Controller && Controller->GetPawn() == Pawn)) { return false; }
+	const auto OriginalFocus = FSlateApplication::Get().GetKeyboardFocusedWidget();
+	FSlateApplication::Get().ClearKeyboardFocus();
+	ON_SCOPE_EXIT { if (OriginalFocus) { FSlateApplication::Get().SetKeyboardFocus(OriginalFocus); } };
+	const FString OriginalIni = GGameUserSettingsIni;
+	const FString TestIni = FPaths::ConvertRelativePathToFull(FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("SpeedKeys"), TEXT(".ini")));
+	GGameUserSettingsIni = TestIni;
+	ON_SCOPE_EXIT { GGameUserSettingsIni = OriginalIni; GConfig->UnloadFile(TestIni); IFileManager::Get().Delete(*TestIni); };
+	if (!TestTrue(TEXT("temporary preferences created"), FFileHelper::SaveStringToFile(TEXT("[SectionsToSave]\nbCanSaveAllSections=true\n"), *TestIni))) { return false; }
+	GConfig->LoadFile(TestIni);
+	auto Key = [Client, &Viewport](const FKey& Value, EInputEvent Event = IE_Pressed)
+	{
+		return Client->InputKey(FInputKeyEventArgs(&Viewport, FInputDeviceId::CreateFromInternalId(0), Value, Event, 0ULL));
+	};
+	TestTrue(TEXT("top row reaches viewport speed handler"), Key(EKeys::Zero));
+	TestEqual(TEXT("zero selects fastest speed"), Client->GetNavigationSpeedLevel(), 10);
+	Key(EKeys::Three);
+	TestEqual(TEXT("three selects level three"), Client->GetNavigationSpeedLevel(), 3);
+	Key(EKeys::Zero, IE_Repeat);
+	TestEqual(TEXT("repeat cannot overwrite a newer choice"), Client->GetNavigationSpeedLevel(), 3);
+	Key(EKeys::NumPadNine);
+	TestEqual(TEXT("numpad cannot change speed"), Client->GetNavigationSpeedLevel(), 3);
+	Client->SetInterfaceOpen(true);
+	Key(EKeys::Nine);
+	TestEqual(TEXT("options keep speed shortcuts inactive"), Client->GetNavigationSpeedLevel(), 3);
+	Client->SetInterfaceOpen(false);
+	(void)Document->Edit([](f101::cad::EditController& Editor)
+	{
+		Editor.setMode(f101::cad::EditMode::Wall);
+		return Editor.pointerPressed({0.0, 0.0, 10000.0, 0.0, 0.0, -1.0});
+	});
+	Key(EKeys::Nine);
+	Client->InputChar(nullptr, 0, TEXT('9'));
+	Client->InputChar(nullptr, 0, TEXT('.'));
+	Client->InputChar(nullptr, 0, TEXT('5'));
+	TestEqual(TEXT("drafting length does not change speed"), Client->GetNavigationSpeedLevel(), 3);
+	TestTrue(TEXT("exact decimal dimension still reaches wall tool"), Document->GetEditController().wallTool().typedText() == "9.5");
 	return true;
 }
 

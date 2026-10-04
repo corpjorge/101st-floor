@@ -1,6 +1,6 @@
 # Pantalla completa y resolución
 
-El botón **Pantalla completa (F11)** está en la barra y en Modo Foto. Selecciona la resolución nativa del monitor
+El botón **Pantalla completa (F11)** está en **Opciones → Pantalla**. Selecciona la resolución nativa del monitor
 donde está la ventana y renderiza al 100 %. **Volver a ventana (F11)** recupera el tamaño de ventana anterior.
 
 **Resolución** permite elegir los modos admitidos por ese monitor; la opción **(nativa)** corresponde a sus píxeles
@@ -22,7 +22,7 @@ HDR se activa con su botón independiente y requiere «Usar HDR» en Windows; co
 
 ## Sincronización vertical
 
-**Activar sincronización vertical** / **Desactivar sincronización vertical** está en la barra y en Modo Foto.
+**Activar sincronización vertical** / **Desactivar sincronización vertical** está en **Opciones → Pantalla**.
 Activada, sincroniza la presentación con el monitor para reducir cortes de imagen; desactivada, la frecuencia de
 fotogramas es independiente. El botón muestra la acción disponible según el estado efectivo de `r.VSync`.
 Se aplica inmediatamente y se guarda en `GameUserSettings.ini` (`bUseVSync`) para la próxima sesión. Este cambio

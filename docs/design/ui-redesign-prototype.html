@@ -1,0 +1,382 @@
+<div id="floor101-proposal" aria-label="Identidad visual de 101st Floor">
+  <div class="viz-carousel" aria-label="Propuestas para 101st Floor" data-previous-label="Anterior" data-next-label="Siguiente">
+    <section data-variant="Estudio" aria-label="Interfaz Estudio">
+      <div class="f101-app" data-layout="studio" aria-label="101st Floor · propuesta Estudio">
+        <header class="f101-header">
+          <button type="button" class="f101-brand cursor-interaction" data-action="home" aria-label="Inicio de 101st Floor"><strong>101<span>st</span></strong><span>FLOOR</span></button>
+          <div class="f101-project"><strong>Casa del patio</strong><span>Proyecto de ejemplo · Propuesta visual</span></div>
+          <nav class="f101-modes" aria-label="Modo de trabajo">
+            <button type="button" data-mode="design" aria-pressed="true" class="cursor-interaction"><i data-lucide="drafting-compass" aria-hidden="true"></i>Diseñar</button>
+            <button type="button" data-mode="walk" aria-pressed="false" class="cursor-interaction"><i data-lucide="footprints" aria-hidden="true"></i>Recorrer</button>
+            <button type="button" data-mode="photo" aria-pressed="false" class="cursor-interaction"><i data-lucide="camera" aria-hidden="true"></i>Foto</button>
+          </nav>
+          <div class="f101-actions">
+            <button type="button" class="cursor-interaction" data-action="undo" aria-label="Deshacer" data-tooltip="Deshacer · Ctrl+Z"><i data-lucide="undo-2" aria-hidden="true"></i></button>
+            <button type="button" class="cursor-interaction" data-action="redo" aria-label="Rehacer" data-tooltip="Rehacer · Ctrl+Y"><i data-lucide="redo-2" aria-hidden="true"></i></button>
+            <button type="button" class="f101-save cursor-interaction" data-action="save"><i data-lucide="save" aria-hidden="true"></i><span>Guardar</span></button>
+          </div>
+        </header>
+        <div class="f101-viewbar">
+          <label class="f101-level">Nivel <select aria-label="Nivel del edificio"><option>Planta baja</option><option>Planta alta</option></select></label>
+          <div class="f101-viewtools">
+            <button type="button" class="cursor-interaction" data-action="plan" aria-pressed="false" data-tooltip="Planta 2D · Tab"><i data-lucide="layers-2" aria-hidden="true"></i>Planta 2D</button>
+            <button type="button" class="cursor-interaction" data-action="frame" data-tooltip="Encuadrar · F"><i data-lucide="scan" aria-hidden="true"></i><span>Encuadrar</span></button>
+            <details class="f101-menu"><summary class="cursor-interaction"><i data-lucide="eye" aria-hidden="true"></i>Vista</summary><div><button type="button" class="cursor-interaction" data-action="view">Vista superior <kbd>T</kbd></button><button type="button" class="cursor-interaction" data-action="view">Rayos X <kbd>X</kbd></button><button type="button" class="cursor-interaction" data-action="view">Todas las plantas <kbd>L</kbd></button><button type="button" class="cursor-interaction" data-action="view">Visibilidad de redes</button></div></details>
+            <label class="f101-grid-label"><input type="checkbox" data-setting="grid" checked> Rejilla</label>
+          </div>
+          <div class="f101-windowtools">
+            <button type="button" class="cursor-interaction f101-properties-toggle" data-action="properties" aria-expanded="false"><i data-lucide="sliders-horizontal" aria-hidden="true"></i>Propiedades</button>
+            <button type="button" class="cursor-interaction" data-action="options"><i data-lucide="settings-2" aria-hidden="true"></i>Opciones</button>
+            <button type="button" class="cursor-interaction" data-action="fullscreen" aria-label="Pantalla completa dedicada" data-tooltip="Pantalla completa dedicada · F11"><i data-lucide="maximize" aria-hidden="true"></i></button>
+            <button type="button" class="cursor-interaction" data-action="exit" aria-label="Salir" data-tooltip="Salir"><i data-lucide="log-out" aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <div class="f101-workspace">
+          <aside class="f101-tools" aria-label="Herramientas de construcción">
+            <h2>CONSTRUIR</h2>
+            <button type="button" data-tool="Seleccionar" aria-pressed="true" class="cursor-interaction" aria-label="Seleccionar · V"><i data-lucide="mouse-pointer-2" aria-hidden="true"></i><span>Seleccionar</span><kbd>V</kbd></button>
+            <button type="button" data-tool="Pared" aria-pressed="false" class="cursor-interaction" aria-label="Pared · W"><i data-lucide="brick-wall" aria-hidden="true"></i><span>Pared</span><kbd>W</kbd></button>
+            <button type="button" data-tool="Puerta" aria-pressed="false" class="cursor-interaction" aria-label="Puerta · P"><i data-lucide="door-open" aria-hidden="true"></i><span>Puerta</span><kbd>P</kbd></button>
+            <button type="button" data-tool="Ventana" aria-pressed="false" class="cursor-interaction" aria-label="Ventana · O"><i data-lucide="panels-top-left" aria-hidden="true"></i><span>Ventana</span><kbd>O</kbd></button>
+            <button type="button" data-tool="Columna" aria-pressed="false" class="cursor-interaction" aria-label="Columna · C"><i data-lucide="columns-3" aria-hidden="true"></i><span>Columna</span><kbd>C</kbd></button>
+            <button type="button" data-tool="Instalaciones" aria-pressed="false" class="cursor-interaction" aria-label="Instalaciones · I"><i data-lucide="plug-zap" aria-hidden="true"></i><span>Instalaciones</span><kbd>I</kbd></button>
+            <hr><h2>AMBIENTAR</h2>
+            <button type="button" data-tool="Muebles" aria-pressed="false" class="cursor-interaction" aria-label="Muebles · A"><i data-lucide="armchair" aria-hidden="true"></i><span>Muebles</span><kbd>A</kbd></button>
+            <button type="button" data-tool="Materiales" aria-pressed="false" class="cursor-interaction" aria-label="Materiales · M"><i data-lucide="paint-roller" aria-hidden="true"></i><span>Materiales</span><kbd>M</kbd></button>
+            <div class="f101-tools-bottom"><span>DOCUMENTO</span><button type="button" class="cursor-interaction" data-action="file"><i data-lucide="folder-open" aria-hidden="true"></i><span>Abrir / Exportar</span></button></div>
+          </aside>
+          <main class="f101-viewport" aria-label="Vista conceptual del proyecto">
+            <div class="f101-scene-caption"><span class="f101-scene-dot"></span>Perspectiva<span class="f101-scene-quality">Luz de estudio</span></div>
+            <svg class="f101-scene" role="img" aria-label="Maqueta conceptual: habitación con paredes claras, muebles neutros y una pared seleccionada por separado">
+              <g class="f101-geometry">
+                <ellipse cx="380" cy="400" rx="315" ry="160" fill="#b8b4a8" opacity=".19"/>
+                <polygon points="45,330 335,155 705,370 415,545 45,345" fill="#d2cfc5"/>
+                <polygon points="45,330 335,155 705,370 415,530" fill="#f0ece3"/>
+                <g class="f101-grid" stroke="#c4c0b7" stroke-width=".8" opacity=".58">
+                  <path d="M93 359L383 184 M141 387L431 212 M189 415L479 240 M237 443L527 268 M285 471L575 296 M333 499L623 324 M96 299L466 499 M148 268L518 468 M200 237L570 437 M252 206L622 406 M304 175L674 375"/>
+                </g>
+                <polygon points="65,320 335,158 335,30 65,192" fill="#eeeae0"/>
+                <polygon points="65,192 335,30 351,39 81,201" fill="#fffdf5"/>
+                <polygon points="65,192 81,201 81,329 65,320" fill="#c3beb3"/>
+                <polygon points="335,158 685,361 685,233 335,30" fill="#ddd9cf"/>
+                <polygon points="335,30 685,233 700,225 350,22" fill="#faf7ef"/>
+                <polygon points="685,233 700,225 700,353 685,361" fill="#c2bcaf"/>
+                <polygon points="410,90 580,189 580,254 410,155" fill="#89989b"/>
+                <polygon points="419,106 572,195 572,243 419,154" fill="#b9cccb"/>
+                <path d="M468 134L468 183 M519 163L519 213" stroke="#eeeee6" stroke-width="5"/>
+                <polygon points="95,310 260,211 365,272 200,371" fill="#d2cec4" opacity=".7"/>
+                <polygon points="108,294 239,215 291,244 160,323" fill="#a5aba1"/>
+                <polygon points="108,294 160,323 160,286 108,257" fill="#858c82"/>
+                <polygon points="108,257 239,178 260,190 129,269" fill="#c0c5bb"/>
+                <polygon points="129,269 260,190 260,225 129,304" fill="#9da698"/>
+                <polygon points="160,323 291,244 291,217 160,296" fill="#90988b"/>
+                <polygon points="144,280 191,252 226,272 179,300" fill="#bcc2b6"/>
+                <polygon points="194,250 241,222 275,242 228,270" fill="#c3c9bd"/>
+                <polygon points="242,327 316,283 372,315 298,359" fill="#8c7461"/>
+                <polygon points="242,327 298,359 298,365 242,333" fill="#756150"/>
+                <path d="M255 338V357 M354 326V346" stroke="#5b5147" stroke-width="4"/>
+                <ellipse cx="312" cy="319" rx="15" ry="8" fill="#e3dfd3"/>
+                <ellipse cx="312" cy="316" rx="14" ry="7" fill="#f6f2e8"/>
+                <polygon points="450,328 555,389 521,409 416,348" fill="#c4b095"/>
+                <polygon points="450,328 555,389 555,349 450,288" fill="#af987d"/>
+                <polygon points="450,288 555,349 521,369 416,308" fill="#d4c2a9"/>
+                <polygon points="416,308 521,369 521,409 416,348" fill="#c5b094"/>
+                <path d="M451 329L451 367 M486 350L486 388" stroke="#b29c82" stroke-width="1.5"/>
+                <ellipse cx="602" cy="319" rx="20" ry="11" fill="#c4b59b"/>
+                <path d="M582 307L588 335Q602 348 617 335L622 307" fill="#b6a88e"/>
+                <ellipse cx="602" cy="307" rx="20" ry="10" fill="#8a866d"/>
+                <path d="M602 307L598 258 M602 293Q568 287 576 266Q598 260 602 293 M600 280Q630 276 624 251Q601 257 600 280 M598 271Q572 254 589 235Q607 244 598 271" fill="#77866b" stroke="#718267" stroke-width="2"/>
+                <g class="f101-selected-wall">
+                  <polygon points="265,409 429,506 429,415 265,318" fill="#dfd7c9"/>
+                  <polygon points="265,318 429,415 445,406 281,309" fill="#f6ead5"/>
+                  <polygon points="429,415 445,406 445,497 429,506" fill="#bdae93"/>
+                  <path d="M265 409V318L281 309L445 406V497L429 506Z M265 318L429 415V506 M429 415L445 406" fill="none" stroke="var(--f101-accent)" stroke-width="2.5"/>
+                </g>
+                <g class="f101-dimensions" stroke="#806744" stroke-width="1.2"><path d="M266 439L421 531 M266 433V445 M421 525V537"/></g>
+              </g>
+            </svg>
+            <div class="f101-dimension-label">4,00 m<span>Pared independiente</span></div>
+            <div class="f101-canvas-note">Vista conceptual · no es una captura del motor</div>
+            <div class="f101-walk-controls" hidden><i data-lucide="footprints" aria-hidden="true"></i><label>Velocidad <output>5</output><input type="range" min="1" max="10" value="5" aria-label="Nivel de velocidad del recorrido"></label><span>3 m/s</span><kbd>WASD</kbd><kbd>Shift</kbd></div>
+            <div class="f101-photo-controls" hidden><label>Calidad <select aria-label="Calidad de la fotografía"><option>64 muestras</option><option selected>256 muestras</option><option>1024 muestras</option></select></label><button type="button" class="f101-primary cursor-interaction" data-action="capture"><i data-lucide="camera" aria-hidden="true"></i>Capturar foto</button></div>
+          </main>
+          <aside class="f101-properties" aria-label="Propiedades contextuales">
+            <div class="f101-panel-heading"><h2>Propiedades</h2><button type="button" class="cursor-interaction f101-properties-close" data-action="properties" aria-label="Cerrar propiedades"><i data-lucide="x" aria-hidden="true"></i></button></div>
+            <div class="f101-selection"><span class="f101-eyebrow">SELECCIÓN</span><h3>Pared <span>04</span></h3><p>Tramo separado en la unión</p></div>
+            <div class="f101-wall-fields">
+              <h4>Dimensiones <span>cm</span></h4>
+              <label>Longitud<input type="text" value="400" inputmode="decimal" aria-label="Longitud en centímetros"></label>
+              <label>Altura<input type="text" value="280" inputmode="decimal" aria-label="Altura en centímetros"></label>
+              <label>Espesor<input type="text" value="12" inputmode="decimal" aria-label="Espesor en centímetros"></label>
+              <h4>Acabados por cara</h4>
+              <button type="button" class="f101-finish cursor-interaction" data-action="materials"><span class="f101-swatch" style="background:#dcd4c2"></span><span>Interior<strong>Caliza clara</strong></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+              <button type="button" class="f101-finish cursor-interaction" data-action="materials"><span class="f101-swatch" style="background:#ece8df"></span><span>Exterior<strong>Blanco mate</strong></span><i data-lucide="chevron-right" aria-hidden="true"></i></button>
+              <label class="f101-check"><input type="checkbox" checked> Mostrar medidas</label>
+            </div>
+            <div class="f101-catalog" hidden>
+              <label class="f101-search"><i data-lucide="search" aria-hidden="true"></i><input type="search" placeholder="Buscar materiales" aria-label="Buscar en el catálogo"></label>
+              <button type="button" class="f101-favorites cursor-interaction" aria-pressed="false"><i data-lucide="star" aria-hidden="true"></i>Favoritos</button>
+              <div class="f101-catalog-grid"></div>
+            </div>
+            <p class="f101-panel-foot">Las medidas se muestran en cm.<br>También puedes introducir m o mm.</p>
+          </aside>
+        </div>
+        <footer class="f101-status"><span class="f101-status-hint">Seleccionar <kbd>V</kbd> · Cancelar <kbd>Esc</kbd></span><span>Planta baja<span class="f101-status-separator">/</span>Unidades: cm</span><span class="f101-status-state" aria-live="polite">Propuesta · Etapa 1</span></footer>
+        <div class="f101-shade" hidden>
+          <section class="f101-dialog" role="dialog" aria-modal="true" aria-label="Opciones">
+            <header class="f101-dialog-header"><div><span class="f101-eyebrow">101ST FLOOR</span><h2>Opciones</h2></div><button type="button" class="cursor-interaction" data-action="close" aria-label="Cerrar Opciones"><i data-lucide="x" aria-hidden="true"></i></button></header>
+            <div class="f101-options-layout">
+              <nav class="f101-options-nav" aria-label="Categorías de opciones">
+                <button type="button" class="cursor-interaction" data-page="display" aria-pressed="true"><i data-lucide="monitor" aria-hidden="true"></i>Pantalla</button>
+                <button type="button" class="cursor-interaction" data-page="graphics" aria-pressed="false"><i data-lucide="sparkles" aria-hidden="true"></i>Gráficos</button>
+                <button type="button" class="cursor-interaction" data-page="controls" aria-pressed="false"><i data-lucide="keyboard" aria-hidden="true"></i>Controles</button>
+                <button type="button" class="cursor-interaction" data-page="appearance" aria-pressed="false"><i data-lucide="grid-2x2" aria-hidden="true"></i>Entorno</button>
+              </nav>
+              <div class="f101-options-content">
+                <section data-options-page="display"><h3>Pantalla</h3><p class="f101-option-intro">Una imagen nítida, a la resolución de tu monitor.</p>
+                  <label class="f101-option-row"><span>Resolución de imagen<small>Resolución nativa del monitor</small></span><select aria-label="Resolución de imagen"><option selected>2560 × 1440 · Nativa</option><option>1920 × 1080</option><option>1280 × 720</option></select></label>
+                  <label class="f101-option-row"><span>Pantalla completa dedicada<small>También puedes usar F11</small></span><input type="checkbox" data-setting="fullscreen"></label>
+                  <label class="f101-option-row"><span>Sincronización vertical<small>Evita cortes horizontales en la imagen</small></span><input type="checkbox" checked></label>
+                  <label class="f101-option-row"><span>HDR<small>Monitor compatible con HDR10</small></span><input type="checkbox" disabled aria-label="HDR no disponible mientras está desactivado en Windows"></label>
+                  <div class="f101-hdr-note"><i data-lucide="info" aria-hidden="true"></i><span>Activa «Usar HDR» en Windows para habilitarlo aquí.</span></div>
+                  <details class="f101-advanced"><summary>Información avanzada</summary><dl><div><dt>Monitor</dt><dd>ASUS VG27AQ1A · HDR10</dd></div><div><dt>Pantalla</dt><dd>2560 × 1440</dd></div><div><dt>Imagen</dt><dd>2560 × 1440</dd></div><div><dt>Render</dt><dd>2560 × 1440 · 100 %</dd></div></dl><p>Valores ilustrativos de la maqueta.</p></details>
+                </section>
+                <section data-options-page="graphics" hidden><h3>Gráficos</h3><p class="f101-option-intro">Equilibra fluidez y detalle mientras diseñas.</p><label class="f101-option-row"><span>Calidad gráfica</span><select aria-label="Calidad gráfica"><option>Ligera</option><option selected>Equilibrada</option><option>Alta</option></select></label><label class="f101-option-row"><span>Calidad de fotografía<small>Se aplica al capturar</small></span><select aria-label="Muestras para fotografía"><option>64 muestras</option><option selected>256 muestras</option><option>1024 muestras</option></select></label><p class="f101-setting-note">Los perfiles de calidad se validarán con el motor antes de implementarlos.</p></section>
+                <section data-options-page="controls" hidden><h3>Controles</h3><p class="f101-option-intro">Los atajos existentes se conservan.</p><dl class="f101-shortcuts"><div><dt>Recorrer / volver a diseñar</dt><dd><kbd>N</kbd></dd></div><div><dt>Moverse</dt><dd><kbd>WASD</kbd></dd></div><div><dt>Subir / bajar</dt><dd><kbd>E</kbd> <kbd>Q</kbd></dd></div><div><dt>Acelerar</dt><dd><kbd>Shift</kbd></dd></div><div><dt>Fotografía</dt><dd><kbd>R</kbd></dd></div><div><dt>Guardar</dt><dd><kbd>Ctrl+S</kbd></dd></div><div><dt>Deshacer / rehacer</dt><dd><kbd>Ctrl+Z</kbd> <kbd>Ctrl+Y</kbd></dd></div></dl><label class="f101-option-row"><span>Velocidad de recorrido<small>También visible mientras recorres</small></span><select aria-label="Velocidad de recorrido"><option>1 · Precisión</option><option selected>5 · Normal</option><option>10 · Rápida</option></select></label></section>
+                <section data-options-page="appearance" hidden><h3>Entorno de trabajo</h3><p class="f101-option-intro">Una base discreta para concentrarte en la arquitectura.</p><label class="f101-option-row"><span>Rejilla fina al diseñar</span><input type="checkbox" checked data-setting="grid"></label><label class="f101-option-row"><span>Iluminación</span><select aria-label="Iluminación"><option selected>Estudio neutro</option><option>Luz de día</option></select></label><p class="f101-setting-note">Las ayudas de construcción se ocultan en Recorrer y Foto.</p></section>
+              </div>
+            </div>
+            <footer class="f101-dialog-footer"><span>Ajustes de demostración</span><button type="button" class="f101-primary cursor-interaction" data-action="close">Listo</button></footer>
+          </section>
+        </div>
+        <div class="f101-home" hidden>
+          <div class="f101-home-heading"><span class="f101-eyebrow">TU ESTUDIO, TU ESPACIO</span><h2>Empieza a diseñar.</h2><p>Cada proyecto empieza con una idea.</p></div>
+          <div class="f101-home-actions"><button type="button" class="f101-primary cursor-interaction" data-action="new"><i data-lucide="plus" aria-hidden="true"></i>Nuevo proyecto</button><button type="button" class="cursor-interaction" data-action="continue">Continuar · Casa del patio</button></div>
+          <h3>Proyectos recientes</h3><button type="button" class="f101-recent cursor-interaction" data-action="continue"><div class="f101-recent-image"><i data-lucide="house" aria-hidden="true"></i></div><span><strong>Casa del patio</strong><small>Proyecto de ejemplo</small></span><i data-lucide="arrow-up-right" aria-hidden="true"></i></button>
+          <button type="button" class="cursor-interaction" data-action="continue">Volver a la pantalla de diseño</button>
+        </div>
+      </div>
+    </section>
+    <section data-variant="Compacto" aria-label="Interfaz Compacta" hidden></section>
+  </div>
+</div>
+<style>
+#floor101-proposal{--f101-accent:#d6ad78;--f101-bg:#1e2328;--f101-panel:#252b30;--f101-line:#3b4247;--f101-text:#eef0ec;--f101-muted:#b3bab9;font-family:'Segoe UI',Arial,sans-serif;color:var(--f101-text)}
+#floor101-proposal *{box-sizing:border-box}
+#floor101-proposal [hidden]{display:none!important}
+#floor101-proposal .f101-app{background:var(--f101-bg);position:relative;font-size:13px;line-height:1.45;overflow:clip}
+#floor101-proposal h2,#floor101-proposal h3,#floor101-proposal h4,#floor101-proposal p{margin:0}
+#floor101-proposal button,#floor101-proposal select,#floor101-proposal input{font:inherit;color:inherit}
+#floor101-proposal button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:34px;border:0;border-radius:5px;background:transparent;padding:6px 9px;white-space:nowrap}
+#floor101-proposal button:hover{background:#353c42}
+#floor101-proposal button[aria-pressed=true]{background:#3c3933;color:var(--f101-accent)}
+#floor101-proposal .f101-primary{background:var(--f101-accent);color:#20252a;font-weight:600;padding:8px 15px}
+#floor101-proposal .f101-primary:hover{filter:brightness(1.09);background:var(--f101-accent)}
+#floor101-proposal select,#floor101-proposal input[type=text],#floor101-proposal input[type=search]{background:#1d2327;border:1px solid #495056;border-radius:5px;padding:7px 9px;min-width:0}
+#floor101-proposal select{max-width:100%;color-scheme:dark}
+#floor101-proposal input[type=checkbox]{width:17px;height:17px;accent-color:var(--f101-accent);flex:0 0 auto}
+#floor101-proposal input[type=range]{accent-color:var(--f101-accent);width:130px}
+#floor101-proposal svg.lucide{width:17px;height:17px;flex-shrink:0;stroke-width:1.65}
+#floor101-proposal kbd{font-family:inherit;font-size:11px;color:var(--f101-muted);background:#31383e;border-radius:3px;padding:1px 4px;white-space:nowrap}
+#floor101-proposal .f101-header{display:flex;align-items:center;gap:16px;padding:12px 14px;border-bottom:1px solid var(--f101-line);min-height:65px;flex-wrap:wrap}
+#floor101-proposal .f101-brand{padding:0;gap:4px;align-items:flex-start;flex-direction:column;min-width:52px;line-height:1}
+#floor101-proposal .f101-brand strong{font-size:26px;font-weight:500;letter-spacing:-2px}
+#floor101-proposal .f101-brand strong span{font-size:12px;letter-spacing:0;margin-left:1px;vertical-align:top}
+#floor101-proposal .f101-brand>span{font-size:10px;letter-spacing:4px}
+#floor101-proposal .f101-project{display:flex;flex-direction:column;flex:1;min-width:145px}
+#floor101-proposal .f101-project strong{font-size:14px;font-weight:500}
+#floor101-proposal .f101-project>span{font-size:11px;color:var(--f101-muted)}
+#floor101-proposal .f101-modes{display:flex;background:#161c21;border-radius:6px;padding:3px;gap:2px}
+#floor101-proposal .f101-modes button{padding:6px 11px}
+#floor101-proposal .f101-actions{display:flex;align-items:center;gap:2px}
+#floor101-proposal .f101-actions .f101-save{border:1px solid #545147;color:var(--f101-accent);margin-left:4px}
+#floor101-proposal .f101-viewbar{display:flex;gap:12px;align-items:center;padding:8px 12px;min-height:50px;border-bottom:1px solid var(--f101-line);flex-wrap:wrap}
+#floor101-proposal .f101-level{display:flex;align-items:center;gap:9px;color:var(--f101-muted);font-size:12px}
+#floor101-proposal .f101-level select{border:0;background:transparent;color:var(--f101-text);padding:5px}
+#floor101-proposal .f101-viewtools,#floor101-proposal .f101-windowtools{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+#floor101-proposal .f101-viewtools button{font-size:12px}
+#floor101-proposal .f101-grid-label{display:flex;align-items:center;gap:4px;color:var(--f101-muted);font-size:12px;margin-left:4px}
+#floor101-proposal .f101-menu{position:relative;font-size:12px}
+#floor101-proposal .f101-menu summary{display:flex;align-items:center;gap:7px;min-height:34px;padding:6px 9px;list-style:none;border-radius:5px}
+#floor101-proposal .f101-menu summary:hover{background:#353c42}
+#floor101-proposal .f101-menu>div{position:absolute;top:100%;left:0;min-width:185px;background:var(--f101-panel);color:var(--f101-text);padding:7px;border:1px solid var(--f101-line);border-radius:6px;z-index:4;box-shadow:0 8px 20px #0003}
+#floor101-proposal .f101-menu button{justify-content:space-between;width:100%;font-size:12px}
+#floor101-proposal .f101-windowtools{margin-left:auto}
+#floor101-proposal .f101-workspace{display:grid;grid-template-columns:154px minmax(0,1fr) 234px;min-height:546px}
+#floor101-proposal .f101-tools{padding:16px 9px 10px;border-right:1px solid var(--f101-line);display:flex;flex-direction:column;gap:4px}
+#floor101-proposal .f101-tools h2{font-size:10px;font-weight:500;letter-spacing:1.4px;color:var(--f101-muted);padding:0 10px;margin-bottom:5px}
+#floor101-proposal .f101-tools button{justify-content:flex-start;width:100%;gap:9px;min-height:36px}
+#floor101-proposal .f101-tools button span{flex:1;text-align:left}
+#floor101-proposal .f101-tools button kbd{background:transparent;padding:0;color:#b5bbb7}
+#floor101-proposal .f101-tools hr{border:0;border-top:1px solid var(--f101-line);margin:10px 7px}
+#floor101-proposal .f101-tools-bottom{margin-top:auto;padding-top:30px}
+#floor101-proposal .f101-tools-bottom>span{font-size:10px;letter-spacing:1.4px;color:var(--f101-muted);padding-left:9px}
+#floor101-proposal .f101-tools-bottom button{font-size:12px;margin-top:5px}
+#floor101-proposal .f101-viewport{background:linear-gradient(155deg,#f2f0e9 0%,#e5e2d9 100%);color:#424a46;position:relative;min-width:0;min-height:530px;overflow:clip}
+#floor101-proposal .f101-scene{display:block;width:100%;height:490px}
+#floor101-proposal .f101-scene-caption{position:absolute;top:17px;left:20px;right:20px;font-size:12px;display:flex;align-items:center;gap:7px;z-index:1}
+#floor101-proposal .f101-scene-dot{width:5px;height:5px;background:#6c776f;border-radius:50%}
+#floor101-proposal .f101-scene-quality{margin-left:auto;color:#6d746d;font-size:11px}
+#floor101-proposal .f101-dimension-label{position:absolute;bottom:80px;left:50%;transform:translateX(-50%);background:#f6f1e7;color:#5e503c;padding:4px 9px;border-radius:4px;text-align:center;font-size:12px;box-shadow:0 1px 6px #50483c14}
+#floor101-proposal .f101-dimension-label span{display:block;font-size:11px;color:#777465}
+#floor101-proposal .f101-canvas-note{position:absolute;bottom:13px;left:20px;right:20px;font-size:11px;color:#697066}
+#floor101-proposal .f101-properties{background:var(--f101-panel);padding:17px 17px 12px;border-left:1px solid var(--f101-line);min-width:0}
+#floor101-proposal .f101-panel-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+#floor101-proposal .f101-panel-heading h2{font-size:14px;font-weight:500}
+#floor101-proposal .f101-eyebrow{font-size:10px;letter-spacing:1.4px;color:var(--f101-muted)}
+#floor101-proposal .f101-selection h3{font-size:22px;font-weight:400;margin-top:4px}
+#floor101-proposal .f101-selection h3 span{color:var(--f101-accent);font-size:14px;margin-left:3px}
+#floor101-proposal .f101-selection p{font-size:11px;color:var(--f101-muted);margin-top:4px}
+#floor101-proposal h4{font-size:12px;font-weight:500;margin:22px 0 9px}
+#floor101-proposal h4 span{float:right;color:var(--f101-muted);font-weight:400}
+#floor101-proposal .f101-wall-fields>label:not(.f101-check){display:flex;align-items:center;justify-content:space-between;gap:10px;margin:7px 0;color:var(--f101-muted);font-size:12px}
+#floor101-proposal .f101-wall-fields input[type=text]{width:85px;text-align:right;color:var(--f101-text);font-variant-numeric:tabular-nums}
+#floor101-proposal .f101-finish{width:100%;padding:8px 0;justify-content:flex-start;border-bottom:1px solid #3b4247;border-radius:0;white-space:normal;text-align:left}
+#floor101-proposal .f101-swatch{width:31px;height:31px;border-radius:4px;flex-shrink:0}
+#floor101-proposal .f101-finish>span:nth-child(2){color:var(--f101-muted);font-size:11px;flex:1}
+#floor101-proposal .f101-finish strong{display:block;font-size:12px;font-weight:400;color:var(--f101-text)}
+#floor101-proposal .f101-check{display:flex;gap:7px;align-items:center;margin-top:17px;font-size:12px;color:var(--f101-muted)}
+#floor101-proposal .f101-panel-foot{color:var(--f101-muted);font-size:11px;margin-top:24px;line-height:1.6}
+#floor101-proposal .f101-status{display:flex;gap:15px;justify-content:space-between;align-items:center;flex-wrap:wrap;min-height:35px;padding:7px 13px;font-size:11px;border-top:1px solid var(--f101-line);color:var(--f101-muted)}
+#floor101-proposal .f101-status-separator{padding:0 8px;color:#69716f}
+#floor101-proposal .f101-status-state{color:var(--f101-accent)}
+#floor101-proposal .f101-properties-toggle,#floor101-proposal .f101-properties-close{display:none}
+#floor101-proposal .f101-walk-controls,#floor101-proposal .f101-photo-controls{position:absolute;bottom:48px;left:50%;transform:translateX(-50%);background:var(--f101-panel);color:var(--f101-text);padding:10px 14px;border-radius:8px;display:flex;gap:12px;align-items:center;max-width:calc(100% - 28px);box-shadow:0 5px 24px #1e232829;flex-wrap:wrap;justify-content:center;width:max-content}
+#floor101-proposal .f101-walk-controls label{font-size:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#floor101-proposal .f101-walk-controls output{color:var(--f101-accent)}
+#floor101-proposal .f101-walk-controls>span{font-size:12px}
+#floor101-proposal .f101-photo-controls label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+#floor101-proposal .f101-app[data-mode=walk] .f101-workspace,#floor101-proposal .f101-app[data-mode=photo] .f101-workspace{grid-template-columns:minmax(0,1fr)}
+#floor101-proposal .f101-app[data-mode=walk] .f101-tools,#floor101-proposal .f101-app[data-mode=photo] .f101-tools,#floor101-proposal .f101-app[data-mode=walk] .f101-properties,#floor101-proposal .f101-app[data-mode=photo] .f101-properties{display:none}
+#floor101-proposal .f101-app[data-mode=walk] .f101-dimensions,#floor101-proposal .f101-app[data-mode=photo] .f101-dimensions,#floor101-proposal .f101-app[data-mode=walk] .f101-dimension-label,#floor101-proposal .f101-app[data-mode=photo] .f101-dimension-label,#floor101-proposal .f101-app[data-mode=walk] .f101-selected-wall path,#floor101-proposal .f101-app[data-mode=photo] .f101-selected-wall path,#floor101-proposal .f101-app[data-mode=walk] .f101-grid,#floor101-proposal .f101-app[data-mode=photo] .f101-grid{display:none}
+#floor101-proposal .f101-shade{position:absolute;inset:0;z-index:10;background:#0e1216b3;padding:30px 20px;display:flex;align-items:center;justify-content:center}
+#floor101-proposal .f101-dialog{width:720px;max-width:100%;background:var(--f101-panel);border:1px solid #4b5156;border-radius:10px;box-shadow:0 16px 60px #0005}
+#floor101-proposal .f101-dialog-header{display:flex;align-items:center;justify-content:space-between;padding:22px 25px 18px;border-bottom:1px solid var(--f101-line)}
+#floor101-proposal .f101-dialog-header h2{font-size:25px;font-weight:400;margin-top:3px}
+#floor101-proposal .f101-options-layout{display:grid;grid-template-columns:153px minmax(0,1fr);min-height:380px}
+#floor101-proposal .f101-options-nav{padding:20px 12px;border-right:1px solid var(--f101-line);display:flex;flex-direction:column;gap:6px}
+#floor101-proposal .f101-options-nav button{justify-content:flex-start;padding:9px 10px}
+#floor101-proposal .f101-options-content{padding:23px 25px 20px;min-width:0}
+#floor101-proposal .f101-options-content h3{font-size:18px;font-weight:400;margin-bottom:5px}
+#floor101-proposal .f101-option-intro{font-size:12px;color:var(--f101-muted);margin-bottom:20px;line-height:1.6}
+#floor101-proposal .f101-option-row{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:11px 0;border-bottom:1px solid var(--f101-line);font-size:13px;flex-wrap:wrap}
+#floor101-proposal .f101-option-row>span{flex:1;min-width:125px}
+#floor101-proposal .f101-option-row small{display:block;color:var(--f101-muted);font-size:11px;margin-top:3px}
+#floor101-proposal .f101-option-row select{font-size:12px;max-width:100%;width:auto}
+#floor101-proposal .f101-hdr-note{display:flex;align-items:flex-start;gap:8px;background:#33332f;color:#dec7a5;border-radius:5px;padding:10px 12px;font-size:11px;margin:12px 0 15px}
+#floor101-proposal .f101-advanced summary{font-size:12px;color:var(--f101-muted);padding:4px 0}
+#floor101-proposal .f101-advanced dl,#floor101-proposal .f101-shortcuts{margin:12px 0;font-size:12px}
+#floor101-proposal .f101-advanced dl>div,#floor101-proposal .f101-shortcuts>div{display:flex;justify-content:space-between;gap:15px;margin:9px 0;flex-wrap:wrap}
+#floor101-proposal dd{margin:0}
+#floor101-proposal .f101-advanced p,#floor101-proposal .f101-setting-note{font-size:11px;color:var(--f101-muted);margin-top:14px}
+#floor101-proposal .f101-dialog-footer{padding:15px 25px;border-top:1px solid var(--f101-line);display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;color:var(--f101-muted)}
+#floor101-proposal .f101-search{display:flex;align-items:center;gap:6px;margin:18px 0 8px}
+#floor101-proposal .f101-search input{width:100%;font-size:12px}
+#floor101-proposal .f101-favorites{font-size:12px;margin-bottom:10px}
+#floor101-proposal .f101-catalog-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#floor101-proposal .f101-catalog-card{display:flex;flex-direction:column;position:relative;min-width:0}
+#floor101-proposal .f101-catalog-card>button:first-child{display:flex;flex-direction:column;align-items:stretch;padding:0;gap:5px;white-space:normal;text-align:left;font-size:11px}
+#floor101-proposal .f101-thumbnail{display:flex;justify-content:center;align-items:center;height:75px;border-radius:5px;color:#3f4a45;background:#d9d2c4}
+#floor101-proposal .f101-thumbnail svg.lucide{width:40px;height:40px;stroke-width:1}
+#floor101-proposal .f101-catalog-card .f101-star{position:absolute;top:3px;right:3px;min-height:26px;padding:4px;background:#232a30;color:#eee;width:26px}
+#floor101-proposal .f101-home{position:absolute;inset:65px 0 35px;z-index:5;background:var(--f101-bg);padding:50px clamp(24px,7%,90px)}
+#floor101-proposal .f101-home-heading h2{font-size:38px;font-weight:400;letter-spacing:-1px;margin:12px 0}
+#floor101-proposal .f101-home-heading p{color:var(--f101-muted);font-size:14px}
+#floor101-proposal .f101-home-actions{display:flex;gap:12px;flex-wrap:wrap;margin:30px 0 40px}
+#floor101-proposal .f101-home h3{font-size:13px;font-weight:400;color:var(--f101-muted);margin-bottom:12px}
+#floor101-proposal .f101-recent{background:var(--f101-panel);border:1px solid var(--f101-line);max-width:350px;width:100%;justify-content:flex-start;white-space:normal;margin-bottom:30px;padding:10px}
+#floor101-proposal .f101-recent-image{width:80px;height:65px;background:#d9d4c8;color:#716652;border-radius:3px;display:flex;justify-content:center;align-items:center}
+#floor101-proposal .f101-recent-image svg.lucide{width:35px;height:35px}
+#floor101-proposal .f101-recent>span{flex:1;text-align:left}
+#floor101-proposal .f101-recent strong{font-weight:400;display:block}
+#floor101-proposal .f101-recent small{color:var(--f101-muted);display:block;font-size:11px;margin-top:4px}
+#floor101-proposal .f101-app[data-layout=compact] .f101-workspace{grid-template-columns:60px minmax(0,1fr)}
+#floor101-proposal .f101-app[data-layout=compact] .f101-tools{padding:15px 7px}
+#floor101-proposal .f101-app[data-layout=compact] .f101-tools h2,#floor101-proposal .f101-app[data-layout=compact] .f101-tools button span,#floor101-proposal .f101-app[data-layout=compact] .f101-tools button kbd,#floor101-proposal .f101-app[data-layout=compact] .f101-tools-bottom>span{display:none}
+#floor101-proposal .f101-app[data-layout=compact] .f101-tools button{justify-content:center;min-height:39px}
+#floor101-proposal .f101-app[data-layout=compact] .f101-properties{display:none}
+#floor101-proposal .f101-app[data-layout=compact] .f101-properties-toggle,#floor101-proposal .f101-app[data-layout=compact] .f101-properties-close{display:inline-flex}
+#floor101-proposal .f101-app[data-layout=compact][data-properties=true][data-mode=design] .f101-workspace{grid-template-columns:60px minmax(0,1fr) 234px}
+#floor101-proposal .f101-app[data-layout=compact][data-properties=true][data-mode=design] .f101-properties{display:block}
+@media(max-width:1000px){#floor101-proposal .f101-header{gap:12px}#floor101-proposal .f101-workspace{grid-template-columns:60px minmax(0,1fr) 220px}#floor101-proposal .f101-tools{padding:14px 7px}#floor101-proposal .f101-tools h2,#floor101-proposal .f101-tools button span,#floor101-proposal .f101-tools button kbd,#floor101-proposal .f101-tools-bottom>span{display:none}#floor101-proposal .f101-tools button{justify-content:center;min-height:39px}#floor101-proposal .f101-tools-bottom button{font-size:11px}#floor101-proposal .f101-project>span{max-width:170px}#floor101-proposal .f101-viewtools button[data-action=frame] span{display:none}#floor101-proposal .f101-scene-quality{display:none}}
+@media(max-width:760px){#floor101-proposal .f101-header{gap:10px}#floor101-proposal .f101-project{min-width:160px}#floor101-proposal .f101-modes{order:4;justify-content:center;flex:1 0 100%}#floor101-proposal .f101-modes button{flex:1}#floor101-proposal .f101-workspace{grid-template-columns:60px minmax(0,1fr)}#floor101-proposal .f101-properties{display:none}#floor101-proposal .f101-properties-toggle,#floor101-proposal .f101-properties-close{display:inline-flex}#floor101-proposal .f101-app[data-properties=true][data-mode=design] .f101-properties{display:block;grid-column:1/-1;border-top:1px solid var(--f101-line)}#floor101-proposal .f101-app[data-layout=compact][data-properties=true][data-mode=design] .f101-workspace{grid-template-columns:60px minmax(0,1fr)}#floor101-proposal .f101-panel-foot{margin-top:15px}#floor101-proposal .f101-wall-fields{max-width:400px}#floor101-proposal .f101-panel-heading{margin-bottom:12px}#floor101-proposal .f101-viewport{min-height:480px}#floor101-proposal .f101-scene{height:445px}#floor101-proposal .f101-shade{padding:16px;align-items:flex-start}#floor101-proposal .f101-app[data-dialog=true] .f101-workspace,#floor101-proposal .f101-app[data-dialog=true] .f101-viewbar{display:none}#floor101-proposal .f101-app[data-dialog=true] .f101-shade{position:relative}#floor101-proposal .f101-app[data-dialog=true] .f101-status{display:none}#floor101-proposal .f101-options-layout{grid-template-columns:125px minmax(0,1fr)}#floor101-proposal .f101-options-content{padding:20px}#floor101-proposal .f101-home{position:relative;inset:auto;padding:35px 24px}#floor101-proposal .f101-app[data-home=true] .f101-workspace,#floor101-proposal .f101-app[data-home=true] .f101-viewbar{display:none}}
+@media(max-width:480px){#floor101-proposal .f101-header{padding:10px;gap:10px}#floor101-proposal .f101-project{min-width:160px}#floor101-proposal .f101-project>span{max-width:none}#floor101-proposal .f101-actions{margin-left:auto}#floor101-proposal .f101-viewbar{gap:7px;padding:7px 10px}#floor101-proposal .f101-viewtools{order:3;width:100%}#floor101-proposal .f101-windowtools{margin-left:0;gap:1px;flex:1 0 100%;justify-content:space-between}#floor101-proposal .f101-viewtools button[data-action=frame] span{display:inline}#floor101-proposal .f101-workspace,#floor101-proposal .f101-app[data-layout=compact] .f101-workspace,#floor101-proposal .f101-app[data-layout=compact][data-properties=true][data-mode=design] .f101-workspace{grid-template-columns:minmax(0,1fr)}#floor101-proposal .f101-tools{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:0;padding:5px;border:0;border-bottom:1px solid var(--f101-line)}#floor101-proposal .f101-tools hr,#floor101-proposal .f101-tools-bottom{display:none}#floor101-proposal .f101-tools button,#floor101-proposal .f101-app[data-layout=compact] .f101-tools button{padding:6px 0;min-height:38px}#floor101-proposal .f101-viewport{min-height:385px}#floor101-proposal .f101-scene{height:350px}#floor101-proposal .f101-status{gap:5px}#floor101-proposal .f101-status-hint{flex:1 0 100%}#floor101-proposal .f101-status-state{flex:1 0 100%}#floor101-proposal .f101-options-layout{grid-template-columns:minmax(0,1fr);min-height:420px}#floor101-proposal .f101-options-nav{flex-direction:row;flex-wrap:wrap;padding:10px;border:0;border-bottom:1px solid var(--f101-line);gap:3px}#floor101-proposal .f101-options-nav button{flex:1 1 40%;padding:7px}#floor101-proposal .f101-options-content{padding:18px 14px}#floor101-proposal .f101-dialog-header{padding:17px}#floor101-proposal .f101-dialog-footer{padding:14px}#floor101-proposal .f101-shade{padding:10px}#floor101-proposal .f101-walk-controls input{width:115px}#floor101-proposal .f101-canvas-note{left:13px;right:13px}#floor101-proposal .f101-home-heading h2{font-size:30px}#floor101-proposal .f101-catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#floor101-proposal input[type=text],#floor101-proposal input[type=search],#floor101-proposal select{font-size:16px!important}}
+@media(pointer:coarse){#floor101-proposal button{min-height:44px}#floor101-proposal .f101-tools{gap:4px}#floor101-proposal .f101-tools button{min-height:44px}#floor101-proposal .f101-catalog-card .f101-star{min-width:44px;min-height:44px}}
+</style>
+<script>
+(() => {
+  const root = document.getElementById('floor101-proposal');
+  const studio = root.querySelector('.f101-app');
+  const compact = studio.cloneNode(true);
+  compact.dataset.layout = 'compact';
+  compact.setAttribute('aria-label','101st Floor · propuesta Compacto');
+  root.querySelector('[data-variant="Compacto"]').append(compact);
+  const apps = [studio, compact];
+  const design = {accent:'#d6ad78', density:'Confortable'};
+  function applyDesign(){root.style.setProperty('--f101-accent',design.accent); root.dataset.density=design.density;}
+  applyDesign();
+  const stored = window.openai?.widgetState?.privateContent;
+  if(stored?.accent && /^#[0-9a-f]{6}$/i.test(stored.accent)){design.accent=stored.accent;applyDesign();}
+  function remember(){window.openai?.setWidgetState?.({modelContent:{accent:design.accent},privateContent:{accent:design.accent}})?.catch(()=>{});}
+  window.addEventListener('openai:set_globals',event=>{const value=event.detail?.globals?.widgetState?.privateContent?.accent;if(value && /^#[0-9a-f]{6}$/i.test(value)){design.accent=value;applyDesign();}});
+  if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:()=>{applyDesign();remember();}});tweak.addColorPicker(design,'accent',{label:'Color de acento',reference:'--f101-accent'});}
+  const rates=[.05,.15,.4,1,3,8,15,30,50,80];
+  const catalogData={Materiales:[['Caliza clara','#dcd4c2','square',true],['Blanco mate','#ece8df','square',false],['Roble natural','#b99a73','square',true],['Verde salvia','#a5afa0','square',false]],Muebles:[['Sofá modular','#b8bfb2','sofa',true],['Mesa de centro','#ccb99e','table',false],['Silla de lectura','#c6c0b6','armchair',true],['Lámpara de pie','#d3d1c6','lamp-floor',false]]};
+  apps.forEach(app=>{
+    const state={mode:'design',tool:'Seleccionar',grid:true,properties:false,favorites:false,term:'',options:'display',lastFocus:null};
+    app.dataset.mode=state.mode;
+    const $=selector=>app.querySelector(selector);
+    const $$=selector=>app.querySelectorAll(selector);
+    const status=message=>{$('.f101-status-state').textContent=message;};
+    const drawScene=()=>{const scene=$('.f101-scene'), width=scene.clientWidth,height=scene.clientHeight;if(!width)return;scene.setAttribute('viewBox',`0 0 ${width} ${height}`);const scale=Math.min((width-24)/740,(height-90)/560);$('.f101-geometry').setAttribute('transform',`translate(${(width-740*scale)/2} ${(height-560*scale)/2+25}) scale(${scale})`);};
+    new ResizeObserver(drawScene).observe($('.f101-viewport'));
+    function render(){
+      app.dataset.mode=state.mode;app.dataset.properties=String(state.properties);
+      $$('[data-mode]').forEach(button=>{if(button.tagName==='BUTTON')button.setAttribute('aria-pressed',String(button.dataset.mode===state.mode));});
+      $$('[data-tool]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.tool===state.tool)));
+      $('.f101-walk-controls').hidden=state.mode!=='walk';$('.f101-photo-controls').hidden=state.mode!=='photo';
+      $('.f101-viewtools').hidden=state.mode!=='design';
+      $('.f101-grid').style.display=state.grid && state.mode==='design'?'':'none';
+      $$('[data-setting=grid]').forEach(input=>input.checked=state.grid);
+      $('[data-action=properties]').setAttribute('aria-expanded',String(state.properties));
+      $('.f101-status-hint').innerHTML=state.mode==='design'?'Seleccionar <kbd>V</kbd> · Cancelar <kbd>Esc</kbd>':state.mode==='walk'?'Moverse <kbd>WASD</kbd> · Subir/bajar <kbd>E / Q</kbd> · Volver <kbd>N</kbd>':'Foto <kbd>R</kbd> · Volver <kbd>Esc</kbd>';
+      drawScene();
+    }
+    function selectTool(tool){state.tool=tool;state.mode='design';state.properties=true;state.favorites=false;state.term='';const isCatalog=tool==='Materiales'||tool==='Muebles';$('.f101-wall-fields').hidden=isCatalog;$('.f101-catalog').hidden=!isCatalog;$('.f101-panel-foot').hidden=isCatalog;$('.f101-selection h3').innerHTML=isCatalog?tool:tool==='Seleccionar'?'Pared <span>04</span>':tool;$('.f101-selection p').textContent=isCatalog?'Catálogo de ejemplo':tool==='Seleccionar'?'Tramo separado en la unión':'Parámetros de la herramienta';$('.f101-search input').placeholder=`Buscar ${tool.toLowerCase()}`;$('.f101-search input').value='';$('.f101-favorites').setAttribute('aria-pressed','false');if(isCatalog)renderCatalog();render();status(isCatalog?'Catálogo · Vista previa':'Selección · Vista previa');}
+    function renderCatalog(){const list=$('.f101-catalog-grid');list.replaceChildren();catalogData[state.tool].filter(item=>(!state.favorites||item[3])&&item[0].toLocaleLowerCase('es').includes(state.term.toLocaleLowerCase('es'))).forEach(item=>{const card=document.createElement('div');card.className='f101-catalog-card';const button=document.createElement('button');button.type='button';button.className='cursor-interaction';const thumb=document.createElement('span');thumb.className='f101-thumbnail';thumb.style.background=item[1];if(state.tool==='Muebles'){const icon=document.createElement('i');icon.dataset.lucide=item[2];icon.setAttribute('aria-hidden','true');thumb.append(icon);}const name=document.createElement('span');name.textContent=item[0];button.append(thumb,name);button.addEventListener('click',()=>status(`${item[0]} · Selección de muestra`));const favorite=document.createElement('button');favorite.type='button';favorite.className='f101-star cursor-interaction';favorite.setAttribute('aria-label',`Favorito: ${item[0]}`);favorite.setAttribute('aria-pressed',String(item[3]));favorite.innerHTML='<i data-lucide="star" aria-hidden="true"></i>';favorite.addEventListener('click',()=>{item[3]=!item[3];renderCatalog();});card.append(button,favorite);list.append(card);});if(!list.children.length){const empty=document.createElement('p');empty.textContent='Sin coincidencias';list.append(empty);}if(globalThis.lucide)lucide.createIcons({attrs:{width:16,height:16}});}
+    function fitDialog(){app.style.minHeight=app.dataset.dialog==='true'&&!matchMedia('(max-width:760px)').matches?Math.ceil($('.f101-dialog').getBoundingClientRect().height+64)+'px':'';}
+    new ResizeObserver(fitDialog).observe($('.f101-dialog'));
+    function showOptions(){state.lastFocus=document.activeElement;$('.f101-shade').hidden=false;app.dataset.dialog='true';fitDialog();app.querySelector('.f101-dialog-header [data-action=close]').focus();}
+    function closeOptions(){ $('.f101-shade').hidden=true;delete app.dataset.dialog;fitDialog();state.lastFocus?.focus();drawScene(); }
+    app.addEventListener('click',event=>{
+      const button=event.target.closest('button');if(!button||!app.contains(button))return;
+      if(button.dataset.mode){state.mode=button.dataset.mode;render();status('Propuesta · '+({design:'Diseñar',walk:'Recorrer',photo:'Foto'})[state.mode]);}
+      if(button.dataset.tool)selectTool(button.dataset.tool);
+      if(button.dataset.page){state.options=button.dataset.page;$$('[data-page]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));$$('[data-options-page]').forEach(page=>page.hidden=page.dataset.optionsPage!==state.options);}
+      const action=button.dataset.action;
+      if(action==='options')showOptions();
+      if(action==='close')closeOptions();
+      if(action==='properties'){state.properties=!state.properties;render();}
+      if(action==='materials')selectTool('Materiales');
+      if(action==='save')status('Demostración: Guardar · sin modificar tu proyecto');
+      if(action==='undo'||action==='redo')status('Demostración: '+(action==='undo'?'Deshacer':'Rehacer'));
+      if(action==='fullscreen'){const input=$('[data-setting=fullscreen]');input.checked=!input.checked;button.setAttribute('aria-pressed',String(input.checked));status('Pantalla completa · Control propuesto');}
+      if(action==='plan'){const pressed=button.getAttribute('aria-pressed')!=='true';button.setAttribute('aria-pressed',String(pressed));$('.f101-scene-caption').childNodes[1].textContent=pressed?'Planta 2D':'Perspectiva';status('Vista conceptual · El plano se conserva');}
+      if(action==='frame')status('Encuadrar · Control propuesto');
+      if(action==='view')status(button.textContent.trim()+' · Control propuesto');
+      if(action==='file')status('Documento: Abrir, Guardar como, SVG, PNG, GLB y HDR');
+      if(action==='capture')status('Demostración: captura PNG / EXR');
+      if(action==='exit')status('Salir abrirá una confirmación si hay cambios sin guardar');
+      if(action==='home'){app.dataset.home='true';$('.f101-home').hidden=false;}
+      if(action==='new'||action==='continue'){delete app.dataset.home;$('.f101-home').hidden=true;status(action==='new'?'Nuevo proyecto · Acción de muestra':'Continuar · Casa del patio');drawScene();}
+      if(button.classList.contains('f101-favorites')){state.favorites=!state.favorites;button.setAttribute('aria-pressed',String(state.favorites));renderCatalog();}
+    });
+    $$('[data-setting=grid]').forEach(input=>input.addEventListener('change',()=>{state.grid=input.checked;render();}));
+    $('.f101-check input').addEventListener('change',event=>{$('.f101-dimensions').style.visibility=event.target.checked?'':'hidden';$('.f101-dimension-label').hidden=!event.target.checked;});
+    $('.f101-search input').addEventListener('input',event=>{state.term=event.target.value;renderCatalog();});
+    $('.f101-walk-controls input').addEventListener('input',event=>{$('.f101-walk-controls output').textContent=event.target.value;$('.f101-walk-controls>span').textContent=rates[Number(event.target.value)-1].toLocaleString('es')+' m/s';});
+    $('.f101-shade').addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeOptions();}if(event.key==='Tab'){const controls=[...$('.f101-dialog').querySelectorAll('button,input,select,summary')].filter(item=>!item.disabled&&item.getClientRects().length);const index=controls.indexOf(document.activeElement);if(event.shiftKey && index===0){event.preventDefault();controls.at(-1).focus();}else if(!event.shiftKey&&index===controls.length-1){event.preventDefault();controls[0].focus();}}});
+    render();
+  });
+})();
+</script>

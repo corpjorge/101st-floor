@@ -6,6 +6,8 @@
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101GameViewportClient.h"
 #include "SFloor101Overlay.h"
+#include "UiReviewCheck.h"
+#include "Floor101Preferences.h"
 
 AFloor101PlayerController::AFloor101PlayerController()
 {
@@ -25,6 +27,7 @@ void AFloor101PlayerController::BeginPlay()
 	InputMode.SetHideCursorDuringCapture(false);
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputMode);
+	Floor101::Preferences::ApplySavedGraphics();
 
 	const ULocalPlayer* LocalPlayer = GetLocalPlayer();
 	UGameViewportClient* Viewport = LocalPlayer ? LocalPlayer->ViewportClient.Get() : nullptr;
@@ -34,6 +37,8 @@ void AFloor101PlayerController::BeginPlay()
 			.Document(GetWorld()->GetSubsystem<UFloor101DocumentSubsystem>())
 			.ViewportClient(Cast<UFloor101GameViewportClient>(Viewport));
 		Viewport->AddViewportWidgetContent(Overlay.ToSharedRef());
+		Floor101::UIReview::Start(StaticCastSharedRef<SFloor101Overlay>(Overlay.ToSharedRef()), Cast<UFloor101GameViewportClient>(Viewport));
+		StaticCastSharedRef<SFloor101Overlay>(Overlay.ToSharedRef())->ShowStartup();
 	}
 }
 

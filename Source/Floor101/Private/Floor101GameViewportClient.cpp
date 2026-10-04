@@ -16,6 +16,7 @@
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
 #include "UnrealClient.h"
+#include "Widgets/SWidget.h"
 
 namespace
 {
@@ -32,6 +33,13 @@ namespace
 	{
 		return Key == EKeys::LeftControl || Key == EKeys::RightControl || Key == EKeys::LeftAlt || Key == EKeys::RightAlt
 			|| Key == EKeys::LeftCommand || Key == EKeys::RightCommand;
+	}
+
+	bool StudioTextEntryFocused()
+	{
+		const TSharedPtr<SWidget> Focused = FSlateApplication::IsInitialized() ? FSlateApplication::Get().GetKeyboardFocusedWidget() : nullptr;
+		return Focused && (Focused->GetType() == FName(TEXT("SEditableText")) || Focused->GetType() == FName(TEXT("SEditableTextBox"))
+			|| Focused->GetType() == FName(TEXT("SMultiLineEditableText")) || Focused->GetType() == FName(TEXT("SMultiLineEditableTextBox")));
 	}
 }
 
@@ -52,9 +60,9 @@ AFloor101EditingPawn* UFloor101GameViewportClient::GetEditingPawn() const
 	return Controller ? Cast<AFloor101EditingPawn>(Controller->GetPawn()) : nullptr;
 }
 
-void UFloor101GameViewportClient::SetNavigationSpeedLevel(int32 Level)
+void UFloor101GameViewportClient::SetNavigationSpeedLevel(int32 Level, bool bPreserveMovement)
 {
-	NavigationKeys.Reset();
+	if (!bPreserveMovement) { NavigationKeys.Reset(); }
 	if (AFloor101EditingPawn* Pawn = GetEditingPawn()) { Pawn->SetNavigationSpeedLevel(Level, true); }
 }
 
@@ -72,7 +80,24 @@ bool UFloor101GameViewportClient::RequestExit()
 	bPanning = false;
 	UWorld* CurrentWorld = GetWorld();
 	UFloor101DocumentSubsystem* Document = CurrentWorld ? CurrentWorld->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
-	if (Document && !FFloor101FileActions::ConfirmExit(*Document)) { return false; }
+	if (Document && Document->HasUnsavedChanges())
+	{
+		return RequestUnsavedAction(true, FSimpleDelegate::CreateWeakLambda(this, [this]() { CompleteExit(); }));
+	}
+	return CompleteExit();
+}
+
+bool UFloor101GameViewportClient::RequestUnsavedAction(bool bExit, FSimpleDelegate Proceed)
+{
+	if (!UnsavedPrompt.IsBound()) { return false; } // missing UI never discards unsaved work
+	UnsavedPrompt.Execute(bExit, Proceed);
+	return true;
+}
+
+bool UFloor101GameViewportClient::CompleteExit()
+{
+	if (!Viewport) { return false; }
+	UWorld* CurrentWorld = GetWorld();
 	if (CurrentWorld && CurrentWorld->WorldType == EWorldType::PIE)
 	{
 		OnCloseRequested().Broadcast(Viewport); // queue this play session's end; the editor owns viewport cleanup
@@ -162,7 +187,7 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 
 	// The ray changes when the cursor or the camera moves; only then is the view recomputed.
 	f101::cad::Ray3 Ray;
-	if (Document && !bPhotoMode && !bNavigationMode && !bOrbiting && GetCursorRay(Ray))
+	if (Document && !bInterfaceOpen && !bPhotoMode && !bNavigationMode && !bOrbiting && GetCursorRay(Ray))
 	{
 		const FVector Origin(Ray.originX, Ray.originY, Ray.originZ);
 		const FVector Direction(Ray.directionX, Ray.directionY, Ray.directionZ);
@@ -175,9 +200,18 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 	}
 }
 
+void UFloor101GameViewportClient::SetInterfaceOpen(bool bOpen, FSimpleDelegate Close)
+{
+	bInterfaceOpen = bOpen;
+	CloseInterface = Close;
+	NavigationKeys.Reset();
+	bOrbiting = false;
+	bPanning = false;
+}
+
 bool UFloor101GameViewportClient::CanNavigate()
 {
-	return Viewport && Viewport->HasFocus() && Viewport->IsForegroundWindow() && !IgnoreInput()
+	return !bInterfaceOpen && Viewport && Viewport->HasFocus() && Viewport->IsForegroundWindow() && !IgnoreInput()
 		&& !(ViewportConsole && ViewportConsole->ConsoleActive());
 }
 
@@ -185,7 +219,7 @@ void UFloor101GameViewportClient::TickNavigation(float DeltaTime)
 {
 	const FModifierKeysState Modifiers = FSlateApplication::IsInitialized()
 		? FSlateApplication::Get().GetModifierKeys() : FModifierKeysState();
-	if (!CanNavigate() || !GetEditingTarget() || (!bNavigationMode && !bOrbiting)
+	if (!CanNavigate() || !GetEditingTarget() || StudioTextEntryFocused()
 		|| Modifiers.IsControlDown() || Modifiers.IsAltDown() || Modifiers.IsCommandDown())
 	{
 		NavigationKeys.Reset();
@@ -220,6 +254,7 @@ void UFloor101GameViewportClient::SetNavigationMode(bool bNavigate)
 	}
 	bNavigationMode = bNavigate;
 	NavigationKeys.Reset();
+	if (UFloor101DocumentSubsystem* Document = GetEditingTarget()) { Document->SetConstructionAidsVisible(!bNavigate); }
 	if (bNavigate)
 	{
 		if (UFloor101DocumentSubsystem* Document = GetEditingTarget())
@@ -231,6 +266,17 @@ void UFloor101GameViewportClient::SetNavigationMode(bool bNavigate)
 
 bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 {
+	// Slate can bubble unhandled letter-key events; typing a search must never switch CAD tools.
+	if (StudioTextEntryFocused() && !EventArgs.Key.IsMouseButton()) { NavigationKeys.Reset(); return true; }
+	if (bInterfaceOpen)
+	{
+		if (EventArgs.Key == EKeys::Escape && EventArgs.Event == IE_Pressed)
+		{
+			const FSimpleDelegate RequestedClose = CloseInterface;
+			RequestedClose.ExecuteIfBound();
+		}
+		return true;
+	}
 	UE_LOG(LogFloor101, VeryVerbose, TEXT("F101: key %s %s"), *EventArgs.Key.ToString(),
 		*StaticEnum<EInputEvent>()->GetNameStringByValue(EventArgs.Event));
 	const FKey& Key = EventArgs.Key;
@@ -240,7 +286,7 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		? FSlateApplication::Get().GetModifierKeys() : FModifierKeysState();
 	const bool bShortcut = IsShortcutModifier(Key) || Modifiers.IsControlDown() || Modifiers.IsAltDown() || Modifiers.IsCommandDown();
 	UFloor101DocumentSubsystem* Document = GetEditingTarget();
-	if (NavigationKeys.HandleKey(Key, Event, Document && CanNavigate() && (bNavigationMode || bOrbiting), bShortcut))
+	if (NavigationKeys.HandleKey(Key, Event, Document && CanNavigate(), bShortcut))
 	{
 		bRightNavigationUsed |= bOrbiting && bDown;
 		return true;
@@ -285,10 +331,6 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		else if (Event == IE_Released && bOrbiting)
 		{
 			bOrbiting = false;
-			if (!bNavigationMode)
-			{
-				NavigationKeys.Reset();
-			}
 			if (!bNavigationMode && !bRightNavigationUsed && RightDragPixels <= CancelClickMaxPixels)
 			{
 				(void)Document->Edit([](EditController& Editor) { Editor.cancel(); return f101::Status::success(); });
@@ -314,6 +356,7 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 
 bool UFloor101GameViewportClient::InputAxis(const FInputKeyEventArgs& EventArgs)
 {
+	if (bInterfaceOpen || StudioTextEntryFocused()) { return true; }
 	if (EventArgs.Key == EKeys::MouseWheelAxis && GetEditingTarget())
 	{
 		if (AFloor101EditingPawn* Pawn = GetEditingPawn())
@@ -351,7 +394,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 		}
 		return EFloor101KeyCommand::None; // Ctrl+W is not W
 	}
-	if (bNavigating && FFloor101NavigationKeys::IsMovementKey(Key))
+	if (FFloor101NavigationKeys::IsMovementKey(Key))
 	{
 		return EFloor101KeyCommand::NavigationMove;
 	}
@@ -363,12 +406,12 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	{
 		return EFloor101KeyCommand::None;
 	}
-	if (Key == EKeys::W) { return EFloor101KeyCommand::WallTool; }
+	if (Key == EKeys::B) { return EFloor101KeyCommand::WallTool; }
 	if (Key == EKeys::V) { return EFloor101KeyCommand::SelectTool; }
 	if (Key == EKeys::P) { return EFloor101KeyCommand::DoorTool; }
 	if (Key == EKeys::O) { return EFloor101KeyCommand::WindowTool; }
 	if (Key == EKeys::M) { return EFloor101KeyCommand::PaintTool; }
-	if (Key == EKeys::A) { return EFloor101KeyCommand::FurnitureTool; }
+	if (Key == EKeys::G) { return EFloor101KeyCommand::FurnitureTool; }
 	if (Key == EKeys::C) { return EFloor101KeyCommand::ColumnTool; }
 	if (Key == EKeys::I) { return EFloor101KeyCommand::ServicesTool; }
 	if (Key == EKeys::X) { return EFloor101KeyCommand::ServicesLayer; }
@@ -405,6 +448,13 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 
 	const EditController& Current = Document.GetEditController();
 	const bool bTypingLength = Current.mode() == f101::cad::EditMode::Wall && Current.wallTool().state() == f101::cad::WallTool::State::Drafting;
+	const int32 SpeedLevel = FFloor101NavigationKeys::SpeedLevelForKey(Key, bTypingLength && !bNavigationMode && !bPhotoMode && !bOrbiting,
+		Modifiers.IsControlDown() || Modifiers.IsShiftDown());
+	if (SpeedLevel > 0)
+	{
+		if (!bRepeat) { SetNavigationSpeedLevel(SpeedLevel, true); }
+		return true;
+	}
 	const EFloor101KeyCommand Command = MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat, bTypingLength, bNavigationMode || bOrbiting);
 	if (Command == EFloor101KeyCommand::NavigationToggle || (Command == EFloor101KeyCommand::Cancel && bNavigationMode))
 	{
@@ -415,7 +465,8 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	{
 		return true;
 	}
-	if (bNavigationMode && !bPhotoMode && (Command == EFloor101KeyCommand::SelectTool || Command == EFloor101KeyCommand::DoorTool
+	if (bNavigationMode && !bPhotoMode && (Command == EFloor101KeyCommand::SelectTool || Command == EFloor101KeyCommand::WallTool
+		|| Command == EFloor101KeyCommand::FurnitureTool || Command == EFloor101KeyCommand::DoorTool
 		|| Command == EFloor101KeyCommand::WindowTool || Command == EFloor101KeyCommand::PaintTool
 		|| Command == EFloor101KeyCommand::ColumnTool || Command == EFloor101KeyCommand::ServicesTool))
 	{
@@ -495,7 +546,8 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 
 bool UFloor101GameViewportClient::InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character)
 {
-	if (bNavigationMode || bOrbiting)
+	if (bInterfaceOpen || StudioTextEntryFocused()) { return true; }
+	if (bNavigationMode || bOrbiting || FFloor101NavigationKeys::IsMovementCharacter(Character))
 	{
 		return true;
 	}

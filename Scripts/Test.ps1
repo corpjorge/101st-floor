@@ -78,7 +78,7 @@ function Invoke-IntegrationTests {
         "-ReportExportPath=`"$reportDir`"", '-unattended', '-nullrhi', '-nosplash', '-nosound', '-nopause',
         '-log', "-abslog=`"$logPath`""
     )
-    $process = Start-Process -FilePath $engine.EditorCmdExe -ArgumentList $arguments -PassThru -NoNewWindow -Wait
+    $process = Start-Process -FilePath $engine.EditorCmdExe -ArgumentList $arguments -PassThru -WindowStyle Hidden -Wait
     $report = Join-Path $reportDir 'index.json'
     if (-not (Test-Path $report)) {
         $failures.Add("integration tests: no report (editor exit $($process.ExitCode), log $logPath)")

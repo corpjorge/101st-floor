@@ -1,8 +1,26 @@
 #include "Floor101NavigationKeys.h"
 
+int32 FFloor101NavigationKeys::SpeedLevelForKey(const FKey& Key, bool bTypingLength, bool bShortcutModifier)
+{
+	if (bTypingLength || bShortcutModifier) { return 0; }
+	const FKey NumberRow[] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five,
+		EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero};
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(NumberRow); ++Index)
+	{
+		if (Key == NumberRow[Index]) { return Index + 1; }
+	}
+	return 0;
+}
+
 bool FFloor101NavigationKeys::IsMovementKey(const FKey& Key)
 {
 	return Key == EKeys::W || Key == EKeys::A || Key == EKeys::S || Key == EKeys::D || Key == EKeys::Q || Key == EKeys::E;
+}
+
+bool FFloor101NavigationKeys::IsMovementCharacter(TCHAR Character)
+{
+	const TCHAR Upper = FChar::ToUpper(Character);
+	return Upper == TEXT('W') || Upper == TEXT('A') || Upper == TEXT('S') || Upper == TEXT('D') || Upper == TEXT('Q') || Upper == TEXT('E');
 }
 
 bool FFloor101NavigationKeys::HandleKey(const FKey& Key, EInputEvent Event, bool bNavigationActive, bool bShortcutModifier)

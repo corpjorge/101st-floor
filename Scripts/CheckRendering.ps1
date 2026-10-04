@@ -51,7 +51,7 @@ function Invoke-RenderCheckRun {
     Write-Step "Unreal Engine $($engine.Version): $($engine.EditorExe)"
     Write-Step "Running render check on $Map (log: $runLog)"
     $started = Get-Date
-    $process = Start-Process -FilePath $engine.EditorExe -ArgumentList $arguments -PassThru
+    $process = Start-Process -FilePath $engine.EditorExe -ArgumentList $arguments -WindowStyle Hidden -PassThru
     # The in-process check has its own timeout; this is a safety net if the process hangs.
     if (-not $process.WaitForExit(($TimeoutSeconds + 300) * 1000)) {
         Stop-Process -Id $process.Id -Force

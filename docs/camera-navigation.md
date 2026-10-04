@@ -1,6 +1,8 @@
 # Navegación y zoom
 
-Activa **Navegar (N · WASD)** desde la barra o Modo Foto. También puedes pulsar **N** cuando el viewport tiene foco.
+**WASD funciona siempre** con el foco en la vista del proyecto, tanto en Diseñar como en Recorrer y Foto.
+**N / Recorrer** cambia la presentación y oculta las ayudas de construcción; no hace falta para moverse.
+Los atajos de Pared y Muebles son **B** y **G**.
 
 | Entrada | Acción |
 |---|---|
@@ -8,21 +10,22 @@ Activa **Navegar (N · WASD)** desde la barra o Modo Foto. También puedes pulsa
 | A / D | izquierda / derecha |
 | Q / E | bajar / subir |
 | Shift + movimiento | cuatro veces más rápido |
+| Números superiores 1–9 / 0 | elegir nivel 1–9 / 10; el teclado numérico no cambia la velocidad |
 | Selector Velocidad | niveles 1–10; muestra la velocidad en m/s y guarda la elección |
 | Derecho arrastrando | mirar desde la posición de la cámara, incluso hacia arriba |
 | N / Esc | volver a editar |
 | F | encuadrar el proyecto y recuperar una vista general |
 
-En edición puedes mantener **derecho + WASD/QE** para desplazarte temporalmente. Sin navegación, W sigue siendo
-Muro y A sigue siendo Amueblar. Un derecho arrastrado sin teclas de movimiento conserva la órbita habitual.
+En edición, **WASD/QE** mueve la cámara sin mantener el botón derecho. **B** dibuja paredes y **G** abre muebles. Un derecho arrastrado sin teclas de movimiento conserva la órbita habitual.
 En plano 2D, WASD desplaza el plano sobre los ejes de pantalla; Q/E no cambian su altura.
 
 La rueda permite acercarse por debajo del antiguo límite de 50 cm. Al llegar a 2 cm del foco orbital, sigue
 avanzando cámara y foco 5 cm por muesca. No es una distancia mínima respecto a una pared: la cámara es libre y puede
 atravesar objetos. F permite salir de una vista demasiado cercana. La rueda hacia atrás vuelve a alejarse.
 
-**Velocidad** está junto a Navegar, también en Modo Foto. El nivel inicial es **5 (3 m/s)**. Los niveles permiten
+**Velocidad** está visible al diseñar, recorrer, en Foto y en Opciones → Controles. El nivel inicial es **5 (3 m/s)**. Los niveles permiten
 0,1; 0,25; 0,5; 1; 3; 5; 10; 20; 40 y 80 m/s. Elige 1–3 para inspeccionar detalles o 6–10 para recorrer el edificio.
+Las teclas superiores **1–9** eligen esos niveles y **0** elige el nivel **10**; puedes cambiar mientras mantienes WASD. Al trazar una pared, los números siguen escribiendo su medida. Los campos de texto y menús conservan la prioridad; Ctrl/Alt/Shift y el teclado numérico no activan este atajo.
 La elección se guarda localmente en `GameUserSettings.ini`, sección `Floor101.Camera`, y se recupera al arrancar.
 Acercarte, encuadrar o cambiar a plano 2D conserva la velocidad elegida; Shift la multiplica por cuatro.
 

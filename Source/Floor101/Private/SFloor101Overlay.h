@@ -11,6 +11,7 @@ class UFloor101DocumentSubsystem;
 struct FSlateBrush;
 struct FFloor101RoomView;
 class UFloor101GameViewportClient;
+class SComboButton;
 
 // Editing UI drawn over the game viewport (ADR-0008): toolbar with the levels, properties of the selection (or of the
 // active level when nothing is selected), status bar and a label next to the cursor with the length being drawn or typed. It reads the document subsystem every frame and changes
@@ -24,14 +25,50 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	void ShowStartup();
+	void ShowUnsavedPrompt(bool bExit, FSimpleDelegate Proceed);
+	void ResolveUnsavedPrompt(EAppReturnType::Type Choice);
+	bool IsUnsavedPromptOpen() const { return bUnsavedPromptOpen; }
+	virtual bool SupportsKeyboardFocus() const override { return true; }
+	virtual FReply OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
+	// Development-only command-line capture: exercises the actual Slate surface without changing user preferences.
+#if WITH_DEV_AUTOMATION_TESTS
+	void PrepareReview(const FString& Screen);
+#endif
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
 	using FSelectionSetter = f101::Status (f101::cad::EditController::*)(std::string_view);
 
 	TSharedRef<SWidget> MakeToolbar();
+	TSharedRef<SWidget> MakeToolRail();
+	TSharedRef<SWidget> MakeFileMenu();
+	TSharedRef<SWidget> MakeViewMenu();
+	TSharedRef<SWidget> MakeUtilityMenu();
+	TSharedRef<SWidget> MakeOptionsPanel();
+	TSharedRef<SWidget> MakeHomePanel();
+	TSharedRef<SWidget> MakeUnsavedPanel();
+	bool bUnsavedPromptOpen = false;
+	bool bUnsavedExit = false;
+	bool bResolvingUnsaved = false;
+	bool bUnsavedSaveFailed = false;
+	FSimpleDelegate PendingUnsavedAction;
+	void OpenHome();
+	void CloseHome();
+	void EnterWorkspace(bool bFrame);
+	void EnterNewProject();
+	void RefreshModalInput();
+	TArray<FString> RecentProjects() const;
+	bool bHomeOpen = false;
+	bool bHasEnteredWorkspace = false;
+	void OpenOptions();
+	void CloseOptions();
+	bool bOptionsOpen = false;
+	int32 OptionsPage = 0;
+	bool IsDesignMode() const;
+	FVector2D ViewSize = FVector2D(1920.0, 1080.0);
 	TSharedRef<SWidget> MakeLevelRow();
-	// Exports the edited level's plan next to the project file (ADR-0015); Extension: "svg" or "png".
+	// Exports the edited level's plan after choosing its destination; Extension: "svg" or "png".
 	TSharedRef<SWidget> MakePlanExportButton(const FString& Extension);
 	// Name, height and slab of the active level, and a button to delete it.
 	TSharedRef<SWidget> MakeLevelSection();
@@ -62,7 +99,14 @@ private:
 	// The built-in library (ADR-0019). A tile of a palette grid: a picture with its name under it, framed in orange while
 	// IsActive.
 	TSharedRef<SWidget> MakeCatalogueTile(const TSharedRef<SWidget>& Picture, const FText& Name, const FText& ToolTip,
-		TFunction<bool()> IsActive, TFunction<FReply()> OnClicked);
+		TFunction<bool()> IsActive, TFunction<FReply()> OnClicked, const FString& Key, bool bModel);
+	TSharedRef<SWidget> MakeCatalogueFilters(bool bModel);
+	bool CatalogueHasResults(bool bModel) const;
+	TSet<FString> FavoriteKeys;
+	FString FurnitureQuery;
+	FString MaterialQuery;
+	bool bFurnitureFavoritesOnly = false;
+	bool bMaterialFavoritesOnly = false;
 	// The picture of an image file (library thumbnails and photographs), or a grey swatch if it cannot be read.
 	const FSlateBrush* GetPictureBrush(const FString& Path);
 	// Adds a library item to the project (once) and uses it: Amueblar places the model, Pintar applies the texture.
@@ -109,7 +153,7 @@ private:
 	TSharedRef<SWidget> MakeNavigationButton();
 	TSharedRef<SWidget> MakeNavigationSpeed();
 	TSharedRef<SWidget> MakeVSyncButton();
-	TSharedRef<SWidget> MakeExitButton();
+	TSharedRef<SWidget> MakeExitButton(bool bCompact = false);
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 
@@ -133,6 +177,8 @@ private:
 
 	TWeakObjectPtr<UFloor101DocumentSubsystem> Document;
 	TWeakObjectPtr<UFloor101GameViewportClient> ViewportClient;
+	TSharedPtr<SComboButton> PropertiesMenu;
+	TSharedPtr<SComboButton> LevelMenu;
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
 	// Finish ids each surface allows, for the drop-downs (on the heap: SComboBox keeps a pointer to the list).
 	TMap<uint8, TSharedPtr<TArray<TSharedPtr<FString>>>> FinishOptions;

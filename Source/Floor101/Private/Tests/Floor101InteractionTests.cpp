@@ -14,6 +14,7 @@
 #include "F101/Assets/Library.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
+#include "F101/Cad/ProjectFile.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101EditingPawn.h"
 #include "Floor101FileActions.h"
@@ -34,13 +35,14 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
+#include "Misc/ConfigCacheIni.h"
 
 #include <algorithm>
 
 namespace
 {
-	constexpr EAutomationTestFlags TestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
-	constexpr double Tolerance = 1e-6;
+	constexpr EAutomationTestFlags InteractionTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
+	constexpr double InteractionTolerance = 1e-6;
 
 	using f101::cad::EditController;
 
@@ -80,7 +82,7 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101KeyMapTest, "Floor101.Interaction.KeyMap", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101KeyMapTest, "Floor101.Interaction.KeyMap", InteractionTestFlags)
 bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 {
 	using Command = EFloor101KeyCommand;
@@ -88,12 +90,12 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	{
 		return UFloor101GameViewportClient::MapKey(Key, bControl, bShift, bRepeat);
 	};
-	TestTrue(TEXT("W: wall tool"), Map(EKeys::W) == Command::WallTool);
+	TestTrue(TEXT("B: wall tool"), Map(EKeys::B) == Command::WallTool);
 	TestTrue(TEXT("V: select"), Map(EKeys::V) == Command::SelectTool);
 	TestTrue(TEXT("P: door"), Map(EKeys::P) == Command::DoorTool);
 	TestTrue(TEXT("O: window"), Map(EKeys::O) == Command::WindowTool);
 	TestTrue(TEXT("M: paint"), Map(EKeys::M) == Command::PaintTool);
-	TestTrue(TEXT("A: furniture"), Map(EKeys::A) == Command::FurnitureTool);
+	TestTrue(TEXT("G: furniture"), Map(EKeys::G) == Command::FurnitureTool);
 	TestTrue(TEXT("C: column"), Map(EKeys::C) == Command::ColumnTool);
 	TestTrue(TEXT("I: services run"), Map(EKeys::I) == Command::ServicesTool);
 	TestTrue(TEXT("X: services layer"), Map(EKeys::X) == Command::ServicesLayer);
@@ -113,7 +115,8 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("R: photo"), Map(EKeys::R) == Command::PhotoMode);
 	TestTrue(TEXT("M typed in a length is text ('3.55 m')"),
 		UFloor101GameViewportClient::MapKey(EKeys::M, false, false, false, true) == Command::None);
-	TestTrue(TEXT("W still switches while typing"), UFloor101GameViewportClient::MapKey(EKeys::W, false, false, false, true) == Command::WallTool);
+	TestTrue(TEXT("B still switches while typing"), UFloor101GameViewportClient::MapKey(EKeys::B, false, false, false, true) == Command::WallTool);
+	TestTrue(TEXT("W moves without changing the wall tool while typing"), UFloor101GameViewportClient::MapKey(EKeys::W, false, false, false, true) == Command::NavigationMove);
 	TestTrue(TEXT("Backspace: backspace"), Map(EKeys::BackSpace) == Command::Backspace);
 	TestTrue(TEXT("Ctrl+Z: undo"), Map(EKeys::Z, true) == Command::Undo);
 	TestTrue(TEXT("Ctrl+Shift+Z: redo"), Map(EKeys::Z, true, true) == Command::Redo);
@@ -130,7 +133,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CameraPawnTest, "Floor101.Interaction.CameraPawn", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CameraPawnTest, "Floor101.Interaction.CameraPawn", InteractionTestFlags)
 bool FFloor101CameraPawnTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -180,7 +183,7 @@ bool FFloor101CameraPawnTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101EditFlowTest, "Floor101.Interaction.EditFlow", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101EditFlowTest, "Floor101.Interaction.EditFlow", InteractionTestFlags)
 bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -202,7 +205,7 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	AFloor101SceneNodeActor* Preview = FindNode(World, TEXT("preview/wall/0"));
 	if (TestNotNull(TEXT("preview actor while drawing"), Preview))
 	{
-		TestEqual(TEXT("preview follows the typed length"), Preview->GetMeshBounds().GetSize().X, 355.0, Tolerance);
+		TestEqual(TEXT("preview follows the typed length"), Preview->GetMeshBounds().GetSize().X, 355.0, InteractionTolerance);
 	}
 	TestTrue(TEXT("Enter creates the wall"), Document->Edit([](EditController& Editor) { return Editor.confirm(); }).ok());
 	TestFalse(TEXT("no status error"), Document->IsStatusError());
@@ -219,7 +222,7 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestEqual(TEXT("wall actor is 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, Tolerance);
+	TestEqual(TEXT("wall actor is 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, InteractionTolerance);
 
 	// Esc twice: stop the chain, back to Select. Then a click on the wall selects it and tints it.
 	(void)Document->Edit([](EditController& Editor) { Editor.cancel(); Editor.cancel(); return f101::Status::success(); });
@@ -232,9 +235,9 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 
 	// Properties panel: typed length, then undo.
 	TestTrue(TEXT("length 4.2 m"), Document->Edit([](EditController& Editor) { return Editor.setSelectionLength("4.2 m"); }).ok());
-	TestEqual(TEXT("same actor now 420 cm"), WallActor->GetMeshBounds().GetSize().X, 420.0, Tolerance);
+	TestEqual(TEXT("same actor now 420 cm"), WallActor->GetMeshBounds().GetSize().X, 420.0, InteractionTolerance);
 	TestTrue(TEXT("undo"), Document->Edit([](EditController& Editor) { return Editor.undo(); }).ok());
-	TestEqual(TEXT("back to 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, Tolerance);
+	TestEqual(TEXT("back to 355 cm"), WallActor->GetMeshBounds().GetSize().X, 355.0, InteractionTolerance);
 
 	// Errors reach the status bar (and the log, as warnings) and change nothing.
 	AddExpectedMessagePlain(TEXT("Wall thickness must be positive"), ELogVerbosity::Warning);
@@ -267,7 +270,7 @@ bool FFloor101EditFlowTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoomsTest, "Floor101.Interaction.Rooms", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoomsTest, "Floor101.Interaction.Rooms", InteractionTestFlags)
 bool FFloor101RoomsTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -328,7 +331,7 @@ bool FFloor101RoomsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallSplittingTest, "Floor101.Interaction.WallSplitting", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallSplittingTest, "Floor101.Interaction.WallSplitting", InteractionTestFlags)
 bool FFloor101WallSplittingTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -372,7 +375,7 @@ bool FFloor101WallSplittingTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LevelsTest, "Floor101.Interaction.Levels", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LevelsTest, "Floor101.Interaction.Levels", InteractionTestFlags)
 bool FFloor101LevelsTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -446,7 +449,7 @@ bool FFloor101LevelsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FinishesInteractionTest, "Floor101.Interaction.Finishes", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FinishesInteractionTest, "Floor101.Interaction.Finishes", InteractionTestFlags)
 bool FFloor101FinishesInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -499,7 +502,7 @@ bool FFloor101FinishesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CarpentryInteractionTest, "Floor101.Interaction.Carpentry", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CarpentryInteractionTest, "Floor101.Interaction.Carpentry", InteractionTestFlags)
 bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -543,7 +546,7 @@ bool FFloor101CarpentryInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OpeningTypesInteractionTest, "Floor101.Interaction.OpeningTypes", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OpeningTypesInteractionTest, "Floor101.Interaction.OpeningTypes", InteractionTestFlags)
 bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -604,7 +607,7 @@ bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PhotoModeTest, "Floor101.Interaction.PhotoMode", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PhotoModeTest, "Floor101.Interaction.PhotoMode", InteractionTestFlags)
 bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -641,10 +644,23 @@ bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
 	Document->SetPhotoMode(false);
 	TestNotNull(TEXT("back to editing: the swing"), FindNode(TestWorld.World, SwingNode));
 	TestTrue(TEXT("and the selection"), Wall->GetDisplayMaterial() != Plaster);
+	const auto OriginalProject = f101::cad::writeProjectJson(Document->GetDocument().project());
+	const bool UndoBefore = Document->GetDocument().canUndo();
+	Document->SetConstructionAidsVisible(false);
+	TestFalse(TEXT("walking hides construction aids"), Document->AreConstructionAidsVisible());
+	TestNull(TEXT("walking hides door swing"), FindNode(TestWorld.World, SwingNode));
+	TestTrue(TEXT("walking restores original finish"), Wall->GetDisplayMaterial() == Plaster);
+	TestTrue(TEXT("walking preserves selection in the controller"), Document->GetEditController().selection() == Host);
+	Document->SetPhotoMode(true);
+	Document->SetPhotoMode(false);
+	TestFalse(TEXT("leaving photo while walking keeps aids hidden"), Document->AreConstructionAidsVisible());
+	Document->SetConstructionAidsVisible(true);
+	TestNotNull(TEXT("editing restores swing"), FindNode(TestWorld.World, SwingNode));
+	TestTrue(TEXT("presentation preserves model and undo"), f101::cad::writeProjectJson(Document->GetDocument().project()) == OriginalProject && Document->GetDocument().canUndo() == UndoBefore);
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewTest, "Floor101.Interaction.PlanView", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewTest, "Floor101.Interaction.PlanView", InteractionTestFlags)
 bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -737,7 +753,7 @@ bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FurnitureInteractionTest, "Floor101.Interaction.Furniture", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FurnitureInteractionTest, "Floor101.Interaction.Furniture", InteractionTestFlags)
 bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -816,7 +832,7 @@ bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ServicesInteractionTest, "Floor101.Interaction.Services", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ServicesInteractionTest, "Floor101.Interaction.Services", InteractionTestFlags)
 bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -960,7 +976,7 @@ bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FilePathsTest, "Floor101.Interaction.FilePaths", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FilePathsTest, "Floor101.Interaction.FilePaths", InteractionTestFlags)
 bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -972,6 +988,13 @@ bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
 	// The user's own remembered places are put back at the end.
 	const FString UserProject = FFloor101FileActions::GetLastProjectPath();
 	const FString UserTwinmotion = FFloor101FileActions::GetLastTwinmotionFolder();
+	TArray<FString> UserRecent;
+	GConfig->GetArray(TEXT("Floor101.Paths"), TEXT("RecentProjects"), UserRecent, GGameUserSettingsIni);
+	ON_SCOPE_EXIT
+	{
+		GConfig->SetArray(TEXT("Floor101.Paths"), TEXT("RecentProjects"), UserRecent, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	};
 	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101FilePaths")));
 	const FString Path = FPaths::Combine(Folder, TEXT("mi casa.json"));
 
@@ -1000,7 +1023,7 @@ bool FFloor101FilePathsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExitTest, "Floor101.Interaction.Exit", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExitTest, "Floor101.Interaction.Exit", InteractionTestFlags)
 bool FFloor101ExitTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1033,7 +1056,7 @@ bool FFloor101ExitTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101AssetsInteractionTest, "Floor101.Interaction.Assets", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101AssetsInteractionTest, "Floor101.Interaction.Assets", InteractionTestFlags)
 bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1161,7 +1184,7 @@ bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LibraryInteractionTest, "Floor101.Interaction.Library", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LibraryInteractionTest, "Floor101.Interaction.Library", InteractionTestFlags)
 bool FFloor101LibraryInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1253,7 +1276,7 @@ bool FFloor101LibraryInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExportInteractionTest, "Floor101.Interaction.Export", TestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101ExportInteractionTest, "Floor101.Interaction.Export", InteractionTestFlags)
 bool FFloor101ExportInteractionTest::RunTest(const FString& Parameters)
 {
 	FTestWorld TestWorld;
@@ -1362,4 +1385,31 @@ bool FFloor101ExportInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101NewProjectTest, "Floor101.Interaction.NewProject", InteractionTestFlags)
+bool FFloor101NewProjectTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) { return false; }
+	const auto Wall = Document->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800).value();
+	(void)Document->Edit([Wall](EditController& Editor) { return Editor.select(Wall); });
+	TestTrue(TEXT("previous project has unsaved work"), Document->HasUnsavedChanges());
+	TestTrue(TEXT("cancelled replacement preserves project"), !FFloor101FileActions::PrepareExit(*Document,
+		[]() { return EAppReturnType::Cancel; }, []() {}));
+	TestEqual(TEXT("cancel retains walls"), Document->GetDocument().project().walls.size(), std::size_t{1});
+	const FString Path = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101NewProject.json"));
+	ON_SCOPE_EXIT { IFileManager::Get().Delete(*Path); };
+	TestTrue(TEXT("save existing file"), Document->SaveProject(Path).ok());
+	TestTrue(TEXT("fresh project created"), Document->NewProject().ok());
+	const auto& Fresh = Document->GetDocument().project();
+	TestTrue(TEXT("fresh document is valid"), f101::cad::validateProject(Fresh).ok());
+	TestTrue(TEXT("fresh document is empty"), Fresh.walls.empty() && Fresh.assets.empty() && Fresh.furniture.empty());
+	TestEqual(TEXT("fresh document has a usable level"), Fresh.levels.size(), std::size_t{1});
+	TestTrue(TEXT("fresh document has no file"), Document->GetProjectPath().IsEmpty());
+	TestFalse(TEXT("fresh document is clean"), Document->HasUnsavedChanges());
+	TestFalse(TEXT("old history cannot be undone into new document"), Document->GetDocument().canUndo());
+	TestFalse(TEXT("old history cannot be redone"), Document->GetDocument().canRedo());
+	TestTrue(TEXT("old selection is cleared"), Document->GetEditController().selection().isNil());
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

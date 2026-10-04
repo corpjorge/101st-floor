@@ -19,7 +19,7 @@ $arguments = @("`"$UProjectPath`"", '-run=Floor101GenerateAssets', '-unattended'
     "-abslog=`"$logPath`"")
 
 Write-Step "Generating assets with $($engine.EditorCmdExe)"
-$process = Start-Process -FilePath $engine.EditorCmdExe -ArgumentList $arguments -PassThru -NoNewWindow -Wait `
+$process = Start-Process -FilePath $engine.EditorCmdExe -ArgumentList $arguments -PassThru -WindowStyle Hidden -Wait `
     -RedirectStandardOutput "$logPath.stdout.txt"
 $saved = Select-String -Path $logPath -Pattern 'LogFloor101Assets: Display: Saved (.+)$' -ErrorAction SilentlyContinue
 if ($process.ExitCode -ne 0 -or -not $saved) {

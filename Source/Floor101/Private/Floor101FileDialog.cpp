@@ -7,6 +7,7 @@
 	#include "Windows/AllowWindowsPlatformTypes.h"
 	#include <commdlg.h>
 	#include "Windows/HideWindowsPlatformTypes.h"
+	#undef LoadImage
 #endif
 
 #if PLATFORM_WINDOWS

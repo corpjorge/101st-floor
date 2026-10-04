@@ -8,6 +8,7 @@
 
 class AFloor101EditingPawn;
 class UFloor101DocumentSubsystem;
+DECLARE_DELEGATE_TwoParams(FFloor101UnsavedPrompt, bool, FSimpleDelegate);
 
 namespace f101::cad
 {
@@ -46,7 +47,7 @@ enum class EFloor101KeyCommand : uint8
 	PlanView, // 2D plan on / off (ADR-0015)
 	PhotoMode, // path traced photo on / off (ADR-0018)
 	Fullscreen, // dedicated fullscreen at native monitor resolution (F11)
-	NavigationToggle, // N: WASD camera / editing shortcuts
+	NavigationToggle, // N: design / walk presentation
 	NavigationMove, // a held WASD/QE press, consumed before editing
 };
 
@@ -55,11 +56,11 @@ enum class EFloor101KeyCommand : uint8
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
-// Keys: W wall, P door, O window, M paint, A furniture, C column, I services run, X services layer, V select, Enter, Esc,
+// Keys: B wall, P door, O window, M paint, G furniture, C column, I services run, X services layer, V select, Enter, Esc,
 // Backspace, Delete, F frame all, T top view,
 // Tab 2D plan, R photo, Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
 // Ctrl+S save, Ctrl+Shift+S save as, Ctrl+O open (the system's dialogs).
-// N: navigation mode; WASD forward/sideways, Q/E vertical, Shift fast, right drag looks from the camera. Also right+WASD.
+// WASD always moves with viewport focus; Q/E vertical, Shift fast. N only toggles design/walk presentation.
 // The camera follows the edited level: its focus moves up or down with the level's elevation.
 UCLASS()
 class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient
@@ -74,10 +75,17 @@ public:
 	virtual void LostFocus(FViewport* InViewport) override;
 	void SetNavigationMode(bool bNavigate);
 	bool IsNavigationMode() const { return bNavigationMode; }
-	void SetNavigationSpeedLevel(int32 Level);
+	// Keyboard speed changes preserve held movement; menu changes require a fresh press.
+	void SetNavigationSpeedLevel(int32 Level, bool bPreserveMovement = false);
 	int32 GetNavigationSpeedLevel() const;
 	// Standard game exit (ends only the play session in PIE), after protecting unsaved work.
 	bool RequestExit();
+	// The overlay owns an asynchronous prompt inside the viewport, never a separate native window.
+	FFloor101UnsavedPrompt UnsavedPrompt;
+	bool RequestUnsavedAction(bool bExit, FSimpleDelegate Proceed);
+	// A dedicated options/start screen owns input while open; CAD and held movement keys stay inactive.
+	void SetInterfaceOpen(bool bOpen, FSimpleDelegate Close = FSimpleDelegate());
+	bool IsInterfaceOpen() const { return bInterfaceOpen; }
 
 	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
 	void FrameProject();
@@ -102,6 +110,7 @@ public:
 	static EFloor101KeyCommand MapKey(const FKey& Key, bool bControl, bool bShift, bool bRepeat, bool bTypingLength = false, bool bNavigating = false);
 
 private:
+	bool CompleteExit();
 	// Null while the console is open, input is ignored or the world has no document.
 	UFloor101DocumentSubsystem* GetEditingTarget();
 	AFloor101EditingPawn* GetEditingPawn() const;
@@ -124,5 +133,7 @@ private:
 	// Elevation of the edited level the camera last followed (mm); unset until the first tick with a document.
 	TOptional<double> FollowedElevationMm;
 	bool bPhotoMode = false;
+	bool bInterfaceOpen = false;
+	FSimpleDelegate CloseInterface;
 	int32 PhotoSamples = 256;
 };

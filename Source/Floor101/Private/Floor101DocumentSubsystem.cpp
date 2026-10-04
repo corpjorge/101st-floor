@@ -25,6 +25,7 @@
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
 #include "Floor101SceneSpace.h"
+#include "Floor101StudioEnvironment.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "HAL/IConsoleManager.h"
@@ -337,6 +338,7 @@ void UFloor101DocumentSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	{
 		LoadReferenceWall();
 	}
+	if (InWorld.IsGameWorld()) { InWorld.SpawnActor<AFloor101StudioEnvironment>(); }
 }
 
 f101::Status UFloor101DocumentSubsystem::Edit(TFunctionRef<f101::Status(f101::cad::EditController&)> Action)
@@ -411,6 +413,19 @@ f101::Status UFloor101DocumentSubsystem::SaveProject(const FString& Path)
 	SavedChangeCount = ChangeCount;
 	SetStatus(FText::Format(LOCTEXT("Saved", "Guardado: {0}"), FText::FromString(Path)), false);
 	return Saved;
+}
+
+f101::Status UFloor101DocumentSubsystem::NewProject()
+{
+	f101::cad::Document Empty(f101::cad::makeRandomUuidSource());
+	Editor->reset();
+	ProjectPath.Empty();
+	ReferenceWallId = {};
+	const f101::Status Replaced = Document->replaceProject(Empty.project());
+	if (!Replaced) { SetStatus(ToText(Replaced.error().message), true); return Replaced; }
+	SavedChangeCount = ChangeCount;
+	SetStatus(LOCTEXT("NewStudioProject", "Nuevo proyecto"), false);
+	return Replaced;
 }
 
 f101::Status UFloor101DocumentSubsystem::OpenProject(const FString& Path)
@@ -681,6 +696,13 @@ FString UFloor101DocumentSubsystem::GetDefaultPlanPath(const FString& Extension)
 	return FPaths::Combine(FPaths::GetPath(Project), FPaths::GetBaseFilename(Project) + TEXT("-") + Slug + TEXT(".") + Extension);
 }
 
+void UFloor101DocumentSubsystem::SetConstructionAidsVisible(bool bVisible)
+{
+	if (bConstructionAidsVisible == bVisible) { return; }
+	bConstructionAidsVisible = bVisible;
+	Resync(false);
+}
+
 void UFloor101DocumentSubsystem::SetPhotoMode(bool bPhoto)
 {
 	if (bPhotoMode == bPhoto)
@@ -914,7 +936,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	Overlay.previewColumns = View.previewColumns;
 	Overlay.selectedServiceRun = View.selectedServiceRun;
 	Overlay.previewServiceRuns = View.previewServiceRuns;
-	if (bPhotoMode)
+	if (!AreConstructionAidsVisible())
 	{
 		// A photo shows the project as it is (ADR-0018): no selection, gesture, handles or door swings. The services
 		// layer stays as chosen, so the installation can be photographed (ADR-0021).
@@ -1018,6 +1040,7 @@ void UFloor101DocumentSubsystem::SetGroundGhosted(bool bGhosted)
 		{
 			continue;
 		}
+		if (It->ActorHasTag(TEXT("Floor101.StudioBackdrop")) || (Component->GetStaticMesh() && Component->GetStaticMesh()->GetPathName().StartsWith(TEXT("/Engine/EngineSky/")))) { continue; }
 		for (int32 Index = 0; Index < Component->GetNumMaterials(); ++Index)
 		{
 			GhostedSlots.Add(FGhostedSlot{Component, Index});
