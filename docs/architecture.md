@@ -28,12 +28,13 @@ sentido contrario: Unreal no escribe en el modelo, y un nivel de Unreal nunca se
 
 ## Módulos
 
-Ocho módulos de producto y uno de desarrollo, solo para el editor. CadCore, Geometry, SceneModel, Drawing, Assets y Exporters son
+Nueve módulos de producto y uno de desarrollo, solo para el editor. CadCore, Geometry, SceneModel, Drawing, Assets y Exporters son
 **C++20 estándar**: no incluyen cabeceras de Unreal, no usan tipos de Unreal y compilan igual con UnrealBuildTool y con
 CMake (tests sin Unreal). Ver ADR-0002.
 
 | Módulo | Tipo | Namespace | Depende de | Contenido |
 |---|---|---|---|---|
+| `Floor101Startup` | Unreal temprano | `Floor101::Startup` | Core, Slate, PreLoadScreen | splash propio, barra de actividad y transición al juego; carga en PreLoadingScreen (ADR-0027) |
 | `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController`, mobiliario (`Furniture`, catálogo), pilares e instalaciones (`Column`, `ServiceRun`, ADR-0021), `project.json` |
 | `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`) y tramos que ocupan en cada muro (`wallObstructions`), `WallGeometryBuilder` sobre huellas (con huecos), carpintería de huecos (`buildOpeningMesh`), polígonos y prismas, habitaciones (`detectRooms`), suelos y forjados, muebles (`furnitureShape`, `buildFurnitureMesh`), pilares y tuberías (`buildColumnMesh`, `buildServiceRunMesh`) |
 | `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos y habitaciones), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos, carpintería, muebles, pilares, tuberías; con `ViewOverlay` que compila el proyecto como quedaría y la capa de instalaciones con la arquitectura en `Ghost`); más adelante materiales portables, luces, cámaras, `SceneDiff` |

@@ -20,6 +20,14 @@
 #include "Floor101Names.h"
 #include "Floor101PathTracing.h"
 #include "Floor101Preferences.h"
+#include "Floor101Startup.h"
+#include "Floor101.h"
+#include "CoreGlobals.h"
+#include "HAL/PlatformOutputDevices.h"
+#include "HAL/PlatformProcess.h"
+#include "Misc/OutputDeviceConsole.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Floor101Catalogue.h"
 #include "SFloor101FurnitureThumbnail.h"
 #include "Floor101Style.h"
@@ -279,6 +287,14 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 	if (auto* Client = ViewportClient.Get()) { Client->UnsavedPrompt.BindSP(this, &SFloor101Overlay::ShowUnsavedPrompt); }
 	for (const FString& Key : Floor101::Catalogue::Favorites()) { FavoriteKeys.Add(Key); }
 	auto PlanShown = [this]() { const auto* S = Document.Get(); return S && S->IsPlanView(); };
+	TSharedRef<SWidget> StartupReview = SNullWidget::NullWidget;
+#if WITH_DEV_AUTOMATION_TESTS
+	FString ReviewScreen;
+	if (FParse::Value(FCommandLine::Get(), TEXT("F101UIScreen="), ReviewScreen) && ReviewScreen == TEXT("startup"))
+	{
+		StartupReview = Floor101::Startup::MakeLoadingWidget();
+	}
+#endif
 	ChildSlot
 	[
 		SNew(SOverlay).Visibility(EVisibility::SelfHitTestInvisible)
@@ -323,6 +339,7 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 		+ SOverlay::Slot()[MakeHomePanel()]
 		+ SOverlay::Slot()[MakeOptionsPanel()]
 		+ SOverlay::Slot()[MakeUnsavedPanel()]
+		+ SOverlay::Slot()[StartupReview]
 	];
 }
 
@@ -674,7 +691,7 @@ FReply SFloor101Overlay::OnKeyDown(const FGeometry& Geometry, const FKeyEvent& E
 TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 {
 	TSharedRef<SWrapBox> Tabs = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8.0, 8.0));
-	const FText Pages[] = {LOCTEXT("StudioDisplayPage", "Pantalla"), LOCTEXT("StudioGraphicsPage", "Gráficos"), LOCTEXT("StudioControlsPage", "Controles")};
+	const FText Pages[] = {LOCTEXT("StudioDisplayPage", "Pantalla"), LOCTEXT("StudioGraphicsPage", "Gráficos"), LOCTEXT("StudioControlsPage", "Controles"), LOCTEXT("StudioDiagnosticsPage", "Diagnóstico")};
 	for (int32 I = 0; I < UE_ARRAY_COUNT(Pages); ++I)
 	{
 		Tabs->AddSlot()[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false)
@@ -721,6 +738,26 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 					[
 						SNew(SVerticalBox)
 						+ SVerticalBox::Slot().AutoHeight()
+						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 3 ? EVisibility::Visible : EVisibility::Collapsed; })
+							+ SVerticalBox::Slot().AutoHeight()
+							[SNew(SCheckBox).IsChecked_Lambda([]() { return LogFloor101.GetVerbosity() >= ELogVerbosity::Verbose ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+								.OnCheckStateChanged_Lambda([](ECheckBoxState State) { Floor101::Preferences::SetDiagnosticMode(State == ECheckBoxState::Checked); })
+								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticMode", "Modo depuración: registro detallado"))]]
+							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
+							[SNew(SCheckBox).IsChecked_Lambda([]() { return GLogConsole && GLogConsole->IsShown() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+								.OnCheckStateChanged_Lambda([](ECheckBoxState State) { Floor101::Preferences::SetShowLogWindow(State == ECheckBoxState::Checked); })
+								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticWindow", "Mostrar ventana de logs"))]]
+							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
+							[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(MutedColor).AutoWrapText(true)
+								.Text(LOCTEXT("DiagnosticHelp", "Los errores se guardan en archivo aunque esta ventana esté oculta. Activa el modo depuración antes de reproducir un problema y revisa el registro. Ambos ajustes se aplican ahora y se recuerdan al reiniciar."))]
+							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
+							[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(12.0f, 8.0f)).IsFocusable(false)
+								.OnClicked_Lambda([]() { FPlatformProcess::ExploreFolder(*FPaths::GetPath(FPaths::ConvertRelativePathToFull(FPlatformOutputDevices::GetAbsoluteLogFilename()))); return FReply::Handled(); })
+								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticFolder", "Abrir carpeta de registros"))]]
+							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
+							[SNew(STextBlock).Font(Font(10)).ColorAndOpacity(MutedColor).AutoWrapText(true)
+								.Text_Lambda([]() { return FText::FromString(FPaths::ConvertRelativePathToFull(FPlatformOutputDevices::GetAbsoluteLogFilename())); })]]
+						+ SVerticalBox::Slot().AutoHeight()
 						[SNew(SBox).Visibility_Lambda([this]() { return OptionsPage == 0 ? EVisibility::Visible : EVisibility::Collapsed; })[MakeDisplayControls(true)]]
 						+ SVerticalBox::Slot().AutoHeight()
 						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 1 ? EVisibility::Visible : EVisibility::Collapsed; })
@@ -756,6 +793,7 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		}
 	}
 	if (Screen == TEXT("home")) { OpenHome(); }
+	if (Screen == TEXT("diagnostics")) { OpenOptions(); OptionsPage = 3; }
 	if (Screen == TEXT("selection") && Document.IsValid() && !Document->GetDocument().project().walls.empty())
 	{
 		const auto Id = Document->GetDocument().project().walls.front().id;

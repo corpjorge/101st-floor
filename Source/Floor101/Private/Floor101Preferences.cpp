@@ -2,9 +2,53 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Floor101.h"
+#include "CoreGlobals.h"
+#include "Misc/OutputDeviceConsole.h"
 
 namespace Floor101::Preferences
 {
+	bool DiagnosticMode()
+	{
+		bool bEnabled = false;
+		if (GConfig) { GConfig->GetBool(TEXT("Floor101.Diagnostics"), TEXT("DebugMode"), bEnabled, GGameUserSettingsIni); }
+		return bEnabled;
+	}
+	bool ShowLogWindow()
+	{
+		bool bShow = false;
+		if (GConfig) { GConfig->GetBool(TEXT("Floor101.Diagnostics"), TEXT("ShowLogWindow"), bShow, GGameUserSettingsIni); }
+		return bShow;
+	}
+	void SetDiagnosticMode(bool bEnabled)
+	{
+		if (GConfig)
+		{
+			GConfig->SetBool(TEXT("Floor101.Diagnostics"), TEXT("DebugMode"), bEnabled, GGameUserSettingsIni);
+			GConfig->Flush(false, GGameUserSettingsIni);
+		}
+		LogFloor101.SetVerbosity(bEnabled ? ELogVerbosity::VeryVerbose : ELogVerbosity::Log);
+		UE_LOG(LogFloor101, Display, TEXT("F101: diagnostic mode %s"), bEnabled ? TEXT("enabled") : TEXT("disabled"));
+	}
+	void SetShowLogWindow(bool bShow, bool bApply)
+	{
+		if (GConfig)
+		{
+			GConfig->SetBool(TEXT("Floor101.Diagnostics"), TEXT("ShowLogWindow"), bShow, GGameUserSettingsIni);
+			GConfig->Flush(false, GGameUserSettingsIni);
+		}
+		if (bApply && GLogConsole) { GLogConsole->Show(bShow); }
+	}
+	void ApplySavedDiagnostics()
+	{
+		if (GIsEditor || IsRunningCommandlet()) { return; }
+		const bool bQuiet = FParse::Param(FCommandLine::Get(), TEXT("F101Quiet"));
+		const bool bDebug = !bQuiet && (DiagnosticMode() || FParse::Param(FCommandLine::Get(), TEXT("F101Debug")));
+		const bool bShow = !bQuiet && (ShowLogWindow() || FParse::Param(FCommandLine::Get(), TEXT("LOG")));
+		LogFloor101.SetVerbosity(bDebug ? ELogVerbosity::VeryVerbose : ELogVerbosity::Log);
+		if (GLogConsole) { GLogConsole->Show(bShow); }
+		UE_LOG(LogFloor101, Display, TEXT("F101: diagnostics=%s log window=%s; file logging remains enabled"), bDebug ? TEXT("on") : TEXT("off"), bShow ? TEXT("on") : TEXT("off"));
+	}
 	bool ShowGrid()
 	{
 		FString Review;

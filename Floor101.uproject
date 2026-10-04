@@ -5,6 +5,11 @@
 	"Description": "101st Floor - architectural CAD with real-time rendering",
 	"Modules": [
 		{
+			"Name": "Floor101Startup",
+			"Type": "Runtime",
+			"LoadingPhase": "PreLoadingScreen"
+		},
+		{
 			"Name": "Floor101",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

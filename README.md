@@ -70,3 +70,5 @@ Poly Haven. Sus binarios van por Git LFS (`git lfs install` antes de clonar).
 - [docs/camera-navigation.md](docs/camera-navigation.md) — WASD, mirada y acercamiento continuo con la rueda
 - [docs/wall-splitting.md](docs/wall-splitting.md) — tramos independientes al unir o cruzar paredes
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización
+
+Inicio con marca propia y registro opcional: [Inicio y diagnóstico](docs/startup.md).
