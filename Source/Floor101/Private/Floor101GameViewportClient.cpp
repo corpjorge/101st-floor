@@ -219,7 +219,7 @@ void UFloor101GameViewportClient::TickNavigation(float DeltaTime)
 {
 	const FModifierKeysState Modifiers = FSlateApplication::IsInitialized()
 		? FSlateApplication::Get().GetModifierKeys() : FModifierKeysState();
-	if (!CanNavigate() || !GetEditingTarget() || (!bNavigationMode && !bOrbiting)
+	if (!CanNavigate() || !GetEditingTarget() || StudioTextEntryFocused()
 		|| Modifiers.IsControlDown() || Modifiers.IsAltDown() || Modifiers.IsCommandDown())
 	{
 		NavigationKeys.Reset();
@@ -286,7 +286,7 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		? FSlateApplication::Get().GetModifierKeys() : FModifierKeysState();
 	const bool bShortcut = IsShortcutModifier(Key) || Modifiers.IsControlDown() || Modifiers.IsAltDown() || Modifiers.IsCommandDown();
 	UFloor101DocumentSubsystem* Document = GetEditingTarget();
-	if (NavigationKeys.HandleKey(Key, Event, Document && CanNavigate() && (bNavigationMode || bOrbiting), bShortcut))
+	if (NavigationKeys.HandleKey(Key, Event, Document && CanNavigate(), bShortcut))
 	{
 		bRightNavigationUsed |= bOrbiting && bDown;
 		return true;
@@ -331,10 +331,6 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		else if (Event == IE_Released && bOrbiting)
 		{
 			bOrbiting = false;
-			if (!bNavigationMode)
-			{
-				NavigationKeys.Reset();
-			}
 			if (!bNavigationMode && !bRightNavigationUsed && RightDragPixels <= CancelClickMaxPixels)
 			{
 				(void)Document->Edit([](EditController& Editor) { Editor.cancel(); return f101::Status::success(); });
@@ -398,7 +394,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 		}
 		return EFloor101KeyCommand::None; // Ctrl+W is not W
 	}
-	if (bNavigating && FFloor101NavigationKeys::IsMovementKey(Key))
+	if (FFloor101NavigationKeys::IsMovementKey(Key))
 	{
 		return EFloor101KeyCommand::NavigationMove;
 	}
@@ -410,12 +406,12 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	{
 		return EFloor101KeyCommand::None;
 	}
-	if (Key == EKeys::W) { return EFloor101KeyCommand::WallTool; }
+	if (Key == EKeys::B) { return EFloor101KeyCommand::WallTool; }
 	if (Key == EKeys::V) { return EFloor101KeyCommand::SelectTool; }
 	if (Key == EKeys::P) { return EFloor101KeyCommand::DoorTool; }
 	if (Key == EKeys::O) { return EFloor101KeyCommand::WindowTool; }
 	if (Key == EKeys::M) { return EFloor101KeyCommand::PaintTool; }
-	if (Key == EKeys::A) { return EFloor101KeyCommand::FurnitureTool; }
+	if (Key == EKeys::G) { return EFloor101KeyCommand::FurnitureTool; }
 	if (Key == EKeys::C) { return EFloor101KeyCommand::ColumnTool; }
 	if (Key == EKeys::I) { return EFloor101KeyCommand::ServicesTool; }
 	if (Key == EKeys::X) { return EFloor101KeyCommand::ServicesLayer; }
@@ -462,7 +458,8 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 	{
 		return true;
 	}
-	if (bNavigationMode && !bPhotoMode && (Command == EFloor101KeyCommand::SelectTool || Command == EFloor101KeyCommand::DoorTool
+	if (bNavigationMode && !bPhotoMode && (Command == EFloor101KeyCommand::SelectTool || Command == EFloor101KeyCommand::WallTool
+		|| Command == EFloor101KeyCommand::FurnitureTool || Command == EFloor101KeyCommand::DoorTool
 		|| Command == EFloor101KeyCommand::WindowTool || Command == EFloor101KeyCommand::PaintTool
 		|| Command == EFloor101KeyCommand::ColumnTool || Command == EFloor101KeyCommand::ServicesTool))
 	{
@@ -543,7 +540,7 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 bool UFloor101GameViewportClient::InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character)
 {
 	if (bInterfaceOpen || StudioTextEntryFocused()) { return true; }
-	if (bNavigationMode || bOrbiting)
+	if (bNavigationMode || bOrbiting || FFloor101NavigationKeys::IsMovementCharacter(Character))
 	{
 		return true;
 	}

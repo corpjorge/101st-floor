@@ -5,6 +5,12 @@ bool FFloor101NavigationKeys::IsMovementKey(const FKey& Key)
 	return Key == EKeys::W || Key == EKeys::A || Key == EKeys::S || Key == EKeys::D || Key == EKeys::Q || Key == EKeys::E;
 }
 
+bool FFloor101NavigationKeys::IsMovementCharacter(TCHAR Character)
+{
+	const TCHAR Upper = FChar::ToUpper(Character);
+	return Upper == TEXT('W') || Upper == TEXT('A') || Upper == TEXT('S') || Upper == TEXT('D') || Upper == TEXT('Q') || Upper == TEXT('E');
+}
+
 bool FFloor101NavigationKeys::HandleKey(const FKey& Key, EInputEvent Event, bool bNavigationActive, bool bShortcutModifier)
 {
 	if (bShortcutModifier)

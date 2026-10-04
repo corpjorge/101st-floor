@@ -10,11 +10,9 @@ namespace Floor101::Preferences
 		FString Review;
 		if (FParse::Value(FCommandLine::Get(), TEXT("F101UICapture="), Review))
 		{
-			FString Screen;
-			FParse::Value(FCommandLine::Get(), TEXT("F101UIScreen="), Screen);
-			return Screen == TEXT("grid"); // reproducible review; never changes the user's saved preference
+			return true; // reproducible review; never changes the user's saved preference
 		}
-		bool bShow = false;
+		bool bShow = true;
 		if (GConfig) { GConfig->GetBool(TEXT("Floor101.Interface"), TEXT("ShowGrid"), bShow, GGameUserSettingsIni); }
 		return bShow;
 	}

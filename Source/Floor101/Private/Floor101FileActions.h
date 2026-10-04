@@ -20,6 +20,10 @@ struct FFloor101FileActions
 	// Clean documents close immediately. Dirty documents offer save, discard or cancel; a cancelled/failed save stays open.
 	static bool PrepareExit(UFloor101DocumentSubsystem& Document, TFunctionRef<EAppReturnType::Type()> Prompt,
 		TFunctionRef<void()> SaveDocument);
+	// Destination selection precedes export; cancelling never writes a file.
+	static void ExportPlan(UFloor101DocumentSubsystem& Document, const FString& Extension);
+	static bool ExportPlanToChosenPath(UFloor101DocumentSubsystem& Document, const FString& Extension,
+		TFunctionRef<bool(const FString&, FString&)> ChoosePath);
 	// Asks where to write the .glb for Twinmotion (the last folder used for it, else next to the project).
 	static void ExportTwinmotion(UFloor101DocumentSubsystem& Document);
 

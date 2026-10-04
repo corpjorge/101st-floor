@@ -9,6 +9,11 @@
 #include "Floor101DocumentSubsystem.h"
 #include "F101/Cad/Document.h"
 #include "HAL/FileManager.h"
+#include "Floor101StudioEnvironment.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "DynamicRHI.h"
 #include "HAL/IConsoleManager.h"
 #include "InputCoreTypes.h"
 #include "Misc/ScopeExit.h"
@@ -233,6 +238,107 @@ bool FFloor101UnsavedSaveTest::RunTest(const FString& Parameters)
 	// The asynchronous callback must also survive removal of the surface without executing.
 	Client->UnsavedPrompt.Unbind();
 	TestFalse(TEXT("missing UI refuses an unsaved action"), Client->RequestUnsavedAction(true, FSimpleDelegate()));
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanDestinationTest, "Floor101.Interface.PlanDestination",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFloor101PlanDestinationTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("Floor101PlanDestinationWorld"));
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	const FString Folder = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101PlanDestination"), FGuid::NewGuid().ToString());
+	FString OriginalFolder;
+	const bool bHadFolder = GConfig->GetString(TEXT("Floor101.Paths"), TEXT("LastPlanFolder"), OriginalFolder, GGameUserSettingsIni);
+	ON_SCOPE_EXIT
+	{
+		IFileManager::Get().DeleteDirectory(*Folder, false, true);
+		if (bHadFolder) { GConfig->SetString(TEXT("Floor101.Paths"), TEXT("LastPlanFolder"), *OriginalFolder, GGameUserSettingsIni); }
+		else { GConfig->RemoveKey(TEXT("Floor101.Paths"), TEXT("LastPlanFolder"), GGameUserSettingsIni); }
+		GConfig->Flush(false, GGameUserSettingsIni);
+		GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
+	};
+	auto* D = World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), D)) { return false; }
+	(void)D->GetMutableDocument().addWall({0, 0}, {3000, 0}, 120, 2800);
+	IFileManager::Get().MakeDirectory(*Folder, true);
+	GConfig->RemoveKey(TEXT("Floor101.Paths"), TEXT("LastPlanFolder"), GGameUserSettingsIni);
+	TestFalse(TEXT("cancel does not export"), FFloor101FileActions::ExportPlanToChosenPath(*D, TEXT("svg"),
+		[this, D](const FString& Proposed, FString& Path)
+		{
+			TestEqual(TEXT("suggestion follows current level/project"), Proposed, D->GetDefaultPlanPath(TEXT("svg")));
+			return false;
+		}));
+	for (const FString Extension : {FString(TEXT("svg")), FString(TEXT("png"))})
+	{
+		const FString Chosen = FPaths::Combine(Folder, TEXT("mi-plano.") + Extension);
+		const bool bNeedsRenderer = Extension == TEXT("png") && GUsingNullRHI;
+		if (bNeedsRenderer) { AddExpectedMessagePlain(TEXT("F101: Exporting a PNG needs a renderer"), ELogVerbosity::Warning); }
+		const bool bExported = FFloor101FileActions::ExportPlanToChosenPath(*D, Extension,
+			[Chosen](const FString& Proposed, FString& Path) { Path = Chosen; return true; });
+		TestEqual(TEXT("chosen export obeys renderer availability"), bExported, !bNeedsRenderer);
+		TestEqual(TEXT("chosen file exists only after successful export"), IFileManager::Get().FileExists(*Chosen), !bNeedsRenderer);
+	}
+	TestFalse(TEXT("cancel after export does not write another file"), FFloor101FileActions::ExportPlanToChosenPath(*D, TEXT("svg"),
+		[this, Folder](const FString& Proposed, FString& Path)
+		{
+			TestEqual(TEXT("next export starts in chosen folder"), FPaths::GetPath(Proposed), FPaths::ConvertRelativePathToFull(Folder));
+			return false;
+		}));
+	TArray<FString> Files;
+	IFileManager::Get().FindFiles(Files, *(Folder / TEXT("*")), true, false);
+	TestEqual(TEXT("cancel has no file side effects"), Files.Num(), GUsingNullRHI ? 1 : 2);
+	TestTrue(TEXT("export preserves unsaved CAD work"), D->HasUnsavedChanges());
+	TestEqual(TEXT("export preserves geometry"), D->GetDocument().project().walls.size(), std::size_t{1});
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FloorGridTest, "Floor101.Interface.FloorGrid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFloor101FloorGridTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("Floor101FloorGridWorld"));
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	bool bOriginal = false;
+	const bool bHadGrid = GConfig->GetBool(TEXT("Floor101.Interface"), TEXT("ShowGrid"), bOriginal, GGameUserSettingsIni);
+	ON_SCOPE_EXIT
+	{
+		if (bHadGrid) { GConfig->SetBool(TEXT("Floor101.Interface"), TEXT("ShowGrid"), bOriginal, GGameUserSettingsIni); }
+		else { GConfig->RemoveKey(TEXT("Floor101.Interface"), TEXT("ShowGrid"), GGameUserSettingsIni); }
+		GConfig->Flush(false, GGameUserSettingsIni);
+		GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
+	};
+	GConfig->RemoveKey(TEXT("Floor101.Interface"), TEXT("ShowGrid"), GGameUserSettingsIni);
+	TestTrue(TEXT("ground grid is visible by default"), Floor101::Preferences::ShowGrid());
+	auto* D = World->GetSubsystem<UFloor101DocumentSubsystem>();
+	auto* Floor = World->SpawnActor<AStaticMeshActor>();
+	auto* Mesh = Floor->GetStaticMeshComponent();
+	Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/MapTemplates/SM_Template_Map_Floor.SM_Template_Map_Floor")));
+	UMaterialInterface* Original = Mesh->GetMaterial(0);
+	if (!TestNotNull(TEXT("original template grid material"), Original)) { return false; }
+	auto* Environment = World->SpawnActor<AFloor101StudioEnvironment>();
+	D->SetConstructionAidsVisible(true);
+	Environment->Tick(0.016f);
+	TestTrue(TEXT("design keeps original grid across the floor"), Mesh->GetMaterial(0) == Original);
+	Floor101::Preferences::SetShowGrid(false);
+	Environment->Tick(0.016f);
+	UMaterialInterface* Neutral = Mesh->GetMaterial(0);
+	TestTrue(TEXT("grid can be hidden"), Neutral && Neutral != Original);
+	Floor101::Preferences::SetShowGrid(true);
+	D->SetConstructionAidsVisible(false);
+	Environment->Tick(0.016f);
+	TestTrue(TEXT("walk/photo retain neutral floor"), Mesh->GetMaterial(0) == Neutral);
+	D->SetConstructionAidsVisible(true);
+	Environment->Tick(0.016f);
+	TestTrue(TEXT("returning to design restores grid"), Mesh->GetMaterial(0) == Original);
+	(void)D->Edit([](f101::cad::EditController& E) { E.setShowServices(true); return f101::Status::success(); });
+	UMaterialInterface* Ghosted = Mesh->GetMaterial(0);
+	TestTrue(TEXT("services layer ghosts the ground"), Ghosted && Ghosted != Original && Ghosted != Neutral);
+	Environment->Tick(0.016f);
+	TestTrue(TEXT("grid refresh preserves services transparency"), Mesh->GetMaterial(0) == Ghosted);
+	(void)D->Edit([](f101::cad::EditController& E) { E.setShowServices(false); return f101::Status::success(); });
+	Environment->Tick(0.016f);
+	TestTrue(TEXT("leaving services restores the grid"), Mesh->GetMaterial(0) == Original);
+	TestTrue(TEXT("presentation never adds CAD geometry"), D->GetDocument().project().walls.empty());
 	return true;
 }
 #endif

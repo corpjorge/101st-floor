@@ -435,19 +435,6 @@ bool SFloor101Overlay::IsDesignMode() const
 	return !IsPhotoMode() && !(Client && Client->IsNavigationMode());
 }
 
-TSharedRef<SWidget> SFloor101Overlay::MakeFullscreenButton()
-{
-	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false)
-		.ToolTipText(LOCTEXT("StudioFullscreenTip", "Pantalla completa dedicada a resolución nativa (F11)"))
-		.OnClicked_Lambda([this]()
-		{
-			Floor101::Display::ToggleFullscreen(ViewportClient.Get());
-			FSlateApplication::Get().SetAllUserFocusToGameViewport();
-			return FReply::Handled();
-		})
-		[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text(LOCTEXT("StudioFullscreen", "Pantalla completa"))];
-}
-
 TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 {
 	auto Button = [](const FText& Text, FOnClicked Click, TAttribute<bool> Enabled = true)
@@ -505,7 +492,6 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		if (auto* S = Document.Get()) { FFloor101FileActions::Save(*S); }
 		return FReply::Handled();
 	}))];
-	Header->AddSlot()[MakeFullscreenButton()];
 	Header->AddSlot()[MakeExitButton()];
 
 	TSharedRef<SWrapBox> Views = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0));
@@ -513,7 +499,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 	Views->AddSlot()[MakeViewMenu()];
 	Views->AddSlot()
 	[
-		SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f)).OnGetMenuContent_Lambda([this]() { return Panel(MakeLevelRow()); })
+		SAssignNew(LevelMenu, SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f)).OnGetMenuContent_Lambda([this]() { return Panel(MakeLevelRow()); })
 		.ButtonContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10)).Text_Lambda([this]()
 		{
 			const auto* S = Document.Get();
@@ -549,12 +535,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolRail()
 	TSharedRef<SVerticalBox> Tools = SNew(SVerticalBox);
 	const TPair<EditMode, FText> Modes[] = {
 		{EditMode::Select, LOCTEXT("StudioSelect", "Seleccionar · V")},
-		{EditMode::Wall, LOCTEXT("StudioWall", "Pared · W")},
+		{EditMode::Wall, LOCTEXT("StudioWall", "Pared · B")},
 		{EditMode::Door, LOCTEXT("StudioDoor", "Puerta · P")},
 		{EditMode::Window, LOCTEXT("StudioWindow", "Ventana · O")},
 		{EditMode::Column, LOCTEXT("StudioColumn", "Columna · C")},
 		{EditMode::Services, LOCTEXT("StudioServices", "Instalaciones · I")},
-		{EditMode::Furniture, LOCTEXT("StudioFurniture", "Muebles · A")},
+		{EditMode::Furniture, LOCTEXT("StudioFurniture", "Muebles · G")},
 		{EditMode::Paint, LOCTEXT("StudioPaint", "Materiales · M")}
 	};
 	for (const auto& Entry : Modes)
@@ -621,7 +607,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
 				if (auto* C = ViewportClient.Get()) { C->FrameProject(); }
 				FSlateApplication::Get().SetAllUserFocusToGameViewport();
 			})));
-			Menu.AddMenuEntry(LOCTEXT("StudioGrid", "Rejilla de referencia · 1 m"), FText::GetEmpty(), FSlateIcon(), FUIAction(
+			Menu.AddMenuEntry(LOCTEXT("StudioGrid", "Cuadrícula del suelo"), FText::GetEmpty(), FSlateIcon(), FUIAction(
 				FExecuteAction::CreateLambda([]() { Floor101::Preferences::SetShowGrid(!Floor101::Preferences::ShowGrid()); }), FCanExecuteAction(),
 				FIsActionChecked::CreateLambda([]() { return Floor101::Preferences::ShowGrid(); })), NAME_None, EUserInterfaceActionType::ToggleButton);
 			Menu.AddMenuEntry(LOCTEXT("StudioTop", "Vista superior (T)"), FText::GetEmpty(), FSlateIcon(), FUIAction(FExecuteAction::CreateLambda([this]()
@@ -736,7 +722,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
 							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
-								"Recorrer: N · Moverse: WASD · Subir/bajar: E/Q · Acelerar: Shift\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: W · Puerta: P · Ventana: O\nMateriales: M · Muebles: A · Columna: C · Instalaciones: I\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
+								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
@@ -765,6 +751,7 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		Run([Id](EditController& E) { return E.select(Id); });
 	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
+	if (Screen == TEXT("levels") && LevelMenu) { LevelMenu->SetIsOpen(true); }
 	if (UFloor101GameViewportClient* Client = ViewportClient.Get())
 	{
 		if (Screen == TEXT("walk")) { Client->SetNavigationMode(true); }
@@ -870,14 +857,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakePlanExportButton(const FString& Extens
 		.ToolTipText_Lambda([this, Extension]()
 		{
 			const UFloor101DocumentSubsystem* S = Document.Get();
-			return FText::Format(LOCTEXT("ExportPlanTip", "Exporta el plano de esta planta a {0}"),
+			return FText::Format(LOCTEXT("ExportPlanTip", "Elige dónde guardar el plano de esta planta. Nombre propuesto: {0}"),
 				S ? FText::FromString(S->GetDefaultPlanPath(Extension)) : FText::GetEmpty());
 		})
 		.OnClicked_Lambda([this, Extension]()
 		{
 			if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
 			{
-				(void)Subsystem->ExportPlan(Subsystem->GetDefaultPlanPath(Extension), f101::cad::LevelId());
+				FFloor101FileActions::ExportPlan(*Subsystem, Extension);
 			}
 			FSlateApplication::Get().SetAllUserFocusToGameViewport();
 			return FReply::Handled();
@@ -889,89 +876,56 @@ TSharedRef<SWidget> SFloor101Overlay::MakePlanExportButton(const FString& Extens
 
 TSharedRef<SWidget> SFloor101Overlay::MakeLevelRow()
 {
-	auto LevelButton = [](const FText& Label, const FText& ToolTip, TAttribute<bool> Enabled, FOnClicked OnClicked)
+	auto LevelButton = [](const FText& Label, const FText& Tip, TAttribute<bool> Enabled, FOnClicked Click)
 	{
-		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-			.IsFocusable(false)
-			.ToolTipText(ToolTip)
-			.IsEnabled(Enabled)
-			.OnClicked(OnClicked)
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(10))
-			];
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(12.0f, 10.0f))
+			.HAlign(HAlign_Center).VAlign(VAlign_Center).IsFocusable(false).ToolTipText(Tip).IsEnabled(Enabled).OnClicked(Click)
+			[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(12))];
 	};
 	auto ActiveIndex = [this]() -> std::size_t
 	{
-		const UFloor101DocumentSubsystem* S = Document.Get();
+		const auto* S = Document.Get();
 		return S ? S->GetDocument().project().levelIndex(S->GetEditController().activeLevel()).value_or(0) : 0;
 	};
 	auto LevelCount = [this]() -> std::size_t
 	{
-		const UFloor101DocumentSubsystem* S = Document.Get();
+		const auto* S = Document.Get();
 		return S ? S->GetDocument().project().levels.size() : 0;
 	};
-
-	return SNew(SWrapBox).UseAllottedSize(true)
-		+ SWrapBox::Slot().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
-		[
-			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("LevelLabel", "Planta")).Font(Font(10))
-		]
-		+ SWrapBox::Slot().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 8.0f, 0.0f)
-		[
-			SNew(SBox)
-			.MinDesiredWidth(170.0f)
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
-				.Font(Font(10, true))
+	return SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Clamp(ViewSize.X - 40.0, 180.0, 320.0))); })
+		[SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().Padding(4.0f, 2.0f)
+			[SNew(STextBlock).ColorAndOpacity(MutedColor).Text(LOCTEXT("LevelLabel", "Planta")).Font(Font(12))]
+			+ SVerticalBox::Slot().AutoHeight().Padding(4.0f, 6.0f, 4.0f, 16.0f)
+			[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(14, true)).AutoWrapText(true)
 				.Text_Lambda([this]()
 				{
-					const UFloor101DocumentSubsystem* S = Document.Get();
-					if (!S)
-					{
-						return FText::GetEmpty();
-					}
-					const f101::cad::Project& Project = S->GetDocument().project();
-					const f101::cad::LevelId Level = S->GetEditController().activeLevel();
-					return FText::Format(LOCTEXT("ActiveLevel", "{0}  ({1})"), LevelName(Project, Level),
-						ElevationText(f101::cad::levelElevationMm(Project, Level)));
-				})
+					const auto* S = Document.Get();
+					if (!S) { return FText::GetEmpty(); }
+					const auto& Project = S->GetDocument().project();
+					const auto Level = S->GetEditController().activeLevel();
+					return FText::Format(LOCTEXT("ActiveLevel", "{0}  ({1})"), LevelName(Project, Level), ElevationText(f101::cad::levelElevationMm(Project, Level)));
+				})]
+			+ SVerticalBox::Slot().AutoHeight()
+			[SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+				[LevelButton(LOCTEXT("LevelUp", "▲ Subir"), LOCTEXT("LevelUpTip", "Editar la planta de arriba (RePág)"),
+					TAttribute<bool>::CreateLambda([ActiveIndex, LevelCount]() { return ActiveIndex() + 1 < LevelCount(); }),
+					FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.levelUp(); }); }))]
+				+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(6.0f, 0.0f, 0.0f, 0.0f)
+				[LevelButton(LOCTEXT("LevelDown", "▼ Bajar"), LOCTEXT("LevelDownTip", "Editar la planta de abajo (AvPág)"),
+					TAttribute<bool>::CreateLambda([ActiveIndex]() { return ActiveIndex() > 0; }),
+					FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.levelDown(); }); }))]
 			]
-		]
-		+ SWrapBox::Slot().Padding(2.0f, 0.0f)
-		[
-			LevelButton(LOCTEXT("LevelUp", "▲ Subir"), LOCTEXT("LevelUpTip", "Editar la planta de arriba (RePág)"),
-				TAttribute<bool>::CreateLambda([ActiveIndex, LevelCount]() { return ActiveIndex() + 1 < LevelCount(); }),
-				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.levelUp(); }); }))
-		]
-		+ SWrapBox::Slot().Padding(2.0f, 0.0f)
-		[
-			LevelButton(LOCTEXT("LevelDown", "▼ Bajar"), LOCTEXT("LevelDownTip", "Editar la planta de abajo (AvPág)"),
-				TAttribute<bool>::CreateLambda([ActiveIndex]() { return ActiveIndex() > 0; }),
-				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.levelDown(); }); }))
-		]
-		+ SWrapBox::Slot().Padding(2.0f, 0.0f)
-		[
-			LevelButton(LOCTEXT("AddLevel", "+ Nueva planta"),
-				LOCTEXT("AddLevelTip", "Añade una planta encima de todas, igual que la de arriba, y pasa a editarla"), true,
-				FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.addLevel(); }); }))
-		]
-		+ SWrapBox::Slot().Padding(8.0f, 0.0f, 2.0f, 0.0f)
-		[
-			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-			.IsFocusable(false)
-			.ToolTipText(LOCTEXT("AllLevelsTip", "Muestra todas las plantas con sus forjados; si no, solo la que editas y, atenuadas, las de abajo (L)"))
-			.ButtonColorAndOpacity_Lambda([this]()
-			{
-				const UFloor101DocumentSubsystem* S = Document.Get();
-				return S && S->GetEditController().showsAllLevels() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
-			})
-			.OnClicked_Lambda([this]()
-			{
-				return Run([](EditController& Editor) { Editor.setShowAllLevels(!Editor.showsAllLevels()); return f101::Status::success(); });
-			})
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("AllLevels", "Ver todas (L)")).Font(Font(10))
-			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f, 0.0f, 0.0f)
+			[LevelButton(LOCTEXT("AddLevel", "+ Nueva planta"), LOCTEXT("AddLevelTip", "Añade una planta encima y pasa a editarla"), true,
+				FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.addLevel(); }); }))]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f, 0.0f, 0.0f)
+			[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(12.0f, 10.0f)).HAlign(HAlign_Center).VAlign(VAlign_Center).IsFocusable(false)
+				.ToolTipText(LOCTEXT("AllLevelsTip", "Muestra todas las plantas con sus forjados (L)"))
+				.ForegroundColor_Lambda([this]() { const auto* D = Document.Get(); return FSlateColor(D && D->GetEditController().showsAllLevels() ? ActiveButtonColor : Floor101::Studio::Color(TEXT("EEF0EC"))); })
+				.OnClicked_Lambda([this]() { return Run([](EditController& E) { E.setShowAllLevels(!E.showsAllLevels()); return f101::Status::success(); }); })
+				[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("AllLevels", "Ver todas (L)")).Font(Font(12))]]
 		];
 }
 
@@ -1557,9 +1511,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeExitButton()
 {
-	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
+	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).HAlign(HAlign_Center).VAlign(VAlign_Center)
 		.IsFocusable(false)
-		.ContentPadding(FMargin(16.0f, 6.0f))
+		.ContentPadding(FMargin(16.0f, 10.0f))
 		.ToolTipText(LOCTEXT("ExitTip", "Cierra 101st Floor. Si hay cambios sin guardar, permite guardarlos, descartarlos o cancelar."))
 		.OnClicked_Lambda([this]()
 		{
@@ -1567,7 +1521,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeExitButton()
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Exit", "Salir")).Font(Font(10, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Exit", "Salir")).Font(Font(12, true))
 		];
 }
 
@@ -1638,7 +1592,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 {
 	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
-		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; arrastrar con botón derecho: mirar. También puedes usar derecho + WASD al editar."))
+		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; arrastrar con botón derecho: mirar. WASD funciona también al diseñar, sin activar N."))
 		.ButtonColorAndOpacity_Lambda([this]()
 		{
 			const UFloor101GameViewportClient* Client = ViewportClient.Get();
@@ -1658,7 +1612,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 			.Text_Lambda([this]()
 			{
 				const UFloor101GameViewportClient* Client = ViewportClient.Get();
-				return Client && Client->IsNavigationMode() ? LOCTEXT("NavigationOff", "Volver a editar (N)") : LOCTEXT("NavigationOn", "Navegar (N · WASD)");
+				return Client && Client->IsNavigationMode() ? LOCTEXT("NavigationOff", "Volver a editar (N)") : LOCTEXT("NavigationOn", "Recorrer (N)");
 			})
 		];
 }
@@ -1672,7 +1626,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 		.OnClicked_Lambda([this]()
 		{
 			Floor101::Display::ToggleFullscreen(ViewportClient.Get());
-			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			RefreshModalInput();
 			return FReply::Handled();
 		})
 		[
@@ -3213,7 +3167,7 @@ FText SFloor101Overlay::GetHintText() const
 		return LOCTEXT("HintSelectedRun", "Seleccionar · arrastra la tubería para moverla o un asa para mover ese codo · tipo en el panel · Supr: eliminar");
 	}
 	return Editor.selection().isNil()
-		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco, mueble, pilar, instalación o habitación · W: muros · P: puertas · O: ventanas · M: pintar · A: amueblar · C: pilares · I: instalaciones · X: rayos X · Tab: plano 2D · RePág/AvPág: planta")
+		? LOCTEXT("HintSelect", "Seleccionar · clic: muro, hueco, mueble, pilar, instalación o habitación · B: muros · P: puertas · O: ventanas · M: pintar · G: amueblar · C: pilares · I: instalaciones · X: rayos X · Tab: plano 2D · RePág/AvPág: planta")
 		: LOCTEXT("HintSelected", "Seleccionar · arrastra un asa amarilla para mover la esquina · Supr: eliminar");
 }
 
@@ -3228,7 +3182,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
 					if (!IsDesignMode()) { return GetHintText(); }
 					const auto* S = Document.Get();
 					return S && S->GetEditController().mode() != EditMode::Select ? GetHintText()
-						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Navegar · N   |   Acercarse · Rueda");
+						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Moverse · WASD   |   Acercarse · Rueda");
 				})
 				.ToolTipText_Lambda([this]() { return GetHintText(); })]]
 		+ SWrapBox::Slot()

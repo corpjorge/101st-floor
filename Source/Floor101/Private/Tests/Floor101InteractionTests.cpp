@@ -90,12 +90,12 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	{
 		return UFloor101GameViewportClient::MapKey(Key, bControl, bShift, bRepeat);
 	};
-	TestTrue(TEXT("W: wall tool"), Map(EKeys::W) == Command::WallTool);
+	TestTrue(TEXT("B: wall tool"), Map(EKeys::B) == Command::WallTool);
 	TestTrue(TEXT("V: select"), Map(EKeys::V) == Command::SelectTool);
 	TestTrue(TEXT("P: door"), Map(EKeys::P) == Command::DoorTool);
 	TestTrue(TEXT("O: window"), Map(EKeys::O) == Command::WindowTool);
 	TestTrue(TEXT("M: paint"), Map(EKeys::M) == Command::PaintTool);
-	TestTrue(TEXT("A: furniture"), Map(EKeys::A) == Command::FurnitureTool);
+	TestTrue(TEXT("G: furniture"), Map(EKeys::G) == Command::FurnitureTool);
 	TestTrue(TEXT("C: column"), Map(EKeys::C) == Command::ColumnTool);
 	TestTrue(TEXT("I: services run"), Map(EKeys::I) == Command::ServicesTool);
 	TestTrue(TEXT("X: services layer"), Map(EKeys::X) == Command::ServicesLayer);
@@ -115,7 +115,8 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("R: photo"), Map(EKeys::R) == Command::PhotoMode);
 	TestTrue(TEXT("M typed in a length is text ('3.55 m')"),
 		UFloor101GameViewportClient::MapKey(EKeys::M, false, false, false, true) == Command::None);
-	TestTrue(TEXT("W still switches while typing"), UFloor101GameViewportClient::MapKey(EKeys::W, false, false, false, true) == Command::WallTool);
+	TestTrue(TEXT("B still switches while typing"), UFloor101GameViewportClient::MapKey(EKeys::B, false, false, false, true) == Command::WallTool);
+	TestTrue(TEXT("W moves without changing the wall tool while typing"), UFloor101GameViewportClient::MapKey(EKeys::W, false, false, false, true) == Command::NavigationMove);
 	TestTrue(TEXT("Backspace: backspace"), Map(EKeys::BackSpace) == Command::Backspace);
 	TestTrue(TEXT("Ctrl+Z: undo"), Map(EKeys::Z, true) == Command::Undo);
 	TestTrue(TEXT("Ctrl+Shift+Z: redo"), Map(EKeys::Z, true, true) == Command::Redo);

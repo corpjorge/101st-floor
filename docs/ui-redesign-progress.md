@@ -132,24 +132,59 @@ Log local: `Saved/RenderCheck/RenderCheck-20261003-234920.log`.
 ![Opciones pequeñas](images/ui-redesign/stage6-small-options.png)
 
 
-## Correcci�n � cambios sin guardar dentro del juego (2026-10-04)
+## Corrección — cambios sin guardar dentro del juego (2026-10-04)
 
 - Sustituido el cuadro nativo de Windows por un aviso Slate centrado sobre la
-  propia pantalla del juego. Mantiene el estilo Estudio y se ajusta al tama�o
+  propia pantalla del juego. Mantiene el estilo Estudio y se ajusta al tamaño
   disponible; Guardar, Descartar y Cancelar quedan accesibles en pantalla completa.
-- Nuevo, Abrir, recientes y Salir conservan su acci�n pendiente hasta resolver el
+- Nuevo, Abrir, recientes y Salir conservan su acción pendiente hasta resolver el
   aviso. Cancelar y Esc mantienen el documento; el guardado debe completarse antes
   de continuar. Un guardado fallido o cancelado mantiene disponibles las opciones.
-- La confirmaci�n tiene prioridad sobre Inicio/Opciones y bloquea edici�n y
-  movimiento detr�s del panel. Peticiones repetidas no sustituyen la acci�n ni
-  ejecutan dos veces la continuaci�n; al cerrar se restaura el men� correspondiente.
+- La confirmación tiene prioridad sobre Inicio/Opciones y bloquea edición y
+  movimiento detrás del panel. Peticiones repetidas no sustituyen la acción ni
+  ejecutan dos veces la continuación; al cerrar se restaura el menú correspondiente.
 
-Validaci�n: compilaci�n correcta, 275 pruebas unitarias y 76 de integraci�n,
-ning�n fallo. Dos nuevas regresiones ejercitan el overlay real, verifican que no
+Validación: compilación correcta, 275 pruebas unitarias y 76 de integración,
+ningún fallo. Dos nuevas regresiones ejercitan el overlay real, verifican que no
 se crea otra ventana, comprueban Cancelar/Esc, Descartar, guardado correcto,
-guardado fallido y recuperaci�n de entrada. Capturas reales del flujo de cambio
-con modificaciones, en pantalla completa a 2560 � 1440 y ventana de 800 � 600.
+guardado fallido y recuperación de entrada. Capturas reales del flujo de cambio
+con modificaciones, en pantalla completa a 2560 × 1440 y ventana de 800 × 600.
 Rama `codex/ui-redesign`, sin fusionar.
 
 ![Aviso en pantalla completa](images/ui-redesign/fix-unsaved-fullscreen.png)
-![Aviso en ventana peque�a](images/ui-redesign/fix-unsaved-small.png)
+![Aviso en ventana pequeña](images/ui-redesign/fix-unsaved-small.png)
+
+
+## Ajustes tras la revisión del usuario (2026-10-04)
+
+- Pantalla completa queda en Opciones → Pantalla; F11 continúa disponible en la
+  vista del proyecto. Se retira el botón duplicado de la barra superior.
+- Menú de plantas con encabezado, fila Subir/Bajar y botones Nueva planta/Ver
+  todas separados. Salir usa alineación horizontal/vertical centrada y tamaño
+  de texto consistente en la pantalla de inicio.
+- Documento → SVG/PNG permite elegir nombre y carpeta antes de escribir. La
+  carpeta elegida se recuerda; cancelar no exporta. Se conservan planta activa,
+  medidas y formatos. `Scripts/CheckPlanExport.ps1` verifica la ruta elegida
+  con el renderer real además de las comprobaciones sin GPU.
+- WASD/QE mueve la cámara en Diseñar, Recorrer y Foto sin activar N. Pared pasa
+  a B y Muebles a G; N solo cambia Diseñar/Recorrer. Menús, texto, consola,
+  modificadores y pérdida de foco mantienen la protección de entrada. Las teclas
+  de movimiento no se añaden a las medidas; m/cm/mm y Ctrl+S siguen funcionando.
+- Cuadrícula original restaurada en todo el suelo al diseñar, visible por defecto
+  y desactivable desde Vista. Recorrer/Foto mantienen la base neutra. La vista
+  de instalaciones conserva su suelo transparente; no se alteran acabados del
+  proyecto. Se evita superponer otra rejilla en la planta a cota cero.
+
+Validación: compilación correcta, 275 pruebas unitarias (13 035 comprobaciones)
+y 78 de integración sin fallos. Regresiones del nuevo mapa de teclas, elección y
+cancelación de destinos y transición entre cuadrícula, base neutra y suelo
+transparente. Exportación SVG/PNG con DX12 correcta
+(`Saved/Automation/PlanExportGPU-20261004-135122`); informe general
+`Saved/Automation/20261004-135651`. Capturas reales inspeccionadas a
+1920 × 1080 y 800 × 600. Rama sin fusionar.
+
+![Diseño con cuadrícula](images/ui-redesign/feedback-design-grid.png)
+![Menú de plantas a 800 × 600](images/ui-redesign/feedback-levels-small.png)
+![Inicio con Salir centrado](images/ui-redesign/feedback-home-small.png)
+![Pantalla completa en Opciones](images/ui-redesign/feedback-options-small.png)
+![Recorrer mantiene la base neutra](images/ui-redesign/feedback-walk.png)

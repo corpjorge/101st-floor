@@ -173,6 +173,31 @@ bool FFloor101FileActions::PrepareExit(UFloor101DocumentSubsystem& Document, TFu
 	return !Document.HasUnsavedChanges();
 }
 
+void FFloor101FileActions::ExportPlan(UFloor101DocumentSubsystem& Document, const FString& Extension)
+{
+	if (FSlateApplication::IsInitialized()) { FSlateApplication::Get().DismissAllMenus(); }
+	ExportPlanToChosenPath(Document, Extension, [&Extension](const FString& Proposed, FString& Path)
+	{
+		const FText Title = FText::Format(LOCTEXT("PlanSaveTitle", "Guardar plano {0}"), FText::FromString(Extension.ToUpper()));
+		return FFloor101FileDialog::SaveFile(Title, FString::Printf(TEXT("Plano %s (*.%s)"), *Extension.ToUpper(), *Extension),
+			TEXT("*.") + Extension, Extension, Proposed, Path);
+	});
+	GiveFocusBack();
+}
+
+bool FFloor101FileActions::ExportPlanToChosenPath(UFloor101DocumentSubsystem& Document, const FString& Extension,
+	TFunctionRef<bool(const FString&, FString&)> ChoosePath)
+{
+	if (Extension != TEXT("svg") && Extension != TEXT("png")) { return false; }
+	const FString Default = Document.GetDefaultPlanPath(Extension);
+	const FString Folder = ReadSetting(TEXT("LastPlanFolder"));
+	const FString Proposed = Folder.IsEmpty() ? Default : FPaths::Combine(Folder, FPaths::GetCleanFilename(Default));
+	FString Path;
+	if (!ChoosePath(Proposed, Path) || Path.IsEmpty() || !Document.ExportPlan(Path, f101::cad::LevelId())) { return false; }
+	WriteSetting(TEXT("LastPlanFolder"), FPaths::GetPath(FPaths::ConvertRelativePathToFull(Path)));
+	return true;
+}
+
 void FFloor101FileActions::ExportTwinmotion(UFloor101DocumentSubsystem& Document)
 {
 	// "<project name>.glb", in the last folder a .glb went to, else next to the project.

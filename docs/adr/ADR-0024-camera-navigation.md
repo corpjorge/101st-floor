@@ -29,3 +29,13 @@ general. Todo pertenece a `Floor101`; el documento CAD y sus formatos no cambian
 
 Unreal Automation comprueba zoom cercano/avance continuo, mirada, movimiento, diagonales, tiempo, plano 2D,
 conflictos de atajos, teclas mantenidas y pérdida de foco. Detalles: [navegación](../camera-navigation.md).
+
+
+## Actualización — navegación siempre disponible (2026-10-04)
+
+Por solicitud del usuario, WASD/QE mueve la cámara con foco en el viewport en
+Diseñar, Recorrer y Foto, sin activar N ni mantener el botón derecho. Pared pasa
+a B y Muebles a G. N conserva el cambio de presentación; los menús, campos de
+texto, consola y modificadores de atajos bloquean movimiento y reinician las
+teclas aceptadas. Los caracteres de movimiento no entran en las medidas del muro;
+los dígitos y m/cm/mm conservan la entrada exacta.

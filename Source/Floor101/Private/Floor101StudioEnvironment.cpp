@@ -30,6 +30,13 @@ void AFloor101StudioEnvironment::ConfigureTemplate()
 {
 	UFloor101FinishLibrary* Finishes = UFloor101FinishLibrary::Get();
 	UMaterialInterface* Base = Finishes ? Finishes->GetBaseMaterial() : nullptr;
+	if (Base)
+	{
+		auto* Neutral = UMaterialInstanceDynamic::Create(Base, this);
+		Neutral->SetVectorParameterValue(TEXT("Tint"), Floor101::Studio::Color(TEXT("DAD8D0")));
+		Neutral->SetScalarParameterValue(TEXT("Roughness"), 1.0f);
+		NeutralFloor = Neutral;
+	}
 	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
 	{
 		TArray<UStaticMeshComponent*> Components;
@@ -41,10 +48,10 @@ void AFloor101StudioEnvironment::ConfigureTemplate()
 			// Touch only the engine template assets, never a user's model or another map's ground.
 			if (Mesh->GetPathName() == TEXT("/Engine/MapTemplates/SM_Template_Map_Floor.SM_Template_Map_Floor") && Base)
 			{
-				auto* Neutral = UMaterialInstanceDynamic::Create(Base, this);
-				Neutral->SetVectorParameterValue(TEXT("Tint"), Floor101::Studio::Color(TEXT("DAD8D0")));
-				Neutral->SetScalarParameterValue(TEXT("Roughness"), 1.0f);
-				Component->SetMaterial(0, Neutral);
+				TemplateFloors.Add(Component);
+				// The document may already have ghosted the ground for the services layer.
+				UMaterialInterface* Original = Component->GetMaterial(0);
+				OriginalFloorMaterials.Add(Original == Finishes->GetGhostMaterial() ? Mesh->GetMaterial(0) : Original);
 				Component->SetCastShadow(false);
 			}
 
@@ -78,6 +85,14 @@ void AFloor101StudioEnvironment::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	if (!bConfigured) { ConfigureTemplate(); bConfigured = true; }
 	auto* Document = GetWorld()->GetSubsystem<UFloor101DocumentSubsystem>();
+	const bool bShowFloorGrid = Document && Document->AreConstructionAidsVisible() && Floor101::Preferences::ShowGrid();
+	for (int32 Index = 0; Index < TemplateFloors.Num(); ++Index)
+	{
+		auto* Component = TemplateFloors[Index].Get();
+		UMaterialInterface* Material = bShowFloorGrid ? OriginalFloorMaterials[Index].Get() : NeutralFloor.Get();
+		const bool bServices = Document && Document->GetEditController().showsServices();
+		if (!bServices && Component && Material && Component->GetMaterial(0) != Material) { Component->SetMaterial(0, Material); }
+	}
 	if (!Document || !Document->AreConstructionAidsVisible()) { return; }
 	if (Floor101::Preferences::ShowGrid())
 	{
@@ -86,7 +101,8 @@ void AFloor101StudioEnvironment::Tick(float DeltaSeconds)
 		const double Z = static_cast<double>(Elevation) * 0.1 + 0.2;
 		const FColor GridColor(150, 154, 149);
 		// 1 m presentation grid, independent of the controller's millimetre snapping grid.
-		for (int32 Coordinate = -2000; Coordinate <= 2000; Coordinate += 100)
+		// The template material supplies the base grid; avoid two competing patterns at ground level.
+		for (int32 Coordinate = -2000; (Elevation != 0 || TemplateFloors.IsEmpty()) && Coordinate <= 2000; Coordinate += 100)
 		{
 			DrawDebugLine(GetWorld(), FVector(Coordinate, -2000, Z), FVector(Coordinate, 2000, Z), GridColor, false, 0.0f, 0, 1.0f);
 			DrawDebugLine(GetWorld(), FVector(-2000, Coordinate, Z), FVector(2000, Coordinate, Z), GridColor, false, 0.0f, 0, 1.0f);

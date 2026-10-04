@@ -19,10 +19,23 @@ bool FFloor101NavigationKeyMapTest::RunTest(const FString& Parameters)
 	{
 		return UFloor101GameViewportClient::MapKey(Key, bControl, bShift, bRepeat, false, bNavigating);
 	};
-	TestTrue(TEXT("W remains the wall shortcut while editing"), Map(EKeys::W, false) == Command::WallTool);
-	TestTrue(TEXT("A remains the furniture shortcut while editing"), Map(EKeys::A, false) == Command::FurnitureTool);
-	TestTrue(TEXT("S does not move the camera while editing"), Map(EKeys::S, false) == Command::None);
-	TestTrue(TEXT("D does not move the camera while editing"), Map(EKeys::D, false) == Command::None);
+	for (bool bWalk : {false, true})
+	{
+		for (const FKey& Key : {EKeys::W, EKeys::A, EKeys::S, EKeys::D, EKeys::Q, EKeys::E})
+		{
+			TestTrue(TEXT("movement works in design and walk without N"), Map(Key, bWalk) == Command::NavigationMove);
+		}
+		TestTrue(TEXT("B selects walls"), Map(EKeys::B, bWalk) == Command::WallTool);
+		TestTrue(TEXT("G selects furniture"), Map(EKeys::G, bWalk) == Command::FurnitureTool);
+	}
+	for (TCHAR Character : {TEXT('w'), TEXT('a'), TEXT('s'), TEXT('d'), TEXT('q'), TEXT('e'), TEXT('W')})
+	{
+		TestTrue(TEXT("movement characters never append CAD dimensions"), FFloor101NavigationKeys::IsMovementCharacter(Character));
+	}
+	for (TCHAR Character : {TEXT('3'), TEXT('m'), TEXT('c'), TEXT('.'), TEXT(',')})
+	{
+		TestFalse(TEXT("exact dimension characters remain available"), FFloor101NavigationKeys::IsMovementCharacter(Character));
+	}
 	for (const FKey& Key : {EKeys::W, EKeys::A, EKeys::S, EKeys::D, EKeys::Q, EKeys::E})
 	{
 		TestTrue(*FString::Printf(TEXT("%s moves while navigating"), *Key.ToString()), Map(Key, true) == Command::NavigationMove);
@@ -110,9 +123,9 @@ bool FFloor101NavigationShortcutsTest::RunTest(const FString& Parameters)
 
 	Down.Add(EKeys::W);
 	Keys.HandleKey(EKeys::W, IE_Pressed, false, false);
-	Check(TEXT("editing key presses are not accepted for navigation"), FVector::ZeroVector);
+	Check(TEXT("presses without active camera input are not accepted"), FVector::ZeroVector);
 	Keys.HandleKey(EKeys::W, IE_Repeat, true, false);
-	Check(TEXT("entering navigation while W is held requires a fresh press"), FVector::ZeroVector);
+	Check(TEXT("restoring camera input while W is held requires a fresh press"), FVector::ZeroVector);
 	Keys.HandleKey(EKeys::W, IE_Released, false, false);
 	Keys.HandleKey(EKeys::W, IE_Pressed, true, false);
 	Check(TEXT("fresh navigation press is accepted"), FVector(1.0, 0.0, 0.0));

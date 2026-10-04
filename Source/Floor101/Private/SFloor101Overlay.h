@@ -65,11 +65,10 @@ private:
 	void CloseOptions();
 	bool bOptionsOpen = false;
 	int32 OptionsPage = 0;
-	TSharedRef<SWidget> MakeFullscreenButton();
 	bool IsDesignMode() const;
 	FVector2D ViewSize = FVector2D(1920.0, 1080.0);
 	TSharedRef<SWidget> MakeLevelRow();
-	// Exports the edited level's plan next to the project file (ADR-0015); Extension: "svg" or "png".
+	// Exports the edited level's plan after choosing its destination; Extension: "svg" or "png".
 	TSharedRef<SWidget> MakePlanExportButton(const FString& Extension);
 	// Name, height and slab of the active level, and a button to delete it.
 	TSharedRef<SWidget> MakeLevelSection();
@@ -179,6 +178,7 @@ private:
 	TWeakObjectPtr<UFloor101DocumentSubsystem> Document;
 	TWeakObjectPtr<UFloor101GameViewportClient> ViewportClient;
 	TSharedPtr<SComboButton> PropertiesMenu;
+	TSharedPtr<SComboButton> LevelMenu;
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
 	// Finish ids each surface allows, for the drop-downs (on the heap: SComboBox keeps a pointer to the list).
 	TMap<uint8, TSharedPtr<TArray<TSharedPtr<FString>>>> FinishOptions;

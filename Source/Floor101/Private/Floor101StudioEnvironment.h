@@ -5,6 +5,7 @@
 #include "Floor101StudioEnvironment.generated.h"
 
 class UMaterialInterface;
+class UStaticMeshComponent;
 
 // Transient presentation of the studio; never part of the CAD model or exports.
 UCLASS(Transient, NotPlaceable)
@@ -18,5 +19,9 @@ private:
 	void ConfigureTemplate();
 	bool bConfigured = false;
 	UPROPERTY()
-	TObjectPtr<UMaterialInterface> Backdrop;
+	TObjectPtr<UMaterialInterface> NeutralFloor;
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> TemplateFloors;
+	UPROPERTY()
+	TArray<TObjectPtr<UMaterialInterface>> OriginalFloorMaterials;
 };

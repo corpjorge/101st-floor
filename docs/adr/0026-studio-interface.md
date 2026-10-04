@@ -16,10 +16,11 @@ para impedir cambios detrás del menú. Los perfiles gráficos aplican únicamen
 escalabilidad, manteniendo Lumen, render nativo y preferencias independientes de
 HDR/VSync (ADR-0022/0023).
 
-El entorno es un actor transitorio: material neutro solo en el suelo de la
-plantilla, atmósfera acromática, luz suave y rejilla opcional de referencia de
-1 m. No altera el snapping del CAD ni se exporta. Recorrer y Foto ocultan las
-ayudas al compilar la vista sin modificar selección, dimensiones o historial.
+El entorno es un actor transitorio: cuadrícula original en todo el suelo de la
+plantilla al diseñar (visible por defecto y desactivable desde Vista), atmósfera
+acromática, luz suave y rejilla opcional de referencia de 1 m. Recorrer y Foto
+usan la base neutra; la capa de instalaciones conserva el suelo transparente.
+No altera el snapping del CAD ni se exporta. Recorrer y Foto ocultan las ayudas al compilar la vista sin modificar selección, dimensiones o historial.
 La selección conserva colores y texturas; sus contornos omiten diagonales
 coplanares de la triangulación. Las medidas contextuales derivan del modelo.
 
@@ -43,3 +44,9 @@ Dimensiones, selección, cortes de muros, acabados e historial permanecen en sus
 módulos existentes. Preferencias de interfaz son locales al equipo y no forman
 parte de `project.json`. Los assets y capturas se generan de forma reproducible;
 las capturas de revisión requieren un build de desarrollo.
+
+
+Pantalla completa reside en Opciones/Pantalla, con F11 disponible. El menú de
+plantas separa navegación, Nueva planta y Ver todas. Exportar SVG/PNG pide nombre
+y destino, recuerda la carpeta elegida y no escribe al cancelar. WASD siempre
+mueve la cámara; los atajos de paredes y muebles cambian a B/G (ADR-0024).

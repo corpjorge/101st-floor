@@ -47,7 +47,7 @@ enum class EFloor101KeyCommand : uint8
 	PlanView, // 2D plan on / off (ADR-0015)
 	PhotoMode, // path traced photo on / off (ADR-0018)
 	Fullscreen, // dedicated fullscreen at native monitor resolution (F11)
-	NavigationToggle, // N: WASD camera / editing shortcuts
+	NavigationToggle, // N: design / walk presentation
 	NavigationMove, // a held WASD/QE press, consumed before editing
 };
 
@@ -56,11 +56,11 @@ enum class EFloor101KeyCommand : uint8
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
 // Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
-// Keys: W wall, P door, O window, M paint, A furniture, C column, I services run, X services layer, V select, Enter, Esc,
+// Keys: B wall, P door, O window, M paint, G furniture, C column, I services run, X services layer, V select, Enter, Esc,
 // Backspace, Delete, F frame all, T top view,
 // Tab 2D plan, R photo, Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
 // Ctrl+S save, Ctrl+Shift+S save as, Ctrl+O open (the system's dialogs).
-// N: navigation mode; WASD forward/sideways, Q/E vertical, Shift fast, right drag looks from the camera. Also right+WASD.
+// WASD always moves with viewport focus; Q/E vertical, Shift fast. N only toggles design/walk presentation.
 // The camera follows the edited level: its focus moves up or down with the level's elevation.
 UCLASS()
 class FLOOR101_API UFloor101GameViewportClient : public UGameViewportClient
