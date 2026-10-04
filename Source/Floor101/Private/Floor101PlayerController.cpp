@@ -6,6 +6,7 @@
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101GameViewportClient.h"
 #include "SFloor101Overlay.h"
+#include "UiReviewCheck.h"
 
 AFloor101PlayerController::AFloor101PlayerController()
 {
@@ -34,6 +35,7 @@ void AFloor101PlayerController::BeginPlay()
 			.Document(GetWorld()->GetSubsystem<UFloor101DocumentSubsystem>())
 			.ViewportClient(Cast<UFloor101GameViewportClient>(Viewport));
 		Viewport->AddViewportWidgetContent(Overlay.ToSharedRef());
+		Floor101::UIReview::Start(StaticCastSharedRef<SFloor101Overlay>(Overlay.ToSharedRef()), Cast<UFloor101GameViewportClient>(Viewport));
 	}
 }
 

@@ -11,6 +11,7 @@ class UFloor101DocumentSubsystem;
 struct FSlateBrush;
 struct FFloor101RoomView;
 class UFloor101GameViewportClient;
+class SComboButton;
 
 // Editing UI drawn over the game viewport (ADR-0008): toolbar with the levels, properties of the selection (or of the
 // active level when nothing is selected), status bar and a label next to the cursor with the length being drawn or typed. It reads the document subsystem every frame and changes
@@ -24,12 +25,24 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	// Development-only command-line capture: exercises the actual Slate surface without changing user preferences.
+#if WITH_DEV_AUTOMATION_TESTS
+	void PrepareReview(const FString& Screen);
+#endif
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
 	using FSelectionSetter = f101::Status (f101::cad::EditController::*)(std::string_view);
 
 	TSharedRef<SWidget> MakeToolbar();
+	TSharedRef<SWidget> MakeToolRail();
+	TSharedRef<SWidget> MakeFileMenu();
+	TSharedRef<SWidget> MakeViewMenu();
+	TSharedRef<SWidget> MakeUtilityMenu();
+	TSharedRef<SWidget> MakeFullscreenButton();
+	bool IsDesignMode() const;
+	FVector2D ViewSize = FVector2D(1920.0, 1080.0);
+	TSharedPtr<SComboButton> OptionsButton;
 	TSharedRef<SWidget> MakeLevelRow();
 	// Exports the edited level's plan next to the project file (ADR-0015); Extension: "svg" or "png".
 	TSharedRef<SWidget> MakePlanExportButton(const FString& Extension);

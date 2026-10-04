@@ -1,9 +1,9 @@
 # 101st Floor — propuesta de interfaz
 
-Estado: **etapa 1, pendiente de revisión**. Rama: `codex/ui-redesign`.
+Estado: **Estudio aprobado; implementación en curso**. Rama: `codex/ui-redesign`.
 Esta propuesta no modifica la aplicación ni sus preferencias. Las imágenes son
-maquetas conceptuales, no capturas de Unreal. Las etapas 2–6 comenzarán después
-de revisar la propuesta con el usuario; no fusionar la rama sin su solicitud.
+maquetas conceptuales, no capturas de Unreal. El usuario aprobó Estudio el
+2026-10-03. No fusionar la rama sin su solicitud.
 
 ## Identidad: un estudio de arquitectura
 

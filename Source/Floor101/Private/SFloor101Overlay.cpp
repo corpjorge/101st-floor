@@ -268,84 +268,47 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 {
 	Document = InArgs._Document;
 	ViewportClient = InArgs._ViewportClient;
-
-	// Only the panels take the mouse; everything else lets clicks through to the viewport.
-	auto PlanShown = [this]()
-	{
-		const UFloor101DocumentSubsystem* S = Document.Get();
-		return S && S->IsPlanView();
-	};
+	auto PlanShown = [this]() { const auto* S = Document.Get(); return S && S->IsPlanView(); };
 	ChildSlot
 	[
-		SNew(SOverlay)
-		.Visibility(EVisibility::SelfHitTestInvisible)
+		SNew(SOverlay).Visibility(EVisibility::SelfHitTestInvisible)
 		+ SOverlay::Slot()
 		[
-			// The 2D plan (ADR-0015) covers the view (the 3D is not rendered meanwhile); input still reaches the viewport.
 			SNew(SFloor101PlanView)
 			.Visibility_Lambda([PlanShown]() { return PlanShown() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
-			.Drawing([this]() -> const f101::drawing::PlanDrawing*
-			{
-				const UFloor101DocumentSubsystem* S = Document.Get();
-				return S ? &S->GetPlanDrawing() : nullptr;
-			})
+			.Drawing([this]() -> const f101::drawing::PlanDrawing* { const auto* S = Document.Get(); return S ? &S->GetPlanDrawing() : nullptr; })
 			.Mapping([this](const FGeometry& Geometry) { return GetPlanMapping(Geometry); })
 		]
 		+ SOverlay::Slot()
 		[
-			SNew(SFloor101RoomLabels)
-			.Visibility_Lambda([this, PlanShown]() { return PlanShown() || IsPhotoMode() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
-			.Document(Document)
+			SNew(SFloor101RoomLabels).Document(Document)
+			.Visibility_Lambda([this, PlanShown]() { return PlanShown() || !IsDesignMode() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 		]
 		+ SOverlay::Slot()
 		[
-			SNew(SConstraintCanvas)
-			.Visibility_Lambda([this]() { return IsPhotoMode() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
-			+ SConstraintCanvas::Slot()
-			.Anchors(FAnchors(0.0f, 0.0f))
-			.AutoSize(true)
-			.Offset_Lambda([this]()
-			{
-				return FMargin(CursorPosition.X + CursorLabelOffset.X, CursorPosition.Y + CursorLabelOffset.Y, 0.0f, 0.0f);
-			})
+			SNew(SConstraintCanvas).Visibility_Lambda([this]() { return IsDesignMode() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+			+ SConstraintCanvas::Slot().Anchors(FAnchors(0.0f, 0.0f)).AutoSize(true)
+			.Offset_Lambda([this]() { return FMargin(CursorPosition.X + CursorLabelOffset.X, CursorPosition.Y + CursorLabelOffset.Y, 0.0f, 0.0f); })
+			[MakeCursorLabel()]
+		]
+		+ SOverlay::Slot()
+		[
+			SNew(SVerticalBox).Visibility(EVisibility::SelfHitTestInvisible)
+			+ SVerticalBox::Slot().AutoHeight()[MakeToolbar()]
+			+ SVerticalBox::Slot().FillHeight(1.0f)
 			[
-				MakeCursorLabel()
+				SNew(SHorizontalBox).Visibility(EVisibility::SelfHitTestInvisible)
+				+ SHorizontalBox::Slot().AutoWidth()[MakeToolRail()]
+				+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(SBox).Visibility(EVisibility::HitTestInvisible)]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					SNew(SScrollBox).Visibility_Lambda([this]() { return IsDesignMode() && ViewSize.X >= 950.0 ? EVisibility::Visible : EVisibility::Collapsed; })
+					+ SScrollBox::Slot()[MakePropertiesPanel()]
+				]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[SNew(SScrollBox).Visibility_Lambda([this]() { return IsPhotoMode() ? EVisibility::Visible : EVisibility::Collapsed; }) + SScrollBox::Slot()[MakePhotoPanel()]]
 			]
-		]
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Top)
-		.Padding(10.0f)
-		[
-			SNew(SBox)
-			.Visibility_Lambda([this]() { return IsPhotoMode() ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible; })
-			[
-				MakeToolbar()
-			]
-		]
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Top)
-		.Padding(FMargin(10.0f, 50.0f, 10.0f, 10.0f))
-		[
-			MakePropertiesPanel()
-		]
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Top)
-		.Padding(FMargin(10.0f, 50.0f, 10.0f, 10.0f))
-		[
-			MakePhotoPanel()
-		]
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Bottom)
-		[
-			MakeStatusBar()
-		]
-		+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Top).Padding(10.0f)
-		[
-			MakeExitButton()
+			+ SVerticalBox::Slot().AutoHeight()[MakeStatusBar()]
 		]
 	];
 }
@@ -385,6 +348,7 @@ TOptional<FFloor101PlanMapping> SFloor101Overlay::GetPlanMapping(const FGeometry
 void SFloor101Overlay::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	ViewSize = AllottedGeometry.GetLocalSize();
 	if (FSlateApplication::IsInitialized())
 	{
 		CursorPosition = AllottedGeometry.AbsoluteToLocal(FSlateApplication::Get().GetCursorPos());
@@ -433,319 +397,229 @@ const f101::cad::Wall* SFloor101Overlay::GetSelectedWall() const
 	return Selected.isNil() ? nullptr : Subsystem->GetDocument().project().findWall(Selected);
 }
 
+bool SFloor101Overlay::IsDesignMode() const
+{
+	const UFloor101GameViewportClient* Client = ViewportClient.Get();
+	return !IsPhotoMode() && !(Client && Client->IsNavigationMode());
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeFullscreenButton()
+{
+	return SNew(SButton).IsFocusable(false)
+		.ToolTipText(LOCTEXT("StudioFullscreenTip", "Pantalla completa dedicada a resolución nativa (F11)"))
+		.OnClicked_Lambda([this]()
+		{
+			Floor101::Display::ToggleFullscreen(ViewportClient.Get());
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			return FReply::Handled();
+		})
+		[SNew(STextBlock).Font(Font(10)).Text(LOCTEXT("StudioFullscreen", "Pantalla completa"))];
+}
+
 TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 {
-	auto ModeButton = [this](const FText& Label, const FText& ToolTip, EditMode Mode)
+	auto Button = [](const FText& Text, FOnClicked Click, TAttribute<bool> Enabled = true)
 	{
-		return SNew(SButton)
-			.IsFocusable(false)
-			.ToolTipText(ToolTip)
+		return SNew(SButton).IsFocusable(false).IsEnabled(Enabled).OnClicked(Click)
+			[SNew(STextBlock).Text(Text).Font(Font(10))];
+	};
+	auto Mode = [this, Button](const FText& Text, int32 Index)
+	{
+		return Button(Text, FOnClicked::CreateLambda([this, Index]()
+		{
+			if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+			{
+				Client->SetPhotoMode(Index == 2);
+				Client->SetNavigationMode(Index == 1);
+			}
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			return FReply::Handled();
+		}));
+	};
+	TSharedRef<SWrapBox> Header = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0));
+	Header->AddSlot().VAlign(VAlign_Center)
+	[
+		SNew(STextBlock).Text(LOCTEXT("StudioBrand", "101st FLOOR")).Font(Font(16, true))
+	];
+	Header->AddSlot().VAlign(VAlign_Center)
+	[
+		SNew(SBox).MaxDesiredWidth(230.0f)
+		[
+			SNew(STextBlock).Font(Font(10)).OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+			.Text_Lambda([this]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				const FString Name = S && !S->GetProjectPath().IsEmpty() ? FPaths::GetBaseFilename(S->GetProjectPath()) : TEXT("Nuevo proyecto");
+				return FText::FromString(Name + (S && S->HasUnsavedChanges() ? TEXT(" *") : TEXT("")));
+			})
+		]
+	];
+	Header->AddSlot()[Mode(LOCTEXT("StudioDesign", "Diseñar"), 0)];
+	Header->AddSlot()[Mode(LOCTEXT("StudioWalk", "Recorrer (N)"), 1)];
+	Header->AddSlot()[Mode(LOCTEXT("StudioPhoto", "Foto (R)"), 2)];
+	Header->AddSlot()[Button(LOCTEXT("StudioUndo", "Deshacer"), FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.undo(); }); }),
+		TAttribute<bool>::CreateLambda([this]() { const auto* S = Document.Get(); return S && S->GetDocument().canUndo(); }))];
+	Header->AddSlot()[Button(LOCTEXT("StudioRedo", "Rehacer"), FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.redo(); }); }),
+		TAttribute<bool>::CreateLambda([this]() { const auto* S = Document.Get(); return S && S->GetDocument().canRedo(); }))];
+	Header->AddSlot()[Button(LOCTEXT("StudioSave", "Guardar"), FOnClicked::CreateLambda([this]()
+	{
+		if (auto* S = Document.Get()) { FFloor101FileActions::Save(*S); }
+		return FReply::Handled();
+	}))];
+	Header->AddSlot()[MakeFullscreenButton()];
+	Header->AddSlot()[MakeExitButton()];
+
+	TSharedRef<SWrapBox> Views = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0));
+	Views->AddSlot()[MakeFileMenu()];
+	Views->AddSlot()[MakeViewMenu()];
+	Views->AddSlot()
+	[
+		SNew(SComboButton).OnGetMenuContent_Lambda([this]() { return Panel(MakeLevelRow()); })
+		.ButtonContent()[SNew(STextBlock).Font(Font(10)).Text_Lambda([this]()
+		{
+			const auto* S = Document.Get();
+			return S ? LevelName(S->GetDocument().project(), S->GetEditController().activeLevel()) : LOCTEXT("StudioLevel", "Plantas");
+		})]
+	];
+	Views->AddSlot()[MakeUtilityMenu()];
+	Views->AddSlot()
+	[
+		SNew(SComboButton).Visibility_Lambda([this]() { return ViewSize.X < 950.0 && IsDesignMode() ? EVisibility::Visible : EVisibility::Collapsed; })
+		.OnGetMenuContent_Lambda([this]()
+		{
+			return SNew(SBox).MaxDesiredHeight(static_cast<float>(FMath::Max(180.0, ViewSize.Y - 140.0)))
+				[SNew(SScrollBox) + SScrollBox::Slot()[MakePropertiesPanel()]];
+		})
+		.ButtonContent()[SNew(STextBlock).Font(Font(10)).Text(LOCTEXT("StudioProperties", "Propiedades"))]
+	];
+	Views->AddSlot()
+	[
+		SNew(SBox).Visibility_Lambda([this]()
+		{
+			const auto* Client = ViewportClient.Get();
+			return Client && Client->IsNavigationMode() ? EVisibility::Visible : EVisibility::Collapsed;
+		})[MakeNavigationSpeed()]
+	];
+	return Panel(SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()[Header]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)[Views]);
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeToolRail()
+{
+	TSharedRef<SVerticalBox> Tools = SNew(SVerticalBox);
+	const TPair<EditMode, FText> Modes[] = {
+		{EditMode::Select, LOCTEXT("StudioSelect", "Seleccionar · V")},
+		{EditMode::Wall, LOCTEXT("StudioWall", "Pared · W")},
+		{EditMode::Door, LOCTEXT("StudioDoor", "Puerta · P")},
+		{EditMode::Window, LOCTEXT("StudioWindow", "Ventana · O")},
+		{EditMode::Column, LOCTEXT("StudioColumn", "Columna · C")},
+		{EditMode::Services, LOCTEXT("StudioServices", "Instalaciones · I")},
+		{EditMode::Furniture, LOCTEXT("StudioFurniture", "Muebles · A")},
+		{EditMode::Paint, LOCTEXT("StudioPaint", "Materiales · M")}
+	};
+	for (const auto& Entry : Modes)
+	{
+		const EditMode Mode = Entry.Key;
+		const FText Name = Entry.Value;
+		Tools->AddSlot().AutoHeight().Padding(0.0f, 3.0f)
+		[
+			SNew(SButton).IsFocusable(false).HAlign(HAlign_Left).ContentPadding(FMargin(8.0f, 8.0f)).ToolTipText(Name)
 			.ButtonColorAndOpacity_Lambda([this, Mode]()
 			{
-				const UFloor101DocumentSubsystem* Subsystem = Document.Get();
-				const UFloor101GameViewportClient* Client = ViewportClient.Get();
-				return Subsystem && !(Client && Client->IsNavigationMode()) && Subsystem->GetEditController().mode() == Mode
-					? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+				const auto* S = Document.Get();
+				return S && S->GetEditController().mode() == Mode ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
 			})
-			.OnClicked_Lambda([this, Mode]()
+			.OnClicked_Lambda([this, Mode]() { return Run([Mode](EditController& E) { E.setMode(Mode); return f101::Status::success(); }); })
+			[SNew(STextBlock).Font(Font(10)).Text_Lambda([this, Name]()
 			{
-				return Run([Mode](EditController& Editor) { Editor.setMode(Mode); return f101::Status::success(); });
-			})
-			[
-				SNew(STextBlock).Text(Label).Font(Font(10, true))
-			];
-	};
-
-	auto ActionButton = [](const FText& Label, TAttribute<FText> ToolTip, TAttribute<bool> Enabled, FOnClicked OnClicked)
-	{
-		return SNew(SButton)
-			.IsFocusable(false)
-			.ToolTipText(ToolTip)
-			.IsEnabled(Enabled)
-			.OnClicked(OnClicked)
-			[
-				SNew(STextBlock).Text(Label).Font(Font(10))
-			];
-	};
-
-	auto CanUndo = [this]() { const UFloor101DocumentSubsystem* S = Document.Get(); return S && S->GetDocument().canUndo(); };
-	auto CanRedo = [this]() { const UFloor101DocumentSubsystem* S = Document.Get(); return S && S->GetDocument().canRedo(); };
-
-	return Panel(
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 10.0f, 0.0f)
-			[
-				SNew(STextBlock).Text(LOCTEXT("Title", "101st Floor")).Font(Font(12, true))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Select", "Seleccionar (V)"), LOCTEXT("SelectTip", "Selecciona muros, huecos, muebles, pilares, instalaciones y habitaciones; arrastra extremos, huecos, muebles, pilares y tuberías"), EditMode::Select)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Wall", "Muro (W)"), LOCTEXT("WallTip", "Dibuja muros: clic, mueve, escribe la longitud, Enter"), EditMode::Wall)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Door", "Puerta (P)"), LOCTEXT("DoorTip", "Coloca puertas de 90 × 210 cm: elige su tipo en el panel y haz clic sobre un muro"), EditMode::Door)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Window", "Ventana (O)"), LOCTEXT("WindowTip", "Coloca ventanas de 120 × 120 cm a 90 cm del suelo: elige su tipo en el panel y haz clic sobre un muro"), EditMode::Window)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Paint", "Pintar (M)"), LOCTEXT("PaintTip", "Aplica un acabado: clic en una cara de muro o en el suelo de una habitación"), EditMode::Paint)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Furniture", "Amueblar (A)"),
-					LOCTEXT("FurnitureTip", "Coloca muebles: elige uno en el panel y haz clic en el suelo; cerca de un muro se apoya en él"),
-					EditMode::Furniture)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Column", "Pilar (C)"),
-					LOCTEXT("ColumnTip", "Coloca pilares de hormigón, rectangulares o redondos: se ajustan a las esquinas y a los ejes de los muros"),
-					EditMode::Column)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ModeButton(LOCTEXT("Services", "Instalación (I)"),
-					LOCTEXT("ServicesTip", "Dibuja por tramos las tuberías de electricidad, agua, aguas negras o gas: elige el tipo y la altura en el panel"),
-					EditMode::Services)
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 2.0f, 2.0f, 2.0f)
-			[
-				ActionButton(LOCTEXT("Undo", "Deshacer"),
-					TAttribute<FText>::CreateLambda([this]()
-					{
-						const UFloor101DocumentSubsystem* S = Document.Get();
-						return FText::Format(LOCTEXT("UndoTip", "Deshacer: {0} (Ctrl+Z)"),
-							S ? FText::FromString(UTF8_TO_TCHAR(std::string(S->GetDocument().undoLabel()).c_str())) : FText::GetEmpty());
-					}),
-					TAttribute<bool>::CreateLambda(CanUndo),
-					FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.undo(); }); }))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ActionButton(LOCTEXT("Redo", "Rehacer"),
-					TAttribute<FText>::CreateLambda([this]()
-					{
-						const UFloor101DocumentSubsystem* S = Document.Get();
-						return FText::Format(LOCTEXT("RedoTip", "Rehacer: {0} (Ctrl+Y)"),
-							S ? FText::FromString(UTF8_TO_TCHAR(std::string(S->GetDocument().redoLabel()).c_str())) : FText::GetEmpty());
-					}),
-					TAttribute<bool>::CreateLambda(CanRedo),
-					FOnClicked::CreateLambda([this]() { return Run([](EditController& Editor) { return Editor.redo(); }); }))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 2.0f, 2.0f, 2.0f)
-			[
-				ActionButton(LOCTEXT("Frame", "Encuadrar (F)"), LOCTEXT("FrameTip", "Encuadra todos los muros"), true,
-					FOnClicked::CreateLambda([this]()
-					{
-						if (UFloor101GameViewportClient* Client = ViewportClient.Get())
-						{
-							Client->FrameProject();
-						}
-						FSlateApplication::Get().SetAllUserFocusToGameViewport();
-						return FReply::Handled();
-					}))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				ActionButton(LOCTEXT("TopView", "Cenital (T)"), LOCTEXT("TopViewTip", "Vista 3D desde arriba, con el norte hacia arriba"), true,
-					FOnClicked::CreateLambda([this]()
-					{
-						if (UFloor101GameViewportClient* Client = ViewportClient.Get())
-						{
-							Client->ShowTopView();
-						}
-						FSlateApplication::Get().SetAllUserFocusToGameViewport();
-						return FReply::Handled();
-					}))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				SNew(SButton)
-				.IsFocusable(false)
-				.ToolTipText(LOCTEXT("PlanTip", "Plano 2D de la planta: muros cortados, puertas, ventanas, cotas y habitaciones. Se edita igual que en 3D"))
-				.ButtonColorAndOpacity_Lambda([this]()
-				{
-					const UFloor101DocumentSubsystem* S = Document.Get();
-					return S && S->IsPlanView() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
-				})
-				.OnClicked_Lambda([this]()
-				{
-					if (UFloor101GameViewportClient* Client = ViewportClient.Get())
-					{
-						Client->SetPlanView(!Client->IsPlanView());
-					}
-					FSlateApplication::Get().SetAllUserFocusToGameViewport();
-					return FReply::Handled();
-				})
-				[
-					SNew(STextBlock).Text(LOCTEXT("Plan", "Plano 2D (Tab)")).Font(Font(10, true))
-				]
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f)
-			[
-				SNew(SButton)
-				.IsFocusable(false)
-				.ToolTipText(LOCTEXT("ServicesLayerTip",
-					"Capa de instalaciones: muestra las tuberías y vuelve transparentes muros, suelos, forjados y carpintería para verlas por dentro"))
-				.ButtonColorAndOpacity_Lambda([this]()
-				{
-					const UFloor101DocumentSubsystem* S = Document.Get();
-					return S && S->GetEditController().showsServices() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
-				})
-				.OnClicked_Lambda([this]()
-				{
-					return Run([](EditController& Editor) { Editor.setShowServices(!Editor.showsServices()); return f101::Status::success(); });
-				})
-				[
-					SNew(STextBlock).Text(LOCTEXT("ServicesLayer", "Rayos X (X)")).Font(Font(10, true))
-				]
-			]
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
-			[
-				SNew(STextBlock).Text(LOCTEXT("File", "Archivo")).Font(Font(10))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-			[
-				// The file being edited, as it is now (opened, saved or "save as"); new: not saved yet.
-				SNew(SBox)
-				.WidthOverride(360.0f)
-				[
-					SNew(STextBlock)
-					.Font(Font(9))
-					.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-					.Text_Lambda([this]()
-					{
-						const UFloor101DocumentSubsystem* S = Document.Get();
-						return S && !S->GetProjectPath().IsEmpty() ? FText::FromString(S->GetProjectPath())
-							: LOCTEXT("NewProject", "Casa nueva, sin guardar");
-					})
-					.ToolTipText_Lambda([this]()
-					{
-						const UFloor101DocumentSubsystem* S = Document.Get();
-						return S && !S->GetProjectPath().IsEmpty() ? FText::FromString(S->GetProjectPath()) : FText::GetEmpty();
-					})
-				]
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(4.0f, 0.0f, 2.0f, 0.0f)
-			[
-				ActionButton(LOCTEXT("Save", "Guardar"),
-					LOCTEXT("SaveTip", "Guarda la casa en su archivo; si es nueva, pregunta dónde (Ctrl+S)"), true,
-					FOnClicked::CreateLambda([this]()
-					{
-						if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
-						{
-							FFloor101FileActions::Save(*Subsystem);
-						}
-						return FReply::Handled();
-					}))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
-			[
-				ActionButton(LOCTEXT("SaveAs", "Guardar como…"),
-					LOCTEXT("SaveAsTip", "Elige la carpeta y el nombre del archivo de la casa; se recuerda para la próxima vez (Ctrl+Shift+S)"), true,
-					FOnClicked::CreateLambda([this]()
-					{
-						if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
-						{
-							FFloor101FileActions::SaveAs(*Subsystem);
-						}
-						return FReply::Handled();
-					}))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
-			[
-				ActionButton(LOCTEXT("Open", "Abrir…"), LOCTEXT("OpenTip", "Abre una casa guardada (Ctrl+O)"), true,
-					FOnClicked::CreateLambda([this]()
-					{
-						if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
-						{
-							FFloor101FileActions::Open(*Subsystem);
-						}
-						return FReply::Handled();
-					}))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(10.0f, 0.0f, 4.0f, 0.0f)
-			[
-				SNew(STextBlock).Text(LOCTEXT("ExportPlan", "Plano:")).Font(Font(10))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
-			[
-				MakePlanExportButton(TEXT("svg"))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
-			[
-				MakePlanExportButton(TEXT("png"))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(10.0f, 0.0f, 2.0f, 0.0f)
-			[
-				ActionButton(LOCTEXT("Photo", "Foto (R)"),
-					LOCTEXT("PhotoTip", "Imagen fotorrealista con path tracing: PNG en SDR o EXR con HDR activo"), true,
-					FOnClicked::CreateLambda([this]()
-					{
-						if (UFloor101GameViewportClient* Client = ViewportClient.Get())
-						{
-							Client->SetPhotoMode(true);
-						}
-						FSlateApplication::Get().SetAllUserFocusToGameViewport();
-						return FReply::Handled();
-					}))
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
-			[
-				SNew(SButton)
-				.IsFocusable(false)
-				.ToolTipText(LOCTEXT("GltfTip", "Exporta la casa entera (todas las plantas, puertas, ventanas, muebles, pilares, instalaciones, materiales y texturas) a un .glb para importarlo en Twinmotion; eliges dónde, y la carpeta se recuerda para la próxima vez"))
-				.OnClicked_Lambda([this]()
-				{
-					if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
-					{
-						FFloor101FileActions::ExportTwinmotion(*Subsystem);
-					}
-					return FReply::Handled();
-				})
-				[
-					SNew(STextBlock).Text(LOCTEXT("Gltf", "Twinmotion (.glb)…")).Font(Font(10))
-				]
-			]
-			+ SHorizontalBox::Slot().AutoWidth().Padding(2.0f, 0.0f)
-			[
-				MakeHdrButton()
-			]
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-		[
-			MakeLevelRow()
-		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
-		[
-			MakeDisplayControls()
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0.0f, 6.0f, 0.0f, 0.0f)
-		[
-			MakeNetworksRow()
-		]);
+				return ViewSize.X < 1200.0 ? FText::FromString(Name.ToString().Right(1)) : Name;
+			})]
+		];
+	}
+	return SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(ViewSize.X < 1200.0 ? 54.0f : 166.0f); })
+		.Visibility_Lambda([this]() { return IsDesignMode() ? EVisibility::Visible : EVisibility::Collapsed; })
+		[SNew(SScrollBox) + SScrollBox::Slot()[Panel(Tools)]];
 }
+
+TSharedRef<SWidget> SFloor101Overlay::MakeFileMenu()
+{
+	return SNew(SComboButton)
+		.OnGetMenuContent_Lambda([this]()
+		{
+			FMenuBuilder Menu(true, nullptr);
+			auto Entry = [&Menu](const FText& Label, TFunction<void()> Action)
+			{
+				Menu.AddMenuEntry(Label, FText::GetEmpty(), FSlateIcon(), FUIAction(FExecuteAction::CreateLambda(Action)));
+			};
+			Entry(LOCTEXT("StudioOpen", "Abrir… (Ctrl+O)"), [this]() { if (auto* S = Document.Get()) { FFloor101FileActions::Open(*S); } });
+			Entry(LOCTEXT("StudioSaveAs", "Guardar como… (Ctrl+Shift+S)"), [this]() { if (auto* S = Document.Get()) { FFloor101FileActions::SaveAs(*S); } });
+			Entry(LOCTEXT("StudioGltf", "Exportar para Twinmotion (.glb)…"), [this]() { if (auto* S = Document.Get()) { FFloor101FileActions::ExportTwinmotion(*S); } });
+			Menu.AddWidget(MakePlanExportButton(TEXT("svg")), LOCTEXT("StudioSvg", "Plano SVG"));
+			Menu.AddWidget(MakePlanExportButton(TEXT("png")), LOCTEXT("StudioPng", "Plano PNG"));
+			return Menu.MakeWidget();
+		})
+		.ButtonContent()[SNew(STextBlock).Text(LOCTEXT("StudioDocument", "Documento")).Font(Font(10))];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
+{
+	return SNew(SComboButton)
+		.OnGetMenuContent_Lambda([this]()
+		{
+			FMenuBuilder Menu(true, nullptr);
+			Menu.AddMenuEntry(LOCTEXT("StudioFrame", "Encuadrar (F)"), FText::GetEmpty(), FSlateIcon(), FUIAction(FExecuteAction::CreateLambda([this]()
+			{
+				if (auto* C = ViewportClient.Get()) { C->FrameProject(); }
+				FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			})));
+			Menu.AddMenuEntry(LOCTEXT("StudioTop", "Vista superior (T)"), FText::GetEmpty(), FSlateIcon(), FUIAction(FExecuteAction::CreateLambda([this]()
+			{
+				if (auto* C = ViewportClient.Get()) { C->ShowTopView(); }
+				FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			})));
+			Menu.AddMenuEntry(LOCTEXT("StudioPlan", "Planta 2D (Tab)"), FText::GetEmpty(), FSlateIcon(), FUIAction(FExecuteAction::CreateLambda([this]()
+			{
+				if (auto* C = ViewportClient.Get()) { C->SetPlanView(!C->IsPlanView()); }
+				FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			})));
+			Menu.AddMenuEntry(LOCTEXT("StudioXray", "Rayos X (X)"), FText::GetEmpty(), FSlateIcon(), FUIAction(FExecuteAction::CreateLambda([this]()
+			{
+				Run([](EditController& E) { E.setShowServices(!E.showsServices()); return f101::Status::success(); });
+			})));
+			Menu.AddWidget(MakeNetworksRow(), FText::GetEmpty());
+			return Menu.MakeWidget();
+		})
+		.ButtonContent()[SNew(STextBlock).Text(LOCTEXT("StudioView", "Vista")).Font(Font(10))];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeUtilityMenu()
+{
+	return SAssignNew(OptionsButton, SComboButton)
+		.OnGetMenuContent_Lambda([this]()
+		{
+			return SNew(SBox).WidthOverride(static_cast<float>(FMath::Min(340.0, ViewSize.X - 32.0)))
+				.MaxDesiredHeight(static_cast<float>(FMath::Max(180.0, ViewSize.Y - 140.0)))
+				[SNew(SScrollBox) + SScrollBox::Slot()[Panel(SNew(SVerticalBox)
+					+ SVerticalBox::Slot().AutoHeight()[MakeDisplayControls(true)]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeHdrButton()])]];
+		})
+		.ButtonContent()[SNew(STextBlock).Text(LOCTEXT("StudioOptions", "Opciones")).Font(Font(10))];
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+void SFloor101Overlay::PrepareReview(const FString& Screen)
+{
+	if (Screen == TEXT("options") && OptionsButton) { OptionsButton->SetIsOpen(true); }
+	if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+	{
+		if (Screen == TEXT("walk")) { Client->SetNavigationMode(true); }
+		if (Screen == TEXT("photo")) { Client->SetPhotoMode(true); Client->SetPhotoSamples(64); }
+	}
+	if (Screen == TEXT("furniture")) { Run([](EditController& E) { E.setMode(EditMode::Furniture); return f101::Status::success(); }); }
+	if (Screen == TEXT("materials")) { Run([](EditController& E) { E.setMode(EditMode::Paint); return f101::Status::success(); }); }
+}
+#endif
 
 TSharedRef<SWidget> SFloor101Overlay::MakeNetworksRow()
 {
@@ -1028,7 +902,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 			// Wider for the palettes' pictures (three furniture tiles, or eight swatches, a row) and the services' height presets.
 			const UFloor101DocumentSubsystem* S = Document.Get();
 			const EditMode Mode = S ? S->GetEditController().mode() : EditMode::Select;
-			return FOptionalSize(Mode == EditMode::Furniture || Mode == EditMode::Paint || Mode == EditMode::Services ? 330.0f : 260.0f);
+			return FOptionalSize(static_cast<float>(FMath::Min(ViewSize.X - 40.0, Mode == EditMode::Furniture || Mode == EditMode::Paint || Mode == EditMode::Services ? 330.0 : 260.0)));
 		})
 		.Visibility_Lambda([this]()
 		{

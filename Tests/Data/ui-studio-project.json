@@ -1,0 +1,284 @@
+{
+  "format": "101st-floor-project",
+  "schemaVersion": 7,
+  "units": "mm",
+  "levels": [
+    {
+      "id": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "heightMm": 2800,
+      "slabThicknessMm": 250
+    }
+  ],
+  "walls": [
+    {
+      "id": "9fd5250c-aafa-47d2-b9a0-1c591c3e0718",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "start": [
+        0,
+        0
+      ],
+      "end": [
+        9000,
+        0
+      ],
+      "thicknessMm": 120,
+      "heightMm": 2800
+    },
+    {
+      "id": "85b9ca58-1076-4047-b8a5-c824661b22d6",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "start": [
+        9000,
+        0
+      ],
+      "end": [
+        9000,
+        4000
+      ],
+      "thicknessMm": 120,
+      "heightMm": 2800
+    },
+    {
+      "id": "cc7720ac-e44d-4b24-a6e2-12d0d1af1585",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "start": [
+        9000,
+        4000
+      ],
+      "end": [
+        0,
+        4000
+      ],
+      "thicknessMm": 120,
+      "heightMm": 2800
+    },
+    {
+      "id": "063d5188-3ac1-41d5-94d6-1091918d9044",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "start": [
+        0,
+        4000
+      ],
+      "end": [
+        0,
+        0
+      ],
+      "thicknessMm": 120,
+      "heightMm": 2800
+    },
+    {
+      "id": "113c3f50-fcc0-4e9d-9c5e-398541d926b5",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "start": [
+        6000,
+        0
+      ],
+      "end": [
+        6000,
+        4000
+      ],
+      "thicknessMm": 120,
+      "heightMm": 2800,
+      "openings": [
+        {
+          "id": "75df594c-4c3f-49d8-bff3-5a973cc24bc0",
+          "kind": "door",
+          "offsetMm": 2500,
+          "widthMm": 800,
+          "heightMm": 2100,
+          "sillMm": 0,
+          "operation": "hinged",
+          "hinge": "start",
+          "opensTo": "left",
+          "openPercent": 0
+        }
+      ]
+    }
+  ],
+  "furniture": [
+    {
+      "id": "19df51f6-635d-43c3-bf97-853319f13a40",
+      "type": "bed-double",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        1200,
+        2940
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 1500,
+      "depthMm": 2000,
+      "heightMm": 900
+    },
+    {
+      "id": "8c9a74b2-c218-4d4d-ae6e-ecd8deb2f9d0",
+      "type": "wardrobe",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        360,
+        1000
+      ],
+      "rotationCentidegrees": 9000,
+      "widthMm": 1200,
+      "depthMm": 600,
+      "heightMm": 2200
+    },
+    {
+      "id": "6c3f64d2-5393-45f0-881f-c1e764a00d08",
+      "type": "sofa",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        3800,
+        510
+      ],
+      "rotationCentidegrees": 18000,
+      "widthMm": 2000,
+      "depthMm": 900,
+      "heightMm": 850,
+      "finish": "fabric-sand"
+    },
+    {
+      "id": "144adac1-1543-49c5-af42-72e6bbdb7b71",
+      "type": "table",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        4100,
+        2000
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 1800,
+      "depthMm": 900,
+      "heightMm": 750,
+      "finish": "wood-walnut"
+    },
+    {
+      "id": "88848767-5208-452c-9173-e723574a363d",
+      "type": "chair",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        3800,
+        2600
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 450,
+      "depthMm": 500,
+      "heightMm": 900
+    },
+    {
+      "id": "d0a4b091-57ee-4797-abfd-34c897b199df",
+      "type": "chair",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        4400,
+        2600
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 450,
+      "depthMm": 500,
+      "heightMm": 900
+    },
+    {
+      "id": "d1234162-95ab-4ba5-a303-29a309a3327f",
+      "type": "chair",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        3800,
+        1400
+      ],
+      "rotationCentidegrees": 18000,
+      "widthMm": 450,
+      "depthMm": 500,
+      "heightMm": 900
+    },
+    {
+      "id": "51c5ff67-4197-4c65-8ace-02854f1c3928",
+      "type": "chair",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        4400,
+        1400
+      ],
+      "rotationCentidegrees": 18000,
+      "widthMm": 450,
+      "depthMm": 500,
+      "heightMm": 900
+    },
+    {
+      "id": "d77e0bea-d02f-4433-96b3-864ebdc1fb92",
+      "type": "kitchen-counter",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        4100,
+        3640
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 2400,
+      "depthMm": 600,
+      "heightMm": 900
+    },
+    {
+      "id": "650d1b45-e00a-421c-b767-59779496fac9",
+      "type": "fridge",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        5640,
+        3615
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 600,
+      "depthMm": 650,
+      "heightMm": 1850
+    },
+    {
+      "id": "e7581deb-d385-4427-9268-cf7923b59f21",
+      "type": "bathtub",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        8565,
+        910
+      ],
+      "rotationCentidegrees": 27000,
+      "widthMm": 1700,
+      "depthMm": 750,
+      "heightMm": 550
+    },
+    {
+      "id": "6cdd1b23-79ba-4d9c-8e09-534553eff7e9",
+      "type": "toilet",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        7000,
+        3590
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 380,
+      "depthMm": 700,
+      "heightMm": 780
+    },
+    {
+      "id": "0a4a3420-bf8c-47c3-bee0-90e67d231d7a",
+      "type": "washbasin",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        8000,
+        3710
+      ],
+      "rotationCentidegrees": 0,
+      "widthMm": 600,
+      "depthMm": 460,
+      "heightMm": 850
+    },
+    {
+      "id": "ac5ad93f-c42f-4be4-8e16-83f0f87fc1e7",
+      "type": "shower-tray",
+      "level": "fb24f3e6-d3e8-43d8-96ab-ff03ebbb6319",
+      "position": [
+        6510,
+        510
+      ],
+      "rotationCentidegrees": 18000,
+      "widthMm": 900,
+      "depthMm": 900,
+      "heightMm": 40
+    }
+  ]
+}
