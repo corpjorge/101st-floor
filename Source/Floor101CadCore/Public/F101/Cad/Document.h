@@ -364,6 +364,9 @@ namespace f101::cad
 		// included (ADR-0014). The Geometry Engine provides the spans (geometry::makeWallObstructions); without it only the
 		// wall itself is checked.
 		void setWallObstructions(WallObstructions provider) { obstructions = std::move(provider); }
+		// Geometry supplies inherited room finishes when splitting changes derived room keys (ADR-0025).
+		using RoomFinishTransfer = std::function<std::vector<RoomFinish>(const Project&, const Project&)>;
+		void setRoomFinishTransfer(RoomFinishTransfer provider) { roomFinishTransfer = std::move(provider); }
 		// Where `wall` of `levelWalls` must not have an opening; empty without a provider.
 		FLOOR101CADCORE_API std::vector<AxisSpan> openingObstructions(const Project& levelWalls, const Wall& wall) const;
 
@@ -385,6 +388,7 @@ namespace f101::cad
 		std::vector<std::pair<std::size_t, ChangeListener>> listeners;
 		std::size_t nextListenerHandle = 1;
 		WallObstructions obstructions;
+		RoomFinishTransfer roomFinishTransfer;
 	};
 
 	// Checks a whole project: at least one level, every level, wall, piece of furniture, asset, column and service run valid,

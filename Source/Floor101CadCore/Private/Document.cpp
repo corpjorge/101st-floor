@@ -2,6 +2,7 @@
 
 #include "F101/Cad/Snapping.h"
 #include "F101/Cad/Units.h"
+#include "WallSplitting.h"
 
 #include <algorithm>
 #include <cmath>
@@ -950,15 +951,57 @@ namespace f101::cad
 		{
 			return built;
 		}
-		const Transaction& transaction = built.value();
+		Transaction transaction = built.value();
+		// Geometry edits split only the junctions involving an edited axis. Opening/finish edits and loaded projects
+		// retain their topology. Build on a copy so a blocked cut never applies half of an operation (ADR-0025).
+		std::vector<WallId> edited;
+		for (const WallChange& change : transaction.walls)
+		{
+			if (change.after && (!change.before || change.before->axis() != change.after->axis())) edited.push_back(change.id);
+		}
+		if (!edited.empty())
+		{
+			Project prospective = model;
+			applyChanges(prospective.walls, transaction.walls, true);
+			const std::size_t unsplitCount = prospective.walls.size();
+			if (Status valid = splitJoinedWalls(prospective, edited, newUuid); !valid) return valid.error();
+			if (roomFinishTransfer && prospective.walls.size() > unsplitCount && !model.roomFinishes.empty())
+			{
+				for (const RoomFinish& finish : roomFinishTransfer(model, prospective))
+				{
+					if (!prospective.findRoomFinish(finish.room))
+					{
+						transaction.roomFinishes.push_back({finish.room, prospective.roomFinishes.size(), std::nullopt, finish});
+						prospective.roomFinishes.push_back(finish);
+					}
+				}
+			}
+			if (Status valid = validateProject(prospective); !valid) return valid.error();
+			// Keep the initiating change first: addWall and WallTool return that wall's retained identity.
+			for (WallChange& change : transaction.walls)
+			{
+				if (change.after) change.after = *prospective.findWall(change.id);
+			}
+			for (std::size_t index = 0; index < prospective.walls.size(); ++index)
+			{
+				const Wall& after = prospective.walls[index];
+				const auto recorded = std::find_if(transaction.walls.begin(), transaction.walls.end(),
+					[&after](const WallChange& change) { return change.id == after.id; });
+				if (recorded != transaction.walls.end()) continue;
+				const Wall* before = model.findWall(after.id);
+				if (!before || *before != after) transaction.walls.push_back({after.id, index,
+					before ? std::optional<Wall>(*before) : std::nullopt, after});
+			}
+		}
+		std::erase_if(transaction.walls, [](const WallChange& change) { return change.before == change.after; });
 		if (transaction.empty())
 		{
-			return built; // nothing changes: no history entry, no notification
+			return transaction; // nothing changes: no history entry, no notification
 		}
 		apply(transaction, true);
 		undoStack.push_back(transaction);
 		redoStack.clear();
-		return built;
+		return transaction;
 	}
 
 	Status Document::undo()

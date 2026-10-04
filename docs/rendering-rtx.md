@@ -95,6 +95,8 @@ Warnings conocidos no relacionados con render: `LogEditorDataStorageUI` (UI del 
 binario del editor con `-game`).
 
 ## Notas
+- Salida HDR opcional (ADR-0022): botón «Activar HDR» / «Desactivar HDR», adaptación al monitor y fotos EXR cuando
+  está activo. Requiere HDR habilitado en Windows. Monitor y validación independiente: [HDR](hdr.md).
 - El monitor virtual de Meta hace que la RTX aparezca dos veces en DXGI (adaptadores 0 y 2). El motor elige el 0.
 - UE informa "shader model 6.7" como máximo del adaptador aunque el driver expone 6.8: es el límite que consulta el
   motor, y SM6.6 (lo requerido) está cubierto.

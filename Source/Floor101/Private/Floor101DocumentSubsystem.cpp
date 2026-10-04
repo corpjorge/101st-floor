@@ -292,6 +292,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
+	Document->setRoomFinishTransfer(f101::geometry::makeRoomFinishTransfer()); // wall segments retain room finishes (ADR-0025)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	PlanDrawing = MakePimpl<f101::drawing::PlanDrawing>();
 	Models = MakePimpl<f101::assets::ModelCache>();
@@ -695,7 +696,8 @@ FString UFloor101DocumentSubsystem::GetDefaultPhotoPath() const
 {
 	const FString Project = ProjectPath.IsEmpty() ? GetDefaultProjectPath() : ProjectPath;
 	return FPaths::Combine(FPaths::GetPath(Project),
-		FPaths::GetBaseFilename(Project) + TEXT("-foto-") + FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S")) + TEXT(".png"));
+		FPaths::GetBaseFilename(Project) + TEXT("-foto-") + FDateTime::Now().ToString(TEXT("%Y%m%d-%H%M%S"))
+		+ (Floor101::PathTracing::IsHDRCapture() ? TEXT(".exr") : TEXT(".png")));
 }
 
 FString UFloor101DocumentSubsystem::GetDefaultGltfPath() const
@@ -752,9 +754,10 @@ f101::Status UFloor101DocumentSubsystem::SavePhoto(const FString& Path)
 		SetStatus(ToText(Message), true);
 		return f101::Error{f101::ErrorCode::InvalidArgument, Message};
 	};
-	if (!FPaths::GetExtension(Path).Equals(TEXT("png"), ESearchCase::IgnoreCase))
+	const bool bHDR = Floor101::PathTracing::IsHDRCapture();
+	if (!FPaths::GetExtension(Path).Equals(bHDR ? TEXT("exr") : TEXT("png"), ESearchCase::IgnoreCase))
 	{
-		return Fail("Save the photo as .png");
+		return Fail(bHDR ? "Save the HDR photo as .exr; disable HDR to save as .png" : "Save the photo as .png");
 	}
 	if (!IFileManager::Get().MakeDirectory(*FPaths::GetPath(Path), true))
 	{

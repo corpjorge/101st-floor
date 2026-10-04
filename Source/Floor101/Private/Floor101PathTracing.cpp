@@ -1,6 +1,7 @@
 #include "Floor101PathTracing.h"
 
 #include "Engine/GameViewportClient.h"
+#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "SceneInterface.h"
@@ -98,9 +99,14 @@ bool IsComplete()
 	return Progress && Progress->Target.load() == GetTargetSamples() && Progress->CompleteFrames.load() >= StableFrames;
 }
 
+bool IsHDRCapture()
+{
+	return GEngine && GEngine->GameViewport && GEngine->GameViewport->Viewport && GEngine->GameViewport->Viewport->GetSceneHDREnabled();
+}
+
 void RequestImage(const FString& Path)
 {
-	FScreenshotRequest::RequestScreenshot(Path, false, false);
+	FScreenshotRequest::RequestScreenshot(Path, false, false, IsHDRCapture());
 }
 
 int32 GetPendingShaders()

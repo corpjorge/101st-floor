@@ -15,6 +15,10 @@ struct FFloor101FileActions
 	static void SaveAs(UFloor101DocumentSubsystem& Document);
 	// Ctrl+O: asks which project.json to open.
 	static void Open(UFloor101DocumentSubsystem& Document);
+	// Clean documents close immediately. Dirty documents offer save, discard or cancel; a cancelled/failed save stays open.
+	static bool ConfirmExit(UFloor101DocumentSubsystem& Document);
+	static bool PrepareExit(UFloor101DocumentSubsystem& Document, TFunctionRef<EAppReturnType::Type()> Prompt,
+		TFunctionRef<void()> SaveDocument);
 	// Asks where to write the .glb for Twinmotion (the last folder used for it, else next to the project).
 	static void ExportTwinmotion(UFloor101DocumentSubsystem& Document);
 

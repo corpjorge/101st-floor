@@ -86,11 +86,18 @@ namespace
 	struct HostWithTee
 	{
 		Document document{makeSequentialUuidSource()};
-		WallId host = document.addWall({0, 0}, {6000, 0}, 120, 2800).value();
-		WallId tee = document.addWall({2000, 0}, {2000, 3000}, 100, 2800).value();
+		WallId host{Uuid{0, 100}};
+		WallId tee{Uuid{0, 101}};
 
 		HostWithTee()
 		{
+			// Exercise opening validation of unsplit walls in legacy loaded documents.
+			Project project = document.project();
+			Wall a{host, {0, 0}, {6000, 0}, 120, 2800};
+			Wall b{tee, {2000, 0}, {2000, 3000}, 100, 2800};
+			a.level = b.level = project.levels.front().id;
+			project.walls = {a, b};
+			REQUIRE(document.replaceProject(project).ok());
 			document.setWallObstructions(geometry::makeWallObstructions());
 		}
 

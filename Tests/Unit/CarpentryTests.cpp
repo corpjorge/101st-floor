@@ -63,11 +63,18 @@ namespace
 	struct HostWithTee
 	{
 		Document document{makeSequentialUuidSource()};
-		WallId host = document.addWall({0, 0}, {6000, 0}, 120, 2800).value();
-		WallId tee = document.addWall({2000, 0}, {2000, 3000}, 100, 2800).value();
+		WallId host{Uuid{0, 100}};
+		WallId tee{Uuid{0, 101}};
 
 		HostWithTee()
 		{
+			// Legacy loaded projects may contain unsplit hosts; opening edits must still check their junctions.
+			Project project = document.project();
+			Wall a{host, {0, 0}, {6000, 0}, 120, 2800};
+			Wall b{tee, {2000, 0}, {2000, 3000}, 100, 2800};
+			a.level = b.level = project.levels.front().id;
+			project.walls = {a, b};
+			REQUIRE(document.replaceProject(project).ok());
 			document.setWallObstructions(geometry::makeWallObstructions());
 		}
 	};
@@ -211,9 +218,8 @@ TEST_CASE_FIXTURE(HostWithTee, "openings added or moved into a joint are refused
 	moved.offsetMm = 2100;
 	CHECK(document.execute(ChangeOpeningCommand{host, moved}).ok());
 
-	// A wall moved onto the door afterwards is allowed; the door can still change its finish, and the wall mesh keeps
-	// the hole only where both faces exist.
-	REQUIRE(document.execute(MoveWallEndpointCommand{tee, WallEndpoint::Start, {2500, 0}}).ok());
+	// A geometry edit cannot split through the door; the rejected move leaves both the door and finish edits intact.
+	CHECK_FALSE(document.execute(MoveWallEndpointCommand{tee, WallEndpoint::Start, {2500, 0}}).ok());
 	Opening refinished = *document.project().findWall(host)->findOpening(door);
 	refinished.finish = "wood-oak";
 	CHECK(document.execute(ChangeOpeningCommand{host, refinished}).ok());

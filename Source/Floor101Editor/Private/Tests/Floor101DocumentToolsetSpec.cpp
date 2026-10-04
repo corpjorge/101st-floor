@@ -766,13 +766,27 @@ void FFloor101DocumentToolsetSpec::Define()
 				[&Host, &Door] { UFloor101DocumentToolset::SetOpeningFinish(Host.Id, Door.Id, TEXT("brick-red")); });
 			UFloor101DocumentToolset::RemoveWall(Tee.Id);
 			UFloor101DocumentToolset::RemoveWall(Host.Id);
+			for (const FFloor101WallInfo& Wall : UFloor101DocumentToolset::GetWalls())
+			{
+				if (Wall.StartXMm == 52000 && Wall.StartYMm == 0 && Wall.EndXMm == 56000 && Wall.EndYMm == 0)
+				{
+					UFloor101DocumentToolset::RemoveWall(Wall.Id); // the independent tail created by the T
+				}
+			}
 		});
 
 		It("SetOpeningOperation sets how it opens; raises for a fixed door, a pocket over a joint and an unknown opening", [this]()
 		{
-			const FFloor101WallInfo Host = UFloor101DocumentToolset::AddWall(TEXT(""), 60000, 0, 66000, 0, 120, 2800);
+			const FFloor101WallInfo First = UFloor101DocumentToolset::AddWall(TEXT(""), 60000, 0, 66000, 0, 120, 2800);
 			const FFloor101WallInfo Tee = UFloor101DocumentToolset::AddWall(TEXT(""), 62000, 0, 62000, 3000, 100, 2800);
-			const FFloor101OpeningInfo Door = UFloor101DocumentToolset::AddOpening(Host.Id, EFloor101OpeningKind::Door, 2300, 800, 2100, 0);
+			const auto Walls = UFloor101DocumentToolset::GetWalls();
+			const FFloor101WallInfo* Tail = Walls.FindByPredicate([](const FFloor101WallInfo& Wall)
+			{
+				return Wall.StartXMm == 62000 && Wall.StartYMm == 0 && Wall.EndXMm == 66000 && Wall.EndYMm == 0;
+			});
+			if (!TestNotNull(TEXT("T creates the independent right span"), Tail)) return;
+			const FFloor101WallInfo Host = *Tail;
+			const FFloor101OpeningInfo Door = UFloor101DocumentToolset::AddOpening(Host.Id, EFloor101OpeningKind::Door, 300, 800, 2100, 0);
 			TestTrue(TEXT("added closed, hinged at its start"), Door.Operation == EFloor101OpeningOperation::Hinged &&
 				Door.Hinge == EFloor101OpeningEnd::Start && Door.OpenPercent == 0);
 			const FFloor101OpeningInfo Open = UFloor101DocumentToolset::SetOpeningOperation(Host.Id, Door.Id,
@@ -785,7 +799,7 @@ void FFloor101DocumentToolsetSpec::Define()
 				UFloor101DocumentToolset::SetOpeningOperation(Host.Id, Door.Id, EFloor101OpeningOperation::Fixed, EFloor101OpeningEnd::Start,
 					EFloor101WallSide::Left, 0);
 			});
-			ExpectRaises(TEXT("pocket runs into a wall joined to this one"), [&Host, &Door]
+			ExpectRaises(TEXT("wall beside it for its pocket"), [&Host, &Door]
 			{
 				UFloor101DocumentToolset::SetOpeningOperation(Host.Id, Door.Id, EFloor101OpeningOperation::Sliding, EFloor101OpeningEnd::Start,
 					EFloor101WallSide::Left, 0);
@@ -800,6 +814,7 @@ void FFloor101DocumentToolsetSpec::Define()
 			});
 			UFloor101DocumentToolset::RemoveWall(Tee.Id);
 			UFloor101DocumentToolset::RemoveWall(Host.Id);
+			UFloor101DocumentToolset::RemoveWall(First.Id);
 		});
 
 		It("ExportPlan writes the plan as SVG; raises on another extension and on an unknown level", [this]()

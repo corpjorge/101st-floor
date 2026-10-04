@@ -7,8 +7,8 @@
 
 class UCameraComponent;
 
-// Orbit camera for editing (ADR-0008): it turns around a focus point on the floor. No movement or collision; the
-// viewport client drives it from the mouse (right button orbits, middle button pans, wheel zooms, F frames).
+// Camera for editing (ADR-0008): orbit a movable focus or fly with the keyboard. The viewport client drives the
+// mouse/keyboard; movement has no collision and changes only the view, never the CAD model.
 UCLASS(NotPlaceable)
 class FLOOR101_API AFloor101EditingPawn : public APawn
 {
@@ -21,8 +21,19 @@ public:
 
 	// Mouse deltas in viewport pixels.
 	void Orbit(const FVector2D& DeltaPixels);
+	// Navigation look: rotate around the camera's position, including above the horizon. Does nothing in the 2D plan.
+	void Look(const FVector2D& DeltaPixels);
 	void Pan(const FVector2D& DeltaPixels, const FVector2D& ViewportSize);
-	// Positive steps move closer.
+	// Continuous movement: X = camera forward, Y = camera right, Z = world up. In the 2D plan, X/Y pan up/right on
+	// screen and Z is ignored. DeltaTime is seconds; diagonals have the same speed and Shift selects fast travel.
+	void Move(const FVector& LocalDirection, float DeltaTime, bool bFast);
+	// Explicit travel speed, independent of zoom. Saved locally only when changed through the UI.
+	void SetNavigationSpeedLevel(int32 Level, bool bSave = false);
+	void LoadNavigationSpeedLevel();
+	int32 GetNavigationSpeedLevel() const { return NavigationSpeedLevel; }
+	static double NavigationSpeedForLevel(int32 Level); // cm/s; levels 1..10, default 5 = 3 m/s
+	// Positive steps move closer; after the close limit, continue forward in small bounded dolly steps. In 2D only
+	// the orthographic width changes. Negative steps back away from the current focus.
 	void Zoom(float Steps);
 	// Looks at the box (Unreal space) from the current direction, at a distance that fits it.
 	void Frame(const FBox& Box);
@@ -52,4 +63,5 @@ private:
 	double Pitch = -35.0;                // degrees, looking down
 	double Distance = 1500.0;            // cm from the focus
 	bool bPlanView = false;
+	int32 NavigationSpeedLevel = 5;
 };

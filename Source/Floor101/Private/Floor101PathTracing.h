@@ -19,7 +19,8 @@ namespace Floor101::PathTracing
 	int32 GetAccumulatedSamples();
 	// The view has all its samples (denoised) and has kept them for a few frames: the image is ready to save.
 	bool IsComplete();
-	// Writes the viewport's next frame, without the UI, to a PNG file (asynchronously).
+	// The viewport's actual output decides whether the next capture is HDR (EXR) or SDR (PNG).
+	bool IsHDRCapture();
 	void RequestImage(const FString& Path);
 	// Shaders still compiling (the path tracer's own ones are compiled the first time it is used): meanwhile materials show
 	// as the engine's default one.

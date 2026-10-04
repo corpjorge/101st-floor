@@ -127,10 +127,10 @@ public:
 	// viewport client path traces it (UFloor101GameViewportClient::SetPhotoMode).
 	void SetPhotoMode(bool bPhoto);
 	bool IsPhotoMode() const { return bPhotoMode; }
-	// Writes the view as it is shown now to a PNG (without the UI) and says so in the status. The image is written a frame
+	// Writes the current view without UI as PNG (SDR) or EXR (HDR) and reports the path. The image is written a frame
 	// later; a photo is best saved once its samples are complete.
 	f101::Status SavePhoto(const FString& Path);
-	// Next to the project file (or the default one): "<file name>-foto-<date>-<time>.png".
+	// Next to the project: "<file name>-foto-<date>-<time>.png" (SDR) or ".exr" (HDR).
 	FString GetDefaultPhotoPath() const;
 
 	// Export for Twinmotion (ADR-0020): the whole project (every level with its slabs, doors and windows, furniture, columns

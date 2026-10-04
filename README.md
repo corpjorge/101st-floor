@@ -23,9 +23,12 @@ modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8
 ## Controles
 W: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de colocarla) · M: pintar (pestañas Paredes / Suelos) · A: amueblar (pestañas por categoría) · C: pilar · I: instalación (clic por punto, doble clic o Enter para terminar; tipo y altura en el panel) · X: rayos X (ver las instalaciones; la fila "Redes" elige electricidad, agua, aguas negras o gas, también en el plano y su exportación) · V: seleccionar · R: Modo Foto (path tracing; "Guardar imagen") · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
 Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+Shift+S / Ctrl+O: guardar / guardar como (eliges carpeta y nombre) / abrir · Esc o clic derecho: cancelar ·
+N / "Navegar": WASD para moverse, Q/E para bajar/subir, Shift para ir más rápido, derecho para mirar; N/Esc vuelve a editar. **Velocidad** permite elegir niveles 1–10 (inicial: 3 m/s) y guarda la elección. También derecho + WASD al editar. [Navegación y zoom](docs/camera-navigation.md).
+**Sincronización vertical**: activar/desactivar desde la barra o Modo Foto; la elección se guarda. [Pantalla](docs/display.md).
+**Salir**, arriba a la derecha: cierra la aplicación; con cambios sin guardar permite guardar y salir, salir sin guardar o cancelar. Disponible también en Modo Foto y pantalla completa.
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
 cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble o el pilar · con un mueble, un pilar o una tubería seleccionados, arrastrarlo: moverlo (las asas de una tubería mueven un codo) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
-F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · "Plano: SVG / PNG": exportar el plano ·
+F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · F11 / "Pantalla completa": resolución nativa y vuelta a ventana · "Resolución": elegir modo y comprobar pantalla/imagen/render · "Plano: SVG / PNG": exportar el plano ·
 "Twinmotion (.glb)…": exportar la casa entera donde elijas (se recuerdan las últimas carpetas) (en Twinmotion: Importar → el `.glb`) ·
 "Importar textura…" (en Pintar) / "Importar modelo…" (en Amueblar): traer una imagen o un modelo 3D al proyecto ·
 RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detalle en
@@ -44,6 +47,9 @@ git clone https://github.com/corpjorge/101st-floor.git; cd 101st-floor
 .\Scripts\Run.ps1              # abre 101st Floor con la pared de referencia (-Demo:$false: documento vacío)
 .\Scripts\CreateDesktopShortcut.ps1  # acceso directo "101st Floor" en el escritorio que ejecuta Run.ps1
 .\Scripts\CheckRendering.ps1   # valida DX12, SM6, GPU, ray tracing, Lumen HWRT, VSM, Nanite y el path tracing del Modo Foto
+.\Scripts\CheckHdr.ps1         # consulta HDR10/EDID, señal y luminancia declarada del monitor
+.\Scripts\CheckHdrOutput.ps1   # valida HDR/SDR real (-EnableWindowsHdrForTest: activa Windows HDR temporalmente)
+.\Scripts\CheckHdrOutput.ps1 -Display # comprueba pantalla completa nativa, resolución elegida y vuelta a ventana
 .\Scripts\RunEditorMcp.ps1     # abre Unreal Editor con el servidor MCP (desarrollo con Claude Code)
 .\Scripts\CheckMcp.ps1         # prueba de humo del MCP (handshake, toolsets, operación read-only)
 .\Scripts\GenerateAssets.ps1   # regenera los materiales de acabados y vidrio (Content/Floor101) desde código
@@ -59,4 +65,8 @@ Poly Haven. Sus binarios van por Git LFS (`git lfs install` antes de clonar).
 - [docs/cad-core.md](docs/cad-core.md) · [docs/geometry.md](docs/geometry.md) · [docs/scene-model.md](docs/scene-model.md) · [docs/drawing.md](docs/drawing.md) · [docs/exporters.md](docs/exporters.md) · [docs/unreal-integration.md](docs/unreal-integration.md) — cada capa
 - [docs/build.md](docs/build.md) — toolchain, compilación y localización del motor
 - [docs/rendering-rtx.md](docs/rendering-rtx.md) — configuración de render y cómo se verifica
+- [docs/hdr.md](docs/hdr.md) — botón HDR, monitor comprobado y fotos EXR/PNG
+- [docs/display.md](docs/display.md) — pantalla completa, resolución nativa y tamaño real de render
+- [docs/camera-navigation.md](docs/camera-navigation.md) — WASD, mirada y acercamiento continuo con la rueda
+- [docs/wall-splitting.md](docs/wall-splitting.md) — tramos independientes al unir o cruzar paredes
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización

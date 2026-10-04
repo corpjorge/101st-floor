@@ -367,4 +367,31 @@ namespace f101::geometry
 	{
 		return buildPrismMesh(room.outline, bottomZ, topZ, PrismSlots{slab_slots::Top, slab_slots::Side, slab_slots::Ceiling});
 	}
+
+	cad::Document::RoomFinishTransfer makeRoomFinishTransfer()
+	{
+		return [](const cad::Project& before, const cad::Project& after)
+		{
+			std::vector<cad::RoomFinish> inherited;
+			for (const cad::Level& level : before.levels)
+			{
+				const auto oldRooms = detectRooms(cad::wallsOnLevel(before, level.id));
+				const auto newRooms = detectRooms(cad::wallsOnLevel(after, level.id));
+				for (const Room& room : newRooms)
+				{
+					if (after.findRoomFinish(room.key)) continue;
+					for (const Room& previous : oldRooms)
+					{
+						const cad::RoomFinish* finish = before.findRoomFinish(previous.key);
+						if (finish && containsPoint(previous.outline, room.labelPoint))
+						{
+							inherited.push_back({room.key, finish->floor, finish->ceiling});
+							break;
+						}
+					}
+				}
+			}
+			return inherited;
+		};
+	}
 }
