@@ -5,7 +5,7 @@
 [CmdletBinding()]
 param(
     [string]$Output = 'Saved/UI/design.png',
-    [ValidateSet('design', 'options', 'walk', 'photo', 'furniture', 'materials', 'home', 'grid', 'selection', 'search', 'favorites', 'materials-search', 'unsaved', 'levels')]
+    [ValidateSet('design', 'options', 'walk', 'photo', 'furniture', 'materials', 'home', 'grid', 'selection', 'search', 'favorites', 'materials-search', 'unsaved', 'levels', 'startup', 'diagnostics')]
     [string]$Screen = 'design',
     [string]$Project = '',
     [int]$ResX = 1920,
@@ -20,7 +20,7 @@ if (-not $uiCapturePath.StartsWith($RepoRoot + [IO.Path]::DirectorySeparatorChar
 }
 $uiWindowMode = if ($Fullscreen) { '-fullscreen' } else { '-windowed' }
 $uiArguments = @("`"$UProjectPath`"", '-game', '-DisablePython', $uiWindowMode, "-ResX=$ResX", "-ResY=$ResY",
-    '-ForceRes', '-unattended', '-nosplash', "-F101UICapture=`"$uiCapturePath`"", "-F101UIScreen=$Screen")
+    '-ForceRes', '-unattended', '-nosplash', '-NoLoadingScreen', "-F101UICapture=`"$uiCapturePath`"", "-F101UIScreen=$Screen")
 if ($Project) {
     $uiProjectPath = [IO.Path]::GetFullPath((Join-Path $RepoRoot $Project))
     if (-not (Test-Path -LiteralPath $uiProjectPath -PathType Leaf)) { throw "Project not found: $uiProjectPath" }

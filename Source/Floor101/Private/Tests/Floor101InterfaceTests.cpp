@@ -2,6 +2,8 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Floor101Preferences.h"
+#include "Floor101.h"
+#include "Misc/FileHelper.h"
 #include "Floor101GameViewportClient.h"
 #include "Floor101Display.h"
 #include "Engine/Engine.h"
@@ -25,6 +27,41 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/SWindow.h"
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101DiagnosticPreferencesTest, "Floor101.Interface.DiagnosticPreferences",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFloor101DiagnosticPreferencesTest::RunTest(const FString& Parameters)
+{
+	const FString OriginalIni = GGameUserSettingsIni;
+	const ELogVerbosity::Type OriginalVerbosity = LogFloor101.GetVerbosity();
+	const FString TestIni = FPaths::ConvertRelativePathToFull(FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("Diagnostics"), TEXT(".ini")));
+	GGameUserSettingsIni = TestIni;
+	ON_SCOPE_EXIT
+	{
+		GGameUserSettingsIni = OriginalIni;
+		LogFloor101.SetVerbosity(OriginalVerbosity);
+		GConfig->UnloadFile(TestIni);
+		IFileManager::Get().Delete(*TestIni);
+	};
+	if (!TestTrue(TEXT("temporary preferences created"), FFileHelper::SaveStringToFile(TEXT("[SectionsToSave]\nbCanSaveAllSections=true\n"), *TestIni))) { return false; }
+	GConfig->LoadFile(TestIni);
+	TestFalse(TEXT("debug defaults to off"), Floor101::Preferences::DiagnosticMode());
+	TestFalse(TEXT("console defaults to hidden"), Floor101::Preferences::ShowLogWindow());
+	Floor101::Preferences::SetDiagnosticMode(true);
+	TestEqual(TEXT("debug applies detailed product logging immediately"), LogFloor101.GetVerbosity(), ELogVerbosity::VeryVerbose);
+	TestFalse(TEXT("debug never forces a separate window"), Floor101::Preferences::ShowLogWindow());
+	Floor101::Preferences::SetShowLogWindow(true, false); // persistence check without creating a native test window
+	GConfig->UnloadFile(TestIni);
+	GConfig->LoadFile(TestIni);
+	TestTrue(TEXT("debug survives restart"), Floor101::Preferences::DiagnosticMode());
+	TestTrue(TEXT("window preference survives restart"), Floor101::Preferences::ShowLogWindow());
+	Floor101::Preferences::SetDiagnosticMode(false);
+	TestEqual(TEXT("normal logging is restored, not disabled"), LogFloor101.GetVerbosity(), ELogVerbosity::Log);
+	TestTrue(TEXT("window remains independently enabled"), Floor101::Preferences::ShowLogWindow());
+	Floor101::Preferences::SetShowLogWindow(false, false);
+	TestFalse(TEXT("window can be disabled independently"), Floor101::Preferences::ShowLogWindow());
+	return true;
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101QualityIsolationTest, "Floor101.Interface.QualityIsolation",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

@@ -2,6 +2,7 @@
 #include "Modules/ModuleManager.h"
 #include "RenderCheck.h"
 #include "HdrCheck.h"
+#include "Floor101Preferences.h"
 
 DEFINE_LOG_CATEGORY(LogFloor101);
 
@@ -10,6 +11,7 @@ class FFloor101Module : public FDefaultGameModuleImpl
 public:
 	virtual void StartupModule() override
 	{
+		Floor101::Preferences::ApplySavedDiagnostics();
 		Floor101::RenderCheck::StartIfRequested();
 		Floor101::HDRCheck::StartIfRequested();
 	}

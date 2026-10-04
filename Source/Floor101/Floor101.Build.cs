@@ -13,7 +13,7 @@ public class Floor101 : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
 			"Floor101CadCore", "Floor101Geometry", "Floor101SceneModel", "Floor101Drawing", "Floor101Assets", "Floor101Exporters", "Floor101UnrealAdapter",
-			"Slate", "SlateCore", "ApplicationCore",
+			"Slate", "SlateCore", "ApplicationCore", "Floor101Startup",
 			"GeometryFramework", "GeometryCore",
 			// Plan PNG export (ADR-0015): widgets rendered offscreen and saved as an image.
 			"UMG", "ImageCore",
