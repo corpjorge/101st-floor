@@ -39,3 +39,13 @@ a B y Muebles a G. N conserva el cambio de presentación; los menús, campos de
 texto, consola y modificadores de atajos bloquean movimiento y reinician las
 teclas aceptadas. Los caracteres de movimiento no entran en las medidas del muro;
 los dígitos y m/cm/mm conservan la entrada exacta.
+
+
+## Acceso directo a niveles de velocidad (2026-10-04)
+
+La fila superior 1–9 selecciona el nivel correspondiente y 0 selecciona el 10.
+El teclado numérico, los modificadores y la escritura de medidas en una pared
+activa conservan su función. Los campos de texto, menús y consola mantienen la
+prioridad de entrada. Cambiar el nivel desde el teclado conserva las pulsaciones
+WASD aceptadas; hacerlo desde un menú exige una pulsación nueva al volver a la vista.
+El selector muestra el nivel también en Diseñar; usa las mismas preferencias locales.

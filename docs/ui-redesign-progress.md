@@ -188,3 +188,27 @@ transparente. Exportación SVG/PNG con DX12 correcta
 ![Inicio con Salir centrado](images/ui-redesign/feedback-home-small.png)
 ![Pantalla completa en Opciones](images/ui-redesign/feedback-options-small.png)
 ![Recorrer mantiene la base neutra](images/ui-redesign/feedback-walk.png)
+
+
+## Barra alineada y velocidad con números (2026-10-04)
+
+- Barra superior con botones de 44 px y contenido centrado. Modos, acciones,
+  marca y Salir comparten la alineación; los botones siguen redistribuyéndose
+  cuando la ventana es estrecha. Salir en Inicio mantiene su tamaño y centrado.
+- Números de la fila superior 1–9 para elegir nivel y 0 para el nivel 10.
+  El teclado numérico no cambia velocidad. Se conserva el movimiento WASD
+  mientras se cambia el nivel, que usa las mismas preferencias persistentes.
+- Los números conservan la escritura de medidas al trazar una pared. Campos
+  de texto, menús, consola y modificadores tienen prioridad. Repetir una tecla
+  mantenida no vuelve a aplicar un nivel. Selector visible también en Diseñar;
+  la explicación está en Opciones → Controles y en su ayuda contextual.
+
+Validación: compilación correcta, 275 pruebas unitarias (13 035 comprobaciones)
+y 80 de integración sin fallos (`Saved/Automation/20261004-143035`). Nuevas
+regresiones del mapa numérico y de la entrada real del viewport: niveles,
+repetición, teclado numérico, menú y medida decimal. Capturas reales revisadas
+a 920 × 600, 800 × 600 y 1920 × 1080. Rama sin fusionar.
+
+![Barra a 920 × 600](images/ui-redesign/feedback-toolbar-small.png)
+![Barra a 800 × 600](images/ui-redesign/feedback-toolbar-800.png)
+![Barra a 1920 × 1080](images/ui-redesign/feedback-toolbar-wide.png)

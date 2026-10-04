@@ -60,9 +60,9 @@ AFloor101EditingPawn* UFloor101GameViewportClient::GetEditingPawn() const
 	return Controller ? Cast<AFloor101EditingPawn>(Controller->GetPawn()) : nullptr;
 }
 
-void UFloor101GameViewportClient::SetNavigationSpeedLevel(int32 Level)
+void UFloor101GameViewportClient::SetNavigationSpeedLevel(int32 Level, bool bPreserveMovement)
 {
-	NavigationKeys.Reset();
+	if (!bPreserveMovement) { NavigationKeys.Reset(); }
 	if (AFloor101EditingPawn* Pawn = GetEditingPawn()) { Pawn->SetNavigationSpeedLevel(Level, true); }
 }
 
@@ -448,6 +448,13 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 
 	const EditController& Current = Document.GetEditController();
 	const bool bTypingLength = Current.mode() == f101::cad::EditMode::Wall && Current.wallTool().state() == f101::cad::WallTool::State::Drafting;
+	const int32 SpeedLevel = FFloor101NavigationKeys::SpeedLevelForKey(Key, bTypingLength && !bNavigationMode && !bPhotoMode && !bOrbiting,
+		Modifiers.IsControlDown() || Modifiers.IsShiftDown());
+	if (SpeedLevel > 0)
+	{
+		if (!bRepeat) { SetNavigationSpeedLevel(SpeedLevel, true); }
+		return true;
+	}
 	const EFloor101KeyCommand Command = MapKey(Key, Modifiers.IsControlDown(), Modifiers.IsShiftDown(), bRepeat, bTypingLength, bNavigationMode || bOrbiting);
 	if (Command == EFloor101KeyCommand::NavigationToggle || (Command == EFloor101KeyCommand::Cancel && bNavigationMode))
 	{

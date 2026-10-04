@@ -75,7 +75,8 @@ public:
 	virtual void LostFocus(FViewport* InViewport) override;
 	void SetNavigationMode(bool bNavigate);
 	bool IsNavigationMode() const { return bNavigationMode; }
-	void SetNavigationSpeedLevel(int32 Level);
+	// Keyboard speed changes preserve held movement; menu changes require a fresh press.
+	void SetNavigationSpeedLevel(int32 Level, bool bPreserveMovement = false);
 	int32 GetNavigationSpeedLevel() const;
 	// Standard game exit (ends only the play session in PIE), after protecting unsaved work.
 	bool RequestExit();

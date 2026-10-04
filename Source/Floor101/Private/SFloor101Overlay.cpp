@@ -437,14 +437,19 @@ bool SFloor101Overlay::IsDesignMode() const
 
 TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 {
+	// A shared row height and centered content keep different fonts/disabled actions aligned.
+	auto HeaderItem = [](const TSharedRef<SWidget>& Widget)
+	{
+		return SNew(SBox).HeightOverride(44.0f)[Widget];
+	};
 	auto Button = [](const FText& Text, FOnClicked Click, TAttribute<bool> Enabled = true)
 	{
-		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).IsEnabled(Enabled).OnClicked(Click)
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).HAlign(HAlign_Center).VAlign(VAlign_Center).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).IsEnabled(Enabled).OnClicked(Click)
 			[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Text).Font(Font(10))];
 	};
 	auto Mode = [this](const FText& Text, int32 Index)
 	{
-		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(14.0f, 7.0f)).IsFocusable(false)
+		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).HAlign(HAlign_Center).VAlign(VAlign_Center).ContentPadding(FMargin(14.0f, 7.0f)).IsFocusable(false)
 			.ForegroundColor_Lambda([this, Index]()
 			{
 				const auto* Client = ViewportClient.Get();
@@ -462,10 +467,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 	TSharedRef<SWrapBox> Header = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0));
 	Header->AddSlot().VAlign(VAlign_Center)
 	[
-		SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).IsFocusable(false).ContentPadding(2.0f)
+		SNew(SBox).HeightOverride(44.0f)
+		[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).HAlign(HAlign_Center).VAlign(VAlign_Center).IsFocusable(false).ContentPadding(FMargin(8.0f, 6.0f))
 		.ToolTipText(LOCTEXT("StudioHomeTip", "Volver al inicio"))
 		.OnClicked_Lambda([this]() { OpenHome(); return FReply::Handled(); })
-		[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioBrand", "101st FLOOR")).Font(Font(16, true))]
+		[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioBrand", "101st FLOOR")).Font(Font(16, true))]]
 	];
 	Header->AddSlot().VAlign(VAlign_Center)
 	[
@@ -480,19 +486,19 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 			})
 		]
 	];
-	Header->AddSlot()[Mode(LOCTEXT("StudioDesign", "Diseñar"), 0)];
-	Header->AddSlot()[Mode(LOCTEXT("StudioWalk", "Recorrer (N)"), 1)];
-	Header->AddSlot()[Mode(LOCTEXT("StudioPhoto", "Foto (R)"), 2)];
-	Header->AddSlot()[Button(LOCTEXT("StudioUndo", "Deshacer"), FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.undo(); }); }),
-		TAttribute<bool>::CreateLambda([this]() { const auto* S = Document.Get(); return S && S->GetDocument().canUndo(); }))];
-	Header->AddSlot()[Button(LOCTEXT("StudioRedo", "Rehacer"), FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.redo(); }); }),
-		TAttribute<bool>::CreateLambda([this]() { const auto* S = Document.Get(); return S && S->GetDocument().canRedo(); }))];
-	Header->AddSlot()[Button(LOCTEXT("StudioSave", "Guardar"), FOnClicked::CreateLambda([this]()
+	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(Mode(LOCTEXT("StudioDesign", "Diseñar"), 0))];
+	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(Mode(LOCTEXT("StudioWalk", "Recorrer (N)"), 1))];
+	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(Mode(LOCTEXT("StudioPhoto", "Foto (R)"), 2))];
+	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(Button(LOCTEXT("StudioUndo", "Deshacer"), FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.undo(); }); }),
+		TAttribute<bool>::CreateLambda([this]() { const auto* S = Document.Get(); return S && S->GetDocument().canUndo(); })))];
+	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(Button(LOCTEXT("StudioRedo", "Rehacer"), FOnClicked::CreateLambda([this]() { return Run([](EditController& E) { return E.redo(); }); }),
+		TAttribute<bool>::CreateLambda([this]() { const auto* S = Document.Get(); return S && S->GetDocument().canRedo(); })))];
+	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(Button(LOCTEXT("StudioSave", "Guardar"), FOnClicked::CreateLambda([this]()
 	{
 		if (auto* S = Document.Get()) { FFloor101FileActions::Save(*S); }
 		return FReply::Handled();
-	}))];
-	Header->AddSlot()[MakeExitButton()];
+	})))];
+	Header->AddSlot().VAlign(VAlign_Center)[HeaderItem(MakeExitButton(true))];
 
 	TSharedRef<SWrapBox> Views = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0));
 	Views->AddSlot()[MakeFileMenu()];
@@ -522,7 +528,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		SNew(SBox).Visibility_Lambda([this]()
 		{
 			const auto* Client = ViewportClient.Get();
-			return Client && Client->IsNavigationMode() ? EVisibility::Visible : EVisibility::Collapsed;
+			return Client ? EVisibility::Visible : EVisibility::Collapsed;
 		})[MakeNavigationSpeed()]
 	];
 	return Panel(SNew(SVerticalBox)
@@ -722,7 +728,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
 							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
-								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
+								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
@@ -1509,11 +1515,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 		];
 }
 
-TSharedRef<SWidget> SFloor101Overlay::MakeExitButton()
+TSharedRef<SWidget> SFloor101Overlay::MakeExitButton(bool bCompact)
 {
 	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).HAlign(HAlign_Center).VAlign(VAlign_Center)
 		.IsFocusable(false)
-		.ContentPadding(FMargin(16.0f, 10.0f))
+		.ContentPadding(bCompact ? FMargin(10.0f, 6.0f) : FMargin(16.0f, 10.0f))
 		.ToolTipText(LOCTEXT("ExitTip", "Cierra 101st Floor. Si hay cambios sin guardar, permite guardarlos, descartarlos o cancelar."))
 		.OnClicked_Lambda([this]()
 		{
@@ -1521,14 +1527,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakeExitButton()
 			return FReply::Handled();
 		})
 		[
-			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Exit", "Salir")).Font(Font(12, true))
+			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Exit", "Salir")).Font(Font(bCompact ? 10 : 12, true))
 		];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeNavigationSpeed()
 {
 	return SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f))
-		.ToolTipText(LOCTEXT("NavigationSpeedTip", "Niveles 1–10: desde precisión hasta recorrido rápido. La velocidad elegida se guarda y no cambia al acercarte. Shift la multiplica por cuatro."))
+		.ToolTipText(LOCTEXT("NavigationSpeedTip", "Teclas superiores 1–9 y 0 (nivel 10), excepto al escribir medidas. Niveles 1–10: desde precisión hasta recorrido rápido. La velocidad elegida se guarda y no cambia al acercarte. Shift la multiplica por cuatro."))
 		.OnGetMenuContent_Lambda([this]()
 		{
 			FMenuBuilder Menu(true, nullptr);

@@ -8,6 +8,8 @@
 class FLOOR101_API FFloor101NavigationKeys
 {
 public:
+	// Top-row digits select speed; dimensions and modified shortcuts take priority. Zero selects level 10.
+	static int32 SpeedLevelForKey(const FKey& Key, bool bTypingLength, bool bShortcutModifier);
 	static bool IsMovementKey(const FKey& Key);
 	static bool IsMovementCharacter(TCHAR Character);
 	bool HandleKey(const FKey& Key, EInputEvent Event, bool bNavigationActive, bool bShortcutModifier);
