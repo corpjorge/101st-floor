@@ -21,5 +21,7 @@ namespace Floor101::Display
 	TArray<FIntPoint> Resolutions(const UGameViewportClient* Client);
 	bool SetResolution(UGameViewportClient* Client, FIntPoint Size, bool bSave = true);
 	bool ToggleFullscreen(UGameViewportClient* Client, bool bSave = true);
+	bool IsVSyncEnabled(); // effective runtime state
+	bool SetVSyncEnabled(bool bEnabled, bool bSave = true);
 	FText Describe(const FStatus& Status);
 }

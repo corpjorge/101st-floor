@@ -114,6 +114,8 @@ Desarrollo:
 | R / botón "Foto (R)" | Modo Foto: la vista con path tracing, sin marcas de edición; el panel da el progreso, la calidad (Borrador 64, Media 256, Alta 1024 muestras) y "Guardar imagen" (PNG en SDR, EXR con HDR); la cámara se mueve igual y reinicia la imagen; R o Esc vuelven a editar |
 | F11 / botón "Pantalla completa" | pantalla completa dedicada a la resolución nativa del monitor y render al 100 %; vuelve al tamaño de ventana anterior. Disponible también en Modo Foto |
 | N / botón "Navegar"; derecho + WASD al editar | WASD desplaza la cámara, Q/E baja/sube, Shift acelera; derecho arrastrando mira desde la cámara. N/Esc vuelve a editar. En plano 2D, WASD desplaza el plano. [Detalle](camera-navigation.md) |
+| Selector "Velocidad" | niveles 1–10 (0,1–80 m/s); inicial 3 m/s, independiente del zoom; guarda la elección. Shift multiplica por cuatro |
+| Botón "Sincronización vertical" | activa/desactiva VSync inmediatamente y guarda la elección; conserva HDR y resolución |
 | "Resolución" y fila Pantalla / Imagen / Render | elegir un modo admitido por el monitor y comprobar dimensiones nativas, viewport efectivo y render interno antes de TSR. En plano 2D se indica "plano 2D"; detalle en [pantalla y resolución](display.md) |
 | Tab / botón "Plano 2D (Tab)" | plano 2D de la planta activa, editable como en 3D (rueda: zoom, central: desplazar); Tab o T vuelven a 3D |
 | "Plano: SVG / PNG" | exporta el plano de la planta activa junto al proyecto (`<proyecto>-<planta>.svg|png`) |

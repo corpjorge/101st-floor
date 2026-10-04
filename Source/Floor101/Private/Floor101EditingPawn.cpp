@@ -2,6 +2,7 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/SceneComponent.h"
+#include "Misc/ConfigCacheIni.h"
 
 namespace
 {
@@ -14,8 +15,7 @@ namespace
 	constexpr double CloseDollyPerStep = 5.0; // cm once the camera has reached its orbit focus
 	constexpr double MaxCloseDollySteps = 10.0; // bound a single unusually large wheel event
 	constexpr double PlanCameraHeight = 100000.0; // cm over the focus: above any building, so pointer rays start above it
-	constexpr double MinMoveSpeed = 10.0;   // cm/s: fine control while inspecting details
-	constexpr double MaxMoveSpeed = 1000.0; // cm/s
+	constexpr double NavigationSpeeds[] = {10.0, 25.0, 50.0, 100.0, 300.0, 500.0, 1000.0, 2000.0, 4000.0, 8000.0}; // cm/s
 	constexpr double FastMoveMultiplier = 4.0;
 }
 
@@ -35,7 +35,30 @@ AFloor101EditingPawn::AFloor101EditingPawn()
 void AFloor101EditingPawn::BeginPlay()
 {
 	Super::BeginPlay();
+	LoadNavigationSpeedLevel();
 	ApplyView();
+}
+
+void AFloor101EditingPawn::LoadNavigationSpeedLevel()
+{
+	int32 SavedLevel = 5;
+	if (GConfig) { GConfig->GetInt(TEXT("Floor101.Camera"), TEXT("NavigationSpeedLevel"), SavedLevel, GGameUserSettingsIni); }
+	SetNavigationSpeedLevel(SavedLevel);
+}
+
+double AFloor101EditingPawn::NavigationSpeedForLevel(int32 Level)
+{
+	return NavigationSpeeds[FMath::Clamp(Level, 1, 10) - 1];
+}
+
+void AFloor101EditingPawn::SetNavigationSpeedLevel(int32 Level, bool bSave)
+{
+	NavigationSpeedLevel = FMath::Clamp(Level, 1, 10);
+	if (bSave && GConfig)
+	{
+		GConfig->SetInt(TEXT("Floor101.Camera"), TEXT("NavigationSpeedLevel"), NavigationSpeedLevel, GGameUserSettingsIni);
+		GConfig->Flush(false, GGameUserSettingsIni);
+	}
 }
 
 void AFloor101EditingPawn::Orbit(const FVector2D& DeltaPixels)
@@ -110,8 +133,7 @@ void AFloor101EditingPawn::Move(const FVector& LocalDirection, float DeltaTime, 
 	{
 		return;
 	}
-	const double ViewScale = bPlanView ? GetViewWidth() : Distance;
-	const double Speed = FMath::Clamp(ViewScale * 0.25, MinMoveSpeed, MaxMoveSpeed) * (bFast ? FastMoveMultiplier : 1.0);
+	const double Speed = NavigationSpeedForLevel(NavigationSpeedLevel) * (bFast ? FastMoveMultiplier : 1.0);
 	Focus += Direction * Speed * static_cast<double>(DeltaTime);
 	ApplyView();
 }

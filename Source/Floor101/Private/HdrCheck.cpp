@@ -32,6 +32,7 @@ namespace
 		FString ImagePath;
 		bool bDisplayCheck = FParse::Param(FCommandLine::Get(), TEXT("F101DisplayCheck"));
 		bool bExpectedHDR = false;
+		bool bOriginalVSync = false;
 		FIntPoint OriginalSize = FIntPoint::ZeroValue;
 		FIntPoint NativeSize = FIntPoint::ZeroValue;
 		FIntPoint LowerSize = FIntPoint::ZeroValue;
@@ -91,6 +92,7 @@ namespace
 				{
 					const Display::FStatus State = Display::Query(Client);
 					OriginalSize = State.Image;
+					bOriginalVSync = Display::IsVSyncEnabled();
 					NativeSize = State.Native;
 					bExpectedHDR = HDR::Query(Client).bAvailable;
 					const TArray<FIntPoint> Modes = Display::Resolutions(Client);
@@ -186,12 +188,24 @@ namespace
 					}
 					if (bExpectedHDR) { UE_LOG(LogFloor101, Display, TEXT("F101HDRCheck: hdr_on=1 fullscreen=1")); }
 				}
-				HDR::SetEnabled(Client, false, false); // readable documentation screenshot; HDR was checked above
+				if (!Display::SetVSyncEnabled(true, false)) { return Finish(false, TEXT("cannot_enable_vsync")); }
 				Frames = 0;
 				Phase = 11;
 				break;
 			case 11:
 				if (++Frames < 60) { break; }
+				if (!Display::IsVSyncEnabled() || Display::Query(Client).Image != NativeSize || Display::Query(Client).Render != NativeSize
+					|| (bExpectedHDR && !Client->Viewport->GetSceneHDREnabled())) { return Finish(false, TEXT("vsync_changed_display_or_HDR")); }
+				UE_LOG(LogFloor101, Display, TEXT("F101HDRCheck: vsync_on=1 native_and_HDR_preserved=1"));
+				if (!Display::SetVSyncEnabled(false, false)) { return Finish(false, TEXT("cannot_disable_vsync")); }
+				HDR::SetEnabled(Client, false, false); // readable documentation screenshot; HDR was checked above
+				Phase = 16;
+				Frames = 0;
+				break;
+			case 16:
+				if (++Frames < 60) { break; }
+				if (Display::IsVSyncEnabled()) { return Finish(false, TEXT("vsync_not_disabled")); }
+				UE_LOG(LogFloor101, Display, TEXT("F101HDRCheck: vsync_off=1"));
 				ImagePath = FPaths::Combine(Directory, TEXT("Fullscreen-native.png"));
 				IFileManager::Get().Delete(*ImagePath, false, true);
 				FScreenshotRequest::RequestScreenshot(ImagePath, true, false, false);
@@ -238,6 +252,7 @@ namespace
 					Client->SetPlanView(true);
 					const bool bPlanCorrect = !Display::Query(Client).bWorldRendering && Display::Describe(Display::Query(Client)).ToString().Contains(TEXT("plano 2D"));
 					Client->SetPlanView(false);
+					if (!Display::SetVSyncEnabled(bOriginalVSync, false)) { return Finish(false, TEXT("vsync_not_restored")); }
 					return Finish(bPlanCorrect, TEXT("native_and_selected_resolution"));
 				}
 			}

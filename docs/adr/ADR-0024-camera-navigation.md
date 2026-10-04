@@ -14,7 +14,10 @@ detalle o recorrer una habitación. WASD también coincide con W (Muro) y A (Amu
 - WASD desplaza respecto a la cámara, Q/E en vertical global, Shift multiplica la velocidad por cuatro. La mirada
   de navegación gira desde la posición de la cámara, incluyendo arriba del horizonte. En plano 2D, WASD desplaza
   según los ejes de pantalla; Q/E y la mirada no alteran el plano.
-- Calcular movimiento por tiempo, normalizar diagonales y reducir velocidad cerca de los detalles. Solo se aceptan
+- Calcular movimiento por tiempo y normalizar diagonales. Ofrecer niveles de velocidad 1–10 (0,1–80 m/s), con
+  nivel inicial 5 (3 m/s), independientes del zoom. Guardar la elección en `Floor101.Camera` de las preferencias
+  locales y cargarla al iniciar la cámara. La reducción automática cerca del foco hacía demasiado lento WASD.
+  Solo se aceptan
   pulsaciones nuevas con foco y navegación activos. Soltar, perder foco, abrir consola o usar Ctrl/Alt/Command
   descarta las teclas aceptadas; un guardado no puede convertirse en movimiento al soltar Ctrl.
 - Bajar la distancia mínima orbital a 2 cm y el plano cercano a 1 cm. Al alcanzar el foco, la rueda sigue avanzando

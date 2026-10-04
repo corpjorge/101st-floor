@@ -95,7 +95,11 @@ void Tick(UGameViewportClient* Client)
 	if (!Probe)
 	{
 		Probe = FSceneViewExtensions::NewExtension<FRenderSize>();
-		if (UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr) { FullResolution(*Settings); }
+		if (UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
+		{
+			FullResolution(*Settings);
+			SetVSyncEnabled(Settings->IsVSyncEnabled(), false);
+		}
 	}
 	Probe->Target = Client->Viewport;
 	const double Now = FPlatformTime::Seconds();
@@ -104,6 +108,26 @@ void Tick(UGameViewportClient* Client)
 		FDisplayMetrics::RebuildDisplayMetrics(Metrics);
 		LastMetrics = Now;
 	}
+}
+
+bool IsVSyncEnabled()
+{
+	const IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+	return Variable && Variable->GetInt() != 0;
+}
+
+bool SetVSyncEnabled(bool bEnabled, bool bSave)
+{
+	UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr;
+	IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+	if (!Settings || !Variable) { return false; }
+	// Apply this preference alone: ApplyNonResolutionSettings also reapplies HDR, scalability and the frame cap.
+	// The engine's inherited SystemSettings can set r.VSync=0 above GameSetting priority. The app owns this control.
+	Variable->Set(bEnabled ? 1 : 0, ECVF_SetByCode);
+	if (IsVSyncEnabled() != bEnabled) { return false; }
+	Settings->SetVSyncEnabled(bEnabled);
+	if (bSave) { Settings->SaveSettings(); }
+	return true;
 }
 
 FStatus Query(const UGameViewportClient* Client)

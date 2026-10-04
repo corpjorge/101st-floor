@@ -22,6 +22,10 @@ modos de pantalla. Mostrar únicamente la resolución solicitada oculta reduccio
   «plano 2D», porque esa vista se dibuja con Slate sin render de mundo 3D.
 - Guardar preferencias locales; `Run.ps1` las respeta y admite opciones explícitas para sobrescribirlas al arrancar.
   Una instalación nueva mantiene la ventana inicial de 1920 × 1080.
+- Ofrecer VSync independiente en la barra y Modo Foto. Aplicar solo `r.VSync` con prioridad de código y guardar
+  `bUseVSync`, restaurándolo al iniciar el viewport y mostrando el estado efectivo. La prioridad supera el valor
+  heredado de `SystemSettings` del motor. Evitar reaplicar todos los ajustes, que también altera HDR,
+  escalado y límite de fotogramas.
 
 ## Consecuencias y verificación
 El coste de render aumenta frente al escalado automático; bajar la resolución es una elección visible. HDR conserva

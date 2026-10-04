@@ -6,6 +6,11 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Floor101EditingPawn.h"
+#include "HAL/FileManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 
 namespace
 {
@@ -99,6 +104,7 @@ bool FFloor101CameraMovementTest::RunTest(const FString& Parameters)
 	Pawn->Move(FVector(1.0, 0.0, 0.0), 1.0f, false);
 	const FVector ForwardMove = Pawn->GetActorLocation() - Start;
 	const double NormalSpeed = ForwardMove.Size();
+	TestEqual(TEXT("default level 5 travels at 3 m/s"), NormalSpeed, 300.0, ScalarTolerance);
 	TestTrue(TEXT("W moves in the camera's direction"), FVector::DotProduct(ForwardMove.GetSafeNormal(), View.Vector()) > 0.9999);
 	TestEqual(TEXT("movement translates the focus with the camera"), Pawn->GetFocus() - Focus, ForwardMove, Tolerance);
 	TestEqual(TEXT("movement retains view direction"), Pawn->GetActorRotation(), View, 1e-3f);
@@ -129,7 +135,21 @@ bool FFloor101CameraMovementTest::RunTest(const FString& Parameters)
 	Pawn->Zoom(10000.0f);
 	const FVector CloseStart = Pawn->GetActorLocation();
 	Pawn->Move(FVector(1.0, 0.0, 0.0), 1.0f, false);
-	TestEqual(TEXT("close-up navigation gives fine 10 cm/s control"), (Pawn->GetActorLocation() - CloseStart).Size(), 10.0, ScalarTolerance);
+	TestEqual(TEXT("zoom cannot slow the selected navigation speed"), (Pawn->GetActorLocation() - CloseStart).Size(), NormalSpeed, ScalarTolerance);
+	Pawn->SetNavigationSpeedLevel(1);
+	const FVector FineStart = Pawn->GetActorLocation();
+	Pawn->Move(FVector(1.0, 0.0, 0.0), 1.0f, false);
+	TestEqual(TEXT("level 1 permits precise 10 cm/s travel"), (Pawn->GetActorLocation() - FineStart).Size(), 10.0, ScalarTolerance);
+	Pawn->SetNavigationSpeedLevel(8);
+	const FVector FastStart = Pawn->GetActorLocation();
+	Pawn->Move(FVector(1.0, 0.0, 0.0), 0.5f, true);
+	TestEqual(TEXT("chosen level 8 responds immediately and combines with Shift"),
+		(Pawn->GetActorLocation() - FastStart).Size(), 4000.0, ScalarTolerance);
+	Pawn->SetNavigationSpeedLevel(-1);
+	TestEqual(TEXT("invalid low level clamps to precision"), Pawn->GetNavigationSpeedLevel(), 1);
+	Pawn->SetNavigationSpeedLevel(100);
+	TestEqual(TEXT("invalid high level clamps to the fastest choice"), Pawn->GetNavigationSpeedLevel(), 10);
+	Pawn->SetNavigationSpeedLevel(5);
 
 	Pawn->SetPlanView(true);
 	Pawn->Frame(Wall);
@@ -138,6 +158,7 @@ bool FFloor101CameraMovementTest::RunTest(const FString& Parameters)
 	const double PlanWidth = Pawn->GetViewWidth();
 	Pawn->Move(FVector(1.0, 0.0, 0.0), 1.0f, false);
 	const FVector PlanForward = Pawn->GetFocus() - PlanStart;
+	TestEqual(TEXT("plan uses the selected speed too"), PlanForward.Size(), 300.0, ScalarTolerance);
 	TestTrue(TEXT("plan W pans north, up on screen"), PlanForward.Y < 0.0 && FMath::Abs(PlanForward.X) < Tolerance);
 	TestEqual(TEXT("plan navigation stays at the same elevation"), Pawn->GetFocus().Z, PlanStart.Z, ScalarTolerance);
 	Pawn->Frame(Wall);
@@ -153,6 +174,37 @@ bool FFloor101CameraMovementTest::RunTest(const FString& Parameters)
 	Pawn->Zoom(10000.0f);
 	Pawn->Zoom(1.0f);
 	TestEqual(TEXT("plan zoom changes scale only, with no dolly"), Pawn->GetFocus(), BeforePlanZoom, Tolerance);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101CameraSpeedPreferenceTest, "Floor101.Interaction.CameraSpeedPreference", TestFlags)
+bool FFloor101CameraSpeedPreferenceTest::RunTest(const FString& Parameters)
+{
+	FCameraTestWorld TestWorld;
+	AFloor101EditingPawn* Pawn = TestWorld.World->SpawnActor<AFloor101EditingPawn>();
+	if (!TestNotNull(TEXT("pawn"), Pawn) || !TestNotNull(TEXT("config"), GConfig)) { return false; }
+	const FString OriginalIni = GGameUserSettingsIni;
+	const FString TestIni = FPaths::ConvertRelativePathToFull(FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("CameraSpeed"), TEXT(".ini")));
+	GGameUserSettingsIni = TestIni;
+	ON_SCOPE_EXIT
+	{
+		GGameUserSettingsIni = OriginalIni;
+		GConfig->UnloadFile(TestIni);
+		IFileManager::Get().Delete(*TestIni);
+	};
+	if (!TestTrue(TEXT("temporary preferences created"), FFileHelper::SaveStringToFile(TEXT("[SectionsToSave]\nbCanSaveAllSections=true\n"), *TestIni))) { return false; }
+	GConfig->LoadFile(TestIni);
+	Pawn->LoadNavigationSpeedLevel();
+	TestEqual(TEXT("new installs use level 5"), Pawn->GetNavigationSpeedLevel(), 5);
+	Pawn->SetNavigationSpeedLevel(7, true);
+	GConfig->UnloadFile(TestIni);
+	GConfig->LoadFile(TestIni);
+	Pawn->SetNavigationSpeedLevel(1);
+	Pawn->LoadNavigationSpeedLevel();
+	TestEqual(TEXT("speed survives reloading preferences from disk"), Pawn->GetNavigationSpeedLevel(), 7);
+	GConfig->SetInt(TEXT("Floor101.Camera"), TEXT("NavigationSpeedLevel"), -99, TestIni);
+	Pawn->LoadNavigationSpeedLevel();
+	TestEqual(TEXT("corrupt saved level is bounded safely"), Pawn->GetNavigationSpeedLevel(), 1);
 	return true;
 }
 

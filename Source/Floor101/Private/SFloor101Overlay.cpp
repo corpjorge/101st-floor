@@ -11,6 +11,7 @@
 #include "F101/Drawing/PlanDrawing.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101Display.h"
+#include "Floor101EditingPawn.h"
 #include "Floor101FileActions.h"
 #include "Floor101FileDialog.h"
 #include "Floor101FinishLibrary.h"
@@ -1516,6 +1517,69 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 		];
 }
 
+TSharedRef<SWidget> SFloor101Overlay::MakeNavigationSpeed()
+{
+	return SNew(SComboButton)
+		.ToolTipText(LOCTEXT("NavigationSpeedTip", "Niveles 1–10: desde precisión hasta recorrido rápido. La velocidad elegida se guarda y no cambia al acercarte. Shift la multiplica por cuatro."))
+		.OnGetMenuContent_Lambda([this]()
+		{
+			FMenuBuilder Menu(true, nullptr);
+			for (int32 Level = 1; Level <= 10; ++Level)
+			{
+				const FText Label = FText::FromString(FString::Printf(TEXT("Nivel %d · %g m/s%s"), Level,
+					AFloor101EditingPawn::NavigationSpeedForLevel(Level) / 100.0, Level == 5 ? TEXT(" (inicial)") : TEXT("")));
+				Menu.AddMenuEntry(Label, FText::GetEmpty(), FSlateIcon(), FUIAction(
+					FExecuteAction::CreateLambda([this, Level]()
+					{
+						if (UFloor101GameViewportClient* Client = ViewportClient.Get()) { Client->SetNavigationSpeedLevel(Level); }
+						FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this, Level]()
+					{
+						const UFloor101GameViewportClient* Client = ViewportClient.Get();
+						return Client && Client->GetNavigationSpeedLevel() == Level;
+					})), NAME_None, EUserInterfaceActionType::RadioButton);
+			}
+			return Menu.MakeWidget();
+		})
+		.ButtonContent()
+		[
+			SNew(STextBlock).Font(Font(10))
+			.Text_Lambda([this]()
+			{
+				const UFloor101GameViewportClient* Client = ViewportClient.Get();
+				const int32 Level = Client ? Client->GetNavigationSpeedLevel() : 5;
+				return FText::FromString(FString::Printf(TEXT("Velocidad: nivel %d · %g m/s"), Level,
+					AFloor101EditingPawn::NavigationSpeedForLevel(Level) / 100.0));
+			})
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeVSyncButton()
+{
+	return SNew(SButton)
+		.IsFocusable(false)
+		.ToolTipText(LOCTEXT("VSyncTip", "Activar sincroniza los fotogramas con el monitor para reducir cortes de imagen. Desactivar permite una frecuencia de fotogramas independiente. Se guarda para la próxima sesión."))
+		.ButtonColorAndOpacity_Lambda([]()
+		{
+			return Floor101::Display::IsVSyncEnabled() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
+		})
+		.OnClicked_Lambda([]()
+		{
+			Floor101::Display::SetVSyncEnabled(!Floor101::Display::IsVSyncEnabled());
+			FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			return FReply::Handled();
+		})
+		[
+			SNew(STextBlock).Font(Font(10))
+			.Text_Lambda([]()
+			{
+				return Floor101::Display::IsVSyncEnabled() ? LOCTEXT("VSyncOff", "Desactivar sincronización vertical")
+					: LOCTEXT("VSyncOn", "Activar sincronización vertical");
+			})
+			.AutoWrapText(true)
+		];
+}
+
 TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 {
 	return SNew(SButton)
@@ -1604,6 +1668,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 	{
 		return SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationButton()]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeNavigationSpeed()]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 			[
 				SNew(STextBlock).Font(Font(9)).AutoWrapText(true)
@@ -1611,13 +1676,24 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Fullscreen]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Resolution]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[MakeVSyncButton()]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)[Status];
 	}
-	return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)[MakeNavigationButton()]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Fullscreen]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Resolution]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Status];
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[MakeNavigationButton()]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[MakeNavigationSpeed()]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[MakeVSyncButton()]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f, 0.0f, 0.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Fullscreen]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Resolution]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)[Status]
+		];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()

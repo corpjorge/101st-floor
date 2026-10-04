@@ -27,6 +27,11 @@ public:
 	// Continuous movement: X = camera forward, Y = camera right, Z = world up. In the 2D plan, X/Y pan up/right on
 	// screen and Z is ignored. DeltaTime is seconds; diagonals have the same speed and Shift selects fast travel.
 	void Move(const FVector& LocalDirection, float DeltaTime, bool bFast);
+	// Explicit travel speed, independent of zoom. Saved locally only when changed through the UI.
+	void SetNavigationSpeedLevel(int32 Level, bool bSave = false);
+	void LoadNavigationSpeedLevel();
+	int32 GetNavigationSpeedLevel() const { return NavigationSpeedLevel; }
+	static double NavigationSpeedForLevel(int32 Level); // cm/s; levels 1..10, default 5 = 3 m/s
 	// Positive steps move closer; after the close limit, continue forward in small bounded dolly steps. In 2D only
 	// the orthographic width changes. Negative steps back away from the current focus.
 	void Zoom(float Steps);
@@ -58,4 +63,5 @@ private:
 	double Pitch = -35.0;                // degrees, looking down
 	double Distance = 1500.0;            // cm from the focus
 	bool bPlanView = false;
+	int32 NavigationSpeedLevel = 5;
 };

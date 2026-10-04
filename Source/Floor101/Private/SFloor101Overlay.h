@@ -107,6 +107,8 @@ private:
 	TSharedRef<SWidget> MakeHdrButton();
 	TSharedRef<SWidget> MakeDisplayControls(bool bCompact = false);
 	TSharedRef<SWidget> MakeNavigationButton();
+	TSharedRef<SWidget> MakeNavigationSpeed();
+	TSharedRef<SWidget> MakeVSyncButton();
 	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 

@@ -51,6 +51,18 @@ AFloor101EditingPawn* UFloor101GameViewportClient::GetEditingPawn() const
 	return Controller ? Cast<AFloor101EditingPawn>(Controller->GetPawn()) : nullptr;
 }
 
+void UFloor101GameViewportClient::SetNavigationSpeedLevel(int32 Level)
+{
+	NavigationKeys.Reset();
+	if (AFloor101EditingPawn* Pawn = GetEditingPawn()) { Pawn->SetNavigationSpeedLevel(Level, true); }
+}
+
+int32 UFloor101GameViewportClient::GetNavigationSpeedLevel() const
+{
+	const AFloor101EditingPawn* Pawn = GetEditingPawn();
+	return Pawn ? Pawn->GetNavigationSpeedLevel() : 5;
+}
+
 bool UFloor101GameViewportClient::GetCursorRay(f101::cad::Ray3& OutRay) const
 {
 	const UWorld* CurrentWorld = GetWorld();

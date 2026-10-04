@@ -74,6 +74,8 @@ public:
 	virtual void LostFocus(FViewport* InViewport) override;
 	void SetNavigationMode(bool bNavigate);
 	bool IsNavigationMode() const { return bNavigationMode; }
+	void SetNavigationSpeedLevel(int32 Level);
+	int32 GetNavigationSpeedLevel() const;
 
 	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
 	void FrameProject();

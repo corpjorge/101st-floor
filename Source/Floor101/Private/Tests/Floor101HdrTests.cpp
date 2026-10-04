@@ -6,6 +6,9 @@
 #include "Floor101GameViewportClient.h"
 #include "InputCoreTypes.h"
 #include "HAL/IConsoleManager.h"
+#include "Engine/Engine.h"
+#include "GameFramework/GameUserSettings.h"
+#include "Misc/ScopeExit.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101HDRUnavailableTest, "Floor101.Rendering.HDRUnavailable",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -30,6 +33,37 @@ bool FFloor101DisplayUnavailableTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("no window has no selectable monitor modes"), Floor101::Display::Resolutions(nullptr).Num(), 0);
 	TestTrue(TEXT("F11 toggles fullscreen"), UFloor101GameViewportClient::MapKey(EKeys::F11, false, false, false) == EFloor101KeyCommand::Fullscreen);
 	TestTrue(TEXT("holding F11 does not repeatedly toggle"), UFloor101GameViewportClient::MapKey(EKeys::F11, false, false, true) == EFloor101KeyCommand::None);
+	return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101VSyncTest, "Floor101.Rendering.VSync", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFloor101VSyncTest::RunTest(const FString& Parameters)
+{
+	UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr;
+	IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
+	if (!TestNotNull(TEXT("settings"), Settings) || !TestNotNull(TEXT("VSync runtime variable"), Variable)) { return false; }
+	const int32 OriginalValue = Variable->GetInt();
+	const bool bOriginalPreference = Settings->IsVSyncEnabled();
+	ON_SCOPE_EXIT
+	{
+		Variable->SetWithCurrentPriority(OriginalValue);
+		Settings->SetVSyncEnabled(bOriginalPreference);
+	};
+	const FIntPoint Resolution = Settings->GetScreenResolution();
+	const EWindowMode::Type WindowMode = Settings->GetFullscreenMode();
+	const bool bHDR = Settings->IsHDREnabled();
+	const float FrameCap = Settings->GetFrameRateLimit();
+	const float RenderScale = Settings->GetResolutionScaleNormalized();
+	for (const bool bEnabled : {true, false})
+	{
+		TestTrue(TEXT("VSync change succeeds"), Floor101::Display::SetVSyncEnabled(bEnabled, false));
+		TestEqual(TEXT("effective runtime state matches button"), Floor101::Display::IsVSyncEnabled(), bEnabled);
+		TestEqual(TEXT("preference matches effective state"), Settings->IsVSyncEnabled(), bEnabled);
+		TestEqual(TEXT("resolution is preserved"), Settings->GetScreenResolution(), Resolution);
+		TestTrue(TEXT("window mode is preserved"), Settings->GetFullscreenMode() == WindowMode);
+		TestEqual(TEXT("HDR preference is preserved"), Settings->IsHDREnabled(), bHDR);
+		TestEqual(TEXT("frame cap is preserved"), Settings->GetFrameRateLimit(), FrameCap);
+		TestEqual(TEXT("render scale is preserved"), Settings->GetResolutionScaleNormalized(), RenderScale);
+	}
 	return true;
 }
 #endif
