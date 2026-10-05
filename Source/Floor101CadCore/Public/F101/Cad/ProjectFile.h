@@ -19,7 +19,7 @@ namespace f101::cad
 	// library item it came from ("library", ADR-0019). 10: columns and runs of the building services (ADR-0021).
 	// 11: custom room names (ADR-0029).
 	// 12: per-room baseboards (ADR-0030).
-	inline constexpr int ProjectSchemaVersion = 12;
+	inline constexpr int ProjectSchemaVersion = 13;
 
 	// Files before schema 3 have no levels: their walls are read onto one level with this id
 	// (f1010000-0000-4000-8000-000000000001), as tall as the tallest wall so the derived slabs stay inside the walls.

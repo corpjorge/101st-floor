@@ -28,6 +28,8 @@ WASD siempre para moverse, sin activar N, Q/E para bajar/subir, Shift para ir m�
 **Salir**, arriba a la derecha: cierra la aplicación; con cambios sin guardar permite guardar y salir, salir sin guardar o cancelar. Disponible también en Modo Foto y pantalla completa.
 **Nombre de habitación**: selecciona su suelo, escribe Nombre en Propiedades y pulsa Enter. Se guarda y aparece en rótulos y exportaciones SVG/PNG. [Nombres de habitaciones](docs/room-names.md).
 
+**Cotas**: pulsa H, elige dos puntos y coloca la línea. Selecciona cotas manuales o automáticas para editarlas o eliminarlas; se guardan y se exportan. [Guía](docs/dimensions.md).
+
 **Rodapiés**: selecciona el suelo y activa Rodapiés en Propiedades; ajusta altura, espesor y acabado. Se guardan y respetan los huecos de puertas. [Guía](docs/baseboards.md).
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
 cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble o el pilar · con un mueble, un pilar o una tubería seleccionados, arrastrarlo: moverlo (las asas de una tubería mueven un codo) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·

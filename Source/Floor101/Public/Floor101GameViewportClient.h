@@ -32,6 +32,7 @@ enum class EFloor101KeyCommand : uint8
 	PaintTool,
 	FurnitureTool, // ADR-0016
 	ColumnTool,    // ADR-0021
+	DimensionTool,
 	ServicesTool,  // draws runs of the building services (ADR-0021)
 	ServicesLayer, // the services layer on / off: the runs shown, the architecture seen through (ADR-0021)
 	Cancel,

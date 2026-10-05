@@ -24,6 +24,7 @@ namespace f101::drawing
 		Swing,     // door swings
 		Hidden,    // what the cut hides (a sliding door's pocket): dashed, drawn light over the cut walls
 		Dimension, // dimension lines, ticks and figures
+		DimensionSelected, // dark amber on white paper: a selected annotation remains readable
 		Label,     // room names and areas
 		Furniture, // outlines of furniture and their details (ADR-0016)
 		Selected,  // the selected wall (editing view)
@@ -83,6 +84,7 @@ namespace f101::drawing
 		std::vector<Fill> fills;     // drawn first
 		std::vector<Stroke> strokes; // then these
 		std::vector<Label> labels;   // on top
+		std::vector<cad::Dimension> dimensions; // visible, resolved annotations for CAD picking
 		cad::PlanPoint min;          // bounds of everything (labels by their anchor and height); zero when empty
 		cad::PlanPoint max;
 
@@ -92,6 +94,9 @@ namespace f101::drawing
 	// Editing state drawn on the plan, like scene::ViewOverlay for the 3D view. Never saved; exports use none.
 	struct PlanOverlay
 	{
+		std::string selectedDimension;
+		std::optional<cad::Dimension> previewDimension;
+		double dimensionHandleSizeMm = 120.0;
 		cad::WallId selectedWall; // nil: none
 		// Walls as the current gesture would leave them: one with an existing id replaces it, one with a nil id is added.
 		std::vector<cad::Wall> previewWalls;

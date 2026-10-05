@@ -292,6 +292,18 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Super::Initialize(Collection);
 	Document = MakePimpl<f101::cad::Document>(f101::cad::makeRandomUuidSource());
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
+	Editor->setDimensionProvider([this, CachedChange = ~uint64{0}, CachedLevel = f101::cad::LevelId{},
+		Cached = std::vector<f101::cad::Dimension>{}](const f101::cad::Project& Project, const f101::cad::LevelId& Level) mutable
+	{
+		// Slate reads selection several times per frame; derive once per model revision and level.
+		if (CachedChange != ChangeCount || CachedLevel != Level)
+		{
+			Cached = f101::drawing::buildPlanDrawing(Project, Level).dimensions;
+			CachedChange = ChangeCount;
+			CachedLevel = Level;
+		}
+		return Cached;
+	});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
 	Document->setRoomBaseboardTransfer(f101::geometry::makeRoomBaseboardTransfer());
@@ -665,9 +677,16 @@ AActor* UFloor101DocumentSubsystem::FindServiceRunActor(const f101::cad::Service
 	return Reconciler->FindActor(f101::scene::serviceRunNodeId(Id));
 }
 
+void UFloor101DocumentSubsystem::SetDimensionPickTolerance(double Mm)
+{
+	if (FMath::IsFinite(Mm) && Mm > 0.0) Editor->setDimensionPickTolerance(Mm);
+}
+
 void UFloor101DocumentSubsystem::SetPlanView(bool bShown)
 {
 	bPlanView = bShown;
+	Editor->setDimensionsVisible(bShown);
+	if (!bShown && Editor->mode() == f101::cad::EditMode::Dimension) Editor->setMode(f101::cad::EditMode::Select);
 	if (!bShown)
 	{
 		*PlanDrawing = f101::drawing::PlanDrawing{};
@@ -966,6 +985,9 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	if (bPlanView)
 	{
 		f101::drawing::PlanOverlay Marks;
+		if (const auto Selected = Editor->selectedDimension()) Marks.selectedDimension = Selected->id;
+		Marks.previewDimension = Editor->dimensionPreview();
+		Marks.dimensionHandleSizeMm = Editor->dimensionHandleSizeMm();
 		Marks.selectedWall = View.selectedWall;
 		Marks.previewWalls = View.previewWalls;
 		Marks.selectedFurniture = View.selectedFurniture;

@@ -10,12 +10,14 @@
 #include "F101/Cad/Wall.h"
 
 #include <cstddef>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+#include <utility>
 
 namespace f101::cad
 {
@@ -49,7 +51,26 @@ namespace f101::cad
 		friend bool operator==(const RoomBaseboard&, const RoomBaseboard&) = default;
 	};
 
+	// Annotation only: automatic entries override presentation, never architectural geometry.
+	struct Dimension
+	{
+		std::string id; // manual UUID or deterministic auto/<wall UUID>/<role>/<boundary keys>
+		LevelId level;
+		Point2D start;
+		Point2D end;
+		std::int64_t offsetMm = 600; // signed distance from the measured segment, positive to its left
+		std::string text; // empty: actual distance; otherwise an explicit custom label
+		bool automatic = false;
+		bool hidden = false;
+		friend bool operator==(const Dimension&, const Dimension&) = default;
+	};
+
 	struct Project;
+	FLOOR101CADCORE_API Status validateDimension(const Project& project, const Dimension& dimension);
+	FLOOR101CADCORE_API std::pair<PlanPoint, PlanPoint> dimensionLine(const Dimension& dimension);
+	FLOOR101CADCORE_API PlanPoint dimensionLabelPoint(const Dimension& dimension);
+	// Measured start/end, then the corresponding corners of the offset line.
+	FLOOR101CADCORE_API void dimensionHandles(const Dimension& dimension, std::array<PlanPoint, 4>& handles);
 	FLOOR101CADCORE_API Status validateRoomBaseboard(const Project& project, const RoomBaseboard& baseboard);
 
 	inline constexpr std::size_t MaxRoomNameBytes = 256;
@@ -68,6 +89,13 @@ namespace f101::cad
 
 		std::vector<RoomName> roomNames; // only rooms with a custom name
 		std::vector<RoomBaseboard> roomBaseboards;
+		std::vector<Dimension> dimensions;
+
+		const Dimension* findDimension(std::string_view id) const
+		{
+			for (const Dimension& entry : dimensions) if (entry.id == id) return &entry;
+			return nullptr;
+		}
 
 		const RoomBaseboard* findRoomBaseboard(std::string_view room) const
 		{

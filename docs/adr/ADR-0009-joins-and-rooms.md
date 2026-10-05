@@ -31,6 +31,11 @@ guarda en `project.json` y cómo se presenta mientras se edita.
   dentro por el semiespesor de cada muro; los muros que entran en la habitación se recortan del suelo. Área neta, punto
   de etiqueta interior, muros que la rodean y una clave determinista (`<muro de id menor>/room-<lado>-<tramo>`), estable
   mientras ese muro la delimite. Suelo: losa de 10 mm (`buildFloorMesh`).
+  Desde 0.1.4 se inicializan todos los anfitriones antes de acumular sus T y se
+  recorren una sola vez los segmentos de eje coincidentes, con muro de menor UUID
+  como referencia determinista. Los solapamientos colineales no invalidan una
+  habitación cerrada; el modelo conserva los muros originales y los huecos reales
+  no se cierran automáticamente.
 - **Nada se guarda**: `project.json` no cambia (esquema 1). Las uniones y habitaciones se recalculan en cada
   `compileScene`, que emite muros, `JointFill` (`<muro>/joint-start|end`) y suelos (`<clave>/floor`), y
   `Scene::rooms`.
@@ -48,8 +53,8 @@ guarda en `project.json` y cómo se presenta mientras se edita.
 - Recompilar todo en cada movimiento es O(n²) en muros (T, cruces). Suficiente para viviendas; con proyectos grandes
   habrá que indexar o recompilar por zonas.
 - Limitaciones conocidas: un grupo de muros suelto dentro de una habitación no le hace un agujero; muros solapados
-  (colineales superpuestos) no se fusionan; las habitaciones no tienen nombre persistente (necesitará una entidad `Room`
-  que se reasocie por clave o por punto interior).
+  (colineales superpuestos) no se fusionan en el modelo. Los nombres persistentes
+  se implementaron posteriormente en [ADR-0029](0029-room-names.md).
 - Puertas y ventanas (huecos) se apoyarán en estas huellas y en los tramos de muro.
 
 ## Verificación

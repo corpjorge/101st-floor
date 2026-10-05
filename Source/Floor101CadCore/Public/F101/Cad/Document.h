@@ -122,6 +122,14 @@ namespace f101::cad
 		RoomBaseboard baseboard;
 	};
 
+	// Nil id adds a manual dimension with a generated UUID; existing id replaces an annotation/automatic override.
+	struct SetDimensionCommand { Dimension dimension; };
+	// Hide the derived original and add a resized manual copy in one transaction.
+	struct MakeDimensionManualCommand { Dimension dimension; };
+	struct DeleteDimensionCommand { std::string id; };
+	// Clears automatic presentation overrides on one level; manual measurements stay.
+	struct ResetDimensionsCommand { LevelId level; };
+
 	// Adds a level on top of the others (a new id is assigned).
 	struct AddLevelCommand
 	{
@@ -219,7 +227,7 @@ namespace f101::cad
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
-		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
+		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetDimensionCommand, MakeDimensionManualCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
 		ChangeAssetCommand, DeleteAssetCommand, AddColumnCommand, ChangeColumnCommand, DeleteColumnCommand,
 		AddServiceRunCommand, ChangeServiceRunCommand, DeleteServiceRunCommand>;
 
@@ -260,6 +268,14 @@ namespace f101::cad
 		std::size_t index = 0;
 		std::optional<RoomBaseboard> before;
 		std::optional<RoomBaseboard> after;
+	};
+
+	struct DimensionChange
+	{
+		std::string id;
+		std::size_t index = 0;
+		std::optional<Dimension> before;
+		std::optional<Dimension> after;
 	};
 
 	struct RoomNameChange
@@ -319,11 +335,12 @@ namespace f101::cad
 
 		std::vector<RoomNameChange> roomNames;
 		std::vector<RoomBaseboardChange> roomBaseboards;
+		std::vector<DimensionChange> dimensions;
 
 		bool empty() const
 		{
 			return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty() && assets.empty() && columns.empty() &&
-				services.empty() && roomNames.empty() && roomBaseboards.empty();
+				services.empty() && roomNames.empty() && roomBaseboards.empty() && dimensions.empty();
 		}
 	};
 
@@ -351,6 +368,7 @@ namespace f101::cad
 		std::vector<ServiceRunId> removedServiceRuns;
 		std::vector<std::string> changedRoomNames;
 		std::vector<std::string> changedRoomBaseboards;
+		std::vector<std::string> changedDimensions;
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;

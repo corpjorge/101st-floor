@@ -1,4 +1,5 @@
 #include "F101/Drawing/PlanDrawing.h"
+#include "F101/Cad/Units.h"
 
 #include "F101/Geometry/CarpentryBuilder.h"
 #include "F101/Geometry/FurnitureBuilder.h"
@@ -261,40 +262,88 @@ namespace f101::drawing
 			}
 		}
 
-		// A dimension line along a wall at `s` (across its axis), through the points `us` (along it), on the side `side`
-		// (+1 left, -1 right) of the face `faceS`.
+		void drawAnnotation(Builder& builder, const cad::Dimension& d, const DrawingTexts& texts, Ink ink,
+			double faceS = 0.0, bool line = true)
+		{
+			cad::Wall axisWall;
+			axisWall.start = d.start;
+			axisWall.end = d.end;
+			const Frame frame = frameOf(axisWall);
+			const double side = d.offsetMm < 0 ? -1.0 : 1.0;
+			const double s = static_cast<double>(d.offsetMm);
+			if (line) builder.stroke({frame.at(0.0, s), frame.at(frame.length, s)}, ink, ThinMm);
+			const PlanPoint tick = scale(add(frame.axis, scale(frame.left, side)), TickLengthMm / 2.0 / std::sqrt(2.0));
+			for (const double u : {0.0, frame.length})
+			{
+				builder.stroke({frame.at(u, faceS + side * ExtensionGapMm), frame.at(u, s + side * ExtensionGapMm)}, ink, ThinMm);
+				const PlanPoint centre = frame.at(u, s);
+				builder.stroke({sub(centre, tick), add(centre, tick)}, ink, TickMm);
+			}
+			double angle = std::atan2(frame.axis.y_mm, frame.axis.x_mm) * 180.0 / Pi;
+			if (angle > 90.0) angle -= 180.0;
+			else if (angle <= -90.0) angle += 180.0;
+			std::string figure = formatMeters(frame.length, texts.decimalSeparator);
+			if (!d.automatic)
+			{
+				figure = cad::formatLength(frame.length, cad::LengthUnit::Meter);
+				figure.resize(figure.size() - 2); // unit is implicit in plan figures
+				std::replace(figure.begin(), figure.end(), '.', texts.decimalSeparator);
+			}
+			builder.label(cad::dimensionLabelPoint(d), angle, FigureHeightMm, d.text.empty() ? figure : d.text, ink);
+		}
+
+		// Every segment has a stable key made of its wall and opening-edge identities, never its measured value.
 		void drawDimension(Builder& builder, const Frame& frame, std::vector<double> us, double faceS, double s, double side,
-			const DrawingTexts& texts)
+			const DrawingTexts& texts, const cad::Wall& wall, const cad::Project& project, const PlanOverlay& overlay,
+			std::string_view role, PlanDrawing& drawing)
 		{
 			std::sort(us.begin(), us.end());
 			us.erase(std::unique(us.begin(), us.end(), [](double a, double b) { return std::fabs(a - b) < 1.0; }), us.end());
-			if (us.size() < 2)
+			if (us.size() < 2) return;
+			auto boundary = [&wall, &frame](double u) -> std::string
 			{
-				return;
-			}
-			builder.stroke({frame.at(us.front(), s), frame.at(us.back(), s)}, Ink::Dimension, ThinMm);
-			const PlanPoint tick = scale(add(frame.axis, scale(frame.left, side)), TickLengthMm / 2.0 / std::sqrt(2.0));
-			for (const double u : us)
-			{
-				builder.stroke({frame.at(u, faceS + side * ExtensionGapMm), frame.at(u, s + side * ExtensionGapMm)}, Ink::Dimension, ThinMm);
-				const PlanPoint centre = frame.at(u, s);
-				builder.stroke({sub(centre, tick), add(centre, tick)}, Ink::Dimension, TickMm);
-			}
-			// Figures read upright: along the axis, turned by at most 90 degrees.
-			double angle = std::atan2(frame.axis.y_mm, frame.axis.x_mm) * 180.0 / Pi;
-			if (angle > 90.0)
-			{
-				angle -= 180.0;
-			}
-			else if (angle <= -90.0)
-			{
-				angle += 180.0;
-			}
+				if (std::fabs(u) < 0.5) return "start";
+				if (std::fabs(u - frame.length) < 0.5) return "end";
+				for (const cad::Opening& opening : wall.openings)
+				{
+					if (std::fabs(u - static_cast<double>(opening.offsetMm)) < 0.5) return cad::toString(opening.id) + "/start";
+					if (std::fabs(u - static_cast<double>(opening.offsetMm + opening.widthMm)) < 0.5) return cad::toString(opening.id) + "/end";
+				}
+				return "edge";
+			};
+			std::vector<cad::Dimension> entries;
+			bool continuous = true;
 			for (std::size_t i = 0; i + 1 < us.size(); ++i)
 			{
-				builder.label(frame.at((us[i] + us[i + 1]) / 2.0, s + side * FigureHeightMm * 0.9), angle, FigureHeightMm,
-					formatMeters(us[i + 1] - us[i], texts.decimalSeparator), Ink::Dimension);
+				const PlanPoint a = frame.at(us[i], 0.0), b = frame.at(us[i + 1], 0.0);
+				cad::Dimension d;
+				d.id = "auto/" + cad::toString(wall.id) + "/" + std::string(role);
+				if (role == "chain") d.id += "/" + boundary(us[i]) + "/" + boundary(us[i + 1]);
+				d.level = project.levelOf(wall);
+				d.start = {std::llround(a.x_mm), std::llround(a.y_mm)};
+				d.end = {std::llround(b.x_mm), std::llround(b.y_mm)};
+				d.offsetMm = std::llround(s);
+				d.automatic = true;
+				if (d.start == d.end) continue;
+				if (const cad::Dimension* custom = project.findDimension(d.id))
+				{
+					d.offsetMm = custom->offsetMm;
+					d.text = custom->text;
+					d.hidden = custom->hidden;
+					continuous = false;
+				}
+				if (overlay.previewDimension && overlay.previewDimension->id == d.id) { d = *overlay.previewDimension; continuous = false; }
+				if (d.id == overlay.selectedDimension) continuous = false;
+				entries.push_back(d);
 			}
+			if (continuous) builder.stroke({frame.at(us.front(), s), frame.at(us.back(), s)}, Ink::Dimension, ThinMm);
+			for (const cad::Dimension& d : entries)
+			{
+				if (d.hidden) continue;
+				drawing.dimensions.push_back(d);
+				drawAnnotation(builder, d, texts, d.id == overlay.selectedDimension ? Ink::DimensionSelected : Ink::Dimension, faceS, !continuous);
+			}
+			(void)side;
 		}
 
 		void includeBounds(PlanDrawing& drawing)
@@ -418,6 +467,7 @@ namespace f101::drawing
 		case Ink::Swing: return {110, 110, 110};
 		case Ink::Hidden: return {176, 176, 176};
 		case Ink::Dimension: return {31, 63, 102};
+		case Ink::DimensionSelected: return {151, 78, 12};
 		case Ink::Furniture: return {96, 96, 96};
 		case Ink::Selected: return {255, 107, 20};
 		case Ink::Preview: return {56, 148, 255};
@@ -519,7 +569,7 @@ namespace f101::drawing
 			const double faceS = side > 0.0 ? leftS : rightS;
 			if (roomLeft && roomRight)
 			{
-				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * PartitionOffsetMm, side, texts);
+				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * PartitionOffsetMm, side, texts, wall, project, overlay, "partition", drawing);
 				continue;
 			}
 			std::vector<double> chain{0.0, frame.length};
@@ -529,10 +579,33 @@ namespace f101::drawing
 				chain.push_back(static_cast<double>(opening.offsetMm + opening.widthMm));
 			}
 			const bool withOpenings = !wall.openings.empty();
-			drawDimension(builder, frame, chain, faceS, faceS + side * ChainOffsetMm, side, texts);
+			drawDimension(builder, frame, chain, faceS, faceS + side * ChainOffsetMm, side, texts, wall, project, overlay, withOpenings ? "chain" : "overall", drawing);
 			if (withOpenings)
 			{
-				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, side, texts);
+				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, side, texts, wall, project, overlay, "overall", drawing);
+			}
+		}
+
+		for (const cad::Dimension& d : project.dimensions)
+		{
+			if (d.automatic || d.hidden || d.level != level) continue;
+			drawing.dimensions.push_back(d);
+			if (!overlay.previewDimension || overlay.previewDimension->id != d.id)
+				drawAnnotation(builder, d, texts, d.id == overlay.selectedDimension ? Ink::DimensionSelected : Ink::Dimension);
+		}
+		if (overlay.previewDimension && !overlay.previewDimension->automatic && overlay.previewDimension->start != overlay.previewDimension->end)
+			drawAnnotation(builder, *overlay.previewDimension, texts, Ink::Preview);
+
+		// Only the editing overlay adds grips; exports contain no handles.
+		if (!overlay.selectedDimension.empty())
+		{
+			const auto selected = std::find_if(drawing.dimensions.begin(), drawing.dimensions.end(), [&](const cad::Dimension& d) { return d.id == overlay.selectedDimension; });
+			if (selected != drawing.dimensions.end())
+			{
+				const cad::Dimension& shown = overlay.previewDimension && overlay.previewDimension->id == selected->id ? *overlay.previewDimension : *selected;
+				std::array<PlanPoint, 4> handles;
+				cad::dimensionHandles(shown, handles);
+				for (const PlanPoint grip : handles) builder.square(grip, overlay.dimensionHandleSizeMm, Ink::DimensionSelected);
 			}
 		}
 

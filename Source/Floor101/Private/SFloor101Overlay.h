@@ -77,6 +77,8 @@ private:
 	// A face of the selected wall ("Cara norte") and its finish.
 	TSharedRef<SWidget> MakeWallFaceRow(f101::cad::WallSide Side);
 	TSharedRef<SWidget> MakeRoomSection();
+	TSharedRef<SWidget> MakeDimensionSection();
+	std::optional<f101::cad::Dimension> GetSelectedDimension() const;
 	// Furniture (ADR-0016): the selected piece (sizes, rotation, finish) and the catalogue of the Furniture mode.
 	TSharedRef<SWidget> MakeFurnitureSection();
 	TSharedRef<SWidget> MakeFurniturePalette();

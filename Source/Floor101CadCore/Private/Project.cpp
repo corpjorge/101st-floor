@@ -7,6 +7,46 @@
 
 namespace f101::cad
 {
+	Status validateDimension(const Project& project, const Dimension& dimension)
+	{
+		const auto within = [](std::int64_t value) { return value >= -MaxAbsMillimeters && value <= MaxAbsMillimeters; };
+		if (dimension.id.empty() || dimension.id.size() > 512 || dimension.start == dimension.end ||
+			!within(dimension.start.x_mm) || !within(dimension.start.y_mm) || !within(dimension.end.x_mm) ||
+			!within(dimension.end.y_mm) || !within(dimension.offsetMm) || !project.findLevel(dimension.level))
+			return Error{ErrorCode::InvalidArgument, "A dimension needs an id, existing level and distinct endpoints within the model range"};
+		if (dimension.automatic != dimension.id.starts_with("auto/"))
+			return Error{ErrorCode::InvalidArgument, "Automatic dimension identity mismatch"};
+		return validateRoomName(dimension.text);
+	}
+
+	std::pair<PlanPoint, PlanPoint> dimensionLine(const Dimension& dimension)
+	{
+		const Vector2D axis = dimension.end - dimension.start;
+		const double length = axis.lengthMm();
+		const double nx = length > 0.0 ? -static_cast<double>(axis.dy_mm) / length : 0.0;
+		const double ny = length > 0.0 ? static_cast<double>(axis.dx_mm) / length : 0.0;
+		const double offset = static_cast<double>(dimension.offsetMm);
+		return {{static_cast<double>(dimension.start.x_mm) + nx * offset, static_cast<double>(dimension.start.y_mm) + ny * offset},
+			{static_cast<double>(dimension.end.x_mm) + nx * offset, static_cast<double>(dimension.end.y_mm) + ny * offset}};
+	}
+
+	void dimensionHandles(const Dimension& dimension, std::array<PlanPoint, 4>& handles)
+	{
+		const auto [a, b] = dimensionLine(dimension);
+		handles = {PlanPoint{static_cast<double>(dimension.start.x_mm), static_cast<double>(dimension.start.y_mm)},
+			PlanPoint{static_cast<double>(dimension.end.x_mm), static_cast<double>(dimension.end.y_mm)}, a, b};
+	}
+
+	PlanPoint dimensionLabelPoint(const Dimension& dimension)
+	{
+		const auto [a, b] = dimensionLine(dimension);
+		const Vector2D axis = dimension.end - dimension.start;
+		const double length = axis.lengthMm();
+		const double sign = dimension.offsetMm < 0 ? -1.0 : 1.0;
+		return {(a.x_mm + b.x_mm) / 2.0 - static_cast<double>(axis.dy_mm) / length * sign * 135.0,
+			(a.y_mm + b.y_mm) / 2.0 + static_cast<double>(axis.dx_mm) / length * sign * 135.0};
+	}
+
 	Status validateRoomBaseboard(const Project& project, const RoomBaseboard& baseboard)
 	{
 		if (baseboard.room.empty() || baseboard.heightMm < 1 || baseboard.heightMm > 1000 ||
