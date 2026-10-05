@@ -35,7 +35,7 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 ## Verificación
 
-- 303 pruebas C++ / 13.848 aserciones aprobadas, incluidas mediciones libres
+- 303 pruebas C++ / 13.880 aserciones aprobadas, incluidas mediciones libres
   junto a caras, esquinas y fuera de la rejilla; arrastre de ambos extremos y
   conversión reversible de automáticas.
 - 85 pruebas Unreal aprobadas, incluidas `Floor101.Interaction.Dimensions` y
@@ -44,7 +44,12 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 - Interfaz real revisada a 1280×720 y 800×600; cifras con mínimo legible
   en pantalla y propiedades desplazables.
-- Portable Windows **0.1.4 Shipping**, generado desde `93cb3df` con el árbol
+- Portable Windows **0.1.5 Shipping**, generado desde la fusión `77290b7` con
+  el árbol limpio. Integridad y ejecución independiente aprobadas: extremos
+  arrastrables sin snapping, conversión de automáticas a manuales, reversión
+  atómica, guardado/reapertura, exportaciones y funciones anteriores.
+  Reporte: `Saved/PackageChecks/20261005-151937-functional`.
+- Entrega anterior **0.1.4 Shipping**, generada desde `93cb3df` con el árbol
   limpio. Integridad, dependencias y ejecución independiente aprobadas;
   `dimension_exact_points` verifica puntos fuera de rejilla. También pasan
   selección y nombre de habitaciones con solapamientos, guardado, reapertura,

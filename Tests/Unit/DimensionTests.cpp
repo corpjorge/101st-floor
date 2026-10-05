@@ -170,6 +170,20 @@ TEST_CASE("all four manual dimension grips resize reversibly and preview without
 		REQUIRE(editor.redo().ok());
 		CHECK(doc.project().dimensions.front() == preview);
 		REQUIRE(editor.selectDimension(original.id).ok());
+		// Shrink the resized measurement from its offset corner, also for oblique axes.
+		const auto shorteningGrip = gripOf(preview, 3);
+		const Vector2D shorteningAxis = preview.end - preview.start;
+		const double targetX = shorteningGrip.x_mm - 200.0 * static_cast<double>(shorteningAxis.dx_mm) / shorteningAxis.lengthMm();
+		const double targetY = shorteningGrip.y_mm - 200.0 * static_cast<double>(shorteningAxis.dy_mm) / shorteningAxis.lengthMm();
+		REQUIRE(editor.pointerPressed(above(shorteningGrip.x_mm, shorteningGrip.y_mm)).ok());
+		editor.pointerMoved(above(targetX, targetY));
+		REQUIRE(editor.pointerReleased(above(targetX, targetY)).ok());
+		CHECK((editor.selectedDimension()->end - editor.selectedDimension()->start).lengthMm() < shorteningAxis.lengthMm());
+		CHECK(editor.selectedDimension()->start == preview.start);
+		CHECK(editor.selectedDimension()->offsetMm == preview.offsetMm);
+		REQUIRE(editor.undo().ok());
+		CHECK(doc.project().dimensions.front() == preview);
+		REQUIRE(editor.selectDimension(original.id).ok());
 		const auto now = gripOf(preview, handle);
 		REQUIRE(editor.pointerPressed(above(now.x_mm, now.y_mm)).ok());
 		editor.pointerMoved(above(now.x_mm + 150, now.y_mm + 250));
