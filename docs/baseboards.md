@@ -32,5 +32,21 @@ requieren compatibilidad con el esquema 12. Ver [ADR-0030](adr/0030-room-baseboa
   `Saved/Automation/20261004-211415`.
 - Capturas reales revisadas a 1280×720 y 800×600: controles completos y legibles.
 
+- Portable Shipping 0.1.2 aprobado: material renderizado, división y reapertura,
+  SVG/PNG/GLB, biblioteca, navegación, diagnóstico y Foto. El GLB contiene dos
+  rodapiés nombrados con el acabado de nogal correcto. Reporte:
+  `Saved/PackageChecks/20261004-212004-functional`.
+- Instalador 0.1.2 aprobado: instalación, accesos directos, arranque independiente,
+  desinstalación que conserva el proyecto de prueba y payloads offline verificados
+  por SHA-256. Reporte: `Packaged/InstallerChecks/20261004-212149`.
+
+## Versión Windows 0.1.2
+
+- Ejecutable: `Packaged/0.1.2/Windows/Floor101.exe`; conserva completa esa carpeta.
+- Portable: `Packaged/0.1.2/101st-Floor-portable.zip`.
+- Instalador: `Packaged/0.1.2/Installer/101st-Floor-0.1.2-Setup.exe`.
+
+Generados desde el commit `13f0742`, sin cambios pendientes de código.
+
 ![Rodapiés y propiedades](images/baseboards.png)
 ![Propiedades en ventana pequeña](images/baseboards-small.png)
