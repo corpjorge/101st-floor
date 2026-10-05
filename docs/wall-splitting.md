@@ -1,7 +1,7 @@
 # División automática de paredes
 
 Al dibujar una pared que llega a otra, la pared anfitriona se convierte en dos piezas independientes. Si dos
-paredes se cruzan por su interior, ambas quedan divididas. Se aplica también al mover extremos o esquinas y al
+paredes se cruzan por su interior, ambas quedan divididas. Se aplica también al mover paredes completas, extremos o esquinas y al
 cambiar una longitud que crea una unión. Las paredes deben pertenecer a la misma planta.
 
 ## Uso

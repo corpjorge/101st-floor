@@ -5,7 +5,7 @@
 [CmdletBinding()]
 param(
     [string]$Output = 'Saved/UI/design.png',
-    [ValidateSet('design', 'options', 'walk', 'photo', 'furniture', 'materials', 'home', 'grid', 'selection', 'room', 'room-overlap', 'baseboards', 'dimensions', 'search', 'favorites', 'materials-search', 'unsaved', 'levels', 'startup', 'diagnostics')]
+    [ValidateSet('design', 'options', 'walk', 'photo', 'furniture', 'materials', 'home', 'grid', 'selection', 'wall-drag', 'room', 'room-overlap', 'baseboards', 'dimensions', 'search', 'favorites', 'materials-search', 'unsaved', 'levels', 'startup', 'diagnostics')]
     [string]$Screen = 'design',
     [string]$Project = '',
     [int]$ResX = 1920,

@@ -1589,4 +1589,46 @@ bool FFloor101NewProjectTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("old selection is cleared"), Document->GetEditController().selection().isNil());
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallBodyDragTest, "Floor101.Interaction.WallBodyDrag", InteractionTestFlags)
+bool FFloor101WallBodyDragTest::RunTest(const FString& Parameters)
+{
+	using namespace f101::cad;
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) return false;
+	for (const auto& Ends : {std::pair<Point2D, Point2D>{{0,0},{4000,0}}, {{4000,0},{4000,3000}},
+		{{4000,3000},{0,3000}}, {{0,3000},{0,0}}})
+		if (!TestTrue(TEXT("wall"), Document->GetMutableDocument().addWall(Ends.first, Ends.second, 120, 2800).ok())) return false;
+	const WallId Id = Document->GetDocument().project().walls.back().id;
+	if (!TestEqual(TEXT("room detected"), Document->GetRooms().Num(), 1)) return false;
+	const std::string Key = TCHAR_TO_UTF8(*Document->GetRooms()[0].Key);
+	TestTrue(TEXT("name and baseboards"), Document->Edit([Key](EditController& E)
+	{
+		if (const auto Status = E.selectRoom(Key); !Status) return Status;
+		if (const auto Status = E.setSelectedRoomName("Cocina"); !Status) return Status;
+		return E.setSelectedRoomBaseboard(true);
+	}).ok());
+	const std::string Before = writeProjectJson(Document->GetDocument().project());
+	TestTrue(TEXT("grab body on first click"), Document->Edit([](EditController& E) { return E.pointerPressed(Down(25, 1400)); }).ok());
+	TestTrue(TEXT("drag active"), Document->GetEditController().isDragging());
+	Document->UpdatePointer(Down(438, 1400));
+	TestEqual(TEXT("three joined walls previewed"), Document->GetEditController().view().previewWalls.size(), std::size_t{3});
+	auto* Preview = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Id));
+	if (TestNotNull(TEXT("existing actor renders the preview"), Preview))
+		TestEqual(TEXT("preview mesh follows translation in centimetres"), Preview->GetMeshBounds().Min.X, 35.3, 1e-4);
+	TestTrue(TEXT("model untouched during preview"), writeProjectJson(Document->GetDocument().project()) == Before);
+	TestTrue(TEXT("release moves wall"), Document->Edit([](EditController& E) { return E.pointerReleased(Down(438, 1400)); }).ok());
+	const Wall* Moved = Document->GetDocument().project().findWall(Id);
+	TestTrue(TEXT("both ends translated exactly"), Moved && Moved->start == Point2D{413,3000} && Moved->end == Point2D{413,0});
+	TestEqual(TEXT("room still closed"), Document->GetRooms().Num(), 1);
+	if (!Document->GetRooms().IsEmpty()) TestEqual(TEXT("room name retained"), Document->GetRooms()[0].Name, FString(TEXT("Cocina")));
+	TestTrue(TEXT("baseboard retained"), Document->GetDocument().project().findRoomBaseboard(Key) != nullptr);
+	TestNotNull(TEXT("updated actor"), Document->FindWallActor(Id));
+	const std::string After = writeProjectJson(Document->GetDocument().project());
+	TestTrue(TEXT("one undo restores all joints"), Document->Edit([](EditController& E) { return E.undo(); }).ok() && writeProjectJson(Document->GetDocument().project()) == Before);
+	TestTrue(TEXT("redo restores movement"), Document->Edit([](EditController& E) { return E.redo(); }).ok() && writeProjectJson(Document->GetDocument().project()) == After);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

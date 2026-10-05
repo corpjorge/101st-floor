@@ -337,6 +337,7 @@ namespace f101::cad
 		dimensionDragOriginal.reset();
 		dimensionDragHandle = -1;
 		drag.reset();
+		wallBodyDrag.reset();
 		openingDrag.reset();
 		furnitureDrag.reset();
 		columnDrag.reset();
@@ -390,7 +391,7 @@ namespace f101::cad
 	{
 		// While dragging a corner its own walls are not targets: they are what moves.
 		pointerRay = ray;
-		planPoint = planPointOf(ray, drag ? drag->joined : std::vector<WallId>{});
+		planPoint = wallBodyDrag ? intersectFloor(ray) : planPointOf(ray, drag ? drag->joined : std::vector<WallId>{});
 		paintAt = currentMode == EditMode::Paint ? resolvePaintTarget(levelProject(), ray) : std::nullopt;
 		// Runs follow the pointer on their own planes, wherever the floor is.
 		updateRunPointer();
@@ -459,6 +460,10 @@ namespace f101::cad
 		else if (drag)
 		{
 			updateDrag();
+		}
+		else if (wallBodyDrag)
+		{
+			updateWallBodyDrag();
 		}
 		else if (openingDrag)
 		{
@@ -694,6 +699,35 @@ namespace f101::cad
 		const PlanPoint cursor{planPoint->x_mm + drag->grabOffset.x_mm, planPoint->y_mm + drag->grabOffset.y_mm};
 		const Project reference = snapReference(document.project(), activeLevel()); // the level below guides too (stacking)
 		drag->position = snapFromAnchor(reference, fixed, cursor, editSettings.wallTool.snap, drag->joined).point;
+	}
+
+	void EditController::updateWallBodyDrag()
+	{
+		const auto dx = quantizeMillimeters(planPoint->x_mm - wallBodyDrag->grab.x_mm);
+		const auto dy = quantizeMillimeters(planPoint->y_mm - wallBodyDrag->grab.y_mm);
+		if (!dx || !dy) return;
+		const Vector2D delta{dx.value(), dy.value()};
+		// Keep the last valid preview if shortening an attached wall would collapse it or cut an opening.
+		for (const WallId& id : wallBodyDrag->joined)
+		{
+			const Wall* before = document.project().findWall(id);
+			if (!before)
+			{
+				wallBodyDrag.reset();
+				return;
+			}
+			Wall after = *before;
+			for (Point2D* point : {&after.start, &after.end})
+			{
+				if (*point == wallBodyDrag->wall.start || *point == wallBodyDrag->wall.end)
+				{
+					point->x_mm += delta.dx_mm;
+					point->y_mm += delta.dy_mm;
+				}
+			}
+			if (!validateWall(after)) return;
+		}
+		wallBodyDrag->delta = delta;
 	}
 
 	void EditController::updatePlacement()
@@ -1089,6 +1123,18 @@ namespace f101::cad
 			{
 				selectedOpeningId = opening->id;
 			}
+			else
+			{
+				wallBodyDrag = WallBodyDrag{wall, {}, {}, {}};
+				for (const Wall& other : project.walls)
+				{
+					if (other.start == wall.start || other.end == wall.start || other.start == wall.end || other.end == wall.end)
+						wallBodyDrag->joined.push_back(other.id);
+				}
+				const auto grabbed = intersectFloor(ray);
+				if (grabbed) wallBodyDrag->grab = *grabbed;
+				else wallBodyDrag.reset();
+			}
 		}
 		else if (planPoint && roomLocator)
 		{
@@ -1125,6 +1171,12 @@ namespace f101::cad
 			return changed ? toStatus(document.execute(SetDimensionCommand{after})) : Status::success();
 		}
 		// Each drag: moved as the last pointerMoved() left it; one undoable change, or none if it did not move.
+		if (wallBodyDrag)
+		{
+			const WallBodyDrag finished = *wallBodyDrag;
+			wallBodyDrag.reset();
+			return toStatus(document.execute(TranslateWallCommand{finished.wall.id, finished.delta}));
+		}
 		if (columnDrag)
 		{
 			const Column moved = columnDrag->column;
@@ -2472,6 +2524,31 @@ namespace f101::cad
 			return result;
 		}
 		result.handles = {wall->start, wall->end};
+		if (wallBodyDrag && wallBodyDrag->wall.id == result.selectedWall)
+		{
+			const Vector2D delta = wallBodyDrag->delta;
+			for (const WallId& id : wallBodyDrag->joined)
+			{
+				if (const Wall* joined = project.findWall(id))
+				{
+					Wall moved = *joined;
+					for (Point2D* point : {&moved.start, &moved.end})
+					{
+						if (*point == wallBodyDrag->wall.start || *point == wallBodyDrag->wall.end)
+						{
+							point->x_mm += delta.dx_mm;
+							point->y_mm += delta.dy_mm;
+						}
+					}
+					result.previewWalls.push_back(moved);
+				}
+			}
+			for (Point2D& point : result.handles)
+			{
+				point.x_mm += delta.dx_mm;
+				point.y_mm += delta.dy_mm;
+			}
+		}
 		if (drag && drag->wall == result.selectedWall)
 		{
 			for (const WallId& id : drag->joined)

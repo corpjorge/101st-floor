@@ -54,6 +54,13 @@ namespace f101::cad
 		LevelId level;
 	};
 
+	// Translates both joints together, including attached wall ends on the same level, in one transaction.
+	struct TranslateWallCommand
+	{
+		WallId wall;
+		Vector2D delta;
+	};
+
 	// Keeps the start point and the direction; the new end is quantized to integer millimetres, so on a diagonal wall
 	// the resulting length can differ from the requested one by less than 0.5 mm (see pointAtDistance).
 	struct ChangeWallLengthCommand
@@ -224,7 +231,7 @@ namespace f101::cad
 		ServiceRunId run;
 	};
 
-	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
+	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand, TranslateWallCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
 		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetDimensionCommand, MakeDimensionManualCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,

@@ -823,6 +823,27 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		const auto Id = Document->GetDocument().project().walls.front().id;
 		Run([Id](EditController& E) { return E.select(Id); });
 	}
+	if (Screen == TEXT("wall-drag") && Document.IsValid() && !Document->GetDocument().project().walls.empty())
+	{
+		if (auto* C = ViewportClient.Get()) C->SetPlanView(true);
+		const auto Wall = Document->GetDocument().project().walls.front();
+		Run([Wall](EditController& E)
+		{
+			E.setMode(f101::cad::EditMode::Select);
+			E.setDimensionsVisible(false);
+			const double X = (static_cast<double>(Wall.start.x_mm) + static_cast<double>(Wall.end.x_mm)) / 2.0;
+			const double Y = (static_cast<double>(Wall.start.y_mm) + static_cast<double>(Wall.end.y_mm)) / 2.0;
+			const f101::cad::Ray3 Ray{X, Y, 10000, 0, 0, -1};
+			if (const auto Status = E.pointerPressed(Ray); !Status) return Status;
+			const f101::cad::Ray3 Moved{X + 400, Y, 10000, 0, 0, -1};
+			E.pointerMoved(Moved);
+			const auto Status = E.pointerReleased(Moved);
+			E.setDimensionsVisible(true);
+			return Status;
+		});
+		if (auto* C = ViewportClient.Get()) C->FrameProject();
+		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
+	}
 	if ((Screen == TEXT("room") || Screen == TEXT("baseboards")) && Document.IsValid() && !Document->GetRooms().IsEmpty())
 	{
 		const std::string Key = TCHAR_TO_UTF8(*Document->GetRooms()[0].Key);
@@ -1146,6 +1167,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 					[
 						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("SelectedWall", "Muro seleccionado")).Font(Font(11, true))
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+					[
+						SNew(STextBlock).Text(LOCTEXT("WallBodyDragHint", "Arrastra el cuerpo para mover la pared. Las puntas ajustan sus extremos."))
+						.Font(Font(9)).ColorAndOpacity(MutedColor).AutoWrapText(true)
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 					[

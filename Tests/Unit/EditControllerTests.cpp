@@ -1,6 +1,7 @@
 #include "doctest.h"
 
 #include "F101/Cad/EditController.h"
+#include "F101/Cad/ProjectFile.h"
 
 using namespace f101;
 using namespace f101::cad;
@@ -317,4 +318,108 @@ TEST_CASE_FIXTURE(Editing, "clicking a wall where it has an opening selects the 
 	CHECK_FALSE(editor.selectedOpening().has_value());
 	REQUIRE(editor.undo().ok());
 	CHECK(document.project().findWall(wall)->openings.size() == 1);
+}
+
+TEST_CASE_FIXTURE(Editing, "dragging a wall body translates both joints with exact grab offset and one undo step")
+{
+	const WallId left = document.addWall({0, 0}, {0, 3000}, 120, 2400).value();
+	const WallId right = document.addWall({3550, 0}, {3550, 3000}, 120, 2400).value();
+	const OpeningId door = document.addOpening(wall, Opening{OpeningId{}, OpeningKind::Door, 2000, 900, 2100, 0}).value();
+	const std::string before = writeProjectJson(document.project());
+	REQUIRE(editor.pointerPressed(down(1003, 31)).ok());
+	CHECK(editor.isDragging());
+	editor.pointerMoved(down(1003, 31));
+	CHECK(editor.view().handles == std::vector<Point2D>{{0, 0}, {3550, 0}});
+	editor.pointerMoved(down(1240, 644));
+	CHECK(editor.view().handles == std::vector<Point2D>{{237, 613}, {3787, 613}});
+	CHECK(editor.view().previewWalls.size() == 3);
+	CHECK(writeProjectJson(document.project()) == before);
+	REQUIRE(editor.pointerReleased(down(9000, 9000)).ok()); // release itself does not move the wall
+	CHECK_FALSE(editor.isDragging());
+	const Wall& moved = *document.project().findWall(wall);
+	CHECK(moved.start == Point2D{237, 613});
+	CHECK(moved.end == Point2D{3787, 613});
+	CHECK(moved.lengthMm() == 3550);
+	CHECK(moved.findOpening(door)->offsetMm == 2000);
+	CHECK(document.project().findWall(left)->start == moved.start);
+	CHECK(document.project().findWall(left)->end == Point2D{0, 3000});
+	CHECK(document.project().findWall(right)->start == moved.end);
+	CHECK(document.project().findWall(right)->end == Point2D{3550, 3000});
+	CHECK(document.undoLabel() == "Move wall");
+	const std::string after = writeProjectJson(document.project());
+	REQUIRE(editor.undo().ok());
+	CHECK(writeProjectJson(document.project()) == before);
+	REQUIRE(editor.redo().ok());
+	CHECK(writeProjectJson(document.project()) == after);
+	const auto reopened = readProjectJson(after);
+	REQUIRE(reopened.ok());
+	CHECK(writeProjectJson(reopened.value()) == after);
+}
+
+TEST_CASE("wall body dragging keeps vertical and diagonal lengths and angles")
+{
+	for (const Point2D end : {Point2D{0, 3000}, Point2D{3000, 3000}})
+	{
+		Document document{makeSequentialUuidSource()};
+		EditController editor{document, EditSettings{}};
+		const WallId id = document.addWall({101, 103}, end, 120, 2400).value();
+		const Wall original = *document.project().findWall(id);
+		const double x = (101.0 + static_cast<double>(end.x_mm)) / 2.0;
+		const double y = (103.0 + static_cast<double>(end.y_mm)) / 2.0;
+		REQUIRE(editor.pointerPressed(down(x, y)).ok());
+		editor.pointerMoved(down(x - 417, y + 213));
+		REQUIRE(editor.pointerReleased(down(x - 417, y + 213)).ok());
+		const Wall& moved = *document.project().findWall(id);
+		CHECK(moved.start == Point2D{-316, 316});
+		CHECK(moved.end == Point2D{end.x_mm - 417, end.y_mm + 213});
+		CHECK(moved.end - moved.start == original.end - original.start);
+	}
+}
+
+TEST_CASE_FIXTURE(Editing, "wall body clicks and canceled drags preserve history and endpoint grips still resize")
+{
+	const std::string before = writeProjectJson(document.project());
+	REQUIRE(editor.pointerPressed(down(1700, 25)).ok());
+	REQUIRE(editor.pointerReleased(down(1700, 25)).ok());
+	CHECK(document.undoLabel() == "Create wall");
+	REQUIRE(editor.pointerPressed(down(1700, 25)).ok());
+	editor.pointerMoved(down(1900, 700));
+	editor.cancel();
+	CHECK(editor.selection() == wall);
+	CHECK_FALSE(editor.isDragging());
+	REQUIRE(editor.pointerReleased(down(1900, 700)).ok());
+	CHECK(writeProjectJson(document.project()) == before);
+	REQUIRE(editor.pointerPressed(down(3550, 0)).ok());
+	editor.pointerMoved(down(4100, 0));
+	REQUIRE(editor.pointerReleased(down(4100, 0)).ok());
+	CHECK(document.project().findWall(wall)->start == Point2D{0, 0});
+	CHECK(document.project().findWall(wall)->end == Point2D{4100, 0});
+	CHECK(document.undoLabel() == "Move wall endpoint");
+}
+
+TEST_CASE_FIXTURE(Editing, "invalid attached wall collapse keeps the last valid wall body preview")
+{
+	REQUIRE(document.addWall({0, 0}, {0, 1000}, 120, 2400).ok());
+	REQUIRE(editor.pointerPressed(down(1700, 0)).ok());
+	editor.pointerMoved(down(1700, 700));
+	editor.pointerMoved(down(1700, 1000));
+	CHECK(editor.view().handles == std::vector<Point2D>{{0, 700}, {3550, 700}});
+	REQUIRE(editor.pointerReleased(down(1700, 1000)).ok());
+	CHECK(document.project().findWall(wall)->start == Point2D{0, 700});
+}
+
+TEST_CASE_FIXTURE(Editing, "wall body dragging in perspective follows one floor plane through unrelated walls")
+{
+	REQUIRE(document.addWall({0, 1000}, {3550, 1000}, 120, 2400).ok());
+	const Ray3 press{1000, -3800, 10000, 0, 0.5, -1}; // hits selected wall at its top; meets floor at y=1200
+	REQUIRE(editor.pointerPressed(press).ok());
+	CHECK(editor.selection() == wall);
+	CHECK(editor.isDragging());
+	editor.pointerMoved(press);
+	CHECK(editor.view().handles == std::vector<Point2D>{{0, 0}, {3550, 0}});
+	const Ray3 moved{1000, -3300, 10000, 0, 0.5, -1}; // crosses the unrelated wall, same floor-plane delta
+	editor.pointerMoved(moved);
+	REQUIRE(editor.pointerReleased(moved).ok());
+	CHECK(document.project().findWall(wall)->start == Point2D{0, 500});
+	CHECK(document.project().findWall(wall)->end == Point2D{3550, 500});
 }

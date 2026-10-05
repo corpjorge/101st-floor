@@ -81,6 +81,18 @@ namespace Floor101::PackageCheck
 					Viewport->SetPlanView(false);
 					Check(Document->NewProject().ok(), TEXT("clear_overlap_fixture"));
 				}
+				{
+					const auto Wall = Document->GetMutableDocument().addWall({0,0},{0,3000},120,2800);
+					Check(Wall.ok(), TEXT("wall_body_fixture"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.pointerPressed({25,1400,10000,0,0,-1}); }).ok() &&
+						Document->GetEditController().isDragging(), TEXT("wall_body_grab"));
+					Check(Document->Edit([](f101::cad::EditController& E) { E.pointerMoved({438,1523,10000,0,0,-1}); return E.pointerReleased({438,1523,10000,0,0,-1}); }).ok(), TEXT("wall_body_drag"));
+					const auto* Moved = Wall ? Document->GetDocument().project().findWall(Wall.value()) : nullptr;
+					Check(Moved && Moved->start == f101::cad::Point2D{413,123} && Moved->end == f101::cad::Point2D{413,3123}, TEXT("wall_body_exact_translation"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.undo(); }).ok() &&
+						Document->GetDocument().project().walls.front().start == f101::cad::Point2D{0,0}, TEXT("wall_body_undo"));
+					Check(Document->NewProject().ok(), TEXT("clear_wall_body_fixture"));
+				}
 				Check(Document->SaveProject(FPaths::Combine(Directory, TEXT("project.json"))).ok(), TEXT("save_empty"));
 				for (const auto& Ends : {std::pair<f101::cad::Point2D, f101::cad::Point2D>{{0,0},{4000,0}}, {{4000,0},{4000,4000}}, {{4000,4000},{0,4000}}, {{0,4000},{0,0}}})
 				{ Check(Document->GetMutableDocument().addWall(Ends.first, Ends.second, 120, 2800).ok(), TEXT("create_wall")); }

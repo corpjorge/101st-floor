@@ -235,6 +235,7 @@ namespace f101::cad
 			std::string_view operator()(const DeleteWallCommand&) const { return "Delete wall"; }
 			std::string_view operator()(const MoveWallEndpointCommand&) const { return "Move wall endpoint"; }
 			std::string_view operator()(const MoveJointCommand&) const { return "Move corner"; }
+			std::string_view operator()(const TranslateWallCommand&) const { return "Move wall"; }
 			std::string_view operator()(const ChangeWallLengthCommand&) const { return "Change wall length"; }
 			std::string_view operator()(const ChangeWallThicknessCommand&) const { return "Change wall thickness"; }
 			std::string_view operator()(const ChangeWallHeightCommand&) const { return "Change wall height"; }
@@ -504,6 +505,37 @@ namespace f101::cad
 			{
 				return Error{ErrorCode::NotFound, "No wall ends at (" + std::to_string(joint->from.x_mm) + ", " +
 					std::to_string(joint->from.y_mm) + ") mm"};
+			}
+			return transaction;
+		}
+		if (const auto* move = std::get_if<TranslateWallCommand>(&command))
+		{
+			const Wall* selected = model.findWall(move->wall);
+			if (!selected) return wallNotFound(move->wall);
+			// Bound the delta before integer addition, including commands supplied outside the UI.
+			if (move->delta.dx_mm < -2 * MaxAbsMillimeters || move->delta.dx_mm > 2 * MaxAbsMillimeters ||
+				move->delta.dy_mm < -2 * MaxAbsMillimeters || move->delta.dy_mm > 2 * MaxAbsMillimeters)
+			{
+				return Error{ErrorCode::OutOfRange, "Wall movement would leave the model range"};
+			}
+			Transaction transaction{label, {}, {}};
+			for (std::size_t index = 0; index < model.walls.size(); ++index)
+			{
+				const Wall& before = model.walls[index];
+				if (before.level != selected->level) continue;
+				Wall after = before;
+				for (Point2D* point : {&after.start, &after.end})
+				{
+					// Compare with the original joints: neither translation depends on the other having happened.
+					if (*point == selected->start || *point == selected->end)
+					{
+						point->x_mm += move->delta.dx_mm;
+						point->y_mm += move->delta.dy_mm;
+					}
+				}
+				if (after == before) continue;
+				if (Status valid = validateWall(after); !valid) return valid.error();
+				transaction.walls.push_back({before.id, index, before, after});
 			}
 			return transaction;
 		}
