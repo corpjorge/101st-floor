@@ -8,6 +8,8 @@
 
 # Packaging output (Scripts/Package.ps1)
 /Packaged/
+/.wix/
+/Build/**/FileOpenOrder/
 
 # Generated IDE project files (regenerate with UnrealBuildTool)
 /.vs/

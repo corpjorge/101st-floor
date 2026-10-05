@@ -59,7 +59,7 @@ bool SetEnabled(UGameViewportClient* Viewport, bool bEnable, bool bSave)
 		Settings->SaveSettings();
 	}
 	const FStatus Status = Query(Viewport);
-	UE_LOG(LogFloor101, Display, TEXT("F101HDR: requested=%d available=%d os_peak_nits=%.2f"), bEnable, Status.bAvailable, Status.PeakNits);
+	F101_LOG(LogFloor101, Display, TEXT("F101HDR: requested=%d available=%d os_peak_nits=%.2f"), bEnable, Status.bAvailable, Status.PeakNits);
 	return Settings->IsHDREnabled() == bEnable;
 }
 

@@ -277,7 +277,7 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		}
 		return true;
 	}
-	UE_LOG(LogFloor101, VeryVerbose, TEXT("F101: key %s %s"), *EventArgs.Key.ToString(),
+	F101_LOG(LogFloor101, VeryVerbose, TEXT("F101: key %s %s"), *EventArgs.Key.ToString(),
 		*StaticEnum<EInputEvent>()->GetNameStringByValue(EventArgs.Event));
 	const FKey& Key = EventArgs.Key;
 	const EInputEvent Event = EventArgs.Event;

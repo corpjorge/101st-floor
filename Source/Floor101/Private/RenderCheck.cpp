@@ -97,7 +97,7 @@ namespace
 
 	void Report(const TCHAR* Key, const FString& Value)
 	{
-		UE_LOG(LogFloor101, Display, TEXT("F101RenderCheck: %s=%s"), Key, *Value);
+		F101_LOG(LogFloor101, Display, TEXT("F101RenderCheck: %s=%s"), Key, *Value);
 	}
 
 	void Report(const TCHAR* Key, bool bValue)
@@ -249,7 +249,7 @@ namespace
 			if (Now - LastProgressLogSeconds >= 10.0)
 			{
 				LastProgressLogSeconds = Now;
-				UE_LOG(LogFloor101, Display, TEXT("F101RenderCheck: waiting for shaders, %d jobs remaining"),
+				F101_LOG(LogFloor101, Display, TEXT("F101RenderCheck: waiting for shaders, %d jobs remaining"),
 					GShaderCompilingManager->GetNumRemainingJobs());
 			}
 		}
@@ -333,7 +333,7 @@ void StartIfRequested()
 	FParse::Value(FCommandLine::Get(), TEXT("F101RenderCheckTimeout="), Settings.TimeoutSeconds);
 	FParse::Value(FCommandLine::Get(), TEXT("F101RenderCheckPathTraceSamples="), Settings.PathTraceSamples);
 
-	UE_LOG(LogFloor101, Display, TEXT("F101RenderCheck: started warmup=%d samples=%d path_tracing=%d timeout=%.0fs"),
+	F101_LOG(LogFloor101, Display, TEXT("F101RenderCheck: started warmup=%d samples=%d path_tracing=%d timeout=%.0fs"),
 		Settings.WarmupFrames, Settings.SampleFrames, Settings.PathTraceSamples, Settings.TimeoutSeconds);
 
 	GRenderCheck = MakeUnique<FRenderCheck>(Settings);

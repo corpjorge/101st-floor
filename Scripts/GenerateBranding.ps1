@@ -48,3 +48,54 @@ finally {
     $brandTitle.Dispose(); $brandSubtitle.Dispose()
 }
 Write-Output (Join-Path $brandFolder 'Splash.png')
+
+# ICO uses ordinary BGRA DIB frames, including the AND masks required by the resource compiler.
+$brandIconFolder = Join-Path $RepoRoot 'Build/Windows'
+New-Item -ItemType Directory -Force -Path $brandIconFolder | Out-Null
+$brandFrames = foreach ($brandSize in 16, 32, 48, 256) {
+    $brandIconBitmap = [Drawing.Bitmap]::new($brandSize, $brandSize)
+    $brandIconGraphics = [Drawing.Graphics]::FromImage($brandIconBitmap)
+    $brandIconGraphics.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $brandIconGraphics.Clear([Drawing.ColorTranslator]::FromHtml('#1E2328'))
+    $brandIconPen = [Drawing.Pen]::new([Drawing.ColorTranslator]::FromHtml('#D6AD78'), [float](4*$brandSize/112))
+    $brandIconPen.StartCap = $brandIconPen.EndCap = [Drawing.Drawing2D.LineCap]::Square
+    foreach ($line in $brandLines) {
+        $brandIconGraphics.DrawLine($brandIconPen, [float](($line[0]+8)*$brandSize/112), [float](($line[1]+8)*$brandSize/112),
+            [float](($line[2]+8)*$brandSize/112), [float](($line[3]+8)*$brandSize/112))
+    }
+    if ($brandSize -eq 256) { $brandIconBitmap.Save((Join-Path $brandIconFolder 'InstallerLogo.bmp'), [Drawing.Imaging.ImageFormat]::Bmp) }
+    $brandFrameStream = [IO.MemoryStream]::new()
+    $brandFrameWriter = [IO.BinaryWriter]::new($brandFrameStream)
+    $brandMaskBytes = [int]([Math]::Ceiling($brandSize/32.0)*4*$brandSize)
+    $brandFrameWriter.Write([uint32]40); $brandFrameWriter.Write([int32]$brandSize); $brandFrameWriter.Write([int32]($brandSize*2))
+    $brandFrameWriter.Write([uint16]1); $brandFrameWriter.Write([uint16]32); $brandFrameWriter.Write([uint32]0)
+    $brandFrameWriter.Write([uint32]($brandSize*$brandSize*4+$brandMaskBytes))
+    1..4 | ForEach-Object { $brandFrameWriter.Write([uint32]0) }
+    for ($brandY = $brandSize-1; $brandY -ge 0; $brandY--) {
+        for ($brandX = 0; $brandX -lt $brandSize; $brandX++) {
+            $brandPixel = $brandIconBitmap.GetPixel($brandX, $brandY)
+            $brandFrameWriter.Write([byte]$brandPixel.B); $brandFrameWriter.Write([byte]$brandPixel.G)
+            $brandFrameWriter.Write([byte]$brandPixel.R); $brandFrameWriter.Write([byte]$brandPixel.A)
+        }
+    }
+    $brandFrameWriter.Write([byte[]]::new($brandMaskBytes))
+    [pscustomobject]@{ Size = $brandSize; Data = $brandFrameStream.ToArray() }
+    $brandFrameWriter.Dispose(); $brandFrameStream.Dispose(); $brandIconGraphics.Dispose(); $brandIconBitmap.Dispose(); $brandIconPen.Dispose()
+}
+$brandIconStream = [IO.File]::Create((Join-Path $brandIconFolder 'Application.ico'))
+$brandIconWriter = [IO.BinaryWriter]::new($brandIconStream)
+try {
+    $brandIconWriter.Write([uint16]0); $brandIconWriter.Write([uint16]1); $brandIconWriter.Write([uint16]$brandFrames.Count)
+    $brandOffset = 6+16*$brandFrames.Count
+    foreach ($brandFrame in $brandFrames) {
+        $brandSizeByte = [byte]($brandFrame.Size % 256)
+        $brandIconWriter.Write($brandSizeByte); $brandIconWriter.Write($brandSizeByte)
+        $brandIconWriter.Write([byte]0); $brandIconWriter.Write([byte]0)
+        $brandIconWriter.Write([uint16]1); $brandIconWriter.Write([uint16]32)
+        $brandIconWriter.Write([uint32]$brandFrame.Data.Length); $brandIconWriter.Write([uint32]$brandOffset)
+        $brandOffset += $brandFrame.Data.Length
+    }
+    foreach ($brandFrame in $brandFrames) { $brandIconWriter.Write([byte[]]$brandFrame.Data) }
+}
+finally { $brandIconWriter.Dispose(); $brandIconStream.Dispose() }
+Write-Output (Join-Path $brandIconFolder 'Application.ico')

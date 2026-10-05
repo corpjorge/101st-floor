@@ -1,4 +1,5 @@
 #include "Floor101FinishLibrary.h"
+#include "Floor101Diagnostics.h"
 
 #include "Engine/Engine.h"
 #include "Engine/Texture2D.h"
@@ -83,7 +84,7 @@ UMaterialInterface* UFloor101FinishLibrary::GetBaseMaterial()
 		if (!BaseMaterial && !bReportedMissingBase)
 		{
 			bReportedMissingBase = true;
-			UE_LOG(LogFloor101Finishes, Error, TEXT("F101: finish material %s is missing: run Scripts/GenerateAssets.ps1"), BaseMaterialPath);
+			F101_LOG(LogFloor101Finishes, Error, TEXT("F101: finish material %s is missing: run Scripts/GenerateAssets.ps1"), BaseMaterialPath);
 		}
 	}
 	return BaseMaterial;
@@ -97,7 +98,7 @@ UMaterialInterface* UFloor101FinishLibrary::GetGlassMaterial()
 		if (!GlassMaterial && !bReportedMissingGlass)
 		{
 			bReportedMissingGlass = true;
-			UE_LOG(LogFloor101Finishes, Error, TEXT("F101: finish material %s is missing: run Scripts/GenerateAssets.ps1"), GlassMaterialPath);
+			F101_LOG(LogFloor101Finishes, Error, TEXT("F101: finish material %s is missing: run Scripts/GenerateAssets.ps1"), GlassMaterialPath);
 		}
 	}
 	return GlassMaterial;
@@ -151,7 +152,7 @@ UTexture2D* UFloor101FinishLibrary::GetImageTexture(const FString& Path, bool bF
 	{
 		if (!Path.IsEmpty())
 		{
-			UE_LOG(LogFloor101Finishes, Warning, TEXT("F101: cannot read the image %s; its finish shows its colour alone"), *Path);
+			F101_LOG(LogFloor101Finishes, Warning, TEXT("F101: cannot read the image %s; its finish shows its colour alone"), *Path);
 			MissingAssetImages.Add(Path);
 			bOutMissing = true;
 		}
@@ -227,7 +228,7 @@ UTexture2D* UFloor101FinishLibrary::GetPicture(const FString& Path)
 	UTexture2D* Picture = FImageUtils::ImportFileAsTexture2D(Path);
 	if (!Picture)
 	{
-		UE_LOG(LogFloor101Finishes, Warning, TEXT("F101: cannot read the picture %s"), *Path);
+		F101_LOG(LogFloor101Finishes, Warning, TEXT("F101: cannot read the picture %s"), *Path);
 	}
 	Pictures.Add(Path, Picture);
 	return Picture;
@@ -299,7 +300,7 @@ UMaterialInterface* UFloor101FinishLibrary::GetFinishMaterial(const FString& Fin
 	Material->SetScalarParameterValue(RepeatUParameter, static_cast<float>(Look.texture.repeatWidthMm / 1000.0));
 	Material->SetScalarParameterValue(RepeatVParameter, static_cast<float>(Look.texture.repeatHeightMm / 1000.0));
 	FinishMaterials.Add(FinishId, Material);
-	UE_LOG(LogFloor101Finishes, Verbose, TEXT("F101: finish %s ready (%dx%d, %d mips)"), *FinishId,
+	F101_LOG(LogFloor101Finishes, Verbose, TEXT("F101: finish %s ready (%dx%d, %d mips)"), *FinishId,
 		Look.texture.mips.front().width, Look.texture.mips.front().height, static_cast<int32>(Look.texture.mips.size()));
 	return Material;
 }

@@ -17,8 +17,9 @@ no un porcentaje de progreso.
 Ambos ajustes se recuerdan al reiniciar. Los errores siguen guardándose aunque
 la ventana esté oculta. En la versión de desarrollo actual, los archivos están
 en `Saved/Logs/`; la ubicación de una aplicación empaquetada puede variar. Esta
-validación corresponde al ejecutable Development; una distribución Shipping
-debe habilitar y validar el soporte de registro en su proceso de empaquetado.
+validación inicial corresponde al ejecutable Development. Shipping conserva el
+registro propio del producto mediante Floor101Diagnostics; no las trazas completas
+del motor precompilado. Ver [distribución](distribution.md) y sus comprobaciones.
 
 ## Lanzador
 

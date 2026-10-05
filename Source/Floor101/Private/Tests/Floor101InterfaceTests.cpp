@@ -34,12 +34,14 @@ bool FFloor101DiagnosticPreferencesTest::RunTest(const FString& Parameters)
 {
 	const FString OriginalIni = GGameUserSettingsIni;
 	const ELogVerbosity::Type OriginalVerbosity = LogFloor101.GetVerbosity();
+	const bool OriginalDebug = Floor101::Diagnostics::IsVerbose();
 	const FString TestIni = FPaths::ConvertRelativePathToFull(FPaths::CreateTempFilename(*FPaths::ProjectSavedDir(), TEXT("Diagnostics"), TEXT(".ini")));
 	GGameUserSettingsIni = TestIni;
 	ON_SCOPE_EXIT
 	{
 		GGameUserSettingsIni = OriginalIni;
 		LogFloor101.SetVerbosity(OriginalVerbosity);
+		Floor101::Diagnostics::SetVerbose(OriginalDebug);
 		GConfig->UnloadFile(TestIni);
 		IFileManager::Get().Delete(*TestIni);
 	};
@@ -49,6 +51,8 @@ bool FFloor101DiagnosticPreferencesTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("console defaults to hidden"), Floor101::Preferences::ShowLogWindow());
 	Floor101::Preferences::SetDiagnosticMode(true);
 	TestEqual(TEXT("debug applies detailed product logging immediately"), LogFloor101.GetVerbosity(), ELogVerbosity::VeryVerbose);
+	TestTrue(TEXT("product logger follows debug setting"), Floor101::Diagnostics::IsVerbose());
+	TestTrue(TEXT("verbose records are enabled"), Floor101::Diagnostics::IsEnabled(ELogVerbosity::VeryVerbose));
 	TestFalse(TEXT("debug never forces a separate window"), Floor101::Preferences::ShowLogWindow());
 	Floor101::Preferences::SetShowLogWindow(true, false); // persistence check without creating a native test window
 	GConfig->UnloadFile(TestIni);
@@ -57,6 +61,8 @@ bool FFloor101DiagnosticPreferencesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("window preference survives restart"), Floor101::Preferences::ShowLogWindow());
 	Floor101::Preferences::SetDiagnosticMode(false);
 	TestEqual(TEXT("normal logging is restored, not disabled"), LogFloor101.GetVerbosity(), ELogVerbosity::Log);
+	TestFalse(TEXT("verbose records are filtered in normal mode"), Floor101::Diagnostics::IsEnabled(ELogVerbosity::Verbose));
+	TestTrue(TEXT("errors are always recorded"), Floor101::Diagnostics::IsEnabled(ELogVerbosity::Error));
 	TestTrue(TEXT("window remains independently enabled"), Floor101::Preferences::ShowLogWindow());
 	Floor101::Preferences::SetShowLogWindow(false, false);
 	TestFalse(TEXT("window can be disabled independently"), Floor101::Preferences::ShowLogWindow());

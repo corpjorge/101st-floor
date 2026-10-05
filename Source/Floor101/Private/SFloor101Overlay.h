@@ -32,9 +32,7 @@ public:
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 	virtual FReply OnKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
 	// Development-only command-line capture: exercises the actual Slate surface without changing user preferences.
-#if WITH_DEV_AUTOMATION_TESTS
 	void PrepareReview(const FString& Screen);
-#endif
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 private:
