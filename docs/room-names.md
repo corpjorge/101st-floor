@@ -31,6 +31,9 @@ aprobadas (`Saved/Automation/20261005-125129`). La regresión
 `Floor101.Interaction.OverlappingRoomNames` carga tramos solapados, selecciona
 el interior, renombra «Baño» y verifica plano y guardado/reapertura sin mover
 los muros. También se revisó una copia aislada del plano que originó el reporte.
+El portable 0.1.4 pasó las mismas comprobaciones en Shipping:
+`Saved/PackageChecks/20261005-130105-functional`. Está en
+`Packaged/0.1.4/Windows/Floor101.exe`; conserva completa su carpeta.
 
 ![Baño reconocido y editable](images/bathroom-overlap-fixed.png)
 ![Propiedades del baño en ventana pequeña](images/bathroom-overlap-small.png)

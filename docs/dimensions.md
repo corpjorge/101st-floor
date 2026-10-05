@@ -38,7 +38,13 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 - Interfaz real revisada a 1280×720 y 800×600; cifras con mínimo legible
   en pantalla y propiedades desplazables.
-- Portable Windows **0.1.3 Shipping**, generado desde `6bca576` con el árbol
+- Portable Windows **0.1.4 Shipping**, generado desde `93cb3df` con el árbol
+  limpio. Integridad, dependencias y ejecución independiente aprobadas;
+  `dimension_exact_points` verifica puntos fuera de rejilla. También pasan
+  selección y nombre de habitaciones con solapamientos, guardado, reapertura,
+  exportaciones y deshacer/rehacer.
+  Reporte: `Saved/PackageChecks/20261005-130105-functional`.
+- Entrega anterior **0.1.3 Shipping**, generada desde `6bca576` con el árbol
   limpio. `Scripts/CheckPackage.ps1` aprobó las comprobaciones de integridad,
   dependencias y ejecución del paquete, incluida creación de cotas, edición y
   ocultación de automáticas, deshacer/rehacer, reapertura y exportación SVG.
