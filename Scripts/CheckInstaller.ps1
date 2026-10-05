@@ -53,12 +53,22 @@ if ($installTestRemoveError) { throw $installTestRemoveError }
 if (Test-Path -LiteralPath (Join-Path $installTestApp 'Floor101.exe')) { throw 'Uninstall left the installed executable.' }
 if ((Get-FileHash -LiteralPath $installTestProject).Hash -ne $installTestProjectHash) { throw 'Uninstall changed a user project.' }
 if ($installTestSetup) {
+    $installTestWix = Join-Path $RepoRoot 'Intermediate/InstallerTools/wix.exe'
+    if (-not (Test-Path -LiteralPath $installTestWix)) { throw 'Installer.ps1 -RestoreTools must prepare WiX before checking setup payloads.' }
     $installTestLayout = Join-Path $installTestFolder 'OfflinePayloads'
     $installTestBundle = Start-Process -FilePath $installTestSetup -ArgumentList @('/layout', "`"$installTestLayout`"", '/quiet', '/norestart', '/log', "`"$(Join-Path $installTestFolder 'layout.log')`"") -WindowStyle Hidden -PassThru -Wait
     if ($installTestBundle.ExitCode -ne 0) { throw "Offline setup layout failed: $($installTestBundle.ExitCode)." }
-    $installTestPayload = Get-ChildItem -LiteralPath $installTestLayout -Filter *.msi -File -Recurse | Select-Object -First 1
-    $installTestRuntime = Get-ChildItem -LiteralPath $installTestLayout -Filter vc_redist.x64.exe -File -Recurse | Select-Object -First 1
-    if (-not $installTestPayload -or -not $installTestRuntime -or (Get-FileHash -LiteralPath $installTestPayload.FullName).Hash -ne (Get-FileHash -LiteralPath $installTestMsi).Hash) { throw 'The offline setup payload is incomplete or changed.' }
+    # Burn keeps compressed payloads inside the laid-out EXE, with internal extraction names.
+    $installTestLayoutBundle = Join-Path $installTestLayout (Split-Path $installTestSetup -Leaf)
+    if ((Get-FileHash -LiteralPath $installTestLayoutBundle).Hash -ne (Get-FileHash -LiteralPath $installTestSetup).Hash) { throw 'Offline layout changed the setup bundle.' }
+    $installTestExtracted = Join-Path $installTestFolder 'ExtractedPayloads'
+    & $installTestWix burn extract $installTestLayoutBundle -o $installTestExtracted
+    if ($LASTEXITCODE -ne 0) { throw 'Offline setup extraction failed.' }
+    $installTestRuntimeSource = Join-Path (Split-Path (Split-Path $installTestMsi)) 'Windows/Engine/Extras/Redist/en-us/vc_redist.x64.exe'
+    $installTestPayloadHashes = @(Get-ChildItem -LiteralPath $installTestExtracted -File -Recurse | Get-FileHash -Algorithm SHA256 | Select-Object -ExpandProperty Hash)
+    foreach ($installTestExpected in $installTestMsi, $installTestRuntimeSource) {
+        if ((Get-FileHash -LiteralPath $installTestExpected).Hash -notin $installTestPayloadHashes) { throw 'The offline setup payload is incomplete or changed.' }
+    }
     Write-Step 'PASS: setup contains the exact MSI and offline Visual C++ prerequisites.'
 }
 Write-Step 'PASS: MSI installation, isolated shortcuts, standalone startup and uninstall; user project preserved.'

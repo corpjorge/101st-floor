@@ -72,7 +72,7 @@ esa prueba. Los resultados concretos de esta entrega se registran al terminar su
   `Saved/Automation/20261004-185146`.
 - Shipping: biblioteca 53/14, materiales cocinados, división de paredes, guardar/reabrir,
   deshacer/rehacer, importación, SVG/PNG/GLB, velocidad 0/3 y WASD, ventanas de diagnóstico
-  y foto PNG: `Saved/PackageChecks/20261004-190652-functional`. Cierre normal aprobado.
+  y foto PNG: `Saved/PackageChecks/20261004-192705-functional`. Cierre normal aprobado.
 - Pantalla nativa 2560×1440, render al 100 %, resolución elegida, VSync y Salir:
   `Saved/PackageChecks/20261004-191128-display`.
 - HDR activado temporalmente: salida HDR, EXR 1280×720 con máximo lineal 1,914,
@@ -82,7 +82,8 @@ esa prueba. Los resultados concretos de esta entrega se registran al terminar su
   dependencias cargadas desde la instalación de Unreal.
 - MSI instalado en carpetas aisladas, accesos directos verificados, aplicación
   instalada arrancada y desinstalada conservando un proyecto externo:
-  `Packaged/InstallerChecks/20261004-191842`.
+  `Packaged/InstallerChecks/20261004-193432`. La copia offline del EXE se extrajo con
+  WiX y sus archivos incrustados coincidieron por SHA-256 con el MSI y Visual C++ x64.
 
 ![Shipping: diseño](images/packaged-design.png)
 ![Shipping: inicio](images/packaged-home.png)
