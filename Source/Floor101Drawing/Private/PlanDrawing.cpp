@@ -596,6 +596,19 @@ namespace f101::drawing
 		if (overlay.previewDimension && !overlay.previewDimension->automatic && overlay.previewDimension->start != overlay.previewDimension->end)
 			drawAnnotation(builder, *overlay.previewDimension, texts, Ink::Preview);
 
+		// Only the editing overlay adds grips; exports contain no handles.
+		if (!overlay.selectedDimension.empty())
+		{
+			const auto selected = std::find_if(drawing.dimensions.begin(), drawing.dimensions.end(), [&](const cad::Dimension& d) { return d.id == overlay.selectedDimension; });
+			if (selected != drawing.dimensions.end())
+			{
+				const cad::Dimension& shown = overlay.previewDimension && overlay.previewDimension->id == selected->id ? *overlay.previewDimension : *selected;
+				std::array<PlanPoint, 4> handles;
+				cad::dimensionHandles(shown, handles);
+				for (const PlanPoint grip : handles) builder.square(grip, overlay.dimensionHandleSizeMm, Ink::DimensionSelected);
+			}
+		}
+
 		// Room names and areas.
 		for (std::size_t index = 0; index < rooms.size(); ++index)
 		{

@@ -10,6 +10,7 @@
 #include "F101/Cad/Wall.h"
 
 #include <cstddef>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -68,6 +69,8 @@ namespace f101::cad
 	FLOOR101CADCORE_API Status validateDimension(const Project& project, const Dimension& dimension);
 	FLOOR101CADCORE_API std::pair<PlanPoint, PlanPoint> dimensionLine(const Dimension& dimension);
 	FLOOR101CADCORE_API PlanPoint dimensionLabelPoint(const Dimension& dimension);
+	// Measured start/end, then the corresponding corners of the offset line.
+	FLOOR101CADCORE_API void dimensionHandles(const Dimension& dimension, std::array<PlanPoint, 4>& handles);
 	FLOOR101CADCORE_API Status validateRoomBaseboard(const Project& project, const RoomBaseboard& baseboard);
 
 	inline constexpr std::size_t MaxRoomNameBytes = 256;

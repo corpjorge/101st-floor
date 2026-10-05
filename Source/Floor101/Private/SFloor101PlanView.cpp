@@ -94,7 +94,15 @@ int32 SFloor101PlanView::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 		Vertices.Reserve(static_cast<int32>(Fill.outline.size()));
 		for (const f101::cad::PlanPoint& Point : Fill.outline)
 		{
-			Vertices.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(Transform, FVector2f(ToLocal(Point)), FVector2f(0.5f, 0.5f), Color));
+			FVector2D Local = ToLocal(Point);
+			if (Mapped.IsSet() && Fill.ink == Ink::DimensionSelected && Fill.outline.size() == 4)
+			{
+				// Endpoint grips stay ten pixels wide while zooming; exports have no grips.
+				const auto& A = Fill.outline[0]; const auto& B = Fill.outline[2];
+				const FVector2D Centre = ToLocal({(A.x_mm + B.x_mm) / 2.0, (A.y_mm + B.y_mm) / 2.0});
+				Local = Centre + FVector2D(Local.X < Centre.X ? -5.0 : 5.0, Local.Y < Centre.Y ? -5.0 : 5.0);
+			}
+			Vertices.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(Transform, FVector2f(Local), FVector2f(0.5f, 0.5f), Color));
 		}
 		TArray<SlateIndex> Indices;
 		Indices.Reserve(static_cast<int32>(Fill.triangles.size()));

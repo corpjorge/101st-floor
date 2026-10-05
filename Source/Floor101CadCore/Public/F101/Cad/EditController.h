@@ -182,8 +182,9 @@ namespace f101::cad
 		FLOOR101CADCORE_API void clearSelection();
 		using DimensionProvider = std::function<std::vector<Dimension>(const Project&, const LevelId&)>;
 		void setDimensionProvider(DimensionProvider provider) { dimensionProvider = std::move(provider); }
-		void setDimensionsVisible(bool visible) { dimensionsVisible = visible; if (!visible) { dimensionDraft.clear(); selectedDimensionId.clear(); dimensionDrag.reset(); } }
+		void setDimensionsVisible(bool visible) { dimensionsVisible = visible; if (!visible) { dimensionDraft.clear(); selectedDimensionId.clear(); dimensionDrag.reset(); dimensionDragOriginal.reset(); dimensionDragHandle = -1; } }
 		void setDimensionPickTolerance(double mm) { dimensionPickToleranceMm = mm; }
+		double dimensionHandleSizeMm() const { return dimensionPickToleranceMm * 1.25; }
 		FLOOR101CADCORE_API std::optional<Dimension> selectedDimension() const;
 		FLOOR101CADCORE_API std::optional<Dimension> dimensionPreview() const;
 		FLOOR101CADCORE_API Status selectDimension(std::string_view id);
@@ -451,6 +452,8 @@ namespace f101::cad
 		std::optional<Dimension> dimensionDrag;
 		std::optional<Dimension> dimensionDragOriginal;
 		double dimensionGrabAcross = 0.0;
+		int dimensionDragHandle = -1; // 0/1: measured points; 2/3: resize along the original axis
+		PlanPoint dimensionGrabPoint;
 		Document& document;
 		EditSettings editSettings;
 		WallTool tool;

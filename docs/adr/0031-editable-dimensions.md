@@ -27,6 +27,13 @@ de presentación conservando la geometría CAD como fuente de verdad.
   perpendicular para mover la línea. Propiedades permite editar rótulo y separación;
   las manuales también sus coordenadas. Medidas manuales se muestran a resolución
   de milímetro; automáticas conservan el formato de plano existente.
+- Desde 0.1.5, cuatro controles visibles en la selección: dos puntos medidos
+  para mover extremos libremente y dos esquinas para ajustar longitud sobre el
+  eje original. El arrastre preserva el extremo opuesto y la separación; admite
+  vista previa, cancelación y una sola transacción al soltar. Cambiar extremos de
+  una automática ejecuta `MakeDimensionManualCommand`: oculta la original y crea
+  una manual con UUID, rótulo y separación conservados. Un deshacer restaura ambas
+  entradas; no modifica paredes. Restaurar automáticas mantiene la manual creada.
 - Borrar una automática guarda una exclusión. Vista → Restaurar cotas automáticas
   restablece la planta activa en un solo paso, preservando cotas manuales.
   Vista, SVG y PNG consumen el mismo dibujo; selección y borradores no se exportan.

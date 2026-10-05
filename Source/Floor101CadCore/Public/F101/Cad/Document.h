@@ -124,6 +124,8 @@ namespace f101::cad
 
 	// Nil id adds a manual dimension with a generated UUID; existing id replaces an annotation/automatic override.
 	struct SetDimensionCommand { Dimension dimension; };
+	// Hide the derived original and add a resized manual copy in one transaction.
+	struct MakeDimensionManualCommand { Dimension dimension; };
 	struct DeleteDimensionCommand { std::string id; };
 	// Clears automatic presentation overrides on one level; manual measurements stay.
 	struct ResetDimensionsCommand { LevelId level; };
@@ -225,7 +227,7 @@ namespace f101::cad
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
-		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetDimensionCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
+		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetDimensionCommand, MakeDimensionManualCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
 		ChangeAssetCommand, DeleteAssetCommand, AddColumnCommand, ChangeColumnCommand, DeleteColumnCommand,
 		AddServiceRunCommand, ChangeServiceRunCommand, DeleteServiceRunCommand>;
 

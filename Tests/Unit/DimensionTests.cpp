@@ -11,6 +11,12 @@ using namespace f101::cad;
 namespace
 {
 	Ray3 above(double x, double y, double z = 10000) { return {x, y, z, 0, 0, -1}; }
+	PlanPoint gripOf(const Dimension& d, int index)
+	{
+		std::array<PlanPoint, 4> handles;
+		dimensionHandles(d, handles);
+		return handles[index];
+	}
 	void dimensions(EditController& editor)
 	{
 		editor.setDimensionsVisible(true);
@@ -127,6 +133,120 @@ TEST_CASE("cancel, invalid endpoints and off-plane input do not create measureme
 	CHECK_FALSE(editor.setDimensionOffset("1000000001 mm").ok());
 	CHECK_FALSE(editor.setDimensionText("line\nbreak").ok());
 	CHECK(doc.project().dimensions.front() == invalid);
+}
+
+TEST_CASE("all four manual dimension grips resize reversibly and preview without changing the document")
+{
+	for (int handle = 0; handle < 4; ++handle)
+	{
+		Document doc{makeSequentialUuidSource()};
+		Dimension original{"manual", doc.project().levels.front().id, {1000, 1000}, {4000, 1000}, 600};
+		REQUIRE(doc.execute(SetDimensionCommand{original}).ok());
+		EditController editor{doc, {}};
+		dimensions(editor);
+		REQUIRE(editor.selectDimension(original.id).ok());
+		const auto grip = gripOf(original, handle);
+		const bool start = handle % 2 == 0;
+		const double dx = start ? -300.0 : 300.0;
+		REQUIRE(editor.pointerPressed(above(grip.x_mm + 3, grip.y_mm + 2)).ok());
+		editor.pointerMoved(above(grip.x_mm + 3 + dx, grip.y_mm + 52));
+		REQUIRE(editor.dimensionPreview());
+		const auto preview = *editor.dimensionPreview();
+		CHECK(doc.project().dimensions.front() == original);
+		CHECK((start ? preview.end : preview.start) == (start ? original.end : original.start));
+		CHECK((start ? preview.start : preview.end) == Point2D{start ? 700 : 4300, handle < 2 ? 1050 : 1000});
+		CHECK(preview.offsetMm == 600);
+		drawing::PlanOverlay overlay;
+		overlay.selectedDimension = original.id;
+		overlay.previewDimension = preview;
+		const auto shown = drawing::buildPlanDrawing(doc.project(), editor.activeLevel(), overlay);
+		CHECK(std::count_if(shown.fills.begin(), shown.fills.end(), [](const auto& fill) { return fill.ink == drawing::Ink::DimensionSelected; }) == 4);
+		const auto exported = drawing::buildPlanDrawing(doc.project(), editor.activeLevel());
+		CHECK(std::none_of(exported.fills.begin(), exported.fills.end(), [](const auto& fill) { return fill.ink == drawing::Ink::DimensionSelected; }));
+		REQUIRE(editor.pointerReleased(above(grip.x_mm + dx, grip.y_mm + 50)).ok());
+		CHECK(doc.project().dimensions.front() == preview);
+		REQUIRE(editor.undo().ok());
+		CHECK(doc.project().dimensions.front() == original);
+		REQUIRE(editor.redo().ok());
+		CHECK(doc.project().dimensions.front() == preview);
+		REQUIRE(editor.selectDimension(original.id).ok());
+		const auto now = gripOf(preview, handle);
+		REQUIRE(editor.pointerPressed(above(now.x_mm, now.y_mm)).ok());
+		editor.pointerMoved(above(now.x_mm + 150, now.y_mm + 250));
+		editor.cancel();
+		CHECK_FALSE(editor.isDragging());
+		CHECK(doc.project().dimensions.front() == preview);
+	}
+}
+
+TEST_CASE("resizing an automatic dimension converts it atomically while preserving overrides and wall geometry")
+{
+	for (const bool customized : {false, true})
+	{
+		Document doc{makeSequentialUuidSource()};
+		REQUIRE(doc.addWall({0, 0}, {4000, 3000}, 120, 2800).ok());
+		EditController editor{doc, {}};
+		dimensions(editor);
+		const auto automatic = drawing::buildPlanDrawing(doc.project(), editor.activeLevel()).dimensions.front();
+		REQUIRE(editor.selectDimension(automatic.id).ok());
+		if (customized)
+		{
+			REQUIRE(editor.setDimensionText("Paso libre").ok());
+			REQUIRE(editor.setDimensionOffset("-400 mm").ok());
+		}
+		const auto original = *editor.selectedDimension();
+		const auto snapshot = writeProjectJson(doc.project());
+		const auto grip = gripOf(original, 3);
+		REQUIRE(editor.pointerPressed(above(grip.x_mm, grip.y_mm)).ok());
+		REQUIRE(editor.pointerReleased(above(grip.x_mm, grip.y_mm)).ok());
+		CHECK(writeProjectJson(doc.project()) == snapshot);
+		REQUIRE(editor.pointerPressed(above(grip.x_mm, grip.y_mm)).ok());
+		editor.pointerMoved(above(grip.x_mm + 240, grip.y_mm + 180));
+		REQUIRE(editor.dimensionPreview());
+		CHECK(editor.dimensionPreview()->end == Point2D{4240, 3180});
+		CHECK(writeProjectJson(doc.project()) == snapshot);
+		REQUIRE(editor.pointerReleased(above(grip.x_mm + 240, grip.y_mm + 180)).ok());
+		REQUIRE(editor.selectedDimension());
+		const auto manual = *editor.selectedDimension();
+		CHECK_FALSE(manual.automatic);
+		CHECK(manual.start == original.start);
+		CHECK(manual.end == Point2D{4240, 3180});
+		CHECK(manual.text == original.text);
+		CHECK(manual.offsetMm == original.offsetMm);
+		CHECK(doc.project().findDimension(original.id)->hidden);
+		CHECK(drawing::buildPlanDrawing(doc.project(), editor.activeLevel()).dimensions.size() == 1);
+		CHECK(doc.project().walls.front().end == Point2D{4000, 3000});
+		const auto resized = writeProjectJson(doc.project());
+		REQUIRE(editor.undo().ok());
+		CHECK(writeProjectJson(doc.project()) == snapshot);
+		REQUIRE(editor.redo().ok());
+		CHECK(writeProjectJson(doc.project()) == resized);
+		const auto saved = readProjectJson(resized);
+		REQUIRE(saved.ok());
+		CHECK(saved.value().dimensions == doc.project().dimensions);
+		CHECK(drawing::buildPlanDrawing(saved.value(), editor.activeLevel()).dimensions.front().id == manual.id);
+		REQUIRE(editor.restoreAutomaticDimensions().ok());
+		CHECK(drawing::buildPlanDrawing(doc.project(), editor.activeLevel()).dimensions.size() == 2);
+	}
+}
+
+TEST_CASE("collapsed grips and invalid automatic conversions leave a valid measurement and history")
+{
+	Document doc{makeSequentialUuidSource()};
+	Dimension manual{"manual", doc.project().levels.front().id, {1000, 1000}, {2000, 1000}, 600};
+	REQUIRE(doc.execute(SetDimensionCommand{manual}).ok());
+	CHECK_FALSE(doc.execute(MakeDimensionManualCommand{manual}).ok());
+	EditController editor{doc, {}};
+	dimensions(editor);
+	REQUIRE(editor.selectDimension(manual.id).ok());
+	REQUIRE(editor.pointerPressed(above(2000, 1600)).ok());
+	editor.pointerMoved(above(1000, 1600));
+	CHECK(editor.dimensionPreview()->end == manual.end);
+	editor.pointerMoved(above(500, 1600));
+	CHECK(editor.dimensionPreview()->end == manual.end);
+	editor.setDimensionsVisible(false);
+	CHECK_FALSE(editor.isDragging());
+	CHECK(doc.project().dimensions.front() == manual);
 }
 
 TEST_CASE("automatic dimensions can be selected, dragged, hidden and restored while tracking wall edits")

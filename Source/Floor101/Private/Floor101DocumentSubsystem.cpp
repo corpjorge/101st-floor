@@ -987,6 +987,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		f101::drawing::PlanOverlay Marks;
 		if (const auto Selected = Editor->selectedDimension()) Marks.selectedDimension = Selected->id;
 		Marks.previewDimension = Editor->dimensionPreview();
+		Marks.dimensionHandleSizeMm = Editor->dimensionHandleSizeMm();
 		Marks.selectedWall = View.selectedWall;
 		Marks.previewWalls = View.previewWalls;
 		Marks.selectedFurniture = View.selectedFurniture;

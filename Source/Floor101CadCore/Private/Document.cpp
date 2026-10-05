@@ -251,6 +251,7 @@ namespace f101::cad
 			std::string_view operator()(const SetRoomFinishCommand&) const { return "Change room finish"; }
 			std::string_view operator()(const SetRoomNameCommand&) const { return "Rename room"; }
 			std::string_view operator()(const SetDimensionCommand&) const { return "Edit dimension"; }
+			std::string_view operator()(const MakeDimensionManualCommand&) const { return "Resize automatic dimension"; }
 			std::string_view operator()(const DeleteDimensionCommand&) const { return "Delete dimension"; }
 			std::string_view operator()(const ResetDimensionsCommand&) const { return "Restore automatic dimensions"; }
 			std::string_view operator()(const SetRoomBaseboardCommand&) const { return "Change baseboard"; }
@@ -945,6 +946,22 @@ namespace f101::cad
 			Transaction transaction{label, {}, {}};
 			if (before != std::optional<Dimension>(entry))
 				transaction.dimensions.push_back({entry.id, index.value_or(model.dimensions.size()), before, entry});
+			return transaction;
+		}
+		if (const auto* conversion = std::get_if<MakeDimensionManualCommand>(&command))
+		{
+			Dimension hidden = conversion->dimension;
+			if (!hidden.automatic || hidden.hidden) return Error{ErrorCode::InvalidArgument, "Choose a visible automatic dimension"};
+			if (Status valid = validateDimension(model, hidden); !valid) return valid.error();
+			Dimension manual = hidden;
+			manual.id = toString(newUuid());
+			manual.automatic = false;
+			hidden.hidden = true;
+			const auto index = findIndex(model.dimensions, hidden.id);
+			const std::optional<Dimension> before = index ? std::optional<Dimension>(model.dimensions[*index]) : std::nullopt;
+			Transaction transaction{label, {}, {}};
+			transaction.dimensions.push_back({hidden.id, index.value_or(model.dimensions.size()), before, hidden});
+			transaction.dimensions.push_back({manual.id, model.dimensions.size() + (index ? 0 : 1), std::nullopt, manual});
 			return transaction;
 		}
 		if (const auto* removal = std::get_if<DeleteDimensionCommand>(&command))

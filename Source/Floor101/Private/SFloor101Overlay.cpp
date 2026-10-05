@@ -3258,7 +3258,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDimensionSection()
 			{ const auto Value = D(); return Value ? FText::FromString(UTF8_TO_TCHAR(Value->text.c_str())) : FText::GetEmpty(); }, &EditController::setDimensionText)]
 			+ SVerticalBox::Slot().AutoHeight()
 			[SNew(STextBlock).AutoWrapText(true).Font(Font(9)).ColorAndOpacity(MutedColor)
-				.Text(LOCTEXT("DimensionTextHint", "Rótulo vacío = medida real. Separación negativa = otro lado. Editar la cota no modifica el modelo."))]
+				.Text(LOCTEXT("DimensionTextHint", "Arrastra los cuadrados para cambiar los extremos. Una automática se convierte en manual. Rótulo vacío = medida real; separación negativa = otro lado."))]
 			+ SVerticalBox::Slot().AutoHeight()
 			[SNew(SBox).Visibility_Lambda([D]() { const auto Value = D(); return Value && !Value->automatic ? EVisibility::Visible : EVisibility::Collapsed; })[Fields]]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)
@@ -3291,7 +3291,7 @@ FText SFloor101Overlay::GetHintText() const
 			Editor.dimensionPointCount() == 1 ? LOCTEXT("DimensionEnd", "Cota · clic: segundo punto · Esc: cancelar") :
 			LOCTEXT("DimensionPlace", "Cota · clic: colocar línea · Esc: cancelar");
 	}
-	if (GetSelectedDimension()) return LOCTEXT("DimensionSelectedHint", "Cota · arrastrar línea: mover · Propiedades: editar · Supr: quitar · Ctrl+Z: deshacer");
+	if (GetSelectedDimension()) return LOCTEXT("DimensionSelectedHint", "Cota · extremos: cambiar medida · línea: mover · Supr: quitar · Ctrl+Z: deshacer");
 	if (Editor.mode() == EditMode::Wall)
 	{
 		return Editor.wallTool().state() == f101::cad::WallTool::State::Drafting

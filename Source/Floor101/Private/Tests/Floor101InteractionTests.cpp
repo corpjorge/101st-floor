@@ -798,11 +798,27 @@ bool FFloor101DimensionsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("start does not jump to axis or corner"), Manual.start == f101::cad::Point2D{61, 61});
 	TestTrue(TEXT("end does not jump to grid or corner"), Manual.end == f101::cad::Point2D{3938, 61});
 	TestEqual(TEXT("3877 mm measurement"), (Manual.end - Manual.start).lengthMm(), 3877.0);
+	TestTrue(TEXT("grab manual endpoint"), Document->Edit([Manual](EditController& E) { return E.pointerPressed(Down(Manual.end.x_mm, Manual.end.y_mm)); }).ok());
+	TestTrue(TEXT("drag manual endpoint freely"), Document->Edit([](EditController& E) { E.pointerMoved(Down(4187, 67)); return f101::Status::success(); }).ok());
+	TestTrue(TEXT("release manual endpoint"), Document->Edit([](EditController& E) { return E.pointerReleased(Down(4187, 67)); }).ok());
+	TestTrue(TEXT("endpoint updated without snapping"), Document->GetEditController().selectedDimension()->end == f101::cad::Point2D{4187, 67});
+	TestTrue(TEXT("live properties contain new distance"), Document->GetEditController().selectedDimension()->start == Manual.start);
 	TestTrue(TEXT("edit label"), Document->Edit([](EditController& E) { return E.setDimensionText("Paso libre"); }).ok());
 	TestTrue(TEXT("same drawing for UI and export"), std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
 		[](const auto& Label) { return Label.text == "Paso libre"; }));
 	const auto Automatic = *std::find_if(Document->GetPlanDrawing().dimensions.begin(), Document->GetPlanDrawing().dimensions.end(), [](const auto& D) { return D.automatic; });
 	TestTrue(TEXT("select automatic"), Document->Edit([Automatic](EditController& E) { return E.selectDimension(Automatic.id); }).ok());
+	std::array<f101::cad::PlanPoint, 4> Handles;
+	f101::cad::dimensionHandles(Automatic, Handles);
+	const auto Corner = Handles[3];
+	TestTrue(TEXT("grab automatic corner"), Document->Edit([Corner](EditController& E) { return E.pointerPressed(Down(Corner.x_mm, Corner.y_mm)); }).ok());
+	TestTrue(TEXT("resize automatic corner"), Document->Edit([Corner](EditController& E) { E.pointerMoved(Down(Corner.x_mm + 200, Corner.y_mm)); return f101::Status::success(); }).ok());
+	TestTrue(TEXT("release automatic corner"), Document->Edit([Corner](EditController& E) { return E.pointerReleased(Down(Corner.x_mm + 200, Corner.y_mm)); }).ok());
+	TestTrue(TEXT("automatic converted to selected manual"), Document->GetEditController().selectedDimension() && !Document->GetEditController().selectedDimension()->automatic);
+	TestEqual(TEXT("wall preserved during conversion"), Document->GetDocument().project().findWall(Wall)->lengthMm(), 4000.0);
+	TestTrue(TEXT("one undo restores automatic"), Document->Edit([](EditController& E) { return E.undo(); }).ok());
+	TestEqual(TEXT("no duplicate manual after undo"), Document->GetDocument().project().dimensions.size(), std::size_t{1});
+	TestTrue(TEXT("select restored automatic"), Document->Edit([Automatic](EditController& E) { return E.selectDimension(Automatic.id); }).ok());
 	TestTrue(TEXT("hide automatic"), Document->Edit([](EditController& E) { return E.deleteSelection(); }).ok());
 	TestEqual(TEXT("only manual remains visible"), static_cast<int32>(Document->GetPlanDrawing().dimensions.size()), 1);
 	TestEqual(TEXT("wall length unchanged"), Document->GetDocument().project().findWall(Wall)->lengthMm(), 4000.0);

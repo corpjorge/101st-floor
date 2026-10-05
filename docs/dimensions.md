@@ -15,6 +15,11 @@ su línea o el centro de su cifra. En **Propiedades** puedes:
   recuperar la cifra calculada. El panel siempre muestra la distancia real.
 - En cotas manuales, cambiar **Inicio X/Y** y **Fin X/Y**. Aceptan `mm`, `cm`, `m`;
   sin unidad se usan centímetros. Enter o salir del campo confirma el cambio.
+- Arrastrar cualquiera de los cuatro cuadrados: los puntos medidos cambian
+  libremente; las esquinas de la línea alargan o acortan sobre su dirección.
+  El extremo opuesto queda fijo y la cifra se actualiza mientras arrastras.
+  **Esc** cancela. En una automática, cambiar un extremo la convierte en manual
+  y oculta la original sin modificar paredes; **Ctrl+Z** revierte todo en un paso.
 - Pulsar **Eliminar (Supr)**. Las automáticas se ocultan individualmente.
 
 **Vista → Restaurar cotas automáticas de esta planta** recupera las ocultas y
@@ -30,11 +35,12 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 ## Verificación
 
-- 300 pruebas C++ / 13.702 aserciones aprobadas, incluidas mediciones libres
-  junto a caras, esquinas y fuera de la rejilla.
+- 303 pruebas C++ / 13.848 aserciones aprobadas, incluidas mediciones libres
+  junto a caras, esquinas y fuera de la rejilla; arrastre de ambos extremos y
+  conversión reversible de automáticas.
 - 85 pruebas Unreal aprobadas, incluidas `Floor101.Interaction.Dimensions` y
   `Floor101.Interaction.OverlappingRoomNames`.
-  Reporte: `Saved/Automation/20261005-125129`.
+  Reporte: `Saved/Automation/20261005-151148`.
 
 - Interfaz real revisada a 1280×720 y 800×600; cifras con mínimo legible
   en pantalla y propiedades desplazables.
@@ -52,9 +58,9 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 ## Entrega portable
 
-Extrae `Packaged/0.1.4/101st-Floor-portable.zip` y abre `Floor101.exe`.
+Extrae `Packaged/0.1.5/101st-Floor-portable.zip` y abre `Floor101.exe`.
 Conserva todos los archivos de la carpeta junto al ejecutable. La carpeta
-ya extraída está en `Packaged/0.1.4/Windows/`.
+ya extraída está en `Packaged/0.1.5/Windows/`.
 La validación se ejecutó en este equipo; queda pendiente probar la entrega
 en otro equipo sin Unreal instalado.
 
@@ -62,3 +68,6 @@ en otro equipo sin Unreal instalado.
 ![Propiedades en ventana pequeña](images/dimensions-small.png)
 
 ![Cota libre con coordenadas exactas](images/dimensions-exact.png)
+
+![Extremos y esquinas para ajustar una cota](images/dimension-grips.png)
+![Controles de cota en ventana pequeña](images/dimension-grips-small.png)

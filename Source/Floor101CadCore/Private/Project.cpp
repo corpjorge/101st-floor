@@ -30,6 +30,13 @@ namespace f101::cad
 			{static_cast<double>(dimension.end.x_mm) + nx * offset, static_cast<double>(dimension.end.y_mm) + ny * offset}};
 	}
 
+	void dimensionHandles(const Dimension& dimension, std::array<PlanPoint, 4>& handles)
+	{
+		const auto [a, b] = dimensionLine(dimension);
+		handles = {PlanPoint{static_cast<double>(dimension.start.x_mm), static_cast<double>(dimension.start.y_mm)},
+			PlanPoint{static_cast<double>(dimension.end.x_mm), static_cast<double>(dimension.end.y_mm)}, a, b};
+	}
+
 	PlanPoint dimensionLabelPoint(const Dimension& dimension)
 	{
 		const auto [a, b] = dimensionLine(dimension);

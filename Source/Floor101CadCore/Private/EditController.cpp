@@ -335,6 +335,7 @@ namespace f101::cad
 	{
 		dimensionDrag.reset();
 		dimensionDragOriginal.reset();
+		dimensionDragHandle = -1;
 		drag.reset();
 		openingDrag.reset();
 		furnitureDrag.reset();
@@ -405,6 +406,30 @@ namespace f101::cad
 		if (dimensionDrag && dimensionDragOriginal)
 		{
 			const Vector2D axis = dimensionDragOriginal->end - dimensionDragOriginal->start;
+			if (dimensionDragHandle >= 0)
+			{
+				const bool start = dimensionDragHandle % 2 == 0;
+				const Point2D anchor = start ? dimensionDragOriginal->start : dimensionDragOriginal->end;
+				double dx = planPoint->x_mm - dimensionGrabPoint.x_mm;
+				double dy = planPoint->y_mm - dimensionGrabPoint.y_mm;
+				if (dimensionDragHandle >= 2)
+				{
+					const double ux = static_cast<double>(axis.dx_mm) / axis.lengthMm();
+					const double uy = static_cast<double>(axis.dy_mm) / axis.lengthMm();
+					const double along = dx * ux + dy * uy;
+					dx = along * ux; dy = along * uy;
+				}
+				const auto point = measurementPoint({static_cast<double>(anchor.x_mm) + dx, static_cast<double>(anchor.y_mm) + dy});
+				if (!point) return;
+				Dimension candidate = *dimensionDragOriginal;
+				(start ? candidate.start : candidate.end) = *point;
+				if (candidate.start == candidate.end) return;
+				const Vector2D moved = candidate.end - candidate.start;
+				if (dimensionDragHandle >= 2 && static_cast<double>(moved.dx_mm) * static_cast<double>(axis.dx_mm) +
+					static_cast<double>(moved.dy_mm) * static_cast<double>(axis.dy_mm) <= 0.0) return;
+				if (validateDimension(document.project(), candidate)) dimensionDrag = candidate;
+				return;
+			}
 			const double across = ((planPoint->y_mm - static_cast<double>(dimensionDragOriginal->start.y_mm)) * static_cast<double>(axis.dx_mm) -
 				(planPoint->x_mm - static_cast<double>(dimensionDragOriginal->start.x_mm)) * static_cast<double>(axis.dy_mm)) / axis.lengthMm();
 			const auto offset = quantizeMillimeters(static_cast<double>(dimensionDragOriginal->offsetMm) + across - dimensionGrabAcross);
@@ -816,6 +841,27 @@ namespace f101::cad
 		}
 		if (dimensionsVisible && dimensionProvider && currentMode == EditMode::Select && planPoint)
 		{
+			if (const auto current = selectedDimension())
+			{
+				std::array<PlanPoint, 4> handles;
+				dimensionHandles(*current, handles);
+				int handle = -1;
+				double nearestHandle = dimensionPickToleranceMm;
+				for (int i = 0; i < 4; ++i)
+				{
+					const double distance = std::hypot(planPoint->x_mm - handles[i].x_mm, planPoint->y_mm - handles[i].y_mm);
+					if (distance < nearestHandle) { nearestHandle = distance; handle = i; }
+				}
+				if (handle >= 0)
+				{
+					dropDrags();
+					dimensionDrag = current;
+					dimensionDragOriginal = current;
+					dimensionDragHandle = handle;
+					dimensionGrabPoint = *planPoint;
+					return Status::success();
+				}
+			}
 			std::optional<Dimension> picked;
 			double nearest = dimensionPickToleranceMm;
 			for (const Dimension& d : dimensionProvider(document.project(), activeLevel()))
@@ -1067,7 +1113,15 @@ namespace f101::cad
 		{
 			const Dimension after = *dimensionDrag;
 			const bool changed = after != *dimensionDragOriginal;
+			const bool convert = after.automatic && dimensionDragHandle >= 0 && changed;
 			dropDrags();
+			if (convert)
+			{
+				const auto applied = document.execute(MakeDimensionManualCommand{after});
+				if (!applied) return applied.error();
+				selectedDimensionId = applied.value().dimensions.back().id;
+				return Status::success();
+			}
 			return changed ? toStatus(document.execute(SetDimensionCommand{after})) : Status::success();
 		}
 		// Each drag: moved as the last pointerMoved() left it; one undoable change, or none if it did not move.
@@ -1348,6 +1402,7 @@ namespace f101::cad
 	std::optional<Dimension> EditController::selectedDimension() const
 	{
 		if (!dimensionsVisible || selectedDimensionId.empty() || currentMode != EditMode::Select) return std::nullopt;
+		if (dimensionDrag) return dimensionDrag;
 		if (dimensionProvider)
 		{
 			for (const Dimension& d : dimensionProvider(document.project(), activeLevel())) if (d.id == selectedDimensionId && !d.hidden) return d;

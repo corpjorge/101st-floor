@@ -96,6 +96,7 @@ namespace f101::drawing
 	{
 		std::string selectedDimension;
 		std::optional<cad::Dimension> previewDimension;
+		double dimensionHandleSizeMm = 120.0;
 		cad::WallId selectedWall; // nil: none
 		// Walls as the current gesture would leave them: one with an existing id replaces it, one with a nil id is added.
 		std::vector<cad::Wall> previewWalls;
