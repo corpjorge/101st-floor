@@ -22,7 +22,16 @@ Implementación: [ADR-0032](adr/ADR-0032-wall-body-drag.md). Versión Windows: *
 - 312 casos C++ y 13.983 aserciones aprobados; límites de módulos respetados.
 - 86 pruebas Unreal Automation aprobadas, incluida `Floor101.Interaction.WallBodyDrag`.
   Reporte: `Saved/Automation/20261005-154826`.
-- Captura real sobre una copia del plano de reproducción, sin modificar el documento del usuario.
+- Captura real a 1280×720 y 800×600 sobre una copia del plano, sin modificar el documento del usuario.
+- Portable **0.1.6 Shipping** generado desde `8b56af9` con árbol limpio. Integridad, dependencias y comprobación
+  funcional aprobadas; incluye agarre del cuerpo, traslación exacta y deshacer en el ejecutable real.
+  Reporte: `Saved/PackageChecks/20261005-155428-functional`.
+
+## Entrega portable
+
+Abre `Packaged/0.1.6/Windows/Floor101.exe` o extrae `Packaged/0.1.6/101st-Floor-portable.zip`.
+Conserva todos los archivos de la carpeta `Windows` junto al ejecutable. La validación corresponde a este equipo;
+queda pendiente comprobar la entrega en otro equipo sin Unreal instalado.
 
 ![Pared trasladada desde su cuerpo](images/wall-body-drag.png)
 ![Propiedades en ventana pequeña](images/wall-body-drag-small.png)
