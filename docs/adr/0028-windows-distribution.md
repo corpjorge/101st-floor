@@ -1,6 +1,6 @@
 # ADR-0028: Distribución independiente para Windows
 
-Estado: aceptado; validación del paquete pendiente.
+Estado: aceptado; Shipping y MSI verificados localmente (2026-10-04). Prueba en equipo limpio pendiente.
 
 ## Contexto
 Run.ps1 utiliza UnrealEditor -game. El usuario solicita una aplicación independiente,

@@ -47,8 +47,8 @@ Valida `Engine/Build/Build.version` contra la asociación del proyecto.
 .\Scripts\CheckGltf.ps1 -Path <archivo.glb>           # segunda opinión de una exportación para Twinmotion, con Blender (opcional)
 .\Scripts\Clean.ps1 [-IncludeSaved]                   # borra Binaries, Intermediate y DerivedDataCache
 ```
-`Package.ps1` llegará cuando haya un build distribuible (fuera del MVP 1); deberá copiar `Library/` junto al ejecutable
-(ADR-0019).
+`Package.ps1` compila y cocina Windows Shipping, incluye `Library/`, splash y prerrequisitos.
+`CheckPackage.ps1` valida el ejecutable archivado; `Installer.ps1` genera el instalador. Ver [distribución](distribution.md) (ADR-0028).
 
 ### Biblioteca integrada (`Library/`)
 Muebles (`.glb` + imagen `.png`) y texturas fotográficas (`.jpg`) con su `manifest.json` (ADR-0019), versionados en Git

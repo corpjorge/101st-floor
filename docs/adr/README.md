@@ -28,5 +28,7 @@
 | [0024](ADR-0024-camera-navigation.md) | Modo Navegar, WASD/QE con prioridad de atajos y zoom continuo después del foco orbital | aceptado y verificado |
 | [0025](ADR-0025-wall-junction-segments.md) | Paredes divididas en tramos independientes al unir o cruzar ejes; conservar huecos, acabados y deshacer/rehacer | aceptado y verificado |
 
+| [0028](0028-windows-distribution.md) | Distribución Windows Shipping, diagnóstico propio compatible con el motor instalado, biblioteca NonUFS y MSI/Burn | aceptado y verificado localmente |
+
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.
