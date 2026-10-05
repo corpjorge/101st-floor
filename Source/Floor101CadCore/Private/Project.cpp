@@ -7,6 +7,15 @@
 
 namespace f101::cad
 {
+	Status validateRoomName(std::string_view name)
+	{
+		if (name.size() > MaxRoomNameBytes || std::any_of(name.begin(), name.end(), [](unsigned char ch) { return ch < 32 || ch == 127; }))
+		{
+			return Error{ErrorCode::InvalidArgument, "Room names must be a single line of at most 256 UTF-8 bytes"};
+		}
+		return Status::success();
+	}
+
 	Status validateLevel(const Level& level)
 	{
 		if (level.id.isNil())

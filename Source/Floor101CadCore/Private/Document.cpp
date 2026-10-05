@@ -93,6 +93,7 @@ namespace f101::cad
 		const WallId& keyOf(const Wall& wall) { return wall.id; }
 		const LevelId& keyOf(const Level& level) { return level.id; }
 		const std::string& keyOf(const RoomFinish& finish) { return finish.room; }
+		const std::string& keyOf(const RoomName& entry) { return entry.room; }
 		const FurnitureId& keyOf(const Furniture& furniture) { return furniture.id; }
 		const AssetId& keyOf(const Asset& asset) { return asset.id; }
 		const ColumnId& keyOf(const Column& column) { return column.id; }
@@ -175,6 +176,7 @@ namespace f101::cad
 			{
 				changes.changedRoomFinishes.push_back(change.id);
 			}
+			for (const RoomNameChange& change : transaction.roomNames) changes.changedRoomNames.push_back(change.id);
 			sortChanges(transaction.furniture, forward, changes.addedFurniture, changes.modifiedFurniture,
 				changes.removedFurniture);
 			sortChanges(transaction.assets, forward, changes.addedAssets, changes.modifiedAssets, changes.removedAssets);
@@ -243,6 +245,7 @@ namespace f101::cad
 			std::string_view operator()(const DeleteLevelCommand&) const { return "Delete level"; }
 			std::string_view operator()(const SetWallFinishCommand&) const { return "Change finish"; }
 			std::string_view operator()(const SetRoomFinishCommand&) const { return "Change room finish"; }
+			std::string_view operator()(const SetRoomNameCommand&) const { return "Rename room"; }
 			std::string_view operator()(const AddFurnitureCommand&) const { return "Add furniture"; }
 			std::string_view operator()(const ChangeFurnitureCommand&) const { return "Change furniture"; }
 			std::string_view operator()(const DeleteFurnitureCommand&) const { return "Delete furniture"; }
@@ -343,6 +346,15 @@ namespace f101::cad
 			{
 				return valid;
 			}
+		}
+		std::set<std::string> namedRooms;
+		for (const RoomName& entry : project.roomNames)
+		{
+			if (entry.room.empty() || entry.name.empty() || entry.name.find_first_not_of(' ') == std::string::npos || !namedRooms.insert(entry.room).second)
+			{
+				return Error{ErrorCode::InvalidArgument, "Room names need a unique room key and a nonblank name"};
+			}
+			if (Status valid = validateRoomName(entry.name); !valid) return valid;
 		}
 		std::set<FurnitureId> furnitureIds;
 		for (const Furniture& piece : project.furniture)
@@ -895,6 +907,19 @@ namespace f101::cad
 				return Status::success();
 			});
 		}
+		if (const auto* rename = std::get_if<SetRoomNameCommand>(&command))
+		{
+			if (rename->room.empty()) return Error{ErrorCode::InvalidArgument, "No room"};
+			if (Status valid = validateRoomName(rename->name); !valid) return valid.error();
+			const auto first = rename->name.find_first_not_of(' ');
+			const std::string name = first == std::string::npos ? std::string() : rename->name.substr(first, rename->name.find_last_not_of(' ') - first + 1);
+			const auto index = findIndex(model.roomNames, rename->room);
+			const std::optional<RoomName> before = index ? std::optional<RoomName>(model.roomNames[*index]) : std::nullopt;
+			const std::optional<RoomName> after = name.empty() ? std::nullopt : std::optional<RoomName>(RoomName{rename->room, name});
+			Transaction transaction{label, {}, {}, {}};
+			if (before != after) transaction.roomNames.push_back({rename->room, index.value_or(model.roomNames.size()), before, after});
+			return transaction;
+		}
 		if (const auto* roomFinish = std::get_if<SetRoomFinishCommand>(&command))
 		{
 			if (roomFinish->room.empty())
@@ -973,6 +998,17 @@ namespace f101::cad
 					{
 						transaction.roomFinishes.push_back({finish.room, prospective.roomFinishes.size(), std::nullopt, finish});
 						prospective.roomFinishes.push_back(finish);
+					}
+				}
+			}
+			if (roomNameTransfer && prospective.walls.size() > unsplitCount && !model.roomNames.empty())
+			{
+				for (const RoomName& entry : roomNameTransfer(model, prospective))
+				{
+					if (!prospective.findRoomName(entry.room))
+					{
+						transaction.roomNames.push_back({entry.room, prospective.roomNames.size(), std::nullopt, entry});
+						prospective.roomNames.push_back(entry);
 					}
 				}
 			}
@@ -1065,6 +1101,7 @@ namespace f101::cad
 		}
 		for (const Project* side : {&model, &replacement})
 		{
+			for (const RoomName& entry : side->roomNames) changes.changedRoomNames.push_back(entry.room);
 			for (const RoomFinish& finish : side->roomFinishes)
 			{
 				changes.changedRoomFinishes.push_back(finish.room);
@@ -1199,6 +1236,7 @@ namespace f101::cad
 		applyChanges(model.assets, transaction.assets, forward); // before what uses them
 		applyChanges(model.walls, transaction.walls, forward);
 		applyChanges(model.roomFinishes, transaction.roomFinishes, forward);
+		applyChanges(model.roomNames, transaction.roomNames, forward);
 		applyChanges(model.furniture, transaction.furniture, forward);
 		applyChanges(model.columns, transaction.columns, forward);
 		applyChanges(model.services, transaction.services, forward);

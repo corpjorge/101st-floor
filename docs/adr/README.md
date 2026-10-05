@@ -30,5 +30,7 @@
 
 | [0028](0028-windows-distribution.md) | Distribución Windows Shipping, diagnóstico propio compatible con el motor instalado, biblioteca NonUFS y MSI/Burn | aceptado y verificado localmente |
 
+| [0029](0029-room-names.md) | Nombres personalizados por habitación, transacciones, esquema 11 y rótulos compartidos | aceptado |
+
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

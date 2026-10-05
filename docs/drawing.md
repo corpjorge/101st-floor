@@ -22,8 +22,8 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
     tienen las dos o ninguna), una cadena por los bordes de los huecos a `ChainOffsetMm` de la cara y, si tiene huecos, la
     longitud total a `OverallOffsetMm`; los muros entre dos habitaciones, solo su longitud, a 30 cm. Líneas de referencia,
     trazos a 45° en cada punto y cifras sobre la línea.
-  - **Habitaciones** (`detectRooms`): nombre (`DrawingTexts::roomName`, "{n}" = 1, 2... por clave) y área neta, en su
-    punto de rótulo.
+  - **Habitaciones** (`detectRooms`): nombre personalizado (`Project::roomNames`) o automático (`DrawingTexts::roomName`,
+    "{n}" = 1, 2... por clave) y área neta, en su punto de rótulo. SVG y PNG usan los mismos nombres.
   - **Muebles** (ADR-0016): el contorno de la huella de cada mueble de la planta y los detalles de su tipo
     (`geometry::furnitureShape`: almohadas, edredón, cojines, cubetas, fuegos, desagüe...), en trazos finos grises.
     Un modelo importado (ADR-0017) solo dibuja su huella.

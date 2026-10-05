@@ -1,4 +1,4 @@
-101st Floor — versión preliminar 0.1.0 para Windows x64
+101st Floor — versión preliminar {VERSION} para Windows x64
 
 Extrae la carpeta completa y abre Floor101.exe. Conserva juntas todas las
 carpetas: el ejecutable necesita los materiales, el motor y Library/.

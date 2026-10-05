@@ -660,6 +660,45 @@ bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoomNamesTest, "Floor101.Interaction.RoomNames", InteractionTestFlags)
+bool FFloor101RoomNamesTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) return false;
+	const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+	for (int32 i = 0; i < 4; ++i)
+	{
+		TestTrue(TEXT("enclose room"), Document->GetMutableDocument().addWall({Corners[i][0], Corners[i][1]},
+			{Corners[(i + 1) % 4][0], Corners[(i + 1) % 4][1]}, 120, 2800).ok());
+	}
+	if (!TestEqual(TEXT("one room"), Document->GetRooms().Num(), 1)) return false;
+	const double Area = Document->GetRooms()[0].AreaM2;
+	TestEqual(TEXT("automatic name"), Document->GetRooms()[0].Name, FString(TEXT("Habitación 1")));
+	Document->SetPlanView(true);
+	TestTrue(TEXT("select floor"), Document->Edit([](EditController& E) { return E.pointerPressed(Down(2000.0, 1500.0)); }).ok());
+	TestTrue(TEXT("rename"), Document->Edit([](EditController& E) { return E.setSelectedRoomName("Cocina ñ"); }).ok());
+	TestEqual(TEXT("room view name"), Document->GetRooms()[0].Name, FString(TEXT("Cocina ñ")));
+	TestEqual(TEXT("area preserved"), Document->GetRooms()[0].AreaM2, Area);
+	TestTrue(TEXT("plan renamed"), std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
+		[](const auto& Label) { return Label.text == "Cocina ñ"; }));
+	TestTrue(TEXT("undo"), Document->GetMutableDocument().undo().ok());
+	TestEqual(TEXT("automatic name restored"), Document->GetRooms()[0].Name, FString(TEXT("Habitación 1")));
+	TestTrue(TEXT("redo"), Document->GetMutableDocument().redo().ok());
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101/RoomNames")));
+	const FString Json = FPaths::Combine(Folder, TEXT("project.json"));
+	TestTrue(TEXT("save"), Document->SaveProject(Json).ok());
+	TestTrue(TEXT("new document"), Document->NewProject().ok());
+	TestTrue(TEXT("reopen"), Document->OpenProject(Json).ok());
+	if (!TestEqual(TEXT("room after reopen"), Document->GetRooms().Num(), 1)) return false;
+	TestEqual(TEXT("persisted name"), Document->GetRooms()[0].Name, FString(TEXT("Cocina ñ")));
+	const FString SvgPath = FPaths::Combine(Folder, TEXT("plan.svg"));
+	TestTrue(TEXT("SVG export"), Document->ExportPlan(SvgPath, {}).ok());
+	FString Svg;
+	TestTrue(TEXT("SVG carries custom name"), FFileHelper::LoadFileToString(Svg, *SvgPath) && Svg.Contains(TEXT("Cocina ñ")));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewTest, "Floor101.Interaction.PlanView", InteractionTestFlags)
 bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 {
@@ -822,7 +861,7 @@ bool FFloor101FurnitureInteractionTest::RunTest(const FString& Parameters)
 	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Furniture"), TEXT("project.json")));
 	TestTrue(TEXT("saved"), Document->SaveProject(Path).ok());
 	FString Json;
-	TestTrue(TEXT("schema 10 with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 10")) &&
+	TestTrue(TEXT("current schema with the sofa"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(FString::Printf(TEXT("\"schemaVersion\": %d"), f101::cad::ProjectSchemaVersion)) &&
 		Json.Contains(TEXT("\"type\": \"sofa\"")));
 	TestTrue(TEXT("removed before opening"), Document->GetMutableDocument().execute(f101::cad::DeleteFurnitureCommand{Sofa}).ok());
 	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
@@ -966,7 +1005,7 @@ bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 	const FString Path = FPaths::Combine(Folder, TEXT("project.json"));
 	TestTrue(TEXT("saved"), Document->SaveProject(Path).ok());
 	FString Json;
-	TestTrue(TEXT("schema 10 with the column and the run"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(TEXT("\"schemaVersion\": 10")) &&
+	TestTrue(TEXT("current schema with the column and the run"), FFileHelper::LoadFileToString(Json, *Path) && Json.Contains(FString::Printf(TEXT("\"schemaVersion\": %d"), f101::cad::ProjectSchemaVersion)) &&
 		Json.Contains(TEXT("\"columns\"")) && Json.Contains(TEXT("\"kind\": \"water\"")));
 	TestTrue(TEXT("removed before opening"), Document->GetMutableDocument().execute(f101::cad::DeleteColumnCommand{Column}).ok());
 	TestTrue(TEXT("opened"), Document->OpenProject(Path).ok());
@@ -1158,8 +1197,8 @@ bool FFloor101AssetsInteractionTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("saved elsewhere"), Document->SaveProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
 	TestTrue(TEXT("the texture went along"), !TextureFile.IsEmpty() && FPaths::FileExists(FPaths::Combine(Moved, TextureFile)));
 	FString Json;
-	TestTrue(TEXT("schema 10 with its assets"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Moved, TEXT("project.json"))) &&
-		Json.Contains(TEXT("\"schemaVersion\": 10")) && Json.Contains(TEXT("\"file\": \"assets/")));
+	TestTrue(TEXT("current schema with its assets"), FFileHelper::LoadFileToString(Json, *FPaths::Combine(Moved, TEXT("project.json"))) &&
+		Json.Contains(FString::Printf(TEXT("\"schemaVersion\": %d"), f101::cad::ProjectSchemaVersion)) && Json.Contains(TEXT("\"file\": \"assets/")));
 	TestTrue(TEXT("opened again"), Document->OpenProject(FPaths::Combine(Moved, TEXT("project.json"))).ok());
 	TestEqual(TEXT("three assets"), static_cast<int32>(Document->GetDocument().project().assets.size()), 3);
 	TestTrue(TEXT("the model still shows"), Document->GetAssetProblem(Armchair.value()).IsEmpty() &&

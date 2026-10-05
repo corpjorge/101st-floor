@@ -540,8 +540,9 @@ namespace f101::drawing
 		for (std::size_t index = 0; index < rooms.size(); ++index)
 		{
 			const geometry::Room& room = rooms[index];
-			std::string name = texts.roomName;
-			if (const std::size_t token = name.find("{n}"); token != std::string::npos)
+			const cad::RoomName* custom = project.findRoomName(room.key);
+			std::string name = custom ? custom->name : texts.roomName;
+			if (const std::size_t token = name.find("{n}"); !custom && token != std::string::npos)
 			{
 				name.replace(token, 3, std::to_string(index + 1));
 			}

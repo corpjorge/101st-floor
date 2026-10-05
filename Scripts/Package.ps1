@@ -11,7 +11,9 @@ param(
 )
 . "$PSScriptRoot/Common.ps1"
 $packageEngine = Find-UnrealEngine
-$packageVersion = '0.1.0'
+$packageVersionSetting = Select-String -LiteralPath (Join-Path $RepoRoot 'Config/DefaultGame.ini') -Pattern '^ProjectVersion=(\d+\.\d+\.\d+)$' | Select-Object -First 1
+if (-not $packageVersionSetting) { throw 'Config/DefaultGame.ini must define ProjectVersion as major.minor.patch.' }
+$packageVersion = $packageVersionSetting.Matches[0].Groups[1].Value
 if (-not $Output) { $Output = "Packaged/$packageVersion-$(Get-Date -Format yyyyMMdd-HHmmss)-$Configuration" }
 $packageOutput = [IO.Path]::GetFullPath((Join-Path $RepoRoot $Output))
 $packageRoot = [IO.Path]::GetFullPath((Join-Path $RepoRoot 'Packaged')) + [IO.Path]::DirectorySeparatorChar
@@ -38,7 +40,8 @@ New-Item -ItemType Directory -Force -Path $packageLibrary | Out-Null
 foreach ($packageCategory in 'furniture', 'textures') {
     Copy-Item -LiteralPath (Join-Path $RepoRoot "Library/$packageCategory") -Destination $packageLibrary -Recurse
 }
-Copy-Item -LiteralPath (Join-Path $RepoRoot 'Resources/Distribution/LEEME.txt') -Destination $packageWindows
+(Get-Content -LiteralPath (Join-Path $RepoRoot 'Resources/Distribution/LEEME.txt') -Raw).Replace('{VERSION}', $packageVersion) |
+    Set-Content -LiteralPath (Join-Path $packageWindows 'LEEME.txt') -Encoding utf8 -NoNewline
 $packageLicenses = Join-Path $packageWindows 'Licenses'
 New-Item -ItemType Directory -Path $packageLicenses | Out-Null
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'ThirdParty/nlohmann/LICENSE.MIT') -Destination (Join-Path $packageLicenses 'nlohmann-json-MIT.txt')

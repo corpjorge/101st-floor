@@ -295,6 +295,7 @@ namespace f101::cad
 		// Selected room key (Select mode); empty if none. Whether the room still exists is up to the rooms of the scene.
 		FLOOR101CADCORE_API const std::string& selectedRoom() const;
 		FLOOR101CADCORE_API Status selectRoom(const std::string& room);
+		FLOOR101CADCORE_API Status setSelectedRoomName(std::string_view name);
 		FLOOR101CADCORE_API Status setSelectedRoomFloor(std::string_view finish);
 		FLOOR101CADCORE_API Status setSelectedRoomCeiling(std::string_view finish);
 		// A face of the selected wall; an empty finish restores the default.

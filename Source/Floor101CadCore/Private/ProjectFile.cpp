@@ -755,6 +755,12 @@ namespace f101::cad
 		root["units"] = "mm";
 		root["levels"] = std::move(levels);
 		root["walls"] = std::move(walls);
+		if (!project.roomNames.empty())
+		{
+			Json names = Json::array();
+			for (const RoomName& entry : project.roomNames) names.push_back(Json{{"room", entry.room}, {"name", entry.name}});
+			root["roomNames"] = std::move(names);
+		}
 		if (!project.roomFinishes.empty())
 		{
 			Json rooms = Json::array();
@@ -980,6 +986,18 @@ namespace f101::cad
 					return finish.error();
 				}
 				project.roomFinishes.push_back(std::move(finish).value());
+			}
+		}
+		if (const auto names = root.find("roomNames"); names != root.end()) // schema 11
+		{
+			if (!names->is_array()) return formatError("roomNames must be an array");
+			for (const Json& item : *names)
+			{
+				if (!item.is_object() || !item.contains("room") || !item["room"].is_string() || !item.contains("name") || !item["name"].is_string())
+				{
+					return formatError("roomNames entries need room and name strings");
+				}
+				project.roomNames.push_back({item["room"].get<std::string>(), item["name"].get<std::string>()});
 			}
 		}
 		if (const auto assets = root.find("assets"); assets != root.end()) // schema 8

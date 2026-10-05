@@ -64,6 +64,13 @@ namespace Floor101::PackageCheck
 				Check(Document->GetRooms().Num() == 1, TEXT("room_detection"));
 				Check(Document->GetMutableDocument().undo().ok() && Document->GetDocument().project().walls.size() == 3, TEXT("undo"));
 				Check(Document->GetMutableDocument().redo().ok() && Document->GetDocument().project().walls.size() == 4, TEXT("redo"));
+				if (!Document->GetRooms().IsEmpty())
+				{
+					const std::string RoomKey = TCHAR_TO_UTF8(*Document->GetRooms()[0].Key);
+					Check(Document->Edit([RoomKey](f101::cad::EditController& E) { return E.selectRoom(RoomKey); }).ok(), TEXT("room_select"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.setSelectedRoomName("Cocina"); }).ok(), TEXT("room_rename"));
+					Check(Document->GetRooms()[0].Name == TEXT("Cocina"), TEXT("room_name_view"));
+				}
 				const auto Chair = Document->AddFromLibrary(TEXT("chair-windsor"));
 				if (Check(Chair.ok(), TEXT("import_furniture")))
 				{
@@ -85,7 +92,10 @@ namespace Floor101::PackageCheck
 				Check(Document->SaveProject(FPaths::Combine(Directory, TEXT("project.json"))).ok(), TEXT("save_project"));
 				Check(Document->NewProject().ok() && Document->OpenProject(FPaths::Combine(Directory, TEXT("project.json"))).ok() &&
 					Document->GetDocument().project().walls.size() == Walls && Document->GetDocument().project().furniture.size() == 1, TEXT("reopen_project"));
+				Check(!Document->GetRooms().IsEmpty() && Document->GetRooms().ContainsByPredicate([](const FFloor101RoomView& Room) { return Room.Name == TEXT("Cocina"); }), TEXT("room_name_reopen"));
 				Check(Document->ExportPlan(FPaths::Combine(Directory, TEXT("plan.svg")), {}).ok(), TEXT("export_svg"));
+				FString NamedSvg;
+				Check(FFileHelper::LoadFileToString(NamedSvg, *FPaths::Combine(Directory, TEXT("plan.svg"))) && NamedSvg.Contains(TEXT("Cocina")), TEXT("room_name_svg"));
 				Check(Document->ExportPlan(FPaths::Combine(Directory, TEXT("plan.png")), {}).ok(), TEXT("export_png"));
 				Check(Document->ExportGltf(FPaths::Combine(Directory, TEXT("scene.glb"))).ok(), TEXT("export_glb"));
 				Viewport->FrameProject();

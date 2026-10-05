@@ -308,7 +308,8 @@ namespace f101::scene
 					floor.sourceKind = SourceKind::Room;
 					floor.sourceId = room.key;
 					floor.level = group.level;
-					floor.name = "Room " + areaText(room.areaMm2);
+					const cad::RoomName* customName = project.findRoomName(room.key);
+					floor.name = (customName ? customName->name : "Room") + " " + areaText(room.areaMm2);
 					floor.mesh = geometry::buildFloorMesh(room);
 					translateZ(floor.mesh, dz);
 					const std::string_view floorFinish = finish ? std::string_view(finish->floor) : std::string_view();

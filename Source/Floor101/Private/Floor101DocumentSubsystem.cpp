@@ -293,6 +293,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
+	Document->setRoomNameTransfer(f101::geometry::makeRoomNameTransfer());
 	Document->setRoomFinishTransfer(f101::geometry::makeRoomFinishTransfer()); // wall segments retain room finishes (ADR-0025)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	PlanDrawing = MakePimpl<f101::drawing::PlanDrawing>();
@@ -981,6 +982,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	// Labels sit on the floor of each room of the edited level, or of every level when all are shown (preview included,
 	// so they follow a gesture live).
 	Rooms.Reset(static_cast<int32>(Scene.rooms.size()));
+	TMap<FString, int32> RoomNumbers;
 	for (const f101::scene::SceneRoom& Entry : Scene.rooms)
 	{
 		if (!View.showAllLevels && Entry.level != View.activeLevel)
@@ -990,7 +992,11 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		const f101::geometry::Room& Room = Entry.room;
 		const FVector Label = FVector(Floor101::Conversion::ToUnrealPosition({Room.labelPoint.x_mm, Room.labelPoint.y_mm,
 			static_cast<double>(Entry.elevationMm) + f101::geometry::FloorThicknessMm}));
-		Rooms.Add(FFloor101RoomView{UTF8_TO_TCHAR(Room.key.c_str()), Label, Room.areaMm2 / 1.0e6});
+		const int32 Number = ++RoomNumbers.FindOrAdd(UTF8_TO_TCHAR(f101::cad::toString(Entry.level).c_str()));
+		const f101::cad::RoomName* Custom = Document->project().findRoomName(Room.key);
+		const FString Name = Custom ? FString(UTF8_TO_TCHAR(Custom->name.c_str()))
+			: FText::Format(LOCTEXT("AutomaticRoomName", "Habitación {0}"), FText::AsNumber(Number)).ToString();
+		Rooms.Add(FFloor101RoomView{UTF8_TO_TCHAR(Room.key.c_str()), Label, Room.areaMm2 / 1.0e6, Name});
 	}
 	if (bDocumentChanged)
 	{

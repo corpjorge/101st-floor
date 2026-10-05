@@ -30,6 +30,17 @@ namespace f101::cad
 		friend bool operator==(const RoomFinish&, const RoomFinish&) = default;
 	};
 
+	// Optional UTF-8 display name, independent of finishes and derived geometry (ADR-0029).
+	struct RoomName
+	{
+		std::string room;
+		std::string name;
+		friend bool operator==(const RoomName&, const RoomName&) = default;
+	};
+
+	inline constexpr std::size_t MaxRoomNameBytes = 256;
+	FLOOR101CADCORE_API Status validateRoomName(std::string_view name);
+
 	// The editable architectural model: the source of truth of 101st Floor.
 	struct Project
 	{
@@ -40,6 +51,17 @@ namespace f101::cad
 		std::vector<Asset> assets;            // imported textures and models, in import order (ADR-0017)
 		std::vector<Column> columns;          // creation order (ADR-0021)
 		std::vector<ServiceRun> services;     // runs of the building services, creation order (ADR-0021)
+
+		std::vector<RoomName> roomNames; // only rooms with a custom name
+
+		const RoomName* findRoomName(std::string_view room) const
+		{
+			for (const RoomName& entry : roomNames)
+			{
+				if (entry.room == room) return &entry;
+			}
+			return nullptr;
+		}
 
 		const Wall* findWall(const WallId& id) const
 		{
