@@ -35,6 +35,19 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 - Interfaz real revisada a 1280×720 y 800×600; cifras con mínimo legible
   en pantalla y propiedades desplazables.
+- Portable Windows **0.1.3 Shipping**, generado desde `6bca576` con el árbol
+  limpio. `Scripts/CheckPackage.ps1` aprobó las comprobaciones de integridad,
+  dependencias y ejecución del paquete, incluida creación de cotas, edición y
+  ocultación de automáticas, deshacer/rehacer, reapertura y exportación SVG.
+  Reporte: `Saved/PackageChecks/20261004-223753-functional`.
+
+## Entrega portable
+
+Extrae `Packaged/0.1.3/101st-Floor-portable.zip` y abre `Floor101.exe`.
+Conserva todos los archivos de la carpeta junto al ejecutable. La carpeta
+ya extraída está en `Packaged/0.1.3/Windows/`.
+La validación se ejecutó en este equipo; queda pendiente probar la entrega
+en otro equipo sin Unreal instalado.
 
 ![Cotas manuales y automáticas](images/dimensions.png)
 ![Propiedades en ventana pequeña](images/dimensions-small.png)
