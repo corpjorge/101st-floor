@@ -43,6 +43,7 @@ struct FFloor101RoomView
 	FString Key;           // f101::geometry::Room::key
 	FVector LabelLocation; // on the floor, Unreal space (cm)
 	double AreaM2 = 0.0;
+	FString Name;
 };
 
 // What an export for Twinmotion wrote (ADR-0020).

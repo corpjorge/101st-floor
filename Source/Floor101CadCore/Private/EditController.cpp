@@ -1932,6 +1932,15 @@ namespace f101::cad
 		return toStatus(document.execute(SetRoomFinishCommand{selectedRoomKey, std::string(floor), std::string(ceiling)}));
 	}
 
+	Status EditController::setSelectedRoomName(std::string_view name)
+	{
+		if (selectedRoom().empty())
+		{
+			return nothingSelected();
+		}
+		return toStatus(document.execute(SetRoomNameCommand{selectedRoomKey, std::string(name)}));
+	}
+
 	Status EditController::setSelectedRoomFloor(std::string_view finish)
 	{
 		const RoomFinish* current = document.project().findRoomFinish(selectedRoomKey);

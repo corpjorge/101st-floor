@@ -35,6 +35,8 @@ namespace f101::geometry
 	// For cad::EditController: the key of the room of `levelWalls` whose floor contains the point.
 	FLOOR101GEOMETRY_API cad::RoomLocator makeRoomLocator();
 	FLOOR101GEOMETRY_API cad::Document::RoomFinishTransfer makeRoomFinishTransfer();
+	// Names follow derived rooms through automatic wall splitting, independently of their finishes.
+	FLOOR101GEOMETRY_API cad::Document::RoomNameTransfer makeRoomNameTransfer();
 
 	inline constexpr double FloorThicknessMm = 10.0;
 	namespace floor_slots

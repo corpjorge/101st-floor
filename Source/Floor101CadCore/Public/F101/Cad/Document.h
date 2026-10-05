@@ -110,6 +110,13 @@ namespace f101::cad
 		FinishId ceiling;
 	};
 
+	// Empty restores the automatic display name.
+	struct SetRoomNameCommand
+	{
+		std::string room;
+		std::string name;
+	};
+
 	// Adds a level on top of the others (a new id is assigned).
 	struct AddLevelCommand
 	{
@@ -207,7 +214,7 @@ namespace f101::cad
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
-		SetRoomFinishCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
+		SetRoomFinishCommand, SetRoomNameCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
 		ChangeAssetCommand, DeleteAssetCommand, AddColumnCommand, ChangeColumnCommand, DeleteColumnCommand,
 		AddServiceRunCommand, ChangeServiceRunCommand, DeleteServiceRunCommand>;
 
@@ -240,6 +247,14 @@ namespace f101::cad
 		std::size_t index = 0;
 		std::optional<RoomFinish> before;
 		std::optional<RoomFinish> after;
+	};
+
+	struct RoomNameChange
+	{
+		std::string id;
+		std::size_t index = 0;
+		std::optional<RoomName> before;
+		std::optional<RoomName> after;
 	};
 
 	// Same for a piece of furniture; `index` is its position in Project::furniture.
@@ -289,10 +304,12 @@ namespace f101::cad
 		std::vector<ColumnChange> columns;
 		std::vector<ServiceRunChange> services;
 
+		std::vector<RoomNameChange> roomNames;
+
 		bool empty() const
 		{
 			return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty() && assets.empty() && columns.empty() &&
-				services.empty();
+				services.empty() && roomNames.empty();
 		}
 	};
 
@@ -318,6 +335,7 @@ namespace f101::cad
 		std::vector<ServiceRunId> addedServiceRuns;
 		std::vector<ServiceRunId> modifiedServiceRuns;
 		std::vector<ServiceRunId> removedServiceRuns;
+		std::vector<std::string> changedRoomNames;
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;
@@ -367,6 +385,8 @@ namespace f101::cad
 		// Geometry supplies inherited room finishes when splitting changes derived room keys (ADR-0025).
 		using RoomFinishTransfer = std::function<std::vector<RoomFinish>(const Project&, const Project&)>;
 		void setRoomFinishTransfer(RoomFinishTransfer provider) { roomFinishTransfer = std::move(provider); }
+		using RoomNameTransfer = std::function<std::vector<RoomName>(const Project&, const Project&)>;
+		void setRoomNameTransfer(RoomNameTransfer provider) { roomNameTransfer = std::move(provider); }
 		// Where `wall` of `levelWalls` must not have an opening; empty without a provider.
 		FLOOR101CADCORE_API std::vector<AxisSpan> openingObstructions(const Project& levelWalls, const Wall& wall) const;
 
@@ -389,6 +409,7 @@ namespace f101::cad
 		std::size_t nextListenerHandle = 1;
 		WallObstructions obstructions;
 		RoomFinishTransfer roomFinishTransfer;
+		RoomNameTransfer roomNameTransfer;
 	};
 
 	// Checks a whole project: at least one level, every level, wall, piece of furniture, asset, column and service run valid,

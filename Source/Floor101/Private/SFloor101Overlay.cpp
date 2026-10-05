@@ -263,7 +263,7 @@ public:
 			{
 				continue; // behind the camera
 			}
-			const FText Text = FText::Format(LOCTEXT("RoomArea", "{0} m²"), FText::AsNumber(Room.AreaM2, &TwoDecimals));
+			const FText Text = FText::Format(LOCTEXT("RoomArea", "{0} · {1} m²"), FText::FromString(Room.Name), FText::AsNumber(Room.AreaM2, &TwoDecimals));
 			const FVector2D TextSize = Measure->Measure(Text, LabelFont);
 			const FVector2D BoxSize = TextSize + Padding * 2.0;
 			const FVector2D TopLeft = Screen * PixelsToLocal - BoxSize / 2.0;
@@ -795,6 +795,13 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 	{
 		const auto Id = Document->GetDocument().project().walls.front().id;
 		Run([Id](EditController& E) { return E.select(Id); });
+	}
+	if (Screen == TEXT("room") && Document.IsValid() && !Document->GetRooms().IsEmpty())
+	{
+		const std::string Key = TCHAR_TO_UTF8(*Document->GetRooms()[0].Key);
+		Run([Key](EditController& E) { return E.selectRoom(Key); });
+		Run([](EditController& E) { return E.setSelectedRoomName("Cocina"); });
+		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
 	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
 	if (Screen == TEXT("levels") && LevelMenu) { LevelMenu->SetIsOpen(true); }
@@ -3046,9 +3053,23 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 				FNumberFormattingOptions TwoDecimals;
 				TwoDecimals.SetMinimumFractionalDigits(2).SetMaximumFractionalDigits(2);
 				const FFloor101RoomView* Room = GetSelectedRoom();
-				return Room ? FText::Format(LOCTEXT("SelectedRoom", "Habitación seleccionada · {0} m²"), FText::AsNumber(Room->AreaM2, &TwoDecimals))
+				return Room ? FText::Format(LOCTEXT("SelectedRoom", "{0} · {1} m²"), FText::FromString(Room->Name), FText::AsNumber(Room->AreaM2, &TwoDecimals))
 					: FText::GetEmpty();
 			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			MakeTextRow(LOCTEXT("RoomName", "Nombre"), [this]()
+			{
+				const UFloor101DocumentSubsystem* S = Document.Get();
+				const f101::cad::RoomName* Entry = S ? S->GetDocument().project().findRoomName(S->GetEditController().selectedRoom()) : nullptr;
+				return Entry ? FText::FromString(UTF8_TO_TCHAR(Entry->name.c_str())) : FText::GetEmpty();
+			}, &EditController::setSelectedRoomName)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+		[
+			SNew(STextBlock).Font(Font(9)).ColorAndOpacity(MutedColor).AutoWrapText(true)
+			.Text(LOCTEXT("RoomNameHint", "Ej.: Cocina, Sala o Dormitorio. Vacío: nombre automático."))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[

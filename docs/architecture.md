@@ -365,8 +365,8 @@ electricidad, agua, aguas negras y gas dibujadas por tramos, capa con rayos X y 
 ## Fuera del MVP 13 (la arquitectura no lo bloquea)
 
 Escaleras y huecos en forjados, sótanos, voladizos y terrazas, cubiertas inclinadas, forjados editables, puertas
-plegables y oscilobatientes, correderas de superficie, huecos no rectangulares, nombres y propiedades
-persistentes de habitaciones (entidad `Room`), acabados con relieve (mapas de normales), fotos a otra resolución o con
+plegables y oscilobatientes, correderas de superficie, huecos no rectangulares, propiedades adicionales
+de habitaciones (los nombres ya se guardan por clave, ADR-0029), acabados con relieve (mapas de normales), fotos a otra resolución o con
 Movie Render Queue, sincronización en vivo con Twinmotion (Datasmith Direct Link), exportación USD, más formatos de import (FBX, USD, extensiones glTF como Draco o KTX2), mapas de
 normales y metal de los modelos, biblioteca del usuario compartida entre proyectos, cotas a caras e interiores, cajetín y
 escala gráfica en los planos, exportación PDF/DXF, diálogo nativo para guardar y abrir proyectos, traducción de los

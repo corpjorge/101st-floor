@@ -140,7 +140,7 @@ namespace f101::drawing
 	// - dimensions, measured along the wall axes (the lengths the model is edited in): for each wall, on the side
 	//   without a room (the left one when both or neither have one), a chain through its openings' edges and its overall
 	//   length; walls with rooms on both sides only get their overall length. Figures in metres with two decimals;
-	// - each room's name ("Room 1"...) and net area at its label point;
+	// - each room's custom name or automatic name ("Room 1"...) and net area at its label point;
 	// - each piece of furniture: its outline and the details of its type (a mattress, a basin, a hob) as thin lines;
 	// - each column: cut, as a solid fill of its outline (ADR-0021);
 	// - with the overlay's services layer, each run on the level of the networks it shows: its plan path (a casing, then
