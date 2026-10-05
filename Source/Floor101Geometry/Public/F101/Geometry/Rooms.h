@@ -37,6 +37,7 @@ namespace f101::geometry
 	FLOOR101GEOMETRY_API cad::Document::RoomFinishTransfer makeRoomFinishTransfer();
 	// Names follow derived rooms through automatic wall splitting, independently of their finishes.
 	FLOOR101GEOMETRY_API cad::Document::RoomNameTransfer makeRoomNameTransfer();
+	FLOOR101GEOMETRY_API cad::Document::RoomBaseboardTransfer makeRoomBaseboardTransfer();
 
 	inline constexpr double FloorThicknessMm = 10.0;
 	namespace floor_slots

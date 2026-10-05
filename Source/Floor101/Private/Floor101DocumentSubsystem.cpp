@@ -105,6 +105,7 @@ namespace
 		Texts.wall = ToUtf8(LOCTEXT("GltfWall", "Muro"));
 		Texts.joint = ToUtf8(LOCTEXT("GltfJoint", "Unión"));
 		Texts.floor = ToUtf8(LOCTEXT("GltfFloor", "Suelo"));
+		Texts.baseboard = TCHAR_TO_UTF8(*LOCTEXT("ExportBaseboard", "Rodapié").ToString());
 		Texts.slab = ToUtf8(LOCTEXT("GltfSlab", "Forjado"));
 		Texts.door = ToUtf8(LOCTEXT("GltfDoor", "Puerta"));
 		Texts.window = ToUtf8(LOCTEXT("GltfWindow", "Ventana"));
@@ -293,6 +294,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
+	Document->setRoomBaseboardTransfer(f101::geometry::makeRoomBaseboardTransfer());
 	Document->setRoomNameTransfer(f101::geometry::makeRoomNameTransfer());
 	Document->setRoomFinishTransfer(f101::geometry::makeRoomFinishTransfer()); // wall segments retain room finishes (ADR-0025)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());

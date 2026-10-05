@@ -38,6 +38,20 @@ namespace f101::cad
 		friend bool operator==(const RoomName&, const RoomName&) = default;
 	};
 
+	// Per-room skirting settings; dimensions are integer millimetres (ADR-0030).
+	struct RoomBaseboard
+	{
+		std::string room;
+		bool enabled = true;
+		std::int64_t heightMm = 100;
+		std::int64_t thicknessMm = 12;
+		FinishId finish; // carpentry finishes; empty is white lacquer
+		friend bool operator==(const RoomBaseboard&, const RoomBaseboard&) = default;
+	};
+
+	struct Project;
+	FLOOR101CADCORE_API Status validateRoomBaseboard(const Project& project, const RoomBaseboard& baseboard);
+
 	inline constexpr std::size_t MaxRoomNameBytes = 256;
 	FLOOR101CADCORE_API Status validateRoomName(std::string_view name);
 
@@ -53,6 +67,16 @@ namespace f101::cad
 		std::vector<ServiceRun> services;     // runs of the building services, creation order (ADR-0021)
 
 		std::vector<RoomName> roomNames; // only rooms with a custom name
+		std::vector<RoomBaseboard> roomBaseboards;
+
+		const RoomBaseboard* findRoomBaseboard(std::string_view room) const
+		{
+			for (const RoomBaseboard& entry : roomBaseboards)
+			{
+				if (entry.room == room) return &entry;
+			}
+			return nullptr;
+		}
 
 		const RoomName* findRoomName(std::string_view room) const
 		{

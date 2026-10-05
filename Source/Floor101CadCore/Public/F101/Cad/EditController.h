@@ -295,6 +295,10 @@ namespace f101::cad
 		// Selected room key (Select mode); empty if none. Whether the room still exists is up to the rooms of the scene.
 		FLOOR101CADCORE_API const std::string& selectedRoom() const;
 		FLOOR101CADCORE_API Status selectRoom(const std::string& room);
+		FLOOR101CADCORE_API Status setSelectedRoomBaseboard(bool enabled);
+		FLOOR101CADCORE_API Status setSelectedBaseboardHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setSelectedBaseboardThickness(std::string_view text);
+		FLOOR101CADCORE_API Status setSelectedBaseboardFinish(std::string_view finish);
 		FLOOR101CADCORE_API Status setSelectedRoomName(std::string_view name);
 		FLOOR101CADCORE_API Status setSelectedRoomFloor(std::string_view finish);
 		FLOOR101CADCORE_API Status setSelectedRoomCeiling(std::string_view finish);
@@ -392,6 +396,8 @@ namespace f101::cad
 		void changeLevel(const LevelId& level);
 		Status paint(const Project& levelWalls, const Ray3& ray);
 		std::optional<PaintTarget> resolvePaintTarget(const Project& levelWalls, const Ray3& ray) const;
+		Status editRoomBaseboard(const std::function<void(RoomBaseboard&)>& change);
+		Status setBaseboardDimension(std::string_view text, bool height);
 		Status setRoomFinishes(std::string_view floor, std::string_view ceiling);
 		Status changeActiveLevel(const std::function<Status(Level&)>& edit);
 		// Where `piece` goes for a wanted centre on the active level (snapping, ADR-0016); `freeRotation` when it does not

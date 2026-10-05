@@ -66,6 +66,7 @@ namespace
 		texts.joint = "Unión";
 		texts.floor = "Suelo";
 		texts.slab = "Forjado";
+		texts.baseboard = "Rodapié";
 		texts.door = "Puerta";
 		texts.window = "Ventana";
 		texts.columns = "Pilares";
@@ -556,4 +557,28 @@ TEST_CASE("the file is written whole, creating its folder")
 	REQUIRE(saveGlbFile(path, bytes).ok());
 	CHECK(assets::readFileBytes(path).value() == bytes);
 	CHECK_FALSE(std::filesystem::exists(folder.path / "casa ñ" / "casa.glb.tmp"));
+}
+
+TEST_CASE("GLB includes baseboards with the room name and their own material")
+{
+	House house;
+	const auto room = geometry::detectRooms(house.project()).front();
+	REQUIRE(house.document.execute(cad::SetRoomNameCommand{room.key, "Cocina"}).ok());
+	REQUIRE(house.document.execute(cad::SetRoomBaseboardCommand{{room.key, true, 100, 12, "wood-walnut"}}).ok());
+	TempFolder folder;
+	assets::ModelCache models;
+	const auto exported = exportProjectGlb(house.project(), folder.path, models, spanish());
+	REQUIRE(exported.ok());
+	const Glb glb = parseGlb(exported.value().bytes);
+	std::size_t count = 0;
+	for (const auto& node : glb.json["nodes"])
+	{
+		if (!node.contains("mesh") || node["extras"]["f101Source"] != "baseboard") continue;
+		++count;
+		CHECK(node["name"].get<std::string>().find("Rodapié Cocina") == 0);
+		const auto& primitive = glb.json["meshes"][node["mesh"].get<std::size_t>()]["primitives"][0];
+		CHECK(glb.json["materials"][primitive["material"].get<std::size_t>()]["extras"]["f101FinishId"] == "wood-walnut");
+		CHECK(glb.floats(primitive["attributes"]["POSITION"].get<int>()).size() > 0);
+	}
+	CHECK(count == 1);
 }

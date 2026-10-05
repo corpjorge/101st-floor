@@ -36,6 +36,7 @@ namespace f101::scene
 		Column,    // a column (ADR-0021)
 		Service,   // a run of the building services: electrical, water, sewage, gas (ADR-0021)
 		Marker,
+		Baseboard, // per-room skirting (ADR-0030)
 	};
 
 	// How a consumer presents a node. View state (selection, previews, handles): never saved, ignored by exporters.

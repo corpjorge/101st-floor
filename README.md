@@ -27,6 +27,8 @@ WASD siempre para moverse, sin activar N, Q/E para bajar/subir, Shift para ir m�
 **Sincronización vertical**: activar/desactivar desde Opciones → Pantalla; la elección se guarda. [Pantalla](docs/display.md).
 **Salir**, arriba a la derecha: cierra la aplicación; con cambios sin guardar permite guardar y salir, salir sin guardar o cancelar. Disponible también en Modo Foto y pantalla completa.
 **Nombre de habitación**: selecciona su suelo, escribe Nombre en Propiedades y pulsa Enter. Se guarda y aparece en rótulos y exportaciones SVG/PNG. [Nombres de habitaciones](docs/room-names.md).
+
+**Rodapiés**: selecciona el suelo y activa Rodapiés en Propiedades; ajusta altura, espesor y acabado. Se guardan y respetan los huecos de puertas. [Guía](docs/baseboards.md).
 arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
 cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble o el pilar · con un mueble, un pilar o una tubería seleccionados, arrastrarlo: moverlo (las asas de una tubería mueven un codo) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
 F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · F11 / "Pantalla completa": resolución nativa y vuelta a ventana · "Resolución": elegir modo y comprobar pantalla/imagen/render · "Plano: SVG / PNG": exportar el plano ·
@@ -75,6 +77,7 @@ Poly Haven. Sus binarios van por Git LFS (`git lfs install` antes de clonar).
 - [docs/camera-navigation.md](docs/camera-navigation.md) — WASD, mirada y acercamiento continuo con la rueda
 - [docs/wall-splitting.md](docs/wall-splitting.md) — tramos independientes al unir o cruzar paredes
 - [docs/room-names.md](docs/room-names.md) — nombres personalizados, guardado, deshacer/rehacer y planos
+- [docs/baseboards.md](docs/baseboards.md) — rodapiés por habitación, dimensiones, acabados y exportación 3D
 - [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización
 
 Inicio con marca propia y registro opcional: [Inicio y diagnóstico](docs/startup.md).

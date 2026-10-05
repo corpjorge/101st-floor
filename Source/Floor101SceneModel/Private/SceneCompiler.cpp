@@ -4,6 +4,7 @@
 #include "F101/Geometry/FurnitureBuilder.h"
 #include "F101/Geometry/PolygonGeometry.h"
 #include "F101/Geometry/Rooms.h"
+#include "F101/Geometry/Baseboards.h"
 #include "F101/Geometry/ServicesBuilder.h"
 #include "F101/Geometry/WallGeometryBuilder.h"
 #include "F101/Geometry/WallJoins.h"
@@ -196,6 +197,7 @@ namespace f101::scene
 			std::vector<SceneNode> fills;
 			std::vector<SceneNode> floors;
 			std::vector<SceneNode> slabs;
+			std::vector<SceneNode> baseboards;
 			std::vector<SceneNode> openings;
 			std::vector<std::optional<SceneNode>> furnitureNodes(project.furniture.size());
 			std::vector<std::optional<SceneNode>> columnNodes(project.columns.size());
@@ -335,6 +337,21 @@ namespace f101::scene
 						slab.style = context ? NodeStyle::Context : NodeStyle::Normal;
 						slabs.push_back(std::move(slab));
 					}
+					if (const cad::RoomBaseboard* setting = project.findRoomBaseboard(room.key); setting && setting->enabled)
+					{
+						SceneNode trim;
+						trim.id = SceneNodeId{room.key + "/baseboard"};
+						trim.sourceKind = SourceKind::Baseboard;
+						trim.sourceId = room.key;
+						trim.level = group.level;
+						trim.name = "Baseboard " + (customName ? customName->name : room.key);
+						trim.mesh = geometry::buildBaseboardMesh(room, levelProject, *setting);
+						translateZ(trim.mesh, dz);
+						trim.finishes = sectionFinishes(trim.mesh, {}, cad::resolveFinish(setting->finish, cad::Surface::Carpentry));
+						trim.contentHash = hashNode(trim.mesh, trim.finishes);
+						trim.style = context ? NodeStyle::Context : NodeStyle::Normal;
+						if (!trim.mesh.positions.empty()) baseboards.push_back(std::move(trim));
+					}
 					scene.rooms.push_back(SceneRoom{room, group.level, group.elevationMm});
 				}
 				for (std::size_t index = 0; index < project.furniture.size(); ++index)
@@ -428,7 +445,7 @@ namespace f101::scene
 				}
 			}
 
-			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size() +
+			scene.nodes.reserve(project.walls.size() + fills.size() + floors.size() + slabs.size() + openings.size() + baseboards.size() +
 				project.furniture.size() + swings.size());
 			for (std::optional<SceneNode>& node : wallNodes)
 			{
@@ -437,7 +454,7 @@ namespace f101::scene
 					scene.nodes.push_back(std::move(*node));
 				}
 			}
-			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs, &openings})
+			for (std::vector<SceneNode>* group : {&fills, &floors, &slabs, &openings, &baseboards})
 			{
 				for (SceneNode& node : *group)
 				{
@@ -464,7 +481,8 @@ namespace f101::scene
 				for (SceneNode& node : scene.nodes)
 				{
 					const bool architecture = node.sourceKind == SourceKind::Wall || node.sourceKind == SourceKind::Joint ||
-						node.sourceKind == SourceKind::Room || node.sourceKind == SourceKind::Slab || node.sourceKind == SourceKind::Opening;
+						node.sourceKind == SourceKind::Room || node.sourceKind == SourceKind::Slab || node.sourceKind == SourceKind::Opening ||
+						node.sourceKind == SourceKind::Baseboard;
 					if (architecture && node.style == NodeStyle::Normal)
 					{
 						node.style = NodeStyle::Ghost;

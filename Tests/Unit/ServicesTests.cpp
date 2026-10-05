@@ -328,7 +328,7 @@ TEST_CASE("project.json schema 10 saves columns and runs only when there are som
 	REQUIRE(document.addServiceRun(runOf(ServiceKind::Gas, {{0, 0, -100}, {0, 0, 2400}, {3000, 0, 2400}})).ok());
 
 	const std::string json = writeProjectJson(document.project());
-	CHECK(json.find("\"schemaVersion\": 11") != std::string::npos);
+	CHECK(json.find("\"schemaVersion\": 12") != std::string::npos);
 	CHECK(json.find(
 		"  \"columns\": [\n"
 		"    {\n"

@@ -421,4 +421,33 @@ namespace f101::geometry
 			return inherited;
 		};
 	}
+
+	cad::Document::RoomBaseboardTransfer makeRoomBaseboardTransfer()
+	{
+		return [](const cad::Project& before, const cad::Project& after)
+		{
+			std::vector<cad::RoomBaseboard> inherited;
+			for (const cad::Level& level : before.levels)
+			{
+				const auto oldRooms = detectRooms(cad::wallsOnLevel(before, level.id));
+				const auto newRooms = detectRooms(cad::wallsOnLevel(after, level.id));
+				for (const Room& room : newRooms)
+				{
+					if (after.findRoomBaseboard(room.key)) continue;
+					for (const Room& previous : oldRooms)
+					{
+						const cad::RoomBaseboard* setting = before.findRoomBaseboard(previous.key);
+						if (setting && containsPoint(previous.outline, room.labelPoint))
+						{
+							cad::RoomBaseboard entry = *setting;
+							entry.room = room.key;
+							inherited.push_back(entry);
+							break;
+						}
+					}
+				}
+			}
+			return inherited;
+		};
+	}
 }
