@@ -7,7 +7,7 @@ public class Floor101UnrealAdapter : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "Floor101SceneModel" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Floor101Diagnostics", "Core", "CoreUObject", "Engine", "Floor101SceneModel" });
 		PrivateDependencyModuleNames.AddRange(new string[] { "GeometryCore", "GeometryFramework", "ImageCore" });
 	}
 }

@@ -59,7 +59,7 @@ namespace
 		UFloor101DocumentSubsystem* Subsystem = World ? World->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
 		if (!Subsystem)
 		{
-			UE_LOG(LogFloor101, Warning, TEXT("No 101st Floor document in this world"));
+			F101_LOG(LogFloor101, Warning, TEXT("No 101st Floor document in this world"));
 		}
 		return Subsystem;
 	}
@@ -166,7 +166,7 @@ namespace
 			const f101::Result<std::int64_t> Length = f101::cad::parseLength(TCHAR_TO_UTF8(*Input));
 			if (!Length)
 			{
-				UE_LOG(LogFloor101, Warning, TEXT("f101.Demo.SetLength '%s': %s"), *Input, UTF8_TO_TCHAR(Length.error().message.c_str()));
+				F101_LOG(LogFloor101, Warning, TEXT("f101.Demo.SetLength '%s': %s"), *Input, UTF8_TO_TCHAR(Length.error().message.c_str()));
 				return;
 			}
 			Subsystem->SetReferenceWallLength(Length.value());
@@ -373,11 +373,11 @@ void UFloor101DocumentSubsystem::SetStatus(const FText& Message, bool bIsError)
 	bStatusIsError = bIsError;
 	if (bIsError)
 	{
-		UE_LOG(LogFloor101, Warning, TEXT("F101: %s"), *Message.ToString());
+		F101_LOG(LogFloor101, Warning, TEXT("F101: %s"), *Message.ToString());
 	}
 	else if (!Message.IsEmpty())
 	{
-		UE_LOG(LogFloor101, Display, TEXT("F101: %s"), *Message.ToString());
+		F101_LOG(LogFloor101, Display, TEXT("F101: %s"), *Message.ToString());
 	}
 }
 
@@ -484,7 +484,7 @@ f101::Result<f101::cad::AssetId> UFloor101DocumentSubsystem::ImportAsset(const F
 		: FText::Format(LOCTEXT("ImportedWarning", "Importado: {0} · aviso: {1}"), Name, ToText(Warnings.front())), false);
 	for (const std::string& Warning : Warnings)
 	{
-		UE_LOG(LogFloor101, Warning, TEXT("F101: %s: %s"), *Name.ToString(), UTF8_TO_TCHAR(Warning.c_str()));
+		F101_LOG(LogFloor101, Warning, TEXT("F101: %s: %s"), *Name.ToString(), UTF8_TO_TCHAR(Warning.c_str()));
 	}
 	return Id;
 }
@@ -543,12 +543,12 @@ const f101::assets::Library& UFloor101DocumentSubsystem::GetLibrary()
 		f101::Result<f101::assets::Library> Loaded = f101::assets::loadLibrary(ToFilesystemPath(GetLibraryFolder()));
 		if (!Loaded)
 		{
-			UE_LOG(LogFloor101, Error, TEXT("F101: the library in %s cannot be read: %s"), *GetLibraryFolder(),
+			F101_LOG(LogFloor101, Error, TEXT("F101: the library in %s cannot be read: %s"), *GetLibraryFolder(),
 				UTF8_TO_TCHAR(Loaded.error().message.c_str()));
 			return f101::assets::Library{};
 		}
 		f101::assets::Library Read = std::move(Loaded).value();
-		UE_LOG(LogFloor101, Log, TEXT("F101: library: %d pieces of furniture and %d textures"), static_cast<int32>(Read.furniture.size()),
+		F101_LOG(LogFloor101, Log, TEXT("F101: library: %d pieces of furniture and %d textures"), static_cast<int32>(Read.furniture.size()),
 			static_cast<int32>(Read.textures.size()));
 		return Read;
 	}();
@@ -758,7 +758,7 @@ f101::Result<FFloor101GltfSummary> UFloor101DocumentSubsystem::ExportGltf(const 
 	for (const std::string& Warning : Exported.value().warnings)
 	{
 		Summary.Warnings.Add(UTF8_TO_TCHAR(Warning.c_str()));
-		UE_LOG(LogFloor101, Warning, TEXT("F101: export %s: %s"), *Path, UTF8_TO_TCHAR(Warning.c_str()));
+		F101_LOG(LogFloor101, Warning, TEXT("F101: export %s: %s"), *Path, UTF8_TO_TCHAR(Warning.c_str()));
 	}
 	FNumberFormattingOptions OneDecimal;
 	OneDecimal.SetMinimumFractionalDigits(1).SetMaximumFractionalDigits(1);
@@ -879,7 +879,7 @@ void UFloor101DocumentSubsystem::LoadReferenceWall()
 {
 	if (!ReferenceWallId.isNil() && Document->project().findWall(ReferenceWallId))
 	{
-		UE_LOG(LogFloor101, Display, TEXT("F101: reference wall already loaded"));
+		F101_LOG(LogFloor101, Display, TEXT("F101: reference wall already loaded"));
 		return;
 	}
 	const f101::Result<f101::cad::WallId> Added = Document->addWall(
@@ -892,13 +892,13 @@ bool UFloor101DocumentSubsystem::SetReferenceWallLength(int64 LengthMm)
 {
 	if (ReferenceWallId.isNil())
 	{
-		UE_LOG(LogFloor101, Warning, TEXT("F101: no reference wall (run f101.Demo.Load first)"));
+		F101_LOG(LogFloor101, Warning, TEXT("F101: no reference wall (run f101.Demo.Load first)"));
 		return false;
 	}
 	const f101::Status Changed = Document->setWallEnd(ReferenceWallId, {LengthMm, 0});
 	if (!Changed)
 	{
-		UE_LOG(LogFloor101, Warning, TEXT("F101: length %lld mm rejected: %s"), LengthMm, UTF8_TO_TCHAR(Changed.error().message.c_str()));
+		F101_LOG(LogFloor101, Warning, TEXT("F101: length %lld mm rejected: %s"), LengthMm, UTF8_TO_TCHAR(Changed.error().message.c_str()));
 		return false;
 	}
 	return true;
@@ -994,13 +994,13 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	}
 	if (bDocumentChanged)
 	{
-		UE_LOG(LogFloor101, Display, TEXT("F101: scene resync in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
+		F101_LOG(LogFloor101, Display, TEXT("F101: scene resync in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
 			(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
 		LogStatus();
 	}
 	else
 	{
-		UE_LOG(LogFloor101, Verbose, TEXT("F101: view refresh in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
+		F101_LOG(LogFloor101, Verbose, TEXT("F101: view refresh in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
 			(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
 	}
 }
@@ -1056,19 +1056,19 @@ void UFloor101DocumentSubsystem::LogStatus() const
 	{
 		const AFloor101SceneNodeActor* Actor = Reconciler->FindActor(f101::scene::wallBodyNodeId(Wall.id));
 		const FVector Size = Actor ? Actor->GetMeshBounds().GetSize() : FVector::ZeroVector;
-		UE_LOG(LogFloor101, Display,
+		F101_LOG(LogFloor101, Display,
 			TEXT("F101: wall %s length=%.0f mm thickness=%lld mm height=%lld mm -> actor %s size=(%.1f, %.1f, %.1f) cm"),
 			UTF8_TO_TCHAR(f101::cad::toString(Wall.id).c_str()), Wall.lengthMm(), Wall.thicknessMm, Wall.heightMm,
 			Actor ? *Actor->GetName() : TEXT("<none>"), Size.X, Size.Y, Size.Z);
 	}
 	if (Document->project().walls.empty())
 	{
-		UE_LOG(LogFloor101, Display, TEXT("F101: document has no walls"));
+		F101_LOG(LogFloor101, Display, TEXT("F101: document has no walls"));
 	}
 	for (const FFloor101RoomView& Room : Rooms)
 	{
 		const AActor* Floor = FindRoomFloorActor(Room.Key);
-		UE_LOG(LogFloor101, Display, TEXT("F101: room %s area=%.4f m2 -> floor %s"), *Room.Key, Room.AreaM2,
+		F101_LOG(LogFloor101, Display, TEXT("F101: room %s area=%.4f m2 -> floor %s"), *Room.Key, Room.AreaM2,
 			Floor ? *Floor->GetName() : TEXT("<none>"));
 	}
 }

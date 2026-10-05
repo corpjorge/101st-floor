@@ -38,6 +38,9 @@ RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detall
 Windows 11 x64, GPU con DXR 1.1 + SM6.6 (referencia: RTX 5070 Ti), Unreal Engine 5.8.x (Epic Games Launcher),
 Visual Studio 2026 con MSVC 14.50 y Windows SDK 10.0.26100. Detalle: [docs/build.md](docs/build.md).
 
+Para ejecutar una entrega empaquetada basta Windows y la GPU compatible; Unreal/Visual
+Studio solo son herramientas de desarrollo. Ver [distribución Windows](docs/distribution.md).
+
 ## Uso
 ```powershell
 git clone https://github.com/corpjorge/101st-floor.git; cd 101st-floor
@@ -61,6 +64,7 @@ La biblioteca integrada vive en [Library/](Library/README.md): muebles modelados
 Poly Haven. Sus binarios van por Git LFS (`git lfs install` antes de clonar).
 
 ## Documentación
+- [docs/distribution.md](docs/distribution.md) — versión portable, instalador y validación de Shipping
 - [docs/architecture.md](docs/architecture.md) — módulos, dependencias, unidades, flujo de datos, tests ([ADRs](docs/adr/README.md))
 - [docs/cad-core.md](docs/cad-core.md) · [docs/geometry.md](docs/geometry.md) · [docs/scene-model.md](docs/scene-model.md) · [docs/drawing.md](docs/drawing.md) · [docs/exporters.md](docs/exporters.md) · [docs/unreal-integration.md](docs/unreal-integration.md) — cada capa
 - [docs/build.md](docs/build.md) — toolchain, compilación y localización del motor

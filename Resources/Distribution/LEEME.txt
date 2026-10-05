@@ -1,0 +1,15 @@
+101st Floor — versión preliminar 0.1.0 para Windows x64
+
+Extrae la carpeta completa y abre Floor101.exe. Conserva juntas todas las
+carpetas: el ejecutable necesita los materiales, el motor y Library/.
+No necesitas Unreal Editor, Epic Games Launcher ni Visual Studio.
+
+Requisitos: Windows 11 x64 y GPU/driver con DirectX 12 y Shader Model 6.
+Para Lumen con trazado por hardware y Foto se requiere una GPU compatible DXR.
+HDR requiere una pantalla compatible y HDR habilitado en Windows.
+Si faltan los redistribuibles, ejecuta:
+Engine\Extras\Redist\en-us\vc_redist.x64.exe
+
+Guarda los proyectos en Documentos o en otra carpeta elegida por ti.
+Opciones > Diagnóstico permite activar el registro detallado, mostrar los logs
+y abrir su carpeta. Los proyectos no se borran al desinstalar la aplicación.

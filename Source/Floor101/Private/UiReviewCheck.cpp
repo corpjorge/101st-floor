@@ -1,6 +1,5 @@
 #include "UiReviewCheck.h"
 
-#if WITH_DEV_AUTOMATION_TESTS
 #include "Containers/Ticker.h"
 #include "Engine/World.h"
 #include "Floor101.h"
@@ -12,11 +11,10 @@
 #include "Misc/Paths.h"
 #include "SFloor101Overlay.h"
 #include "UnrealClient.h"
-#endif
 
 void Floor101::UIReview::Start(TSharedRef<SFloor101Overlay> Overlay, UFloor101GameViewportClient* Viewport)
 {
-#if WITH_DEV_AUTOMATION_TESTS
+	// Explicit opt-in capture also verifies the exact Shipping application; normal launches do nothing.
 	FString Capture;
 	if (!Viewport || !FParse::Value(FCommandLine::Get(), TEXT("F101UICapture="), Capture)) { return; }
 	FString Screen;
@@ -47,7 +45,7 @@ void Floor101::UIReview::Start(TSharedRef<SFloor101Overlay> Overlay, UFloor101Ga
 		if (Phase == 1 && Elapsed > 20.0f)
 		{
 			FScreenshotRequest::RequestScreenshot(Capture, true, false);
-			UE_LOG(LogFloor101, Display, TEXT("F101UIReview: capture=%s screen=%s"), *Capture, *Screen);
+			F101_LOG(LogFloor101, Display, TEXT("F101UIReview: capture=%s screen=%s"), *Capture, *Screen);
 			Phase = 2;
 		}
 		if (Elapsed > 25.0f)
@@ -57,8 +55,4 @@ void Floor101::UIReview::Start(TSharedRef<SFloor101Overlay> Overlay, UFloor101Ga
 		}
 		return true;
 	}));
-#else
-	(void)Overlay;
-	(void)Viewport;
-#endif
 }

@@ -1,0 +1,35 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="101st Floor" Manufacturer="101st Floor" Version="$(var.Version)" Language="3082"
+           UpgradeCode="4A5E5CFB-B502-4D66-BA49-0B9E3F6790C2" Scope="perUser">
+    <MajorUpgrade DowngradeErrorMessage="Ya está instalada una versión más reciente de 101st Floor." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="medium" MaximumUncompressedMediaSize="100" />
+    <Icon Id="FloorIcon" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="FloorIcon" />
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="101st Floor">
+          <Files Include="$(var.PackageDir)\**" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder">
+      <Directory Id="F101DESKTOP" Name=".">
+      <Component Id="DesktopShortcut" Guid="E048E4DE-7F97-4720-B1E7-0B829920DA5A">
+        <Shortcut Id="DesktopLaunch" Name="101st Floor" Target="[INSTALLFOLDER]Floor101.exe" WorkingDirectory="INSTALLFOLDER" Icon="FloorIcon" />
+        <RegistryValue Root="HKCU" Key="Software\101st Floor\Installer" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="F101MENUROOT" Name=".">
+      <Directory Id="FloorStartMenu" Name="101st Floor">
+        <Component Id="StartMenuShortcut" Guid="3E3B0F8B-541A-49D2-A960-87BEB7A09BCC">
+          <Shortcut Id="StartMenuLaunch" Name="101st Floor" Target="[INSTALLFOLDER]Floor101.exe" WorkingDirectory="INSTALLFOLDER" Icon="FloorIcon" />
+          <RemoveFolder Id="RemoveStartMenu" On="uninstall" />
+          <RegistryValue Root="HKCU" Key="Software\101st Floor\Installer" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+        </Component>
+      </Directory>
+      </Directory>
+    </StandardDirectory>
+  </Package>
+</Wix>

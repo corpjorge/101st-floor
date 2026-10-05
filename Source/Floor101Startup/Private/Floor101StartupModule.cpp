@@ -1,3 +1,4 @@
+#include "Floor101Diagnostics.h"
 #include "Floor101Startup.h"
 #include "Modules/ModuleManager.h"
 #include "PreLoadScreenBase.h"
@@ -14,9 +15,9 @@ public:
 	virtual void OnPlay(TWeakPtr<SWindow> Window) override
 	{
 		FPreLoadScreenBase::OnPlay(Window);
-		UE_LOG(LogFloor101Startup, Display, TEXT("F101: branded loading screen shown"));
+		F101_LOG(LogFloor101Startup, Display, TEXT("F101: branded loading screen shown"));
 	}
-	virtual void OnStop() override { UE_LOG(LogFloor101Startup, Display, TEXT("F101: branded loading screen finished")); }
+	virtual void OnStop() override { F101_LOG(LogFloor101Startup, Display, TEXT("F101: branded loading screen finished")); }
 	virtual void CleanUp() override { Widget.Reset(); }
 private:
 	TSharedPtr<SWidget> Widget;

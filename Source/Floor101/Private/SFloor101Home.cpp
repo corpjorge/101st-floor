@@ -19,14 +19,12 @@
 
 TArray<FString> SFloor101Overlay::RecentProjects() const
 {
-#if WITH_DEV_AUTOMATION_TESTS
 	FString Capture;
 	if (FParse::Value(FCommandLine::Get(), TEXT("F101UICapture="), Capture))
 	{
 		if (const auto* D = Document.Get(); D && !D->GetProjectPath().IsEmpty()) { return {D->GetProjectPath()}; }
 		return {}; // screenshots never expose or change the user's recent files
 	}
-#endif
 	return FFloor101FileActions::GetRecentProjects();
 }
 
@@ -48,7 +46,7 @@ void SFloor101Overlay::ShowStartup()
 	FString Capture;
 	if (!FParse::Value(FCommandLine::Get(), TEXT("F101UICapture="), Capture) &&
 		!FParse::Param(FCommandLine::Get(), TEXT("F101RenderCheck")) && !FParse::Param(FCommandLine::Get(), TEXT("F101HDRCheck")) &&
-		!FParse::Param(FCommandLine::Get(), TEXT("F101DisplayCheck"))) { OpenHome(); }
+		!FParse::Param(FCommandLine::Get(), TEXT("F101DisplayCheck")) && !FParse::Param(FCommandLine::Get(), TEXT("F101PackageCheck"))) { OpenHome(); }
 }
 
 void SFloor101Overlay::OpenHome()

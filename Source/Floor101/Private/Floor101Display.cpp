@@ -192,7 +192,7 @@ bool SetResolution(UGameViewportClient* Client, FIntPoint Size, bool bSave)
 	FullResolution(*Settings);
 	Settings->ApplyResolutionSettings(false); // explicit UI choices supersede startup command-line overrides
 	if (bSave) { Settings->ConfirmVideoMode(); Settings->SaveSettings(); }
-	UE_LOG(LogFloor101, Display, TEXT("F101Display: requested=%dx%d fullscreen=%d render_scale=100"), Size.X, Size.Y, Query(Client).bFullscreen);
+	F101_LOG(LogFloor101, Display, TEXT("F101Display: requested=%dx%d fullscreen=%d render_scale=100"), Size.X, Size.Y, Query(Client).bFullscreen);
 	return true;
 }
 

@@ -288,13 +288,11 @@ void SFloor101Overlay::Construct(const FArguments& InArgs)
 	for (const FString& Key : Floor101::Catalogue::Favorites()) { FavoriteKeys.Add(Key); }
 	auto PlanShown = [this]() { const auto* S = Document.Get(); return S && S->IsPlanView(); };
 	TSharedRef<SWidget> StartupReview = SNullWidget::NullWidget;
-#if WITH_DEV_AUTOMATION_TESTS
 	FString ReviewScreen;
 	if (FParse::Value(FCommandLine::Get(), TEXT("F101UIScreen="), ReviewScreen) && ReviewScreen == TEXT("startup"))
 	{
 		StartupReview = Floor101::Startup::MakeLoadingWidget();
 	}
-#endif
 	ChildSlot
 	[
 		SNew(SOverlay).Visibility(EVisibility::SelfHitTestInvisible)
@@ -740,11 +738,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 						+ SVerticalBox::Slot().AutoHeight()
 						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 3 ? EVisibility::Visible : EVisibility::Collapsed; })
 							+ SVerticalBox::Slot().AutoHeight()
-							[SNew(SCheckBox).IsChecked_Lambda([]() { return LogFloor101.GetVerbosity() >= ELogVerbosity::Verbose ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+							[SNew(SCheckBox).IsChecked_Lambda([]() { return Floor101::Diagnostics::IsVerbose() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
 								.OnCheckStateChanged_Lambda([](ECheckBoxState State) { Floor101::Preferences::SetDiagnosticMode(State == ECheckBoxState::Checked); })
 								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticMode", "Modo depuración: registro detallado"))]]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
-							[SNew(SCheckBox).IsChecked_Lambda([]() { return GLogConsole && GLogConsole->IsShown() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+							[SNew(SCheckBox).IsChecked_Lambda([]() { return Floor101::Diagnostics::IsWindowVisible() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
 								.OnCheckStateChanged_Lambda([](ECheckBoxState State) { Floor101::Preferences::SetShowLogWindow(State == ECheckBoxState::Checked); })
 								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticWindow", "Mostrar ventana de logs"))]]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
@@ -752,11 +750,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 								.Text(LOCTEXT("DiagnosticHelp", "Los errores se guardan en archivo aunque esta ventana esté oculta. Activa el modo depuración antes de reproducir un problema y revisa el registro. Ambos ajustes se aplican ahora y se recuerdan al reiniciar."))]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
 							[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(12.0f, 8.0f)).IsFocusable(false)
-								.OnClicked_Lambda([]() { FPlatformProcess::ExploreFolder(*FPaths::GetPath(FPaths::ConvertRelativePathToFull(FPlatformOutputDevices::GetAbsoluteLogFilename()))); return FReply::Handled(); })
+								.OnClicked_Lambda([]() { FPlatformProcess::ExploreFolder(*FPaths::GetPath(Floor101::Diagnostics::LogPath())); return FReply::Handled(); })
 								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticFolder", "Abrir carpeta de registros"))]]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
 							[SNew(STextBlock).Font(Font(10)).ColorAndOpacity(MutedColor).AutoWrapText(true)
-								.Text_Lambda([]() { return FText::FromString(FPaths::ConvertRelativePathToFull(FPlatformOutputDevices::GetAbsoluteLogFilename())); })]]
+								.Text_Lambda([]() { return FText::FromString(Floor101::Diagnostics::LogPath()); })]]
 						+ SVerticalBox::Slot().AutoHeight()
 						[SNew(SBox).Visibility_Lambda([this]() { return OptionsPage == 0 ? EVisibility::Visible : EVisibility::Collapsed; })[MakeDisplayControls(true)]]
 						+ SVerticalBox::Slot().AutoHeight()
@@ -780,7 +778,6 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 		];
 }
 
-#if WITH_DEV_AUTOMATION_TESTS
 void SFloor101Overlay::PrepareReview(const FString& Screen)
 {
 	if (Screen == TEXT("unsaved"))
@@ -815,7 +812,6 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 	if (Screen == TEXT("favorites")) { FavoriteKeys.Empty(); FavoriteKeys.Add(TEXT("furniture:chair")); bFurnitureFavoritesOnly = true; }
 	if ((bFurniture || bMaterials) && ViewSize.X < 950.0 && PropertiesMenu) { PropertiesMenu->SetIsOpen(true); }
 }
-#endif
 
 TSharedRef<SWidget> SFloor101Overlay::MakeNetworksRow()
 {

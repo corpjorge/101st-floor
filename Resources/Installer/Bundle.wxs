@@ -1,0 +1,17 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Bundle Name="101st Floor" Manufacturer="101st Floor" Version="$(var.Version)"
+          UpgradeCode="A5798C15-7C6E-4298-B74C-1CCF45E50D15" IconSourceFile="$(var.Icon)">
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="" LogoFile="$(var.Logo)" SuppressOptionsUI="yes" />
+    </BootstrapperApplication>
+    <util:RegistrySearch Id="RuntimeInstalled" Variable="VCRuntimeInstalled" Root="HKLM" Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" Value="Installed" Result="value" Bitness="always64" />
+    <util:RegistrySearch Id="RuntimeMajor" Variable="VCRuntimeMajor" Root="HKLM" Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" Value="Major" Result="value" Bitness="always64" />
+    <util:RegistrySearch Id="RuntimeMinor" Variable="VCRuntimeMinor" Root="HKLM" Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" Value="Minor" Result="value" Bitness="always64" />
+    <Chain>
+      <ExePackage SourceFile="$(var.Prerequisites)" InstallArguments="/quiet /norestart"
+                  RepairArguments="/repair /quiet /norestart" PerMachine="yes" Permanent="yes" Vital="yes"
+                  DetectCondition="VCRuntimeInstalled AND (VCRuntimeMajor &gt; 14 OR (VCRuntimeMajor = 14 AND VCRuntimeMinor &gt;= 50))" />
+      <MsiPackage SourceFile="$(var.Msi)" Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

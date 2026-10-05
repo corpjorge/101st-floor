@@ -28,13 +28,14 @@ sentido contrario: Unreal no escribe en el modelo, y un nivel de Unreal nunca se
 
 ## Módulos
 
-Nueve módulos de producto y uno de desarrollo, solo para el editor. CadCore, Geometry, SceneModel, Drawing, Assets y Exporters son
+Diez módulos de producto y uno de desarrollo, solo para el editor. CadCore, Geometry, SceneModel, Drawing, Assets y Exporters son
 **C++20 estándar**: no incluyen cabeceras de Unreal, no usan tipos de Unreal y compilan igual con UnrealBuildTool y con
 CMake (tests sin Unreal). Ver ADR-0002.
 
 | Módulo | Tipo | Namespace | Depende de | Contenido |
 |---|---|---|---|---|
-| `Floor101Startup` | Unreal temprano | `Floor101::Startup` | Core, Slate, PreLoadScreen | splash propio, barra de actividad y transición al juego; carga en PreLoadingScreen (ADR-0027) |
+| `Floor101Diagnostics` | Unreal temprano | `Floor101::Diagnostics` | Core | registro del producto en Shipping y ventana opcional; no cambia la ABI del motor instalado (ADR-0028) |
+| `Floor101Startup` | Unreal temprano | `Floor101::Startup` | Core, Slate, PreLoadScreen, Diagnostics | splash propio, barra de actividad y transición al juego; carga en PreLoadingScreen (ADR-0027) |
 | `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController`, mobiliario (`Furniture`, catálogo), pilares e instalaciones (`Column`, `ServiceRun`, ADR-0021), `project.json` |
 | `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`) y tramos que ocupan en cada muro (`wallObstructions`), `WallGeometryBuilder` sobre huellas (con huecos), carpintería de huecos (`buildOpeningMesh`), polígonos y prismas, habitaciones (`detectRooms`), suelos y forjados, muebles (`furnitureShape`, `buildFurnitureMesh`), pilares y tuberías (`buildColumnMesh`, `buildServiceRunMesh`) |
 | `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos y habitaciones), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos, carpintería, muebles, pilares, tuberías; con `ViewOverlay` que compila el proyecto como quedaría y la capa de instalaciones con la arquitectura en `Ghost`); más adelante materiales portables, luces, cámaras, `SceneDiff` |
@@ -322,7 +323,7 @@ tests a la instalación de Unreal.
 integración) · `Run.ps1` (app en `-game`) · `CreateDesktopShortcut.ps1` (acceso directo a `Run.ps1` en el escritorio) ·
 `GenerateAssets.ps1` (los materiales de acabados y vidrio, desde código) · `GenerateLibrary.ps1` (los muebles de la
 biblioteca, con Blender) · `CheckGltf.ps1` (un `.glb` exportado, importado y renderizado en Blender) · `RunEditorMcp.ps1` · `CheckRendering.ps1` · `CheckMcp.ps1` ·
-`Clean.ps1` · `Package.ps1` (cuando exista algo que empaquetar). Todos localizan motor, CMake y MSVC con
+`Clean.ps1` · `Package.ps1` · `CheckPackage.ps1` · `Installer.ps1`. Todos localizan motor, CMake y MSVC con
 `vswhere`/registro, nunca por `PATH` (hay un `cmake` ajeno en el `PATH` de esta máquina).
 
 ## Render / RTX
