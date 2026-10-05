@@ -2,6 +2,8 @@
 #include "Floor101.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101EditingPawn.h"
+#include "Floor101SceneNodeActor.h"
+#include "EngineUtils.h"
 #include "Floor101FinishLibrary.h"
 #include "Floor101GameViewportClient.h"
 #include "Floor101PathTracing.h"
@@ -70,6 +72,16 @@ namespace Floor101::PackageCheck
 					Check(Document->Edit([RoomKey](f101::cad::EditController& E) { return E.selectRoom(RoomKey); }).ok(), TEXT("room_select"));
 					Check(Document->Edit([](f101::cad::EditController& E) { return E.setSelectedRoomName("Cocina"); }).ok(), TEXT("room_rename"));
 					Check(Document->GetRooms()[0].Name == TEXT("Cocina"), TEXT("room_name_view"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.setSelectedRoomBaseboard(true); }).ok(), TEXT("baseboard_enable"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.setSelectedBaseboardHeight("15 cm"); }).ok(), TEXT("baseboard_height"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.setSelectedBaseboardFinish("wood-walnut"); }).ok(), TEXT("baseboard_finish"));
+					const FString NodeId = Document->GetRooms()[0].Key + TEXT("/baseboard");
+					bool Rendered = false;
+					for (TActorIterator<AFloor101SceneNodeActor> It(Viewport->GetWorld()); It; ++It)
+					{
+						if (It->GetSceneNodeId() == NodeId) Rendered = It->GetDisplayMaterial() == Finishes->GetFinishMaterial(TEXT("wood-walnut"));
+					}
+					Check(Rendered, TEXT("baseboard_render_material"));
 				}
 				const auto Chair = Document->AddFromLibrary(TEXT("chair-windsor"));
 				if (Check(Chair.ok(), TEXT("import_furniture")))
@@ -93,6 +105,13 @@ namespace Floor101::PackageCheck
 				Check(Document->NewProject().ok() && Document->OpenProject(FPaths::Combine(Directory, TEXT("project.json"))).ok() &&
 					Document->GetDocument().project().walls.size() == Walls && Document->GetDocument().project().furniture.size() == 1, TEXT("reopen_project"));
 				Check(!Document->GetRooms().IsEmpty() && Document->GetRooms().ContainsByPredicate([](const FFloor101RoomView& Room) { return Room.Name == TEXT("Cocina"); }), TEXT("room_name_reopen"));
+				bool BaseboardsPersisted = !Document->GetRooms().IsEmpty();
+				for (const auto& Room : Document->GetRooms())
+				{
+					const auto* B = Document->GetDocument().project().findRoomBaseboard(TCHAR_TO_UTF8(*Room.Key));
+					BaseboardsPersisted = BaseboardsPersisted && B && B->enabled && B->heightMm == 150 && B->finish == "wood-walnut";
+				}
+				Check(BaseboardsPersisted, TEXT("baseboard_division_reopen"));
 				Check(Document->ExportPlan(FPaths::Combine(Directory, TEXT("plan.svg")), {}).ok(), TEXT("export_svg"));
 				FString NamedSvg;
 				Check(FFileHelper::LoadFileToString(NamedSvg, *FPaths::Combine(Directory, TEXT("plan.svg"))) && NamedSvg.Contains(TEXT("Cocina")), TEXT("room_name_svg"));

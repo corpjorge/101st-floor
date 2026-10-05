@@ -42,6 +42,7 @@ namespace f101::exporters
 		std::string joint = "Joint";
 		std::string floor = "Floor";
 		std::string slab = "Slab";
+		std::string baseboard = "Baseboard";
 		std::string door = "Door";
 		std::string window = "Window";
 		std::string column = "Column";

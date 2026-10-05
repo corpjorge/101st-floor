@@ -755,6 +755,16 @@ namespace f101::cad
 		root["units"] = "mm";
 		root["levels"] = std::move(levels);
 		root["walls"] = std::move(walls);
+		if (!project.roomBaseboards.empty())
+		{
+			Json entries = Json::array();
+			for (const RoomBaseboard& entry : project.roomBaseboards)
+			{
+				entries.push_back(Json{{"room", entry.room}, {"enabled", entry.enabled}, {"heightMm", entry.heightMm},
+					{"thicknessMm", entry.thicknessMm}, {"finish", entry.finish}});
+			}
+			root["roomBaseboards"] = std::move(entries);
+		}
 		if (!project.roomNames.empty())
 		{
 			Json names = Json::array();
@@ -986,6 +996,26 @@ namespace f101::cad
 					return finish.error();
 				}
 				project.roomFinishes.push_back(std::move(finish).value());
+			}
+		}
+		if (const auto entries = root.find("roomBaseboards"); entries != root.end()) // schema 12
+		{
+			if (!entries->is_array()) return formatError("roomBaseboards must be an array");
+			for (const Json& item : *entries)
+			{
+				if (!item.is_object() || !item.contains("room") || !item["room"].is_string() ||
+					!item.contains("enabled") || !item["enabled"].is_boolean()) return formatError("Invalid room baseboard entry");
+				RoomBaseboard entry;
+				entry.room = item["room"].get<std::string>();
+				entry.enabled = item["enabled"].get<bool>();
+				const auto height = readMillimetersField(item, "heightMm", "roomBaseboards");
+				const auto thickness = readMillimetersField(item, "thicknessMm", "roomBaseboards");
+				if (!height) return height.error();
+				if (!thickness) return thickness.error();
+				entry.heightMm = height.value();
+				entry.thicknessMm = thickness.value();
+				if (Status read = readOptionalString(item, "finish", "roomBaseboards", entry.finish); !read) return read.error();
+				project.roomBaseboards.push_back(entry);
 			}
 		}
 		if (const auto names = root.find("roomNames"); names != root.end()) // schema 11

@@ -92,6 +92,7 @@ namespace f101::exporters
 		{
 			switch (kind)
 			{
+			case scene::SourceKind::Baseboard:
 			case scene::SourceKind::Room: return Group::Floors;
 			case scene::SourceKind::Slab: return Group::Slabs;
 			case scene::SourceKind::Opening: return Group::Openings;
@@ -108,6 +109,7 @@ namespace f101::exporters
 			{
 			case scene::SourceKind::Wall: return "wall";
 			case scene::SourceKind::Joint: return "joint";
+			case scene::SourceKind::Baseboard: return "baseboard";
 			case scene::SourceKind::Room: return "floor";
 			case scene::SourceKind::Slab: return "slab";
 			case scene::SourceKind::Opening: return "opening";
@@ -284,6 +286,11 @@ namespace f101::exporters
 			{
 			case scene::SourceKind::Wall: return texts.wall + " " + id;
 			case scene::SourceKind::Joint: return texts.joint + " " + id;
+			case scene::SourceKind::Baseboard:
+			{
+				const auto* roomName = project.findRoomName(node.sourceId);
+				return texts.baseboard + " " + (roomName ? roomName->name + " " : "") + id;
+			}
 			case scene::SourceKind::Room: return texts.floor + " " + id;
 			case scene::SourceKind::Slab: return texts.slab + " " + id;
 			case scene::SourceKind::Opening:

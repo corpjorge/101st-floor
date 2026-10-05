@@ -7,6 +7,16 @@
 
 namespace f101::cad
 {
+	Status validateRoomBaseboard(const Project& project, const RoomBaseboard& baseboard)
+	{
+		if (baseboard.room.empty() || baseboard.heightMm < 1 || baseboard.heightMm > 1000 ||
+			baseboard.thicknessMm < 1 || baseboard.thicknessMm > 100)
+		{
+			return Error{ErrorCode::InvalidArgument, "Baseboards need a room, height 1..1000 mm and thickness 1..100 mm"};
+		}
+		return validateFinishIn(project, baseboard.finish, Surface::Carpentry);
+	}
+
 	Status validateRoomName(std::string_view name)
 	{
 		if (name.size() > MaxRoomNameBytes || std::any_of(name.begin(), name.end(), [](unsigned char ch) { return ch < 32 || ch == 127; }))
@@ -104,6 +114,7 @@ namespace f101::cad
 				uses += static_cast<std::size_t>(opening.finish == ref);
 			}
 		}
+		for (const RoomBaseboard& entry : project.roomBaseboards) uses += entry.finish == ref ? 1u : 0u;
 		for (const RoomFinish& finish : project.roomFinishes)
 		{
 			uses += static_cast<std::size_t>(finish.floor == ref) + static_cast<std::size_t>(finish.ceiling == ref);

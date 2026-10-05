@@ -1932,6 +1932,36 @@ namespace f101::cad
 		return toStatus(document.execute(SetRoomFinishCommand{selectedRoomKey, std::string(floor), std::string(ceiling)}));
 	}
 
+	Status EditController::editRoomBaseboard(const std::function<void(RoomBaseboard&)>& change)
+	{
+		if (selectedRoom().empty()) return nothingSelected();
+		const RoomBaseboard* current = document.project().findRoomBaseboard(selectedRoomKey);
+		RoomBaseboard entry = current ? *current : RoomBaseboard{selectedRoomKey};
+		change(entry);
+		return toStatus(document.execute(SetRoomBaseboardCommand{entry}));
+	}
+
+	Status EditController::setSelectedRoomBaseboard(bool enabled)
+	{
+		if (selectedRoom().empty()) return nothingSelected();
+		if (!enabled && !document.project().findRoomBaseboard(selectedRoom())) return Status::success();
+		return editRoomBaseboard([enabled](RoomBaseboard& entry) { entry.enabled = enabled; });
+	}
+
+	Status EditController::setBaseboardDimension(std::string_view text, bool height)
+	{
+		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value) return value.error();
+		return editRoomBaseboard([&](RoomBaseboard& entry) { (height ? entry.heightMm : entry.thicknessMm) = value.value(); });
+	}
+
+	Status EditController::setSelectedBaseboardHeight(std::string_view text) { return setBaseboardDimension(text, true); }
+	Status EditController::setSelectedBaseboardThickness(std::string_view text) { return setBaseboardDimension(text, false); }
+	Status EditController::setSelectedBaseboardFinish(std::string_view finish)
+	{
+		return editRoomBaseboard([finish](RoomBaseboard& entry) { entry.finish = std::string(finish); });
+	}
+
 	Status EditController::setSelectedRoomName(std::string_view name)
 	{
 		if (selectedRoom().empty())

@@ -796,11 +796,17 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		const auto Id = Document->GetDocument().project().walls.front().id;
 		Run([Id](EditController& E) { return E.select(Id); });
 	}
-	if (Screen == TEXT("room") && Document.IsValid() && !Document->GetRooms().IsEmpty())
+	if ((Screen == TEXT("room") || Screen == TEXT("baseboards")) && Document.IsValid() && !Document->GetRooms().IsEmpty())
 	{
 		const std::string Key = TCHAR_TO_UTF8(*Document->GetRooms()[0].Key);
 		Run([Key](EditController& E) { return E.selectRoom(Key); });
 		Run([](EditController& E) { return E.setSelectedRoomName("Cocina"); });
+		if (Screen == TEXT("baseboards"))
+		{
+			Run([](EditController& E) { return E.setSelectedRoomBaseboard(true); });
+			Run([](EditController& E) { return E.setSelectedBaseboardFinish("wood-walnut"); });
+		}
+
 		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
 	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
@@ -3042,6 +3048,12 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		};
 	};
 
+	auto Baseboard = [this]() -> const f101::cad::RoomBaseboard*
+	{
+		const auto* S = Document.Get();
+		return S ? S->GetDocument().project().findRoomBaseboard(S->GetEditController().selectedRoom()) : nullptr;
+	};
+
 	return SNew(SVerticalBox)
 		.Visibility_Lambda([this]() { return GetSelectedRoom() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
@@ -3095,6 +3107,42 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 			[
 				MakeFinishCombo(f101::cad::Surface::Ceiling, RoomFinish(false),
 					[](EditController& Editor, const std::string& Finish) { return Editor.setSelectedRoomCeiling(Finish); })
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 3.0f)
+		[
+			SNew(SCheckBox)
+			.IsChecked_Lambda([Baseboard]() { const auto* B = Baseboard(); return B && B->enabled ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+			.OnCheckStateChanged_Lambda([this](ECheckBoxState State)
+			{
+				Run([State](EditController& E) { return E.setSelectedRoomBaseboard(State == ECheckBoxState::Checked); });
+			})
+			.ToolTipText(LOCTEXT("BaseboardTip", "Añade rodapiés al perímetro interior, respetando los huecos de puertas y ventanas bajas."))
+			[SNew(STextBlock).Text(LOCTEXT("RoomBaseboards", "Rodapiés")).Font(Font(10, true)).ColorAndOpacity(FSlateColor::UseForeground())]
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SNew(SVerticalBox)
+			.Visibility_Lambda([Baseboard]() { const auto* B = Baseboard(); return B && B->enabled ? EVisibility::Visible : EVisibility::Collapsed; })
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				MakePropertyRow(LOCTEXT("BaseboardHeight", "Altura"), [Baseboard]() -> TOptional<double>
+				{ const auto* B = Baseboard(); return B ? TOptional<double>(static_cast<double>(B->heightMm)) : TOptional<double>(); }, &EditController::setSelectedBaseboardHeight)
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				MakePropertyRow(LOCTEXT("BaseboardThickness", "Espesor"), [Baseboard]() -> TOptional<double>
+				{ const auto* B = Baseboard(); return B ? TOptional<double>(static_cast<double>(B->thicknessMm)) : TOptional<double>(); }, &EditController::setSelectedBaseboardThickness)
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				[SNew(STextBlock).Text(LOCTEXT("BaseboardFinish", "Acabado")).Font(Font(10)).ColorAndOpacity(FSlateColor::UseForeground())]
+				+ SHorizontalBox::Slot().AutoWidth()
+				[MakeFinishCombo(f101::cad::Surface::Carpentry, [Baseboard]() -> FString
+				{ const auto* B = Baseboard(); return UTF8_TO_TCHAR(std::string(f101::cad::resolveFinish(B ? std::string_view(B->finish) : std::string_view(), f101::cad::Surface::Carpentry)).c_str()); },
+					[](EditController& E, const std::string& Finish) { return E.setSelectedBaseboardFinish(Finish); })]
 			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)

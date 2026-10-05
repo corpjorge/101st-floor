@@ -699,6 +699,45 @@ bool FFloor101RoomNamesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101BaseboardsTest, "Floor101.Interaction.Baseboards", InteractionTestFlags)
+bool FFloor101BaseboardsTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) return false;
+	const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+	for (int32 i = 0; i < 4; ++i)
+	{
+		TestTrue(TEXT("enclose room"), Document->GetMutableDocument().addWall({Corners[i][0], Corners[i][1]},
+			{Corners[(i + 1) % 4][0], Corners[(i + 1) % 4][1]}, 120, 2800).ok());
+	}
+	if (!TestEqual(TEXT("one room"), Document->GetRooms().Num(), 1)) return false;
+	const FString Key = Document->GetRooms()[0].Key;
+	const double Area = Document->GetRooms()[0].AreaM2;
+	Document->SetPlanView(true);
+	TestTrue(TEXT("select room"), Document->Edit([](EditController& E) { return E.pointerPressed(Down(2000.0, 1500.0)); }).ok());
+	TestTrue(TEXT("enable"), Document->Edit([](EditController& E) { return E.setSelectedRoomBaseboard(true); }).ok());
+	TestTrue(TEXT("height"), Document->Edit([](EditController& E) { return E.setSelectedBaseboardHeight("15 cm"); }).ok());
+	TestTrue(TEXT("thickness"), Document->Edit([](EditController& E) { return E.setSelectedBaseboardThickness("18 mm"); }).ok());
+	TestTrue(TEXT("walnut finish"), Document->Edit([](EditController& E) { return E.setSelectedBaseboardFinish("wood-walnut"); }).ok());
+	const auto* Actor = FindNode(TestWorld.World, Key + TEXT("/baseboard"));
+	TestNotNull(TEXT("rendered trim"), Actor);
+	TestTrue(TEXT("correct material"), Actor && Actor->GetDisplayMaterial() == UFloor101FinishLibrary::Get()->GetFinishMaterial(TEXT("wood-walnut")));
+	TestEqual(TEXT("area unchanged"), Document->GetRooms()[0].AreaM2, Area);
+	TestTrue(TEXT("disable"), Document->Edit([](EditController& E) { return E.setSelectedRoomBaseboard(false); }).ok());
+	TestNull(TEXT("hidden trim removed"), FindNode(TestWorld.World, Key + TEXT("/baseboard")));
+	TestTrue(TEXT("undo disable"), Document->GetMutableDocument().undo().ok());
+	TestNotNull(TEXT("trim restored"), FindNode(TestWorld.World, Key + TEXT("/baseboard")));
+	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101/Baseboards/project.json")));
+	TestTrue(TEXT("save"), Document->SaveProject(Path).ok());
+	TestTrue(TEXT("new"), Document->NewProject().ok());
+	TestTrue(TEXT("reopen"), Document->OpenProject(Path).ok());
+	const auto* Setting = Document->GetDocument().project().findRoomBaseboard(TCHAR_TO_UTF8(*Key));
+	TestTrue(TEXT("settings persisted"), Setting && Setting->enabled && Setting->heightMm == 150 && Setting->thicknessMm == 18 && Setting->finish == "wood-walnut");
+	TestNotNull(TEXT("reopened geometry"), FindNode(TestWorld.World, Key + TEXT("/baseboard")));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewTest, "Floor101.Interaction.PlanView", InteractionTestFlags)
 bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 {

@@ -226,7 +226,7 @@ TEST_CASE_FIXTURE(Library, "project.json saves the asset library (schema 8; the 
 	REQUIRE(document.execute(ChangeAssetCommand{turned}).ok());
 	REQUIRE(document.execute(SetWallFinishCommand{wall, WallSide::Left, assetRef(parquet.id)}).ok());
 	const std::string json = writeProjectJson(document.project());
-	CHECK(json.find("\"schemaVersion\": 11") != std::string::npos);
+	CHECK(json.find("\"schemaVersion\": 12") != std::string::npos);
 	CHECK(json.find("\"kind\": \"texture\"") != std::string::npos);
 	CHECK(json.find("\"surfaces\": [\n          \"floors\"\n        ]") != std::string::npos);
 	CHECK(json.find("\"unit\": \"cm\"") != std::string::npos);
@@ -436,4 +436,17 @@ TEST_CASE("an image becomes a tiling texture: power-of-two sides, flipped for su
 	CHECK(capped.mips[0].width == 1024);
 	CHECK(capped.mips[0].height == 4);
 	CHECK(capped.mips[0].rgba[100] == 128);
+}
+
+TEST_CASE("a disabled baseboard retains its imported texture reference until its finish is replaced")
+{
+	Document document{makeSequentialUuidSource()};
+	const Asset finish = texture(55, static_cast<std::uint8_t>(Surface::Carpentry));
+	REQUIRE(document.execute(AddAssetCommand{finish}).ok());
+	REQUIRE(document.execute(SetRoomBaseboardCommand{{"room-a", false, 100, 12, assetRef(finish.id)}}).ok());
+	CHECK(assetUses(document.project(), finish.id) == 1);
+	CHECK_FALSE(document.execute(DeleteAssetCommand{finish.id}).ok());
+	REQUIRE(document.execute(SetRoomBaseboardCommand{{"room-a", false, 100, 12, "lacquer-white"}}).ok());
+	REQUIRE(document.execute(DeleteAssetCommand{finish.id}).ok());
+	CHECK(document.project().assets.empty());
 }
