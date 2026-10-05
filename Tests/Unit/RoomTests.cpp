@@ -4,6 +4,7 @@
 #include "F101/Geometry/Rooms.h"
 
 #include <cstdint>
+#include <algorithm>
 #include <initializer_list>
 
 using namespace f101;
@@ -171,4 +172,41 @@ TEST_CASE("floor slabs are 10 mm prisms over the room outline")
 	CHECK(b.min.z == 0.0);
 	CHECK(b.max.z == FloorThicknessMm);
 	CHECK(floor.sections[0].slot == std::string(floor_slots::Top));
+}
+
+TEST_CASE("overlapping collinear wall ends close adjacent rooms without changing the model")
+{
+	for (const bool reversed : {false, true})
+	{
+		Plan plan;
+		plan.add({0, 0}, {4300, 0});
+		plan.add({4300, 0}, {4300, 2550});
+		plan.add(reversed ? cad::Point2D{4300, 2590} : cad::Point2D{4300, 2490},
+			reversed ? cad::Point2D{4300, 2490} : cad::Point2D{4300, 2590});
+		plan.add({4300, 2590}, {0, 2590});
+		plan.add({0, 2590}, {0, 0});
+		plan.add({2384, 0}, {2384, 2590});
+		const auto rooms = detectRooms(plan.project);
+		REQUIRE(rooms.size() == 2);
+		CHECK(rooms[0].areaMm2 == doctest::Approx(2264.0 * 2470.0));
+		CHECK(rooms[1].areaMm2 == doctest::Approx(1796.0 * 2470.0));
+		CHECK(makeRoomLocator()(plan.project, {3300, 1300}) == rooms[1].key);
+		CHECK(plan.project.walls[1].end == cad::Point2D{4300, 2550});
+		CHECK(plan.project.walls.size() == 6);
+		std::reverse(plan.project.walls.begin(), plan.project.walls.end());
+		const auto reordered = detectRooms(plan.project);
+		REQUIRE(reordered.size() == 2);
+		CHECK(reordered[0].key == rooms[0].key);
+		CHECK(reordered[1].key == rooms[1].key);
+		CHECK(reordered[1].areaMm2 == doctest::Approx(rooms[1].areaMm2));
+	}
+}
+
+TEST_CASE("merging coincident room graph segments does not close real gaps")
+{
+	Plan plan;
+	plan.loop({{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}});
+	plan.project.walls[1].end = {4000, 2000};
+	plan.add({4000, 2200}, {4000, 3000});
+	CHECK(detectRooms(plan.project).empty());
 }

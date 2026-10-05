@@ -700,6 +700,46 @@ bool FFloor101RoomNamesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OverlappingRoomTest, "Floor101.Interaction.OverlappingRoomNames", InteractionTestFlags)
+bool FFloor101OverlappingRoomTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) return false;
+	auto Project = Document->GetDocument().project();
+	const auto Level = Project.levels.front().id;
+	// Load legacy overlapping segments directly: do not repair them by adding new walls.
+	uint64 Id = 310;
+	for (const auto& Ends : {std::pair<f101::cad::Point2D, f101::cad::Point2D>{{0,0},{4300,0}},
+		{{4300,0},{4300,2550}}, {{4300,2490},{4300,2590}}, {{4300,2590},{0,2590}},
+		{{0,2590},{0,0}}, {{2384,0},{2384,2590}}})
+	{
+		f101::cad::Wall Wall{f101::cad::WallId{f101::cad::Uuid{0, Id++}}, Ends.first, Ends.second, 120, 2800};
+		Wall.level = Level;
+		Project.walls.push_back(Wall);
+	}
+	TestTrue(TEXT("load unchanged overlapping walls"), Document->GetMutableDocument().replaceProject(Project).ok());
+	if (!TestEqual(TEXT("both enclosed spaces detected"), Document->GetRooms().Num(), 2)) return false;
+	Document->SetPlanView(true);
+	TestTrue(TEXT("rename level separately"), Document->Edit([](EditController& E) { return E.setLevelName("Primera planta"); }).ok());
+	TestTrue(TEXT("select previously missing room interior"), Document->Edit([](EditController& E) { return E.pointerPressed(Down(3300, 1300)); }).ok());
+	TestFalse(TEXT("room selected"), Document->GetEditController().selectedRoom().empty());
+	TestTrue(TEXT("name bathroom"), Document->Edit([](EditController& E) { return E.setSelectedRoomName("Baño"); }).ok());
+	TestTrue(TEXT("bathroom label on plan"), std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
+		[](const auto& Label) { return Label.text == "Baño"; }));
+	TestTrue(TEXT("level unchanged by room name"), Document->GetDocument().project().levels.front().name == "Primera planta");
+	TestTrue(TEXT("wall coordinates untouched"), Document->GetDocument().project().walls == Project.walls);
+	const FString Path = FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101/OverlappingRoom/project.json"));
+	TestTrue(TEXT("save"), Document->SaveProject(Path).ok());
+	TestTrue(TEXT("new document"), Document->NewProject().ok());
+	TestTrue(TEXT("reopen without geometry repair"), Document->OpenProject(Path).ok());
+	TestEqual(TEXT("rooms after reopen"), Document->GetRooms().Num(), 2);
+	Document->SetPlanView(true);
+	TestTrue(TEXT("persisted bathroom label"), std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
+		[](const auto& Label) { return Label.text == "Baño"; }));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101BaseboardsTest, "Floor101.Interaction.Baseboards", InteractionTestFlags)
 bool FFloor101BaseboardsTest::RunTest(const FString& Parameters)
 {
@@ -748,14 +788,16 @@ bool FFloor101DimensionsTest::RunTest(const FString& Parameters)
 	const auto Wall = Document->GetMutableDocument().addWall({0, 0}, {4000, 0}, 120, 2800).value();
 	Document->SetPlanView(true);
 	TestTrue(TEXT("measurement tool"), Document->Edit([](EditController& E) { E.setMode(f101::cad::EditMode::Dimension); return f101::Status::success(); }).ok());
-	for (const auto Point : {f101::cad::Point2D{500, 500}, f101::cad::Point2D{3500, 500}, f101::cad::Point2D{1500, 1500}})
+	for (const auto Point : {f101::cad::Point2D{61, 61}, f101::cad::Point2D{3938, 61}, f101::cad::Point2D{1500, 1500}})
 	{
 		TestTrue(TEXT("point"), Document->Edit([Point](EditController& E) { return E.pointerPressed(Down(static_cast<double>(Point.x_mm), static_cast<double>(Point.y_mm))); }).ok());
 	}
 	if (!TestEqual(TEXT("one saved manual dimension"), static_cast<int32>(Document->GetDocument().project().dimensions.size()), 1)) return false;
 	const auto Manual = Document->GetDocument().project().dimensions.front();
 	TestTrue(TEXT("current selection"), Document->GetEditController().selectedDimension().has_value());
-	TestEqual(TEXT("3000 mm measurement"), (Manual.end - Manual.start).lengthMm(), 3000.0);
+	TestTrue(TEXT("start does not jump to axis or corner"), Manual.start == f101::cad::Point2D{61, 61});
+	TestTrue(TEXT("end does not jump to grid or corner"), Manual.end == f101::cad::Point2D{3938, 61});
+	TestEqual(TEXT("3877 mm measurement"), (Manual.end - Manual.start).lengthMm(), 3877.0);
 	TestTrue(TEXT("edit label"), Document->Edit([](EditController& E) { return E.setDimensionText("Paso libre"); }).ok());
 	TestTrue(TEXT("same drawing for UI and export"), std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
 		[](const auto& Label) { return Label.text == "Paso libre"; }));

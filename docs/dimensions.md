@@ -3,7 +3,8 @@
 En **Diseñar**, pulsa **Cotas (H)**. Se abre el plano 2D.
 Haz clic en el primer punto, después en el segundo y finalmente donde quieras
 colocar la línea. La medida se calcula automáticamente, también en diagonal.
-**Esc** cancela la cota que estés preparando. Se usa el snapping del proyecto.
+**Esc** cancela la cota que estés preparando. Los puntos no se ajustan a la
+rejilla, ejes ni esquinas: se conserva el clic, redondeado al milímetro del modelo.
 
 Para editar una cota manual o automática, vuelve a **Seleccionar (V)** y pulsa
 su línea o el centro de su cifra. En **Propiedades** puedes:
@@ -29,9 +30,11 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 ## Verificación
 
-- 297 pruebas C++ / 13.662 aserciones aprobadas.
-- 84 pruebas Unreal aprobadas, incluida `Floor101.Interaction.Dimensions`.
-  Reporte: `Saved/Automation/20261004-223005`.
+- 300 pruebas C++ / 13.702 aserciones aprobadas, incluidas mediciones libres
+  junto a caras, esquinas y fuera de la rejilla.
+- 85 pruebas Unreal aprobadas, incluidas `Floor101.Interaction.Dimensions` y
+  `Floor101.Interaction.OverlappingRoomNames`.
+  Reporte: `Saved/Automation/20261005-125129`.
 
 - Interfaz real revisada a 1280×720 y 800×600; cifras con mínimo legible
   en pantalla y propiedades desplazables.
@@ -43,11 +46,13 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 ## Entrega portable
 
-Extrae `Packaged/0.1.3/101st-Floor-portable.zip` y abre `Floor101.exe`.
+Extrae `Packaged/0.1.4/101st-Floor-portable.zip` y abre `Floor101.exe`.
 Conserva todos los archivos de la carpeta junto al ejecutable. La carpeta
-ya extraída está en `Packaged/0.1.3/Windows/`.
+ya extraída está en `Packaged/0.1.4/Windows/`.
 La validación se ejecutó en este equipo; queda pendiente probar la entrega
 en otro equipo sin Unreal instalado.
 
 ![Cotas manuales y automáticas](images/dimensions.png)
 ![Propiedades en ventana pequeña](images/dimensions-small.png)
+
+![Cota libre con coordenadas exactas](images/dimensions-exact.png)

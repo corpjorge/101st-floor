@@ -803,6 +803,20 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		}
 	}
 	if (Screen == TEXT("home")) { OpenHome(); }
+	if (Screen == TEXT("room-overlap") && Document.IsValid())
+	{
+		if (auto* C = ViewportClient.Get()) C->SetPlanView(true);
+		Run([](EditController& E)
+		{
+			E.setMode(EditMode::Select);
+			const f101::cad::Ray3 Ray{3300, 1300, 10000, 0, 0, -1};
+			if (const auto Status = E.pointerPressed(Ray); !Status) return Status;
+			(void)E.pointerReleased(Ray);
+			return E.setSelectedRoomName("Baño");
+		});
+		if (auto* C = ViewportClient.Get()) C->FrameProject();
+		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
+	}
 	if (Screen == TEXT("diagnostics")) { OpenOptions(); OptionsPage = 3; }
 	if (Screen == TEXT("selection") && Document.IsValid() && !Document->GetDocument().project().walls.empty())
 	{
@@ -828,7 +842,7 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		Run([](EditController& E)
 		{
 			E.setMode(EditMode::Dimension);
-			for (const auto Point : {f101::cad::Point2D{500, 500}, f101::cad::Point2D{3500, 500}, f101::cad::Point2D{1500, 1500}})
+			for (const auto Point : {f101::cad::Point2D{61, 61}, f101::cad::Point2D{4238, 61}, f101::cad::Point2D{1500, 700}})
 			{
 				const f101::cad::Ray3 Ray{static_cast<double>(Point.x_mm), static_cast<double>(Point.y_mm), 10000, 0, 0, -1};
 				if (const auto Status = E.pointerPressed(Ray); !Status) return Status;
@@ -2679,7 +2693,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
 			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("LevelName", "Nombre")).Font(Font(10))
+				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("LevelName", "Nombre de planta")).Font(Font(10))
 			]
 			+ SHorizontalBox::Slot().AutoWidth()
 			[
@@ -2741,7 +2755,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeLevelSection()
 				{
 					return FText::GetEmpty();
 				}
-				return FText::Format(LOCTEXT("LevelInfo", "Cota {0} · altura libre {1}. Los muros nuevos suben hasta la planta de arriba."),
+				return FText::Format(LOCTEXT("LevelInfo", "Cota {0} · altura libre {1}. Para nombrar una habitación, selecciona su interior. Los muros nuevos suben hasta la planta de arriba."),
 					ElevationText(f101::cad::levelElevationMm(S->GetDocument().project(), Level->id)), LengthText(static_cast<double>(Level->clearHeightMm())));
 			})
 		]
@@ -3107,7 +3121,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
-			MakeTextRow(LOCTEXT("RoomName", "Nombre"), [this]()
+			MakeTextRow(LOCTEXT("RoomName", "Habitación"), [this]()
 			{
 				const UFloor101DocumentSubsystem* S = Document.Get();
 				const f101::cad::RoomName* Entry = S ? S->GetDocument().project().findRoomName(S->GetEditController().selectedRoom()) : nullptr;
@@ -3117,7 +3131,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
 			SNew(STextBlock).Font(Font(9)).ColorAndOpacity(MutedColor).AutoWrapText(true)
-			.Text(LOCTEXT("RoomNameHint", "Ej.: Cocina, Sala o Dormitorio. Vacío: nombre automático."))
+			.Text(LOCTEXT("RoomNameHint", "Nombre de habitación. Ej.: Cocina, Baño o Sala. Vacío: nombre automático."))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 		[
@@ -3229,7 +3243,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeDimensionSection()
 		[SNew(STextBlock).AutoWrapText(true).Font(Font(9)).ColorAndOpacity(MutedColor).Text_Lambda([D]()
 		{
 			const auto Value = D();
-			if (!Value) return LOCTEXT("DimensionHow", "Elige dos puntos y después coloca la línea con un tercer clic. Las cotas miden en planta.");
+			if (!Value) return LOCTEXT("DimensionHow", "Elige dos puntos exactos y coloca la línea con un tercer clic. Sin ajuste a rejilla ni ejes; precisión de 1 mm.");
 			return FText::Format(LOCTEXT("DimensionReal", "{0} · distancia real: {1}"),
 				Value->automatic ? LOCTEXT("DimensionAuto", "Automática") : LOCTEXT("DimensionManual", "Manual"),
 				FText::FromString(UTF8_TO_TCHAR(f101::cad::formatLength((Value->end - Value->start).lengthMm(), f101::cad::LengthUnit::Meter).c_str())));

@@ -264,6 +264,14 @@ namespace f101::cad
 			return at;
 		}
 
+		std::optional<Point2D> measurementPoint(PlanPoint point)
+		{
+			const auto x = quantizeMillimeters(point.x_mm);
+			const auto y = quantizeMillimeters(point.y_mm);
+			if (!x || !y) return std::nullopt;
+			return Point2D{x.value(), y.value()};
+		}
+
 		bool sameSpot(const ServicePoint& a, const ServicePoint& b)
 		{
 			return a.x_mm == b.x_mm && a.y_mm == b.y_mm;
@@ -791,9 +799,10 @@ namespace f101::cad
 			if (!dimensionsVisible || !planPoint) return Error{ErrorCode::InvalidArgument, "Use the 2D plan to place dimensions"};
 			if (dimensionDraft.size() < 2)
 			{
-				const Point2D point = snapPoint(project, *planPoint, editSettings.wallTool.snap).point;
-				if (!dimensionDraft.empty() && point == dimensionDraft.front()) return Error{ErrorCode::InvalidArgument, "Choose two distinct points"};
-				dimensionDraft.push_back(point);
+				const auto point = measurementPoint(*planPoint);
+				if (!point) return Error{ErrorCode::InvalidArgument, "Invalid measurement point"};
+				if (!dimensionDraft.empty() && *point == dimensionDraft.front()) return Error{ErrorCode::InvalidArgument, "Choose two distinct points"};
+				dimensionDraft.push_back(*point);
 				return Status::success();
 			}
 			const auto draft = dimensionPreview();
@@ -1355,7 +1364,9 @@ namespace f101::cad
 		Dimension d;
 		d.level = activeLevel();
 		d.start = dimensionDraft.front();
-		d.end = dimensionDraft.size() < 2 ? snapPoint(levelProject(), *planPoint, editSettings.wallTool.snap).point : dimensionDraft[1];
+		const auto end = dimensionDraft.size() < 2 ? measurementPoint(*planPoint) : std::optional<Point2D>(dimensionDraft[1]);
+		if (!end) return std::nullopt;
+		d.end = *end;
 		if (d.start == d.end) return std::nullopt;
 		if (dimensionDraft.size() == 2)
 		{

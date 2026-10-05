@@ -20,7 +20,9 @@ de presentación conservando la geometría CAD como fuente de verdad.
   sus anotaciones en la misma transacción.
 - Drawing devuelve las cotas resueltas para picking mediante un proveedor inyectado
   en EditController; CadCore sigue sin depender de Drawing ni Unreal.
-- Herramienta en plano 2D: inicio, fin y colocación; snapping CAD existente.
+- Herramienta en plano 2D: inicio, fin y colocación. Desde 0.1.4, extremos
+  libres cuantizados a 1 mm, sin snapping de construcción: medir una cara o un
+  punto cercano a una esquina no debe desplazarlo al eje ni a la rejilla.
   Selección por línea o centro del rótulo con tolerancia de ocho píxeles; arrastre
   perpendicular para mover la línea. Propiedades permite editar rótulo y separación;
   las manuales también sus coordenadas. Medidas manuales se muestran a resolución
@@ -38,7 +40,7 @@ limpiarse con Restaurar. Un rótulo personalizado es texto de presentación;
 Propiedades siempre muestra la distancia real y permite recuperar su cifra.
 
 ## Verificación
-Regresiones doctest e integración Unreal: clics, snapping, diagonales, precisión,
+Regresiones doctest e integración Unreal: clics exactos, diagonales, precisión,
 arrastre, huecos, identidad, plantas, validación JSON, compatibilidad, SVG,
 guardado/reapertura, borrado y deshacer/rehacer. Capturas reales y ejecutable
 Shipping se documentan en [cotas](../dimensions.md).

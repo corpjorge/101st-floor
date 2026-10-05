@@ -61,6 +61,26 @@ namespace Floor101::PackageCheck
 				if (!Check(Finishes && Finishes->GetBaseMaterial() && Finishes->GetGlassMaterial(), TEXT("cooked_materials")))
 				{ FPlatformMisc::RequestExitWithStatus(false, 1); return false; }
 				Check(Document->NewProject().ok(), TEXT("new_project"));
+				{
+					auto Legacy = Document->GetDocument().project();
+					uint64 Id = 310;
+					for (const auto& Ends : {std::pair<f101::cad::Point2D, f101::cad::Point2D>{{0,0},{4300,0}},
+						{{4300,0},{4300,2550}}, {{4300,2490},{4300,2590}}, {{4300,2590},{0,2590}},
+						{{0,2590},{0,0}}, {{2384,0},{2384,2590}}})
+					{
+						f101::cad::Wall Wall{f101::cad::WallId{f101::cad::Uuid{0, Id++}}, Ends.first, Ends.second, 120, 2800};
+						Wall.level = Legacy.levels.front().id;
+						Legacy.walls.push_back(Wall);
+					}
+					Check(Document->GetMutableDocument().replaceProject(Legacy).ok() && Document->GetRooms().Num() == 2, TEXT("overlap_room_detection"));
+					Viewport->SetPlanView(true);
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.pointerPressed({3300,1300,10000,0,0,-1}); }).ok(), TEXT("overlap_room_pick"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.setSelectedRoomName("Baño"); }).ok(), TEXT("overlap_room_rename"));
+					Check(std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
+						[](const auto& Label) { return Label.text == "Baño"; }), TEXT("overlap_room_label"));
+					Viewport->SetPlanView(false);
+					Check(Document->NewProject().ok(), TEXT("clear_overlap_fixture"));
+				}
 				Check(Document->SaveProject(FPaths::Combine(Directory, TEXT("project.json"))).ok(), TEXT("save_empty"));
 				for (const auto& Ends : {std::pair<f101::cad::Point2D, f101::cad::Point2D>{{0,0},{4000,0}}, {{4000,0},{4000,4000}}, {{4000,4000},{0,4000}}, {{0,4000},{0,0}}})
 				{ Check(Document->GetMutableDocument().addWall(Ends.first, Ends.second, 120, 2800).ok(), TEXT("create_wall")); }
@@ -103,9 +123,11 @@ namespace Floor101::PackageCheck
 				Check(Document->GetMutableDocument().addWall({1000,-1000},{1000,5000},120,2800).ok() && Document->GetDocument().project().walls.size() > 5, TEXT("automatic_wall_split"));
 				Viewport->SetPlanView(true);
 				Check(Document->Edit([](f101::cad::EditController& E) { E.setMode(f101::cad::EditMode::Dimension); return f101::Status::success(); }).ok(), TEXT("dimension_tool"));
-				for (const auto Point : {f101::cad::Point2D{1500,1000}, f101::cad::Point2D{3500,1000}, f101::cad::Point2D{2500,1600}})
+				for (const auto Point : {f101::cad::Point2D{1511,1013}, f101::cad::Point2D{3487,1013}, f101::cad::Point2D{2500,1600}})
 					Check(Document->Edit([Point](f101::cad::EditController& E) { return E.pointerPressed({static_cast<double>(Point.x_mm),static_cast<double>(Point.y_mm),10000,0,0,-1}); }).ok(), TEXT("dimension_click"));
 				Check(Document->GetDocument().project().dimensions.size() == 1, TEXT("dimension_manual"));
+				const auto& Manual = Document->GetDocument().project().dimensions.front();
+				Check(Manual.start == f101::cad::Point2D{1511,1013} && Manual.end == f101::cad::Point2D{3487,1013}, TEXT("dimension_exact_points"));
 				Check(Document->Edit([](f101::cad::EditController& E) { return E.setDimensionText("Paso libre"); }).ok(), TEXT("dimension_label"));
 				const auto Automatic = Document->GetPlanDrawing().dimensions.front();
 				Check(Document->Edit([Automatic](f101::cad::EditController& E) { return E.selectDimension(Automatic.id); }).ok(), TEXT("dimension_select_automatic"));

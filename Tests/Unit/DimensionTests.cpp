@@ -22,7 +22,7 @@ namespace
 	}
 }
 
-TEST_CASE("manual measurements use three clicks, snap endpoints and persist reversible precise edits")
+TEST_CASE("manual measurements use exact clicked points and persist reversible precise edits")
 {
 	Document doc{makeSequentialUuidSource()};
 	EditController editor{doc, {}};
@@ -30,13 +30,13 @@ TEST_CASE("manual measurements use three clicks, snap endpoints and persist reve
 	editor.setMode(EditMode::Dimension);
 	REQUIRE(editor.pointerPressed(above(1, 2)).ok());
 	CHECK(doc.project().dimensions.empty());
-	REQUIRE(editor.pointerPressed(above(3002, 4003)).ok());
+	REQUIRE(editor.pointerPressed(above(3001, 4002)).ok());
 	CHECK(doc.project().dimensions.empty());
-	editor.pointerMoved(above(-500, 2000));
+	editor.pointerMoved(above(-499, 2002));
 	REQUIRE(editor.dimensionPreview());
-	CHECK(editor.dimensionPreview()->start == Point2D{0, 0});
-	CHECK(editor.dimensionPreview()->end == Point2D{3000, 4000});
-	REQUIRE(editor.pointerPressed(above(-500, 2000)).ok());
+	CHECK(editor.dimensionPreview()->start == Point2D{1, 2});
+	CHECK(editor.dimensionPreview()->end == Point2D{3001, 4002});
+	REQUIRE(editor.pointerPressed(above(-499, 2002)).ok());
 	REQUIRE(doc.project().dimensions.size() == 1);
 	const Dimension original = doc.project().dimensions.front();
 	CHECK(editor.mode() == EditMode::Select);
@@ -67,6 +67,36 @@ TEST_CASE("manual measurements use three clicks, snap endpoints and persist reve
 	REQUIRE(editor.redo().ok());
 	CHECK(doc.project().dimensions.empty());
 	CHECK(doc.project().walls.empty());
+}
+
+TEST_CASE("manual dimensions near wall faces and corners bypass construction snapping at millimetre resolution")
+{
+	Document doc{makeSequentialUuidSource()};
+	REQUIRE(doc.addWall({0, 0}, {4000, 0}, 120, 2800).ok());
+	EditController editor{doc, {}};
+	dimensions(editor);
+	editor.setMode(EditMode::Dimension);
+	REQUIRE(editor.pointerPressed(above(61.4, 60.5)).ok());
+	editor.pointerMoved(above(3938.4, 60.5));
+	REQUIRE(editor.dimensionPreview());
+	CHECK(editor.dimensionPreview()->start == Point2D{61, 61});
+	CHECK(editor.dimensionPreview()->end == Point2D{3938, 61});
+	REQUIRE(editor.pointerPressed(above(3938.4, 60.5)).ok());
+	REQUIRE(editor.pointerPressed(above(2000, 500)).ok());
+	const Dimension measurement = doc.project().dimensions.front();
+	CHECK(measurement.start == Point2D{61, 61});
+	CHECK(measurement.end == Point2D{3938, 61});
+	CHECK(measurement.offsetMm == 439);
+	CHECK(hasFigure(drawing::buildPlanDrawing(doc.project(), editor.activeLevel()), "3.877"));
+	const auto reopened = readProjectJson(writeProjectJson(doc.project()));
+	REQUIRE(reopened.ok());
+	CHECK(reopened.value().dimensions.front() == measurement);
+	REQUIRE(editor.undo().ok());
+	CHECK(doc.project().dimensions.empty());
+	REQUIRE(editor.redo().ok());
+	CHECK(doc.project().dimensions.front() == measurement);
+	CHECK(doc.project().walls.front().start == Point2D{0, 0});
+	CHECK(doc.project().walls.front().end == Point2D{4000, 0});
 }
 
 TEST_CASE("cancel, invalid endpoints and off-plane input do not create measurements or damage undo history")

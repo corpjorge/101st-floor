@@ -150,11 +150,17 @@ namespace f101::geometry
 		std::vector<std::vector<double>> splits(count);
 		std::vector<std::optional<cad::PlanPoint>> startJoin(count);
 		std::vector<std::optional<cad::PlanPoint>> endJoin(count);
+		// Initialize every host before adding junctions; later walls must not erase
+		// splits contributed by an earlier wall's endpoint.
 		for (std::size_t index = 0; index < count; ++index)
 		{
 			const cad::Wall& wall = walls[index];
 			F101_ASSERT(cad::validateWallGeometry(wall).ok());
 			splits[index] = {0.0, wall.lengthMm()};
+		}
+		for (std::size_t index = 0; index < count; ++index)
+		{
+			const cad::Wall& wall = walls[index];
 			for (const bool atStart : {true, false})
 			{
 				if (const std::optional<Host> host = findHost(project, index, atStart ? wall.start : wall.end))
@@ -221,7 +227,15 @@ namespace f101::geometry
 			{
 				if (points[k] != points[k + 1])
 				{
-					edges.push_back(Edge{points[k], points[k + 1], index, k});
+					// Overlapping collinear wall ends share an axis segment. Walking it twice
+					// creates a spurious face and can erase an otherwise closed room.
+					const Edge candidate{points[k], points[k + 1], index, k};
+					const auto duplicate = std::find_if(edges.begin(), edges.end(), [&](const Edge& edge) {
+						return (edge.from == candidate.from && edge.to == candidate.to) ||
+							(edge.from == candidate.to && edge.to == candidate.from);
+					});
+					if (duplicate == edges.end()) edges.push_back(candidate);
+					else if (walls[index].id < walls[duplicate->wall].id) *duplicate = candidate;
 				}
 			}
 		}

@@ -1,8 +1,13 @@
 # Nombres de habitaciones
 
 En **Diseñar → Seleccionar**, haz clic en el suelo de una habitación cerrada por
-muros. En el panel de propiedades, escribe **Nombre** y pulsa Enter o sal del campo.
+muros. En el panel de propiedades, escribe **Habitación** y pulsa Enter o sal del campo.
 En ventanas pequeñas, abre **Propiedades** para ver el mismo control.
+
+**Nombre de planta** cambia el piso completo, no el espacio seleccionado. Para
+poner «Baño», pulsa **V**, haz clic dentro del baño y usa el campo **Habitación**.
+Desde 0.1.4 también se reconocen los espacios cerrados por tramos de pared
+colineales solapados; no necesitas mover sus extremos ni reconstruirlos.
 
 Puedes escribir Cocina, Sala de estar, Baño o cualquier nombre de una sola línea.
 Los cambios aparecen en el rótulo sobre el suelo y en el plano 2D. Las exportaciones
@@ -20,6 +25,17 @@ las claves derivadas de los muros; ver [ADR-0029](adr/0029-room-names.md) para l
 limitaciones de reasociación al eliminar muros.
 
 ## Verificación
+
+Corrección 0.1.4: 300 pruebas C++ / 13.702 aserciones y 85 pruebas Unreal
+aprobadas (`Saved/Automation/20261005-125129`). La regresión
+`Floor101.Interaction.OverlappingRoomNames` carga tramos solapados, selecciona
+el interior, renombra «Baño» y verifica plano y guardado/reapertura sin mover
+los muros. También se revisó una copia aislada del plano que originó el reporte.
+
+![Baño reconocido y editable](images/bathroom-overlap-fixed.png)
+![Propiedades del baño en ventana pequeña](images/bathroom-overlap-small.png)
+
+Validación de la entrega inicial 0.1.1:
 
 - 281 tests C++ y 13.090 aserciones aprobadas: renombrar, borrar, notificación,
   deshacer/rehacer, UTF-8, validación de archivos, planos y división de habitaciones.
