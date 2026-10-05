@@ -44,3 +44,11 @@ Consumidores: la vista 2D y la exportación PNG (`SFloor101PlanView` en el módu
 
 Tests: `Tests/Unit/PlanDrawingTests.cpp`, `FurnitureTests.cpp` (muebles en el plano) y `ServicesTests.cpp` (pilares, vainas,
 anillos y tintes de las instalaciones).
+
+## Cotas editables
+
+`PlanDrawing::dimensions` devuelve anotaciones visibles con identidad para selección.
+Las manuales y las preferencias de automáticas provienen de `Project::dimensions`.
+`PlanOverlay::selectedDimension` y `previewDimension` resaltan selección y gestos;
+exportar omite estas marcas. SVG y PNG respetan ocultación, separación y rótulos.
+Ver [guía](dimensions.md) y [ADR-0031](adr/0031-editable-dimensions.md).

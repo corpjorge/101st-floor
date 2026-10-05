@@ -24,6 +24,8 @@ public:
 		};
 		switch (Mode)
 		{
+		case EditMode::Dimension:
+			Line({{3,3},{3,16}}); Line({{15,3},{15,16}}); Line({{1,10},{17,10}}); Line({{1,12},{5,8}}); Line({{13,12},{17,8}}); break;
 		case EditMode::Wall:
 			Line({{2,3},{16,3},{16,15},{2,15},{2,3}}); Line({{2,7},{16,7}}); Line({{2,11},{16,11}}); Line({{7,3},{7,7}}); Line({{11,7},{11,11}}); Line({{7,11},{7,15}}); break;
 		case EditMode::Door:

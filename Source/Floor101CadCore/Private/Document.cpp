@@ -90,6 +90,7 @@ namespace f101::cad
 		}
 
 		// Identity of each kind of entity in a transaction.
+		const std::string& keyOf(const Dimension& entry) { return entry.id; }
 		const WallId& keyOf(const Wall& wall) { return wall.id; }
 		const LevelId& keyOf(const Level& level) { return level.id; }
 		const std::string& keyOf(const RoomFinish& finish) { return finish.room; }
@@ -177,6 +178,7 @@ namespace f101::cad
 			{
 				changes.changedRoomFinishes.push_back(change.id);
 			}
+			for (const DimensionChange& change : transaction.dimensions) changes.changedDimensions.push_back(change.id);
 			for (const RoomBaseboardChange& change : transaction.roomBaseboards) changes.changedRoomBaseboards.push_back(change.id);
 			for (const RoomNameChange& change : transaction.roomNames) changes.changedRoomNames.push_back(change.id);
 			sortChanges(transaction.furniture, forward, changes.addedFurniture, changes.modifiedFurniture,
@@ -248,6 +250,9 @@ namespace f101::cad
 			std::string_view operator()(const SetWallFinishCommand&) const { return "Change finish"; }
 			std::string_view operator()(const SetRoomFinishCommand&) const { return "Change room finish"; }
 			std::string_view operator()(const SetRoomNameCommand&) const { return "Rename room"; }
+			std::string_view operator()(const SetDimensionCommand&) const { return "Edit dimension"; }
+			std::string_view operator()(const DeleteDimensionCommand&) const { return "Delete dimension"; }
+			std::string_view operator()(const ResetDimensionsCommand&) const { return "Restore automatic dimensions"; }
 			std::string_view operator()(const SetRoomBaseboardCommand&) const { return "Change baseboard"; }
 			std::string_view operator()(const AddFurnitureCommand&) const { return "Add furniture"; }
 			std::string_view operator()(const ChangeFurnitureCommand&) const { return "Change furniture"; }
@@ -349,6 +354,12 @@ namespace f101::cad
 			{
 				return valid;
 			}
+		}
+		std::set<std::string> dimensionIds;
+		for (const Dimension& entry : project.dimensions)
+		{
+			if (!dimensionIds.insert(entry.id).second) return Error{ErrorCode::InvalidArgument, "Duplicate dimension id"};
+			if (Status valid = validateDimension(project, entry); !valid) return valid;
 		}
 		std::set<std::string> trimmedRooms;
 		for (const RoomBaseboard& entry : project.roomBaseboards)
@@ -665,6 +676,11 @@ namespace f101::cad
 						FurnitureChange{model.furniture[piece].id, piece, model.furniture[piece], std::nullopt});
 				}
 			}
+			for (std::size_t i = 0; i < model.dimensions.size(); ++i)
+			{
+				const Dimension& entry = model.dimensions[i];
+				if (entry.level == removal->level) transaction.dimensions.push_back({entry.id, i, entry, std::nullopt});
+			}
 			for (std::size_t column = 0; column < model.columns.size(); ++column)
 			{
 				if (model.columns[column].level == removal->level)
@@ -916,6 +932,41 @@ namespace f101::cad
 				return Status::success();
 			});
 		}
+		if (const auto* setting = std::get_if<SetDimensionCommand>(&command))
+		{
+			Dimension entry = setting->dimension;
+			if (entry.id.empty()) entry.id = toString(newUuid());
+			const auto level = resolveLevel(model, entry.level);
+			if (!level) return level.error();
+			entry.level = level.value();
+			if (Status valid = validateDimension(model, entry); !valid) return valid.error();
+			const auto index = findIndex(model.dimensions, entry.id);
+			const std::optional<Dimension> before = index ? std::optional<Dimension>(model.dimensions[*index]) : std::nullopt;
+			Transaction transaction{label, {}, {}};
+			if (before != std::optional<Dimension>(entry))
+				transaction.dimensions.push_back({entry.id, index.value_or(model.dimensions.size()), before, entry});
+			return transaction;
+		}
+		if (const auto* removal = std::get_if<DeleteDimensionCommand>(&command))
+		{
+			const auto index = findIndex(model.dimensions, removal->id);
+			if (!index) return Error{ErrorCode::NotFound, "No dimension with id " + removal->id};
+			Transaction transaction{label, {}, {}};
+			transaction.dimensions.push_back({removal->id, *index, model.dimensions[*index], std::nullopt});
+			return transaction;
+		}
+		if (const auto* reset = std::get_if<ResetDimensionsCommand>(&command))
+		{
+			const auto level = resolveLevel(model, reset->level);
+			if (!level) return level.error();
+			Transaction transaction{label, {}, {}};
+			for (std::size_t i = 0; i < model.dimensions.size(); ++i)
+			{
+				const auto& entry = model.dimensions[i];
+				if (entry.automatic && entry.level == level.value()) transaction.dimensions.push_back({entry.id, i, entry, std::nullopt});
+			}
+			return transaction;
+		}
 		if (const auto* setting = std::get_if<SetRoomBaseboardCommand>(&command))
 		{
 			const RoomBaseboard& entry = setting->baseboard;
@@ -1132,6 +1183,7 @@ namespace f101::cad
 		}
 		for (const Project* side : {&model, &replacement})
 		{
+			for (const Dimension& entry : side->dimensions) changes.changedDimensions.push_back(entry.id);
 			for (const RoomBaseboard& entry : side->roomBaseboards) changes.changedRoomBaseboards.push_back(entry.room);
 			for (const RoomName& entry : side->roomNames) changes.changedRoomNames.push_back(entry.room);
 			for (const RoomFinish& finish : side->roomFinishes)
@@ -1270,6 +1322,7 @@ namespace f101::cad
 		applyChanges(model.roomFinishes, transaction.roomFinishes, forward);
 		applyChanges(model.roomNames, transaction.roomNames, forward);
 		applyChanges(model.roomBaseboards, transaction.roomBaseboards, forward);
+		applyChanges(model.dimensions, transaction.dimensions, forward);
 		applyChanges(model.furniture, transaction.furniture, forward);
 		applyChanges(model.columns, transaction.columns, forward);
 		applyChanges(model.services, transaction.services, forward);

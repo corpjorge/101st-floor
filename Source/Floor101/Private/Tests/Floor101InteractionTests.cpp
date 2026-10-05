@@ -97,6 +97,7 @@ bool FFloor101KeyMapTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("M: paint"), Map(EKeys::M) == Command::PaintTool);
 	TestTrue(TEXT("G: furniture"), Map(EKeys::G) == Command::FurnitureTool);
 	TestTrue(TEXT("C: column"), Map(EKeys::C) == Command::ColumnTool);
+	TestTrue(TEXT("H: manual dimensions"), Map(EKeys::H) == Command::DimensionTool);
 	TestTrue(TEXT("I: services run"), Map(EKeys::I) == Command::ServicesTool);
 	TestTrue(TEXT("X: services layer"), Map(EKeys::X) == Command::ServicesLayer);
 	TestTrue(TEXT("C typed in a length is text ('355 cm')"),
@@ -735,6 +736,46 @@ bool FFloor101BaseboardsTest::RunTest(const FString& Parameters)
 	const auto* Setting = Document->GetDocument().project().findRoomBaseboard(TCHAR_TO_UTF8(*Key));
 	TestTrue(TEXT("settings persisted"), Setting && Setting->enabled && Setting->heightMm == 150 && Setting->thicknessMm == 18 && Setting->finish == "wood-walnut");
 	TestNotNull(TEXT("reopened geometry"), FindNode(TestWorld.World, Key + TEXT("/baseboard")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101DimensionsTest, "Floor101.Interaction.Dimensions", InteractionTestFlags)
+bool FFloor101DimensionsTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) return false;
+	const auto Wall = Document->GetMutableDocument().addWall({0, 0}, {4000, 0}, 120, 2800).value();
+	Document->SetPlanView(true);
+	TestTrue(TEXT("measurement tool"), Document->Edit([](EditController& E) { E.setMode(f101::cad::EditMode::Dimension); return f101::Status::success(); }).ok());
+	for (const auto Point : {f101::cad::Point2D{500, 500}, f101::cad::Point2D{3500, 500}, f101::cad::Point2D{1500, 1500}})
+	{
+		TestTrue(TEXT("point"), Document->Edit([Point](EditController& E) { return E.pointerPressed(Down(static_cast<double>(Point.x_mm), static_cast<double>(Point.y_mm))); }).ok());
+	}
+	if (!TestEqual(TEXT("one saved manual dimension"), static_cast<int32>(Document->GetDocument().project().dimensions.size()), 1)) return false;
+	const auto Manual = Document->GetDocument().project().dimensions.front();
+	TestTrue(TEXT("current selection"), Document->GetEditController().selectedDimension().has_value());
+	TestEqual(TEXT("3000 mm measurement"), (Manual.end - Manual.start).lengthMm(), 3000.0);
+	TestTrue(TEXT("edit label"), Document->Edit([](EditController& E) { return E.setDimensionText("Paso libre"); }).ok());
+	TestTrue(TEXT("same drawing for UI and export"), std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
+		[](const auto& Label) { return Label.text == "Paso libre"; }));
+	const auto Automatic = *std::find_if(Document->GetPlanDrawing().dimensions.begin(), Document->GetPlanDrawing().dimensions.end(), [](const auto& D) { return D.automatic; });
+	TestTrue(TEXT("select automatic"), Document->Edit([Automatic](EditController& E) { return E.selectDimension(Automatic.id); }).ok());
+	TestTrue(TEXT("hide automatic"), Document->Edit([](EditController& E) { return E.deleteSelection(); }).ok());
+	TestEqual(TEXT("only manual remains visible"), static_cast<int32>(Document->GetPlanDrawing().dimensions.size()), 1);
+	TestEqual(TEXT("wall length unchanged"), Document->GetDocument().project().findWall(Wall)->lengthMm(), 4000.0);
+	const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101/Dimensions/project.json")));
+	TestTrue(TEXT("save"), Document->SaveProject(Path).ok());
+	TestTrue(TEXT("new"), Document->NewProject().ok());
+	TestTrue(TEXT("reopen"), Document->OpenProject(Path).ok());
+	Document->SetPlanView(true);
+	TestEqual(TEXT("deletion persists"), static_cast<int32>(Document->GetPlanDrawing().dimensions.size()), 1);
+	TestTrue(TEXT("restore automatic"), Document->Edit([](EditController& E) { return E.restoreAutomaticDimensions(); }).ok());
+	TestEqual(TEXT("both visible"), static_cast<int32>(Document->GetPlanDrawing().dimensions.size()), 2);
+	TestTrue(TEXT("undo restore"), Document->Edit([](EditController& E) { return E.undo(); }).ok());
+	TestEqual(TEXT("hidden again"), static_cast<int32>(Document->GetPlanDrawing().dimensions.size()), 1);
+	Document->SetPlanView(false);
+	TestTrue(TEXT("no annotation selection in 3D"), !Document->GetEditController().selectedDimension());
 	return true;
 }
 

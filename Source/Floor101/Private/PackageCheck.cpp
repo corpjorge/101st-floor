@@ -11,6 +11,7 @@
 #include "F101/Assets/Library.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
+#include "F101/Drawing/PlanDrawing.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
@@ -100,6 +101,18 @@ namespace Floor101::PackageCheck
 					Check(Finishes->GetAssetFinishImage(UTF8_TO_TCHAR(Ref.c_str())) != nullptr, TEXT("texture_decode"));
 				}
 				Check(Document->GetMutableDocument().addWall({1000,-1000},{1000,5000},120,2800).ok() && Document->GetDocument().project().walls.size() > 5, TEXT("automatic_wall_split"));
+				Viewport->SetPlanView(true);
+				Check(Document->Edit([](f101::cad::EditController& E) { E.setMode(f101::cad::EditMode::Dimension); return f101::Status::success(); }).ok(), TEXT("dimension_tool"));
+				for (const auto Point : {f101::cad::Point2D{1500,1000}, f101::cad::Point2D{3500,1000}, f101::cad::Point2D{2500,1600}})
+					Check(Document->Edit([Point](f101::cad::EditController& E) { return E.pointerPressed({static_cast<double>(Point.x_mm),static_cast<double>(Point.y_mm),10000,0,0,-1}); }).ok(), TEXT("dimension_click"));
+				Check(Document->GetDocument().project().dimensions.size() == 1, TEXT("dimension_manual"));
+				Check(Document->Edit([](f101::cad::EditController& E) { return E.setDimensionText("Paso libre"); }).ok(), TEXT("dimension_label"));
+				const auto Automatic = Document->GetPlanDrawing().dimensions.front();
+				Check(Document->Edit([Automatic](f101::cad::EditController& E) { return E.selectDimension(Automatic.id); }).ok(), TEXT("dimension_select_automatic"));
+				Check(Document->Edit([](f101::cad::EditController& E) { return E.setDimensionOffset("-150 cm"); }).ok(), TEXT("dimension_edit_automatic"));
+				Check(Document->Edit([](f101::cad::EditController& E) { return E.deleteSelection(); }).ok(), TEXT("dimension_delete_automatic"));
+				Check(Document->Edit([](f101::cad::EditController& E) { return E.undo(); }).ok(), TEXT("dimension_undo"));
+				Check(Document->Edit([](f101::cad::EditController& E) { return E.redo(); }).ok(), TEXT("dimension_redo"));
 				const auto Walls = Document->GetDocument().project().walls.size();
 				Check(Document->SaveProject(FPaths::Combine(Directory, TEXT("project.json"))).ok(), TEXT("save_project"));
 				Check(Document->NewProject().ok() && Document->OpenProject(FPaths::Combine(Directory, TEXT("project.json"))).ok() &&
@@ -112,11 +125,16 @@ namespace Floor101::PackageCheck
 					BaseboardsPersisted = BaseboardsPersisted && B && B->enabled && B->heightMm == 150 && B->finish == "wood-walnut";
 				}
 				Check(BaseboardsPersisted, TEXT("baseboard_division_reopen"));
+				const auto* HiddenDimension = Document->GetDocument().project().findDimension(Automatic.id);
+				Check(HiddenDimension && HiddenDimension->automatic && HiddenDimension->hidden && HiddenDimension->offsetMm == -1500 &&
+					Document->GetDocument().project().dimensions.size() == 2, TEXT("dimensions_reopen"));
 				Check(Document->ExportPlan(FPaths::Combine(Directory, TEXT("plan.svg")), {}).ok(), TEXT("export_svg"));
 				FString NamedSvg;
 				Check(FFileHelper::LoadFileToString(NamedSvg, *FPaths::Combine(Directory, TEXT("plan.svg"))) && NamedSvg.Contains(TEXT("Cocina")), TEXT("room_name_svg"));
+				Check(NamedSvg.Contains(TEXT("Paso libre")), TEXT("dimension_svg"));
 				Check(Document->ExportPlan(FPaths::Combine(Directory, TEXT("plan.png")), {}).ok(), TEXT("export_png"));
 				Check(Document->ExportGltf(FPaths::Combine(Directory, TEXT("scene.glb"))).ok(), TEXT("export_glb"));
+				Viewport->SetPlanView(false);
 				Viewport->FrameProject();
 				(void)Document->Edit([](f101::cad::EditController& E) { E.setMode(f101::cad::EditMode::Select); return f101::Status::success(); });
 				FSlateApplication::Get().SetAllUserFocusToGameViewport();

@@ -137,7 +137,9 @@ int32 SFloor101PlanView::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 	const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	for (const f101::drawing::Label& Label : Plan->labels)
 	{
-		const float FontSize = static_cast<float>(Label.heightMm * Map.Scale * FontSizePerCapHeight);
+		float FontSize = static_cast<float>(Label.heightMm * Map.Scale * FontSizePerCapHeight);
+		if (Mapped.IsSet() && (Label.ink == Ink::Dimension || Label.ink == Ink::DimensionSelected))
+			FontSize = FMath::Max(12.0f, FontSize); // legible on screen; exports retain their physical text size
 		if (FontSize < MinFontSize)
 		{
 			continue;

@@ -377,6 +377,11 @@ void SFloor101Overlay::Tick(const FGeometry& AllottedGeometry, const double InCu
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 	ViewSize = AllottedGeometry.GetLocalSize();
+	if (auto* S = Document.Get(); S && S->IsPlanView())
+	{
+		if (const auto Map = GetPlanMapping(AllottedGeometry); Map.IsSet())
+			S->SetDimensionPickTolerance(8.0 / Map->Scale);
+	}
 	if (FSlateApplication::IsInitialized())
 	{
 		CursorPosition = AllottedGeometry.AbsoluteToLocal(FSlateApplication::Get().GetCursorPos());
@@ -567,7 +572,8 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolRail()
 		{EditMode::Column, LOCTEXT("StudioColumn", "Columna · C")},
 		{EditMode::Services, LOCTEXT("StudioServices", "Instalaciones · I")},
 		{EditMode::Furniture, LOCTEXT("StudioFurniture", "Muebles · G")},
-		{EditMode::Paint, LOCTEXT("StudioPaint", "Materiales · M")}
+		{EditMode::Paint, LOCTEXT("StudioPaint", "Materiales · M")},
+		{EditMode::Dimension, LOCTEXT("StudioDimensions", "Cotas · H")}
 	};
 	for (const auto& Entry : Modes)
 	{
@@ -581,7 +587,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolRail()
 				const auto* S = Document.Get();
 				return S && S->GetEditController().mode() == Mode ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
 			})
-			.OnClicked_Lambda([this, Mode]() { return Run([Mode](EditController& E) { E.setMode(Mode); return f101::Status::success(); }); })
+			.OnClicked_Lambda([this, Mode]()
+			{
+				if (Mode == EditMode::Dimension) { if (auto* C = ViewportClient.Get()) { C->SetPlanView(true); } }
+				return Run([Mode](EditController& E) { E.setMode(Mode); return f101::Status::success(); });
+			})
 			.ForegroundColor_Lambda([this, Mode]()
 			{
 				const auto* S = Document.Get();
@@ -650,6 +660,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
 			{
 				Run([](EditController& E) { E.setShowServices(!E.showsServices()); return f101::Status::success(); });
 			})));
+			Menu.AddMenuEntry(LOCTEXT("RestoreDimensions", "Restaurar cotas automáticas de esta planta"),
+				LOCTEXT("RestoreDimensionsTip", "Recupera cotas ocultas y sus rótulos y posiciones originales. Se puede deshacer."),
+				FSlateIcon(), FUIAction(FExecuteAction::CreateLambda([this]() { Run([](EditController& E) { return E.restoreAutomaticDimensions(); }); })));
 			Menu.AddWidget(MakeNetworksRow(), FText::GetEmpty());
 			return Menu.MakeWidget();
 		})
@@ -768,7 +781,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
 							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
-								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
+								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I · Cotas: H\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
@@ -807,6 +820,23 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 			Run([](EditController& E) { return E.setSelectedBaseboardFinish("wood-walnut"); });
 		}
 
+		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
+	}
+	if (Screen == TEXT("dimensions") && Document.IsValid())
+	{
+		if (auto* C = ViewportClient.Get()) C->SetPlanView(true);
+		Run([](EditController& E)
+		{
+			E.setMode(EditMode::Dimension);
+			for (const auto Point : {f101::cad::Point2D{500, 500}, f101::cad::Point2D{3500, 500}, f101::cad::Point2D{1500, 1500}})
+			{
+				const f101::cad::Ray3 Ray{static_cast<double>(Point.x_mm), static_cast<double>(Point.y_mm), 10000, 0, 0, -1};
+				if (const auto Status = E.pointerPressed(Ray); !Status) return Status;
+				(void)E.pointerReleased(Ray);
+			}
+			return f101::Status::success();
+		});
+		if (auto* C = ViewportClient.Get()) C->FrameProject();
 		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
 	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
@@ -1069,6 +1099,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 	auto OpeningVisible = [this]() { return GetSelectedOpening() ? EVisibility::Visible : EVisibility::Collapsed; };
 
 	return SNew(SBox)
+		.MaxDesiredHeight_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Max(180.0, ViewSize.Y - 200.0))); })
 		.WidthOverride_Lambda([this]()
 		{
 			// Wider for two readable catalogue cards per row and the services' height presets.
@@ -1081,17 +1112,18 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 			const UFloor101DocumentSubsystem* S = Document.Get();
 			const EditMode Mode = S ? S->GetEditController().mode() : EditMode::Select;
 			const bool bTool = Mode == EditMode::Paint || Mode == EditMode::Furniture || Mode == EditMode::Door || Mode == EditMode::Window ||
-				Mode == EditMode::Column || Mode == EditMode::Services;
+				Mode == EditMode::Column || Mode == EditMode::Services || Mode == EditMode::Dimension;
 			if (IsPhotoMode())
 			{
 				return EVisibility::Collapsed;
 			}
 			return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() || GetSelectedColumn() || GetSelectedServiceRun() ||
-				GetSelectedRoom() || IsLevelPanelShown() || bTool
+				GetSelectedRoom() || GetSelectedDimension() || IsLevelPanelShown() || bTool
 				? EVisibility::Visible : EVisibility::Collapsed;
 		})
 		[
-			Panel(
+			SNew(SScrollBox) + SScrollBox::Slot()
+			[Panel(
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
 				[
@@ -1202,6 +1234,10 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 				]
 				+ SVerticalBox::Slot().AutoHeight()
 				[
+					MakeDimensionSection()
+				]
+				+ SVerticalBox::Slot().AutoHeight()
+				[
 					MakeRoomSection()
 				]
 				+ SVerticalBox::Slot().AutoHeight()
@@ -1249,14 +1285,14 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					.IsFocusable(false)
 					.Visibility_Lambda([this]()
 					{
-						return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() || GetSelectedColumn() || GetSelectedServiceRun()
+						return GetSelectedWall() || GetSelectedOpening() || GetSelectedFurniture() || GetSelectedColumn() || GetSelectedServiceRun() || GetSelectedDimension()
 							? EVisibility::Visible : EVisibility::Collapsed;
 					})
 					.OnClicked_Lambda([this]() { return Run([](EditController& Editor) { return Editor.deleteSelection(); }); })
 					[
 						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("Delete", "Eliminar (Supr)")).Font(Font(10))
 					]
-				])
+				])]
 		];
 }
 
@@ -1902,7 +1938,7 @@ bool SFloor101Overlay::IsLevelPanelShown() const
 {
 	const UFloor101DocumentSubsystem* Subsystem = Document.Get();
 	return Subsystem && Subsystem->GetEditController().mode() == EditMode::Select && !GetSelectedWall() && !GetSelectedOpening() &&
-		!GetSelectedFurniture() && !GetSelectedColumn() && !GetSelectedServiceRun() && !GetSelectedRoom() && GetActiveLevel();
+		!GetSelectedFurniture() && !GetSelectedColumn() && !GetSelectedServiceRun() && !GetSelectedRoom() && !GetSelectedDimension() && GetActiveLevel();
 }
 
 std::optional<f101::cad::Furniture> SFloor101Overlay::GetSelectedFurniture() const
@@ -3155,6 +3191,68 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		];
 }
 
+std::optional<f101::cad::Dimension> SFloor101Overlay::GetSelectedDimension() const
+{
+	const auto* S = Document.Get();
+	return S ? S->GetEditController().selectedDimension() : std::nullopt;
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeDimensionSection()
+{
+	auto D = [this]() { return GetSelectedDimension(); };
+	TSharedRef<SVerticalBox> Fields = SNew(SVerticalBox);
+	const FText Names[] = {LOCTEXT("DimensionStartX", "Inicio X"), LOCTEXT("DimensionStartY", "Inicio Y"),
+		LOCTEXT("DimensionEndX", "Fin X"), LOCTEXT("DimensionEndY", "Fin Y")};
+	for (int Coordinate = 0; Coordinate < 4; ++Coordinate)
+	{
+		Fields->AddSlot().AutoHeight().Padding(0.0f, 2.0f)
+		[MakeEditRow(Names[Coordinate], [D, Coordinate]()
+		{
+			const auto Value = D();
+			if (!Value) return FText::GetEmpty();
+			const int64 Mm = Coordinate == 0 ? Value->start.x_mm : Coordinate == 1 ? Value->start.y_mm : Coordinate == 2 ? Value->end.x_mm : Value->end.y_mm;
+			return FText::FromString(FString::Printf(TEXT("%lld mm"), Mm));
+		}, [this, Coordinate](const FString& Text)
+		{
+			const std::string Value = TCHAR_TO_UTF8(*Text);
+			Run([&Value, Coordinate](EditController& E) { return E.setDimensionCoordinate(Value, Coordinate); });
+		})];
+	}
+	return SNew(SVerticalBox).Visibility_Lambda([this, D]()
+	{
+		const auto* S = Document.Get();
+		return D() || (S && S->GetEditController().mode() == EditMode::Dimension) ? EVisibility::Visible : EVisibility::Collapsed;
+	})
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+		[SNew(STextBlock).Text(LOCTEXT("DimensionTitle", "Cotas del plano")).Font(Font(11, true)).ColorAndOpacity(FSlateColor::UseForeground())]
+		+ SVerticalBox::Slot().AutoHeight()
+		[SNew(STextBlock).AutoWrapText(true).Font(Font(9)).ColorAndOpacity(MutedColor).Text_Lambda([D]()
+		{
+			const auto Value = D();
+			if (!Value) return LOCTEXT("DimensionHow", "Elige dos puntos y después coloca la línea con un tercer clic. Las cotas miden en planta.");
+			return FText::Format(LOCTEXT("DimensionReal", "{0} · distancia real: {1}"),
+				Value->automatic ? LOCTEXT("DimensionAuto", "Automática") : LOCTEXT("DimensionManual", "Manual"),
+				FText::FromString(UTF8_TO_TCHAR(f101::cad::formatLength((Value->end - Value->start).lengthMm(), f101::cad::LengthUnit::Meter).c_str())));
+		})]
+		+ SVerticalBox::Slot().AutoHeight()
+		[SNew(SVerticalBox).Visibility_Lambda([D]() { return D() ? EVisibility::Visible : EVisibility::Collapsed; })
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)
+			[MakePropertyRow(LOCTEXT("DimensionOffset", "Separación"), [D]() -> TOptional<double>
+			{ const auto Value = D(); return Value ? TOptional<double>(static_cast<double>(Value->offsetMm)) : TOptional<double>(); }, &EditController::setDimensionOffset)]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f)
+			[MakeTextRow(LOCTEXT("DimensionText", "Rótulo"), [D]()
+			{ const auto Value = D(); return Value ? FText::FromString(UTF8_TO_TCHAR(Value->text.c_str())) : FText::GetEmpty(); }, &EditController::setDimensionText)]
+			+ SVerticalBox::Slot().AutoHeight()
+			[SNew(STextBlock).AutoWrapText(true).Font(Font(9)).ColorAndOpacity(MutedColor)
+				.Text(LOCTEXT("DimensionTextHint", "Rótulo vacío = medida real. Separación negativa = otro lado. Editar la cota no modifica el modelo."))]
+			+ SVerticalBox::Slot().AutoHeight()
+			[SNew(SBox).Visibility_Lambda([D]() { const auto Value = D(); return Value && !Value->automatic ? EVisibility::Visible : EVisibility::Collapsed; })[Fields]]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f)
+			[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).IsFocusable(false).ContentPadding(FMargin(10.0f, 6.0f))
+				.OnClicked_Lambda([this]() { return Run([](EditController& E) { return E.setDimensionText(""); }); })
+				[SNew(STextBlock).Text(LOCTEXT("DimensionResetText", "Usar medida real")).Font(Font(10)).ColorAndOpacity(FSlateColor::UseForeground())]]];
+}
+
 FText SFloor101Overlay::GetHintText() const
 {
 	if (const UFloor101GameViewportClient* Client = ViewportClient.Get(); Client && Client->IsNavigationMode())
@@ -3173,6 +3271,13 @@ FText SFloor101Overlay::GetHintText() const
 		return LOCTEXT("HintPhoto", "Foto · derecho arrastrando: orbitar · central: desplazar · rueda: zoom · al mover la cámara la imagen empieza de nuevo · R o Esc: volver a editar");
 	}
 	const EditController& Editor = Subsystem->GetEditController();
+	if (Editor.mode() == EditMode::Dimension)
+	{
+		return Editor.dimensionPointCount() == 0 ? LOCTEXT("DimensionStart", "Cota · clic: primer punto · Esc: cancelar") :
+			Editor.dimensionPointCount() == 1 ? LOCTEXT("DimensionEnd", "Cota · clic: segundo punto · Esc: cancelar") :
+			LOCTEXT("DimensionPlace", "Cota · clic: colocar línea · Esc: cancelar");
+	}
+	if (GetSelectedDimension()) return LOCTEXT("DimensionSelectedHint", "Cota · arrastrar línea: mover · Propiedades: editar · Supr: quitar · Ctrl+Z: deshacer");
 	if (Editor.mode() == EditMode::Wall)
 	{
 		return Editor.wallTool().state() == f101::cad::WallTool::State::Drafting
@@ -3295,7 +3400,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
 				{
 					if (!IsDesignMode()) { return GetHintText(); }
 					const auto* S = Document.Get();
-					return S && S->GetEditController().mode() != EditMode::Select ? GetHintText()
+					return S && (S->GetEditController().mode() != EditMode::Select || GetSelectedDimension()) ? GetHintText()
 						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Moverse · WASD   |   Acercarse · Rueda");
 				})
 				.ToolTipText_Lambda([this]() { return GetHintText(); })]]

@@ -755,6 +755,14 @@ namespace f101::cad
 		root["units"] = "mm";
 		root["levels"] = std::move(levels);
 		root["walls"] = std::move(walls);
+		if (!project.dimensions.empty())
+		{
+			Json entries = Json::array();
+			for (const Dimension& d : project.dimensions)
+				entries.push_back(Json{{"id", d.id}, {"level", toString(d.level)}, {"start", toJson(d.start)}, {"end", toJson(d.end)},
+					{"offsetMm", d.offsetMm}, {"text", d.text}, {"automatic", d.automatic}, {"hidden", d.hidden}});
+			root["dimensions"] = std::move(entries);
+		}
 		if (!project.roomBaseboards.empty())
 		{
 			Json entries = Json::array();
@@ -996,6 +1004,29 @@ namespace f101::cad
 					return finish.error();
 				}
 				project.roomFinishes.push_back(std::move(finish).value());
+			}
+		}
+		if (const auto entries = root.find("dimensions"); entries != root.end()) // schema 13
+		{
+			if (!entries->is_array()) return formatError("dimensions must be an array");
+			for (const Json& item : *entries)
+			{
+				if (!item.is_object() || !item.contains("id") || !item["id"].is_string() || !item.contains("automatic") ||
+					!item["automatic"].is_boolean() || !item.contains("hidden") || !item["hidden"].is_boolean())
+					return formatError("Invalid dimension entry");
+				const auto level = readUuidField(item, "level", "dimensions");
+				const auto start = readPoint(item, "start", "dimensions");
+				const auto end = readPoint(item, "end", "dimensions");
+				const auto offset = readMillimetersField(item, "offsetMm", "dimensions");
+				if (!level) return level.error();
+				if (!start) return start.error();
+				if (!end) return end.error();
+				if (!offset) return offset.error();
+				Dimension d{item["id"].get<std::string>(), LevelId{level.value()}, start.value(), end.value(), offset.value()};
+				if (Status read = readOptionalString(item, "text", "dimensions", d.text); !read) return read.error();
+				d.automatic = item["automatic"].get<bool>();
+				d.hidden = item["hidden"].get<bool>();
+				project.dimensions.push_back(std::move(d));
 			}
 		}
 		if (const auto entries = root.find("roomBaseboards"); entries != root.end()) // schema 12

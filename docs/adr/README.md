@@ -32,5 +32,8 @@
 
 | [0029](0029-room-names.md) | Nombres personalizados por habitación, transacciones, esquema 11 y rótulos compartidos | aceptado |
 
+| [0030](0030-room-baseboards.md) | Rodapiés por habitación con huecos y acabados persistentes | aceptado |
+| [0031](0031-editable-dimensions.md) | Cotas manuales y preferencias automáticas persistentes, comandos y esquema 13 | aceptado |
+
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

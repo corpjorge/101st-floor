@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
+#include "F101/Drawing/PlanDrawing.h"
 #include "Floor101.h"
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101Display.h"
@@ -413,6 +414,7 @@ EFloor101KeyCommand UFloor101GameViewportClient::MapKey(const FKey& Key, bool bC
 	if (Key == EKeys::M) { return EFloor101KeyCommand::PaintTool; }
 	if (Key == EKeys::G) { return EFloor101KeyCommand::FurnitureTool; }
 	if (Key == EKeys::C) { return EFloor101KeyCommand::ColumnTool; }
+	if (Key == EKeys::H) { return EFloor101KeyCommand::DimensionTool; }
 	if (Key == EKeys::I) { return EFloor101KeyCommand::ServicesTool; }
 	if (Key == EKeys::X) { return EFloor101KeyCommand::ServicesLayer; }
 	if (Key == EKeys::Escape) { return EFloor101KeyCommand::Cancel; }
@@ -513,6 +515,10 @@ bool UFloor101GameViewportClient::HandleKey(UFloor101DocumentSubsystem& Document
 		break;
 	case EFloor101KeyCommand::Cancel: Edit(Always([](EditController& Editor) { Editor.cancel(); })); break;
 	case EFloor101KeyCommand::Confirm: Edit([](EditController& Editor) { return Editor.confirm(); }); break;
+	case EFloor101KeyCommand::DimensionTool:
+		SetPlanView(true);
+		Edit(Always([](EditController& E) { E.setMode(f101::cad::EditMode::Dimension); }));
+		break;
 	case EFloor101KeyCommand::Delete: Edit([](EditController& Editor) { return Editor.deleteSelection(); }); break;
 	case EFloor101KeyCommand::Frame: FrameProject(); break;
 	case EFloor101KeyCommand::TopView: ShowTopView(); break;
@@ -595,6 +601,16 @@ void UFloor101GameViewportClient::FrameProject()
 		Bounds += ScenePoint(Wall.end, Top);
 		Bounds += ScenePoint(Wall.start, Top);
 		Bounds += ScenePoint(Wall.end, Base);
+	}
+	if (IsPlanView())
+	{
+		const auto& Plan = Document->GetPlanDrawing();
+		if (!Plan.empty())
+		{
+			const double Base = static_cast<double>(f101::cad::levelElevationMm(Project, Editor.activeLevel()));
+			Bounds += FVector(Floor101::Conversion::ToUnrealPosition({Plan.min.x_mm, Plan.min.y_mm, Base}));
+			Bounds += FVector(Floor101::Conversion::ToUnrealPosition({Plan.max.x_mm, Plan.max.y_mm, Base}));
+		}
 	}
 	if (!Bounds.IsValid)
 	{

@@ -61,6 +61,7 @@ add_executable(Floor101UnitTests
 	PolygonGeometryTests.cpp
 	RoomTests.cpp
 	RoomNameTests.cpp
+	DimensionTests.cpp
 	BaseboardTests.cpp
 	LevelTests.cpp
 	FinishTests.cpp
