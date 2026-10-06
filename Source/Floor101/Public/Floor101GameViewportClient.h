@@ -56,7 +56,7 @@ enum class EFloor101KeyCommand : uint8
 // keys become commands, typed characters become the wall tool's length. Holds no editing logic of its own.
 // Input it does not use (and all input while the console is open) goes to the engine as usual.
 //
-// Mouse: left = select / draw / drag a handle, right drag = orbit, right click = cancel, middle drag = pan, wheel = zoom.
+// Mouse: left = select / draw / drag a handle, right drag = orbit, Shift + right drag = look in place, right click = cancel, middle drag = pan, wheel = zoom.
 // Keys: B wall, P door, O window, M paint, G furniture, C column, I services run, X services layer, V select, Enter, Esc,
 // Backspace, Delete, F frame all, T top view,
 // Tab 2D plan, R photo, Space flip hinges, Page Up / Page Down level up / down, L show every level, Ctrl+Z undo, Ctrl+Y / Ctrl+Shift+Z redo,
@@ -74,6 +74,8 @@ public:
 	virtual bool InputAxis(const FInputKeyEventArgs& EventArgs) override;
 	virtual bool InputChar(FViewport* InViewport, int32 ControllerId, TCHAR Character) override;
 	virtual void LostFocus(FViewport* InViewport) override;
+	// Dispatch a held right-button gesture. Looking latches until release, preserving the camera position.
+	void ApplyRightDrag(const FVector2D& DeltaPixels, bool bShift);
 	void SetNavigationMode(bool bNavigate);
 	bool IsNavigationMode() const { return bNavigationMode; }
 	// Keyboard speed changes preserve held movement; menu changes require a fresh press.

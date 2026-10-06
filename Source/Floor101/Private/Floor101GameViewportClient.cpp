@@ -155,15 +155,8 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 	{
 		if (bOrbiting)
 		{
-			RightDragPixels += Delta.Size();
-			if (bNavigationMode || bRightNavigationUsed)
-			{
-				Pawn->Look(Delta);
-			}
-			else
-			{
-				Pawn->Orbit(Delta);
-			}
+			const bool bShift = FSlateApplication::IsInitialized() && FSlateApplication::Get().GetModifierKeys().IsShiftDown();
+			ApplyRightDrag(Delta, bShift);
 		}
 		else if (bPanning)
 		{
@@ -198,6 +191,19 @@ void UFloor101GameViewportClient::Tick(float DeltaTime)
 			LastRayDirection = Direction;
 			Document->UpdatePointer(Ray);
 		}
+	}
+}
+
+void UFloor101GameViewportClient::ApplyRightDrag(const FVector2D& DeltaPixels, bool bShift)
+{
+	if (!bOrbiting || bInterfaceOpen || !GetEditingTarget() || DeltaPixels.ContainsNaN()) return;
+	bRightNavigationUsed |= bShift;
+	if (DeltaPixels.IsZero()) return;
+	if (AFloor101EditingPawn* Pawn = GetEditingPawn())
+	{
+		RightDragPixels += DeltaPixels.Size();
+		if (bNavigationMode || bRightNavigationUsed) Pawn->Look(DeltaPixels);
+		else Pawn->Orbit(DeltaPixels);
 	}
 }
 
@@ -326,7 +332,8 @@ bool UFloor101GameViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
 		if (bDown)
 		{
 			bOrbiting = true;
-			bRightNavigationUsed = false;
+			bRightNavigationUsed = Modifiers.IsShiftDown();
+			LastMousePosition = FVector2D(-1.0, -1.0);
 			RightDragPixels = 0.0;
 		}
 		else if (Event == IE_Released && bOrbiting)

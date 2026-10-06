@@ -12,7 +12,9 @@ Los atajos de Pared y Muebles son **B** y **G**.
 | Shift + movimiento | cuatro veces más rápido |
 | Números superiores 1–9 / 0 | elegir nivel 1–9 / 10; el teclado numérico no cambia la velocidad |
 | Selector Velocidad | niveles 1–10; muestra la velocidad en m/s y guarda la elección |
-| Derecho arrastrando | mirar desde la posición de la cámara, incluso hacia arriba |
+| Shift + derecho arrastrando | mirar desde la posición actual sin desplazarse, en Diseñar, Recorrer y Foto |
+| Derecho arrastrando | orbitar en Diseñar/Foto; mirar desde la posición actual en Recorrer |
+| Central arrastrando | deslizar la vista sin girarla |
 | N / Esc | volver a editar |
 | F | encuadrar el proyecto y recuperar una vista general |
 | Tab | alternar 2D/3D conservando el encuadre y zoom de cada vista |
@@ -67,3 +69,20 @@ Portable Windows **0.1.7 Shipping** aprobado, generado desde `4e30d1f` con árbo
 `tab_restores_3d_view=PASS` y `tab_restores_2d_view=PASS` con encuadres y zoom distintos. Reporte:
 `Saved/PackageChecks/20261005-193542-functional`. Ejecutable: `Packaged/0.1.7/Windows/Floor101.exe`.
 La validación corresponde a este equipo; sigue pendiente probar en otro equipo sin Unreal instalado.
+
+## Mirar desde la posición actual (0.1.8)
+
+En 3D, mantén **Shift + botón derecho** y arrastra para mirar a los lados o arriba/abajo sin desplazar la cámara.
+Funciona en Diseñar y Foto sin activar N. El botón derecho solo conserva la órbita; en Recorrer sigue mirando.
+Al comenzar a mirar, el gesto mantiene ese comportamiento hasta soltar el botón, incluso si sueltas Shift primero.
+Un giro pequeño tampoco cancela la herramienta de construcción. Abrir un menú o perder el foco termina el gesto.
+En 2D se conserva la orientación del plano; usa el botón central o WASD para desplazarlo.
+
+Validación: Win64 Development compilado sin advertencias nuevas; 315 casos C++ / 14.064 aserciones y 88 pruebas
+Unreal Automation aprobadas. Reporte: `Saved/Automation/20261006-175123`. `Floor101.Navigation.LookInPlaceGesture`
+comprueba posición fija, dirección, orden de liberación, órbita, cancelación de construcción, 2D y pérdida de foco/menús.
+
+La ayuda se revisó en capturas reales a 1280×720 y 800×600.
+
+![Controles: mirar desde la posición actual](images/camera-look-controls.png)
+![Controles en ventana pequeña](images/camera-look-controls-small.png)

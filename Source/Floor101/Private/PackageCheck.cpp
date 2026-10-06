@@ -201,6 +201,14 @@ namespace Floor101::PackageCheck
 				{
 					const FVector Before = Pawn->GetFocus(); Pawn->Move(FVector(1,0,0), 1.0f, false);
 					Check(!Pawn->GetFocus().Equals(Before), TEXT("camera_motion"));
+					const FVector LookPosition = Pawn->GetActorLocation();
+					const FRotator LookDirection = Pawn->GetActorRotation();
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::RightMouseButton, IE_Pressed, 0ULL));
+					Viewport->ApplyRightDrag(FVector2D(80,-120), true);
+					Check(Pawn->GetActorLocation().Equals(LookPosition, 1e-6) && !Pawn->GetActorRotation().Equals(LookDirection, 1e-6) && !Viewport->IsNavigationMode(), TEXT("look_in_place_without_n"));
+					Viewport->ApplyRightDrag(FVector2D(20,10), false);
+					Check(Pawn->GetActorLocation().Equals(LookPosition, 1e-6), TEXT("look_latches_until_release"));
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::RightMouseButton, IE_Released, 0ULL));
 					const bool OriginalPlan = Viewport->IsPlanView();
 					Viewport->SetPlanView(false);
 					Pawn->Zoom(2); Pawn->Pan(FVector2D(60,40), FVector2D(1280,720));

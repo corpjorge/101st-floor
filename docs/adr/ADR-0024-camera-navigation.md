@@ -57,3 +57,11 @@ la orientación 3D permanece intacta porque el plano no admite órbita. La prime
 escala, y las siguientes restauran su estado previo. El encuadre F solo afecta al modo activo; entrar en otro
 proyecto descarta el estado inactivo. Los cambios de planta desplazan la altura de ambos focos. Se trata de estado
 de sesión de la cámara; el documento CAD y las preferencias de velocidad no cambian.
+
+## Mirada independiente de Recorrer (0.1.8)
+
+Añadir Shift + arrastre derecho para la mirada desde la posición de cámara en Diseñar y Foto, conservando la
+órbita con el arrastre derecho habitual. Reutilizar `Look`, que mantiene la posición y distancia y cambia el foco
+según la nueva orientación. El gesto activa la misma bandera que la navegación con derecho + WASD: se mantiene
+hasta soltar el botón y evita que un giro corto se interprete como cancelar. Menús y pérdida de foco reinician el
+gesto; el plano 2D no gira. Mostrar los controles diferenciados en Opciones y en la ayuda de Foto.

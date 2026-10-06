@@ -781,7 +781,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
 							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
-								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I · Cotas: H\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
+								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar sin moverse: Shift + botón derecho · Orbitar: botón derecho\nDesplazar vista: botón central · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I · Cotas: H\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
@@ -896,6 +896,7 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
 	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
+	if (Screen == TEXT("controls")) { OpenOptions(); OptionsPage = 2; }
 	if (Screen == TEXT("levels") && LevelMenu) { LevelMenu->SetIsOpen(true); }
 	if (UFloor101GameViewportClient* Client = ViewportClient.Get())
 	{
@@ -1747,7 +1748,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 {
 	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
-		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; arrastrar con botón derecho: mirar. WASD funciona también al diseñar, sin activar N."))
+		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; derecho: mirar en Recorrer; Shift + derecho: mirar también en Diseñar y Foto. WASD funciona también al diseñar, sin activar N."))
 		.ButtonColorAndOpacity_Lambda([this]()
 		{
 			const UFloor101GameViewportClient* Client = ViewportClient.Get();
@@ -3329,7 +3330,7 @@ FText SFloor101Overlay::GetHintText() const
 	}
 	if (IsPhotoMode())
 	{
-		return LOCTEXT("HintPhoto", "Foto · derecho arrastrando: orbitar · central: desplazar · rueda: zoom · al mover la cámara la imagen empieza de nuevo · R o Esc: volver a editar");
+		return LOCTEXT("HintPhoto", "Foto · Shift + derecho: mirar sin moverse · derecho: orbitar · central: desplazar · rueda: zoom · al mover la cámara la imagen empieza de nuevo · R o Esc: volver a editar");
 	}
 	const EditController& Editor = Subsystem->GetEditController();
 	if (Editor.mode() == EditMode::Dimension)
@@ -3462,7 +3463,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
 					if (!IsDesignMode()) { return GetHintText(); }
 					const auto* S = Document.Get();
 					return S && (S->GetEditController().mode() != EditMode::Select || GetSelectedDimension()) ? GetHintText()
-						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Moverse · WASD   |   Acercarse · Rueda");
+						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Moverse · WASD   |   Mirar · Shift + derecho   |   Acercarse · Rueda");
 				})
 				.ToolTipText_Lambda([this]() { return GetHintText(); })]]
 		+ SWrapBox::Slot()
