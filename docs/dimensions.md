@@ -63,9 +63,9 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 ## Entrega portable
 
-Extrae `Packaged/0.1.5/101st-Floor-portable.zip` y abre `Floor101.exe`.
+Extrae `Packaged/0.1.7/101st-Floor-portable.zip` y abre `Floor101.exe`.
 Conserva todos los archivos de la carpeta junto al ejecutable. La carpeta
-ya extraída está en `Packaged/0.1.5/Windows/`.
+ya extraída está en `Packaged/0.1.7/Windows/`.
 La validación se ejecutó en este equipo; queda pendiente probar la entrega
 en otro equipo sin Unreal instalado.
 
@@ -89,3 +89,7 @@ precisión persistida y separación de una cota corta en cadenas de huecos. Repo
 
 ![Cota de 8 cm junto a la unión, con cifra separada](images/short-dimensions.png)
 ![Cota corta y propiedades en ventana pequeña](images/short-dimensions-small.png)
+
+Portable Windows **0.1.7 Shipping** generado desde `4e30d1f` con árbol limpio. Integridad, dependencias y comprobación
+funcional aprobadas en el ejecutable real; guardado, reapertura, cotas, SVG/PNG, arrastre de paredes y deshacer/rehacer
+siguen pasando. Reporte: `Saved/PackageChecks/20261005-193542-functional`.

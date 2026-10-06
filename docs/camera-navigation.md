@@ -62,3 +62,8 @@ encuadre explícito, cambio de altura y reinicio. La comprobación portable puls
 
 Validación 0.1.7: compilación Win64 Development sin advertencias nuevas, 315 casos C++ / 14.064 aserciones y 87
 pruebas Unreal aprobadas. Reporte: `Saved/Automation/20261005-192519`.
+
+Portable Windows **0.1.7 Shipping** aprobado, generado desde `4e30d1f` con árbol limpio. El test pulsa Tab y verifica
+`tab_restores_3d_view=PASS` y `tab_restores_2d_view=PASS` con encuadres y zoom distintos. Reporte:
+`Saved/PackageChecks/20261005-193542-functional`. Ejecutable: `Packaged/0.1.7/Windows/Floor101.exe`.
+La validación corresponde a este equipo; sigue pendiente probar en otro equipo sin Unreal instalado.
