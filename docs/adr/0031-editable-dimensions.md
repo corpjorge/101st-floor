@@ -51,3 +51,11 @@ Regresiones doctest e integración Unreal: clics exactos, diagonales, precisión
 arrastre, huecos, identidad, plantas, validación JSON, compatibilidad, SVG,
 guardado/reapertura, borrado y deshacer/rehacer. Capturas reales y ejecutable
 Shipping se documentan en [cotas](../dimensions.md).
+
+## Legibilidad de cotas cortas (0.1.7)
+
+Cuando el rótulo no cabe entre las marcas, situarlo fuera del extremo con una línea prolongada de referencia.
+Reducir las marcas a la longitud disponible, conservando puntos medidos, offset e identidad. El cálculo de la
+posición del rótulo sigue compartido con el picking; las cotas trasladadas conservan su edición. Fondo blanco
+bajo los rótulos en Slate/PNG y SVG evita que muros o líneas atraviesen las cifras. Los límites del dibujo incluyen
+la extensión girada del texto para exportar sin recortes. No se ocultan ni redondean adicionalmente distancias.

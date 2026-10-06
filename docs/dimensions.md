@@ -76,3 +76,16 @@ en otro equipo sin Unreal instalado.
 
 ![Extremos y esquinas para ajustar una cota](images/dimension-grips.png)
 ![Controles de cota en ventana pequeña](images/dimension-grips-small.png)
+
+## Cotas cortas (0.1.7)
+
+Las cifras que no caben entre las marcas se sitúan fuera del tramo, con una línea de referencia. Las marcas se
+reducen para no superponerse y el texto tiene fondo blanco. Se mantienen la distancia exacta, los extremos,
+la edición y la selección al pulsar sobre la cifra. La misma presentación se utiliza en el plano, SVG y PNG.
+
+Validación 0.1.7: 315 casos C++ / 14.064 aserciones y 87 pruebas Unreal aprobadas.
+Las regresiones incluyen horizontales, verticales, diagonales, automáticas, rótulos UTF-8, selección desde la cifra,
+precisión persistida y separación de una cota corta en cadenas de huecos. Reporte: `Saved/Automation/20261005-192519`.
+
+![Cota de 8 cm junto a la unión, con cifra separada](images/short-dimensions.png)
+![Cota corta y propiedades en ventana pequeña](images/short-dimensions-small.png)

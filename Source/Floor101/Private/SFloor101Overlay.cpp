@@ -874,6 +874,27 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		if (auto* C = ViewportClient.Get()) C->FrameProject();
 		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
 	}
+	if (Screen == TEXT("short-dimensions") && Document.IsValid())
+	{
+		if (auto* C = ViewportClient.Get()) C->SetPlanView(true);
+		Run([](EditController& E)
+		{
+			E.setMode(f101::cad::EditMode::Dimension);
+			for (const auto Point : {f101::cad::Point2D{0, 0}, f101::cad::Point2D{0, 80}, f101::cad::Point2D{360, 40}})
+			{
+				const f101::cad::Ray3 Ray{static_cast<double>(Point.x_mm), static_cast<double>(Point.y_mm), 10000, 0, 0, -1};
+				if (const auto Status = E.pointerPressed(Ray); !Status) return Status;
+				(void)E.pointerReleased(Ray);
+			}
+			return f101::Status::success();
+		});
+		if (auto* C = ViewportClient.Get()) C->FrameProject();
+		if (const auto* Controller = Document->GetWorld()->GetFirstPlayerController())
+		{
+			if (auto* Pawn = Cast<AFloor101EditingPawn>(Controller->GetPawn())) Pawn->Zoom(2);
+		}
+		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
+	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
 	if (Screen == TEXT("levels") && LevelMenu) { LevelMenu->SetIsOpen(true); }
 	if (UFloor101GameViewportClient* Client = ViewportClient.Get())

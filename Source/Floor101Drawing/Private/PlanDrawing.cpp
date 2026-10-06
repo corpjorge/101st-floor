@@ -272,7 +272,15 @@ namespace f101::drawing
 			const double side = d.offsetMm < 0 ? -1.0 : 1.0;
 			const double s = static_cast<double>(d.offsetMm);
 			if (line) builder.stroke({frame.at(0.0, s), frame.at(frame.length, s)}, ink, ThinMm);
-			const PlanPoint tick = scale(add(frame.axis, scale(frame.left, side)), TickLengthMm / 2.0 / std::sqrt(2.0));
+			const double tickLength = std::min(TickLengthMm, frame.length * 0.4);
+			const PlanPoint tick = scale(add(frame.axis, scale(frame.left, side)), tickLength / 2.0 / std::sqrt(2.0));
+			if (cad::dimensionLabelOutside(d))
+			{
+				// A short value belongs beyond its end, over a leader, rather than over the two crowded ticks.
+				const double labelS = frame.across(cad::dimensionLabelPoint(d)) - side * 135.0;
+				builder.stroke({frame.at(frame.length, s), frame.at(frame.length + 100.0, s), frame.at(frame.length + 100.0, labelS),
+					frame.at(frame.length + cad::dimensionLabelWidthMm(d) + 100.0, labelS)}, ink, ThinMm);
+			}
 			for (const double u : {0.0, frame.length})
 			{
 				builder.stroke({frame.at(u, faceS + side * ExtensionGapMm), frame.at(u, s + side * ExtensionGapMm)}, ink, ThinMm);
@@ -375,7 +383,14 @@ namespace f101::drawing
 			}
 			for (const Label& label : drawing.labels)
 			{
-				include(label.at, label.heightMm);
+				const auto characters = std::count_if(label.text.begin(), label.text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; });
+				const double halfWidth = static_cast<double>(characters) * label.heightMm * 0.85 / 2.0 + 10.0;
+				const double halfHeight = label.heightMm / 2.0 + 10.0;
+				const double angle = label.angleDegrees * Pi / 180.0;
+				const double padX = std::fabs(std::cos(angle)) * halfWidth + std::fabs(std::sin(angle)) * halfHeight;
+				const double padY = std::fabs(std::sin(angle)) * halfWidth + std::fabs(std::cos(angle)) * halfHeight;
+				include({label.at.x_mm - padX, label.at.y_mm - padY}, 0.0);
+				include({label.at.x_mm + padX, label.at.y_mm + padY}, 0.0);
 			}
 			if (drawing.empty())
 			{
