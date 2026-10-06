@@ -575,7 +575,7 @@ bool UFloor101GameViewportClient::InputChar(FViewport* InViewport, int32 Control
 	return true;
 }
 
-void UFloor101GameViewportClient::FrameProject()
+void UFloor101GameViewportClient::FrameProject(bool bResetViewHistory)
 {
 	AFloor101EditingPawn* Pawn = GetEditingPawn();
 	const UWorld* CurrentWorld = GetWorld();
@@ -585,6 +585,7 @@ void UFloor101GameViewportClient::FrameProject()
 		return;
 	}
 	const f101::cad::Project& Project = Document->GetDocument().project();
+	if (bResetViewHistory) Pawn->ResetViewHistory();
 	const f101::cad::EditController& Editor = Document->GetEditController();
 	const std::size_t Active = Project.levelIndex(Editor.activeLevel()).value_or(0);
 	FBox Bounds(ForceInit);
@@ -649,7 +650,6 @@ void UFloor101GameViewportClient::SetPlanView(bool bPlan)
 	bDisableWorldRendering = bPlan; // the overlay paints the plan over the whole view
 	Pawn->SetPlanView(bPlan);
 	Document->SetPlanView(bPlan);
-	FrameProject();
 }
 
 void UFloor101GameViewportClient::SetPhotoMode(bool bPhoto)

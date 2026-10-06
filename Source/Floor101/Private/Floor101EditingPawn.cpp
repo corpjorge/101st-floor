@@ -166,9 +166,23 @@ void AFloor101EditingPawn::Frame(const FBox& Box)
 
 void AFloor101EditingPawn::SetPlanView(bool bPlan)
 {
+	if (bPlanView == bPlan) return;
+	(bPlanView ? PlanViewState : PerspectiveViewState) = SavedView{Focus, Distance};
+	const auto& Restore = bPlan ? PlanViewState : PerspectiveViewState;
+	if (Restore.IsSet())
+	{
+		Focus = Restore->Focus;
+		Distance = Restore->Distance;
+	}
 	bPlanView = bPlan;
 	Camera->SetProjectionMode(bPlan ? ECameraProjectionMode::Orthographic : ECameraProjectionMode::Perspective);
 	ApplyView();
+}
+
+void AFloor101EditingPawn::ResetViewHistory()
+{
+	PlanViewState.Reset();
+	PerspectiveViewState.Reset();
 }
 
 double AFloor101EditingPawn::GetViewWidth() const
@@ -187,6 +201,8 @@ void AFloor101EditingPawn::TopView()
 void AFloor101EditingPawn::RaiseFocus(double DeltaCm)
 {
 	Focus.Z += DeltaCm;
+	if (PlanViewState.IsSet()) PlanViewState->Focus.Z += DeltaCm;
+	if (PerspectiveViewState.IsSet()) PerspectiveViewState->Focus.Z += DeltaCm;
 	ApplyView();
 }
 

@@ -28,7 +28,7 @@ void Floor101::UIReview::Start(TSharedRef<SFloor101Overlay> Overlay, UFloor101Ga
 			if (!Document->OpenProject(Project)) { RequestEngineExit(TEXT("UI review fixture could not be loaded")); return; }
 		}
 	}
-	Viewport->FrameProject();
+	Viewport->FrameProject(true);
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(Capture), true);
 	const TWeakPtr<SFloor101Overlay> WeakOverlay = Overlay;
 	const TWeakObjectPtr<UFloor101GameViewportClient> WeakViewport = Viewport;

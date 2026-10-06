@@ -49,3 +49,11 @@ activa conservan su función. Los campos de texto, menús y consola mantienen la
 prioridad de entrada. Cambiar el nivel desde el teclado conserva las pulsaciones
 WASD aceptadas; hacerlo desde un menú exige una pulsación nueva al volver a la vista.
 El selector muestra el nivel también en Diseñar; usa las mismas preferencias locales.
+
+## Memoria independiente 2D/3D (0.1.7)
+
+Quitar el encuadre automático al alternar plano y perspectiva. El pawn conserva foco y distancia de cada modo;
+la orientación 3D permanece intacta porque el plano no admite órbita. La primera entrada al plano hereda foco y
+escala, y las siguientes restauran su estado previo. El encuadre F solo afecta al modo activo; entrar en otro
+proyecto descarta el estado inactivo. Los cambios de planta desplazan la altura de ambos focos. Se trata de estado
+de sesión de la cámara; el documento CAD y las preferencias de velocidad no cambian.

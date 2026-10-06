@@ -201,6 +201,20 @@ namespace Floor101::PackageCheck
 				{
 					const FVector Before = Pawn->GetFocus(); Pawn->Move(FVector(1,0,0), 1.0f, false);
 					Check(!Pawn->GetFocus().Equals(Before), TEXT("camera_motion"));
+					const bool OriginalPlan = Viewport->IsPlanView();
+					Viewport->SetPlanView(false);
+					Pawn->Zoom(2); Pawn->Pan(FVector2D(60,40), FVector2D(1280,720));
+					const FVector PerspectiveFocus = Pawn->GetFocus();
+					const double PerspectiveDistance = Pawn->GetDistance();
+					Viewport->SetPlanView(true);
+					Pawn->Zoom(2); Pawn->Pan(FVector2D(-80,25), FVector2D(1280,720));
+					const FVector PlanFocus = Pawn->GetFocus();
+					const double PlanDistance = Pawn->GetDistance();
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::Tab, IE_Pressed, 0ULL));
+					Check(!Viewport->IsPlanView() && Pawn->GetFocus().Equals(PerspectiveFocus, 1e-6) && FMath::IsNearlyEqual(Pawn->GetDistance(), PerspectiveDistance, 1e-6), TEXT("tab_restores_3d_view"));
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::Tab, IE_Pressed, 0ULL));
+					Check(Viewport->IsPlanView() && Pawn->GetFocus().Equals(PlanFocus, 1e-6) && FMath::IsNearlyEqual(Pawn->GetDistance(), PlanDistance, 1e-6), TEXT("tab_restores_2d_view"));
+					Viewport->SetPlanView(OriginalPlan);
 				}
 				Preferences::SetDiagnosticMode(true);
 				Check(Diagnostics::IsVerbose() && Preferences::DiagnosticMode(), TEXT("debug_toggle_on"));

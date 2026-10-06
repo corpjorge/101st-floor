@@ -1631,4 +1631,55 @@ bool FFloor101WallBodyDragTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewMemoryTest, "Floor101.Interaction.PlanViewMemory", InteractionTestFlags)
+bool FFloor101PlanViewMemoryTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Pawn = TestWorld.World->SpawnActor<AFloor101EditingPawn>();
+	if (!TestNotNull(TEXT("pawn"), Pawn)) return false;
+	Pawn->Frame(FBox(FVector(-300,-400,0), FVector(500,600,280)));
+	Pawn->Orbit(FVector2D(60,20));
+	Pawn->Zoom(4);
+	Pawn->Pan(FVector2D(170,80), FVector2D(1280,720));
+	const FVector PerspectiveFocus = Pawn->GetFocus();
+	const FVector PerspectivePosition = Pawn->GetActorLocation();
+	const FRotator PerspectiveRotation = Pawn->GetActorRotation();
+	const double PerspectiveDistance = Pawn->GetDistance();
+	Pawn->SetPlanView(true);
+	TestEqual(TEXT("first plan entry keeps focus"), Pawn->GetFocus(), PerspectiveFocus, 1e-6f);
+	TestEqual(TEXT("first plan entry keeps scale"), Pawn->GetDistance(), PerspectiveDistance, 1e-6);
+	Pawn->Zoom(3);
+	Pawn->Pan(FVector2D(-120,45), FVector2D(1280,720));
+	const FVector PlanFocus = Pawn->GetFocus();
+	const double PlanDistance = Pawn->GetDistance();
+	const double PlanWidth = Pawn->GetViewWidth();
+	for (int32 Round = 0; Round < 3; ++Round)
+	{
+		Pawn->SetPlanView(false);
+		TestEqual(TEXT("3D focus remembered"), Pawn->GetFocus(), PerspectiveFocus, 1e-6f);
+		TestEqual(TEXT("3D position remembered"), Pawn->GetActorLocation(), PerspectivePosition, 1e-6f);
+		TestEqual(TEXT("3D angle remembered"), Pawn->GetActorRotation(), PerspectiveRotation, 1e-6f);
+		TestEqual(TEXT("3D zoom remembered"), Pawn->GetDistance(), PerspectiveDistance, 1e-6);
+		Pawn->SetPlanView(true);
+		TestEqual(TEXT("2D pan remembered"), Pawn->GetFocus(), PlanFocus, 1e-6f);
+		TestEqual(TEXT("2D zoom remembered"), Pawn->GetDistance(), PlanDistance, 1e-6);
+		TestEqual(TEXT("2D width remembered"), Pawn->GetViewWidth(), PlanWidth, 1e-6);
+	}
+	Pawn->Frame(FBox(FVector(0,0,0), FVector(900,700,280)));
+	const FVector Framed = Pawn->GetFocus();
+	Pawn->SetPlanView(false);
+	TestEqual(TEXT("explicit plan framing does not reset 3D"), Pawn->GetFocus(), PerspectiveFocus, 1e-6f);
+	Pawn->RaiseFocus(300);
+	Pawn->SetPlanView(true);
+	TestEqual(TEXT("level movement follows saved plan"), Pawn->GetFocus(), Framed + FVector(0,0,300), 1e-6f);
+	Pawn->ResetViewHistory();
+	const FVector ResetFocus = Pawn->GetFocus();
+	const double ResetDistance = Pawn->GetDistance();
+	Pawn->SetPlanView(false);
+	TestEqual(TEXT("new project discards stale inactive view"), Pawn->GetFocus(), ResetFocus, 1e-6f);
+	TestEqual(TEXT("new project starts from current scale"), Pawn->GetDistance(), ResetDistance, 1e-6);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

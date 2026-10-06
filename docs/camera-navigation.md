@@ -15,6 +15,7 @@ Los atajos de Pared y Muebles son **B** y **G**.
 | Derecho arrastrando | mirar desde la posición de la cámara, incluso hacia arriba |
 | N / Esc | volver a editar |
 | F | encuadrar el proyecto y recuperar una vista general |
+| Tab | alternar 2D/3D conservando el encuadre y zoom de cada vista |
 
 En edición, **WASD/QE** mueve la cámara sin mantener el botón derecho. **B** dibuja paredes y **G** abre muebles. Un derecho arrastrado sin teclas de movimiento conserva la órbita habitual.
 En plano 2D, WASD desplaza el plano sobre los ejes de pantalla; Q/E no cambian su altura.
@@ -48,3 +49,16 @@ Compilación Win64 Development, 265 tests unitarios (12.892 aserciones) y 67 tes
 Decisión: [ADR-0024](adr/ADR-0024-camera-navigation.md).
 
 ![Navegación, nivel de velocidad, sincronización vertical y Salir](images/camera-navigation.png)
+
+## Memoria de las vistas (0.1.7)
+
+Tab conserva dos encuadres independientes: posición y zoom del plano 2D, y posición, zoom y orientación de la
+cámara 3D. La primera entrada en 2D usa el centro y escala actuales; volver a una vista recupera el último
+encuadre de esa vista. **F** sigue encuadrando explícitamente la vista activa. Abrir o crear otro proyecto descarta
+el encuadre anterior; cambiar de planta actualiza también la altura del encuadre guardado.
+
+La regresión `Floor101.Interaction.PlanViewMemory` cubre alternancias repetidas, desplazamiento, zoom, orientación,
+encuadre explícito, cambio de altura y reinicio. La comprobación portable pulsa Tab en el ejecutable Shipping.
+
+Validación 0.1.7: compilación Win64 Development sin advertencias nuevas, 315 casos C++ / 14.064 aserciones y 87
+pruebas Unreal aprobadas. Reporte: `Saved/Automation/20261005-192519`.

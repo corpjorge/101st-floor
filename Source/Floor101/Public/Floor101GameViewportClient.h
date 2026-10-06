@@ -89,7 +89,7 @@ public:
 	bool IsInterfaceOpen() const { return bInterfaceOpen; }
 
 	// Frames the walls of the levels in view: up to the edited one, or all of them (or the origin if there are none).
-	void FrameProject();
+	void FrameProject(bool bResetViewHistory = false);
 	// Perspective looking down (AFloor101EditingPawn::TopView); leaves the 2D plan.
 	void ShowTopView();
 	// 2D plan (ADR-0015): orthographic camera straight down, no 3D rendering, the plan painted by the overlay. Editing
