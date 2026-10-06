@@ -86,3 +86,9 @@ La ayuda se revisó en capturas reales a 1280×720 y 800×600.
 
 ![Controles: mirar desde la posición actual](images/camera-look-controls.png)
 ![Controles en ventana pequeña](images/camera-look-controls-small.png)
+
+Portable Windows **0.1.8 Shipping** aprobado, generado desde `ef54060` con árbol limpio. El ejecutable comprueba
+`look_in_place_without_n=PASS` y `look_latches_until_release=PASS`; integridad SHA-256, dependencias locales y
+regresiones funcionales aprobadas. Reporte: `Saved/PackageChecks/20261006-180006-functional`.
+Ejecutable: `Packaged/0.1.8/Windows/Floor101.exe`. ZIP: `Packaged/0.1.8/101st-Floor-portable.zip`.
+La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue pendiente.
