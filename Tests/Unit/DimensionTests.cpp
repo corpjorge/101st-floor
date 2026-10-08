@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include "F101/Cad/DimensionEditor.h"
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/ProjectFile.h"
 #include "F101/Drawing/PlanDrawing.h"
@@ -452,4 +453,56 @@ TEST_CASE("short opening chain callouts use a separate row from neighbouring fig
 	REQUIRE(shortDim != plan.dimensions.end());
 	REQUIRE(openingDim != plan.dimensions.end());
 	CHECK(std::fabs(dimensionLabelPoint(*shortDim).y_mm - dimensionLabelPoint(*openingDim).y_mm) >= 300.0);
+}
+
+TEST_CASE("the dimension editor places, drags and hides dimensions on its own")
+{
+	Document doc{makeSequentialUuidSource()};
+	REQUIRE(doc.addWall({0, 0}, {4000, 0}, 120, 2800).ok());
+	const LevelId level = doc.project().levels.front().id;
+	DimensionEditor editor{doc};
+	const auto resolved = [](const Project& p, const LevelId& l) { return drawing::buildPlanDrawing(p, l).dimensions; };
+	editor.setProvider(resolved);
+	editor.setVisible(true);
+
+	// Two measured points, then the line: the new dimension is created and selected.
+	REQUIRE(editor.place({0, -3000}, level).ok());
+	REQUIRE(editor.place({2000, -3000}, level).ok());
+	CHECK(editor.draftPointCount() == 2);
+	CHECK(editor.preview(PlanPoint{1000, -3500}, level, true)->offsetMm == -500);
+	const auto placed = editor.place({1000, -3500}, level);
+	REQUIRE(placed.ok());
+	REQUIRE(placed.value().has_value());
+	CHECK_FALSE(editor.hasDraft());
+	const std::string manual = *placed.value();
+	CHECK(editor.selected(level)->id == manual);
+	CHECK(doc.project().findDimension(manual)->offsetMm == -500);
+
+	// Its line moves across its axis by as much as the pointer, in one undoable change.
+	const auto grab = editor.hit({1000, -3500}, level);
+	REQUIRE(grab.has_value());
+	CHECK(grab->grip == DimensionEditor::Grab::Line);
+	editor.startDrag(*grab, {1000, -3500});
+	editor.moveDrag({1000, -3800});
+	CHECK(editor.preview(std::nullopt, level, false)->offsetMm == -800);
+	REQUIRE(editor.release().ok());
+	CHECK_FALSE(editor.dragging());
+	CHECK(doc.project().findDimension(manual)->offsetMm == -800);
+
+	// Deleting an automatic dimension hides it; it stays stored so the plan can leave it out.
+	const std::vector<Dimension> shown = resolved(doc.project(), level);
+	const auto first = std::find_if(shown.begin(), shown.end(), [](const Dimension& d) { return d.automatic; });
+	REQUIRE(first != shown.end());
+	REQUIRE(editor.select(first->id, level).ok());
+	const auto hidden = editor.deleteSelected(level);
+	REQUIRE(hidden.has_value());
+	REQUIRE(hidden->ok());
+	CHECK(doc.project().findDimension(first->id)->hidden);
+	CHECK_FALSE(editor.selected(level).has_value());
+	CHECK_FALSE(editor.select(first->id, level).ok());
+
+	// Hiding the plan forgets the selection.
+	REQUIRE(editor.select(manual, level).ok());
+	editor.setVisible(false);
+	CHECK_FALSE(editor.selected(level).has_value());
 }

@@ -19,7 +19,8 @@ de presentación conservando la geometría CAD como fuente de verdad.
   producen transacciones reversibles y notificaciones. Eliminar una planta incluye
   sus anotaciones en la misma transacción.
 - Drawing devuelve las cotas resueltas para picking mediante un proveedor inyectado
-  en EditController; CadCore sigue sin depender de Drawing ni Unreal.
+  en EditController; CadCore sigue sin depender de Drawing ni Unreal. La edición de
+  cotas está en `DimensionEditor`, dirigido por EditController como `WallTool`.
 - Herramienta en plano 2D: inicio, fin y colocación. Desde 0.1.4, extremos
   libres cuantizados a 1 mm, sin snapping de construcción: medir una cara o un
   punto cercano a una esquina no debe desplazarlo al eje ni a la rejilla.
