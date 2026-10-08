@@ -26,6 +26,41 @@ namespace Floor101::Diagnostics
 		FDelegateHandle FatalHandle;
 #if PLATFORM_WINDOWS && UE_BUILD_SHIPPING
 		bool bOwnConsole = false;
+		// The product log stays open for appending: opening and closing it for every line stalled the game thread on each
+		// edit. Shared for writing and renaming, like the per-line appends it replaces, so another instance still logs.
+		HANDLE LogFile = INVALID_HANDLE_VALUE;
+		bool bLogFileOpened = false;
+		constexpr int64 MaxLogFileBytes = 16 * 1024 * 1024;
+
+		HANDLE OpenForAppend(const FString& Path)
+		{
+			return CreateFileW(*Path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+				OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+		}
+
+		// Under Lock, once per session: a log that reached MaxLogFileBytes first moves to <name>.old.log, replacing the
+		// previous one, so the logs of past sessions stay bounded.
+		void OpenLogFile(const FString& Path)
+		{
+			bLogFileOpened = true;
+			LogFile = OpenForAppend(Path);
+			LARGE_INTEGER Size{};
+			if (LogFile == INVALID_HANDLE_VALUE || !GetFileSizeEx(LogFile, &Size) || Size.QuadPart < MaxLogFileBytes) { return; }
+			CloseHandle(LogFile);
+			const FString Old = FPaths::Combine(FPaths::GetPath(Path), FPaths::GetBaseFilename(Path) + TEXT(".old.log"));
+			MoveFileExW(*Path, *Old, MOVEFILE_REPLACE_EXISTING); // best effort: otherwise keep appending
+			LogFile = OpenForAppend(Path);
+		}
+
+		void CloseLogFile()
+		{
+			FScopeLock Guard(&Lock);
+			if (LogFile != INVALID_HANDLE_VALUE)
+			{
+				CloseHandle(LogFile);
+				LogFile = INVALID_HANDLE_VALUE;
+			}
+		}
 #endif
 	}
 	void SetVerbose(bool bEnabled) { bVerbose.store(bEnabled); }
@@ -56,13 +91,26 @@ namespace Floor101::Diagnostics
 		const TCHAR* Severity = Verbosity <= ELogVerbosity::Error ? TEXT("Error") : Verbosity == ELogVerbosity::Warning ? TEXT("Warning") : TEXT("Info");
 		const FString Line = FString::Printf(TEXT("[%s] %s %s: %s\n"), *FDateTime::UtcNow().ToIso8601(), Category, Severity, *Message);
 		FScopeLock Guard(&Lock);
-		FFileHelper::SaveStringToFile(Line, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
 #if PLATFORM_WINDOWS && UE_BUILD_SHIPPING
+		if (!bLogFileOpened) { OpenLogFile(Path); }
+		if (LogFile != INVALID_HANDLE_VALUE)
+		{
+			const FTCHARToUTF8 Utf8(*Line);
+			DWORD Appended = 0;
+			WriteFile(LogFile, Utf8.Get(), static_cast<DWORD>(Utf8.Length()), &Appended, nullptr);
+		}
+		else
+		{
+			// It could not be kept open: append line by line, as before.
+			FFileHelper::SaveStringToFile(Line, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
+		}
 		if (bOwnConsole)
 		{
 			DWORD Written = 0;
 			WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE), *Line, Line.Len(), &Written, nullptr);
 		}
+#else
+		FFileHelper::SaveStringToFile(Line, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append);
 #endif
 	}
 	void SetWindowVisible(bool bVisible)
@@ -114,6 +162,7 @@ public:
 		FCoreDelegates::OnHandleSystemError.Remove(Floor101::Diagnostics::FatalHandle);
 #if PLATFORM_WINDOWS
 		if (Floor101::Diagnostics::bOwnConsole) { FreeConsole(); }
+		Floor101::Diagnostics::CloseLogFile();
 #endif
 #endif
 	}

@@ -7,7 +7,8 @@ no un porcentaje de progreso.
 
 ## Opciones → Diagnóstico
 
-- **Modo depuración: registro detallado**: añade trazas de edición y entrada;
+- **Modo depuración: registro detallado**: añade trazas de edición y entrada,
+  y en Shipping el estado de cada muro y habitación tras cada edición;
   actívalo antes de reproducir un problema.
 - **Mostrar ventana de logs**: muestra u oculta la consola inmediatamente.
   Funciona independientemente del modo depuración.

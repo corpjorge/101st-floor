@@ -1026,7 +1026,13 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	{
 		F101_LOG(LogFloor101, Display, TEXT("F101: scene resync in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
 			(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
-		LogStatus();
+		// A line per wall and room on every edit: cheap through UE_LOG (CheckRendering reads it), but in Shipping each
+		// line goes to the product log on disk, so there it is a debug-mode detail.
+		const bool bLogEveryEntity = !UE_BUILD_SHIPPING || Floor101::Diagnostics::IsVerbose();
+		if (bLogEveryEntity)
+		{
+			LogStatus();
+		}
 	}
 	else
 	{

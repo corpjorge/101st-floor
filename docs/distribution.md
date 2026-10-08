@@ -50,6 +50,12 @@ controla el detalle y la ventana opcional. Los errores del producto se guardan s
 en Floor101-product.log dentro de la carpeta de logs del usuario. Las trazas completas
 de Unreal requieren una compilación Development; no se prometen en Shipping.
 
+El archivo se abre una vez por sesión y cada línea se añade sin volver a abrirlo;
+otra instancia puede escribir en el mismo archivo. Si al arrancar supera 16 MB, pasa
+a Floor101-product.old.log (sustituye al anterior) y empieza uno nuevo. En Shipping, el
+estado de cada muro y habitación tras cada edición solo se registra en modo depuración;
+en Development se sigue registrando siempre y `f101.Demo.Status` lo escribe a demanda.
+
 La precarga especulativa de PSO se desactiva para evitar el cierre de varios minutos
 observado al estrenar Shipping; se conservan los shaders cocinados y la caché del driver.
 Puede haber una pausa al dibujar un material por primera vez.
