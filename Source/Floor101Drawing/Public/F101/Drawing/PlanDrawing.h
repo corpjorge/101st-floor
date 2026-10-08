@@ -130,7 +130,7 @@ namespace f101::drawing
 	// Dimension lines stand this far out from a wall's face: the chain with its openings, then its overall length.
 	inline constexpr double ChainOffsetMm = 600.0;
 	inline constexpr double OverallOffsetMm = 1100.0;
-	inline constexpr double FigureHeightMm = 150.0;
+	inline constexpr double FigureHeightMm = cad::DimensionFigureHeightMm;
 	inline constexpr double RoomNameHeightMm = 200.0;
 	inline constexpr double RoomAreaHeightMm = 150.0;
 	// A run's core is drawn as wide as its pipe, never thinner than this, inside a casing this much wider on each side.

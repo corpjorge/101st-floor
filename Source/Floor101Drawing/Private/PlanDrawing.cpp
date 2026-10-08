@@ -277,9 +277,10 @@ namespace f101::drawing
 			if (cad::dimensionLabelOutside(d))
 			{
 				// A short value belongs beyond its end, over a leader, rather than over the two crowded ticks.
-				const double labelS = frame.across(cad::dimensionLabelPoint(d)) - side * 135.0;
-				builder.stroke({frame.at(frame.length, s), frame.at(frame.length + 100.0, s), frame.at(frame.length + 100.0, labelS),
-					frame.at(frame.length + cad::dimensionLabelWidthMm(d) + 100.0, labelS)}, ink, ThinMm);
+				const double labelS = frame.across(cad::dimensionLabelPoint(d)) - side * cad::DimensionFigureGapMm;
+				const double run = frame.length + cad::DimensionLeaderRunMm;
+				builder.stroke({frame.at(frame.length, s), frame.at(run, s), frame.at(run, labelS),
+					frame.at(frame.length + cad::dimensionLabelWidthMm(d) + cad::DimensionLeaderRunMm, labelS)}, ink, ThinMm);
 			}
 			for (const double u : {0.0, frame.length})
 			{
@@ -383,8 +384,7 @@ namespace f101::drawing
 			}
 			for (const Label& label : drawing.labels)
 			{
-				const auto characters = std::count_if(label.text.begin(), label.text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; });
-				const double halfWidth = static_cast<double>(characters) * label.heightMm * 0.85 / 2.0 + 10.0;
+				const double halfWidth = cad::planTextWidthMm(cad::textCharacters(label.text), label.heightMm) / 2.0 + 10.0;
 				const double halfHeight = label.heightMm / 2.0 + 10.0;
 				const double angle = label.angleDegrees * Pi / 180.0;
 				const double padX = std::fabs(std::cos(angle)) * halfWidth + std::fabs(std::sin(angle)) * halfHeight;

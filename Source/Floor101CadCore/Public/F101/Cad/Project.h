@@ -65,6 +65,17 @@ namespace f101::cad
 		friend bool operator==(const Dimension&, const Dimension&) = default;
 	};
 
+	// How plan figures are laid out (ADR-0031). Picking here and Floor101Drawing both use these, so a click finds a figure
+	// exactly where the plan paints it.
+	inline constexpr double DimensionFigureHeightMm = 150.0;
+	inline constexpr double DimensionFigureGapMm = 135.0;   // from the dimension line to the figure's centre
+	inline constexpr double DimensionFitMarginMm = 150.0;   // a figure stays between the ticks if this much line is left
+	inline constexpr double DimensionLeaderRunMm = 100.0;   // an outside figure: its leader first runs past the end...
+	inline constexpr double DimensionLeaderRiseMm = 300.0;  // ...then rises this far before the figure
+	// Conservative width of plan text: 0.85 of its height per character (UTF-8 code points).
+	FLOOR101CADCORE_API std::size_t textCharacters(std::string_view utf8);
+	FLOOR101CADCORE_API double planTextWidthMm(std::size_t characters, double heightMm);
+
 	struct Project;
 	FLOOR101CADCORE_API Status validateDimension(const Project& project, const Dimension& dimension);
 	FLOOR101CADCORE_API std::pair<PlanPoint, PlanPoint> dimensionLine(const Dimension& dimension);
