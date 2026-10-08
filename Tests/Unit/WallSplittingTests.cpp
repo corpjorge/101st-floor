@@ -160,6 +160,44 @@ TEST_CASE("a face join preserves the world position of a branch opening")
 	CHECK(joined->findOpening(window)->offsetMm == 1060);
 }
 
+TEST_CASE("a branch joined to a face keeps its openings in place when another face join divides it")
+{
+	// Legacy layout, not divided on load: the branch starts on the host's face and a third wall starts on the branch's
+	// face. Editing the branch joins its start to the host axis, 100 mm lower, and divides it where the third wall meets
+	// it; the cut must be measured on the joined branch, like its openings.
+	for (const bool overCut : {false, true})
+	{
+		CAPTURE(overCut);
+		Document document{makeSequentialUuidSource()};
+		Project legacy = document.project();
+		Wall branch{WallId{Uuid{0, 101}}, {5000, 100}, {5000, 5000}, 200, 2800};
+		// Joined offsets: 3050 leaves the cut at 3000 before the window; 2950 puts the cut inside it.
+		const OpeningId window{Uuid{0, 200}};
+		branch.openings.push_back(Opening{window, OpeningKind::Window, overCut ? 2850 : 2950, 500, 1200, 900});
+		legacy.walls = {
+			Wall{WallId{Uuid{0, 100}}, {0, 0}, {10000, 0}, 200, 2800},
+			branch,
+			Wall{WallId{Uuid{0, 102}}, {5100, 3000}, {8000, 3000}, 200, 2800}};
+		for (Wall& wall : legacy.walls) wall.level = legacy.levels.front().id;
+		REQUIRE(document.replaceProject(legacy).ok());
+		const auto moved = document.execute(MoveWallEndpointCommand{branch.id, WallEndpoint::End, {5000, 5500}});
+		if (overCut)
+		{
+			CHECK_FALSE(moved.ok());
+			CHECK(document.project().walls == legacy.walls);
+			continue;
+		}
+		REQUIRE(moved.ok());
+		CHECK(document.project().findWall(branch.id)->start == Point2D{5000, 0});
+		CHECK(document.project().findWall(branch.id)->end == Point2D{5000, 3000});
+		const Wall* holder = nullptr;
+		for (const Wall& wall : document.project().walls) holder = wall.findOpening(window) ? &wall : holder;
+		REQUIRE(holder != nullptr);
+		CHECK(holder->start == Point2D{5000, 3000});
+		CHECK(holder->start.y_mm + holder->findOpening(window)->offsetMm == 3050); // 100 + 2950, as before the edit
+	}
+}
+
 TEST_CASE("selecting painting and deleting one divided span leaves the other span intact")
 {
 	Document document{makeSequentialUuidSource()};

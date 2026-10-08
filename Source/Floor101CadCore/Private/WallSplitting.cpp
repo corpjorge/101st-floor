@@ -140,6 +140,15 @@ namespace f101::cad
 			auto& wallCuts = cuts[i];
 			if (wallCuts.empty()) continue;
 			const Wall source = project.walls[i];
+			// A host cut was found on the wall as it was. Measure it on the wall as it is now: its own ends may have been
+			// joined to another axis above, and its openings were already measured from the joined start.
+			for (Cut& cut : wallCuts)
+			{
+				cut.alongMm = dot(vector(source.start, cut.point), vector(source.start, source.end)) / source.lengthMm();
+			}
+			std::erase_if(wallCuts, [&source](const Cut& cut)
+				{ return cut.alongMm <= EpsilonMm || cut.alongMm >= source.lengthMm() - EpsilonMm; });
+			if (wallCuts.empty()) continue;
 			std::sort(wallCuts.begin(), wallCuts.end(), [](const Cut& a, const Cut& b) { return a.alongMm < b.alongMm; });
 			wallCuts.erase(std::unique(wallCuts.begin(), wallCuts.end(), [](const Cut& a, const Cut& b)
 				{ return a.point == b.point; }), wallCuts.end());

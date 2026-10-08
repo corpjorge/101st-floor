@@ -12,7 +12,7 @@ cambiar una longitud que crea una unión. Las paredes deben pertenecer a la mism
 4. **Ctrl+Z** deshace el trazado y sus divisiones juntos. **Ctrl+Y** los restaura con los mismos IDs.
 
 Los tramos heredan altura, espesor y acabados. Puertas y ventanas conservan su posición y pasan a la pieza que las
-contiene. Los suelos y techos mantienen sus acabados aunque cambien las claves de las habitaciones. Guardar y abrir
+contiene, también cuando la pared dividida tenía un extremo apoyado en la cara de otra y ese extremo se lleva al eje. Los suelos y techos mantienen sus acabados aunque cambien las claves de las habitaciones. Guardar y abrir
 conserva las piezas separadas.
 
 Si la división atraviesa una puerta, ventana o el bolsillo de una puerta corrediza, aparece un aviso y la operación
