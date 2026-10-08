@@ -804,8 +804,9 @@ bool FFloor101DimensionsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("endpoint updated without snapping"), Document->GetEditController().selectedDimension()->end == f101::cad::Point2D{4187, 67});
 	TestTrue(TEXT("live properties contain new distance"), Document->GetEditController().selectedDimension()->start == Manual.start);
 	TestTrue(TEXT("edit label"), Document->Edit([](EditController& E) { return E.setDimensionText("Paso libre"); }).ok());
+	// The custom text keeps the real measurement beside it, "Paso libre (4,126)".
 	TestTrue(TEXT("same drawing for UI and export"), std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
-		[](const auto& Label) { return Label.text == "Paso libre"; }));
+		[](const auto& Label) { return Label.text.starts_with("Paso libre (") && Label.text.ends_with(")"); }));
 	const auto Automatic = *std::find_if(Document->GetPlanDrawing().dimensions.begin(), Document->GetPlanDrawing().dimensions.end(), [](const auto& D) { return D.automatic; });
 	TestTrue(TEXT("select automatic"), Document->Edit([Automatic](EditController& E) { return E.selectDimension(Automatic.id); }).ok());
 	std::array<f101::cad::PlanPoint, 4> Handles;

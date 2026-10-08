@@ -59,7 +59,7 @@ TEST_CASE("manual measurements use exact clicked points and persist reversible p
 	REQUIRE(editor.setDimensionCoordinate("3001 mm", 2).ok());
 	REQUIRE(editor.setDimensionText("Paso libre <A&B>").ok());
 	const auto plan = drawing::buildPlanDrawing(doc.project(), original.level);
-	CHECK(hasFigure(plan, "Paso libre <A&B>"));
+	CHECK(hasFigure(plan, "Paso libre <A&B> (5)")); // a custom text keeps the real measurement beside it
 	drawing::PlanOverlay selection;
 	selection.selectedDimension = original.id;
 	const auto selected = drawing::buildPlanDrawing(doc.project(), original.level, selection);
@@ -286,6 +286,7 @@ TEST_CASE("automatic dimensions can be selected, dragged, hidden and restored wh
 	REQUIRE(doc.execute(ChangeWallLengthCommand{wall, 5000}).ok());
 	CHECK(editor.selectedDimension()->end == Point2D{5000, 0});
 	CHECK(editor.selectedDimension()->text == "Exterior");
+	CHECK(hasFigure(drawing::buildPlanDrawing(doc.project(), level), "Exterior (5.00)")); // follows the model
 	REQUIRE(editor.setDimensionText("").ok());
 	CHECK(hasFigure(drawing::buildPlanDrawing(doc.project(), level), "5.00"));
 	REQUIRE(editor.deleteSelection().ok());
@@ -432,10 +433,11 @@ TEST_CASE("short automatic and custom figures retain identity and readable tick 
 	custom.text = "Límite baño";
 	REQUIRE(doc.execute(SetDimensionCommand{custom}).ok());
 	const auto changed = drawing::buildPlanDrawing(doc.project(), level);
-	CHECK(hasFigure(changed, custom.text));
+	CHECK(hasFigure(changed, custom.text + " (0.08)"));
 	CHECK(changed.dimensions.front().start == d.start);
 	CHECK(changed.dimensions.front().end == d.end);
-	CHECK(dimensionLabelWidthMm(custom) == doctest::Approx(11 * 150.0 * 0.85)); // UTF-8 glyphs, not bytes
+	// The text, the brackets and the real figure, counted in UTF-8 glyphs rather than bytes.
+	CHECK(dimensionLabelWidthMm(custom) == doctest::Approx(18 * 150.0 * 0.85));
 	Dimension longDimension = d;
 	longDimension.end = {0, 2000};
 	CHECK_FALSE(dimensionLabelOutside(longDimension));
@@ -505,4 +507,27 @@ TEST_CASE("the dimension editor places, drags and hides dimensions on its own")
 	REQUIRE(editor.select(manual, level).ok());
 	editor.setVisible(false);
 	CHECK_FALSE(editor.selected(level).has_value());
+}
+
+TEST_CASE("a custom dimension text shows the real measurement unless it already is that measurement")
+{
+	const LevelId level{Uuid{0, 1}};
+	Dimension automatic{"auto/x/overall", level, {0, 0}, {3550, 0}};
+	automatic.automatic = true;
+	CHECK(dimensionFigure(automatic, ',') == "3,55");
+	CHECK(dimensionLabel(automatic, ',') == "3,55");
+	automatic.text = "eje";
+	CHECK(dimensionLabel(automatic, ',') == "eje (3,55)");
+	// The figure as typed is written once, whichever decimal separator the plan uses.
+	automatic.text = "3,55";
+	CHECK(dimensionLabel(automatic, ',') == "3,55");
+	CHECK(dimensionLabel(automatic, '.') == "3,55");
+	automatic.text = "3.50";
+	CHECK(dimensionLabel(automatic, ',') == "3.50 (3,55)");
+
+	Dimension manual{"manual", level, {0, 0}, {3555, 0}};
+	CHECK(dimensionFigure(manual, '.') == "3.555"); // manual figures keep the millimetre
+	manual.text = "Paso";
+	CHECK(dimensionLabel(manual, ',') == "Paso (3,555)");
+	CHECK(dimensionLabelWidthMm(manual) == doctest::Approx(12 * 150.0 * 0.85));
 }

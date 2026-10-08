@@ -45,7 +45,10 @@ no mediciones verticales. Las manuales fijan puntos: no siguen entidades movidas
 Dividir muros crea cotas para los nuevos tramos; las preferencias quedan ligadas
 al tramo que conserva el UUID. Las referencias obsoletas no se dibujan y pueden
 limpiarse con Restaurar. Un rótulo personalizado es texto de presentación;
-Propiedades siempre muestra la distancia real y permite recuperar su cifra.
+Propiedades siempre muestra la distancia real y permite recuperar su cifra. El plano
+escribe tras él la medida real entre paréntesis (`eje (3,55)`), salvo que el rótulo ya
+sea esa cifra con cualquier separador decimal: un rótulo nunca oculta una medida que
+cambió. `cad::dimensionLabel` compone ese texto para el dibujo y para el picking.
 
 ## Verificación
 Regresiones doctest e integración Unreal: clics exactos, diagonales, precisión,

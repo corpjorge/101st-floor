@@ -12,7 +12,9 @@ su línea o el centro de su cifra. En **Propiedades** puedes:
 - Cambiar **Separación**, o arrastrar la línea para moverla. Valores negativos
   sitúan la línea al otro lado de los puntos medidos.
 - Escribir un **Rótulo** opcional; déjalo vacío o pulsa **Usar medida real** para
-  recuperar la cifra calculada. El panel siempre muestra la distancia real.
+  recuperar la cifra calculada. El panel siempre muestra la distancia real, y el plano
+  escribe la medida real entre paréntesis tras el rótulo (`eje (3,55)`), también en
+  SVG y PNG, salvo que el rótulo ya sea esa cifra. Si el muro cambia, la cifra lo sigue.
 - En cotas manuales, cambiar **Inicio X/Y** y **Fin X/Y**. Aceptan `mm`, `cm`, `m`;
   sin unidad se usan centímetros. Enter o salir del campo confirma el cambio.
 - Arrastrar cualquiera de los cuatro cuadrados: los puntos medidos cambian

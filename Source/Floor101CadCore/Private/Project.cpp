@@ -48,21 +48,29 @@ namespace f101::cad
 		return static_cast<double>(characters) * heightMm * 0.85;
 	}
 
+	std::string dimensionFigure(const Dimension& dimension, char decimalSeparator)
+	{
+		const double length = (dimension.end - dimension.start).lengthMm();
+		if (dimension.automatic) return formatHundredths(std::llround(length / 10.0), decimalSeparator);
+		std::string figure = formatLength(length, LengthUnit::Meter);
+		figure.resize(figure.size() - 2); // implicit metres
+		std::replace(figure.begin(), figure.end(), '.', decimalSeparator);
+		return figure;
+	}
+
+	std::string dimensionLabel(const Dimension& dimension, char decimalSeparator)
+	{
+		std::string figure = dimensionFigure(dimension, decimalSeparator);
+		if (dimension.text.empty()) return figure;
+		const auto pointed = [](std::string text) { std::replace(text.begin(), text.end(), ',', '.'); return text; };
+		if (pointed(dimension.text) == pointed(figure)) return dimension.text;
+		return dimension.text + " (" + figure + ")";
+	}
+
 	double dimensionLabelWidthMm(const Dimension& dimension)
 	{
-		std::string text = dimension.text;
-		if (text.empty())
-		{
-			if (dimension.automatic)
-			{
-				// Whole metres, the separator and two decimals.
-				const auto hundredths = std::llround((dimension.end - dimension.start).lengthMm() / 10.0);
-				return planTextWidthMm(std::to_string(hundredths / 100).size() + 3, DimensionFigureHeightMm);
-			}
-			text = formatLength((dimension.end - dimension.start).lengthMm(), LengthUnit::Meter);
-			text.resize(text.size() - 2); // implicit metres, as in the drawing
-		}
-		return planTextWidthMm(textCharacters(text), DimensionFigureHeightMm);
+		// The separator does not change the number of characters.
+		return planTextWidthMm(textCharacters(dimensionLabel(dimension, '.')), DimensionFigureHeightMm);
 	}
 
 	bool dimensionLabelOutside(const Dimension& dimension)

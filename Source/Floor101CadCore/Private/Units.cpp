@@ -1,6 +1,7 @@
 #include "F101/Cad/Units.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <string>
 
 namespace f101::cad
@@ -173,6 +174,13 @@ namespace f101::cad
 		case LengthUnit::Meter: return text + " m";
 		}
 		return text;
+	}
+
+	std::string formatHundredths(std::int64_t hundredths, char decimalSeparator)
+	{
+		const long long magnitude = std::llabs(static_cast<long long>(hundredths));
+		const std::string cents = std::to_string(magnitude % 100);
+		return std::string(hundredths < 0 ? "-" : "") + std::to_string(magnitude / 100) + decimalSeparator + (cents.size() < 2 ? "0" : "") + cents;
 	}
 
 	Result<std::int64_t> quantizeMillimeters(double valueMm)

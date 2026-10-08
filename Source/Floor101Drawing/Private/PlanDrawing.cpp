@@ -63,14 +63,6 @@ namespace f101::drawing
 			return frame;
 		}
 
-		// Two decimals of a whole number of hundredths: "3.55", "-0.07".
-		std::string formatHundredths(long long hundredths, char separator)
-		{
-			const long long magnitude = std::llabs(hundredths);
-			const std::string cents = std::to_string(magnitude % 100);
-			return std::string(hundredths < 0 ? "-" : "") + std::to_string(magnitude / 100) + separator + (cents.size() < 2 ? "0" : "") + cents;
-		}
-
 		class Builder
 		{
 		public:
@@ -291,14 +283,7 @@ namespace f101::drawing
 			double angle = std::atan2(frame.axis.y_mm, frame.axis.x_mm) * 180.0 / Pi;
 			if (angle > 90.0) angle -= 180.0;
 			else if (angle <= -90.0) angle += 180.0;
-			std::string figure = formatMeters(frame.length, texts.decimalSeparator);
-			if (!d.automatic)
-			{
-				figure = cad::formatLength(frame.length, cad::LengthUnit::Meter);
-				figure.resize(figure.size() - 2); // unit is implicit in plan figures
-				std::replace(figure.begin(), figure.end(), '.', texts.decimalSeparator);
-			}
-			builder.label(cad::dimensionLabelPoint(d), angle, FigureHeightMm, d.text.empty() ? figure : d.text, ink);
+			builder.label(cad::dimensionLabelPoint(d), angle, FigureHeightMm, cad::dimensionLabel(d, texts.decimalSeparator), ink);
 		}
 
 		// Every segment has a stable key made of its wall and opening-edge identities, never its measured value.
@@ -508,7 +493,7 @@ namespace f101::drawing
 
 	std::string formatMeters(double millimeters, char decimalSeparator)
 	{
-		return formatHundredths(std::llround(millimeters / 10.0), decimalSeparator);
+		return cad::formatHundredths(std::llround(millimeters / 10.0), decimalSeparator);
 	}
 
 	PlanDrawing buildPlanDrawing(const cad::Project& project, const cad::LevelId& level, const PlanOverlay& overlay, const DrawingTexts& texts)
@@ -635,7 +620,7 @@ namespace f101::drawing
 			}
 			builder.label(add(room.labelPoint, {0.0, RoomNameHeightMm * 0.8}), 0.0, RoomNameHeightMm, std::move(name), Ink::Label);
 			builder.label(add(room.labelPoint, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, RoomAreaHeightMm,
-				formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit, Ink::Label);
+				cad::formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit, Ink::Label);
 		}
 
 		// Furniture, as the overlay previews it: its outline, then the details of its type.

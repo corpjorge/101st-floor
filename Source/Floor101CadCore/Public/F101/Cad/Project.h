@@ -80,6 +80,13 @@ namespace f101::cad
 	FLOOR101CADCORE_API Status validateDimension(const Project& project, const Dimension& dimension);
 	FLOOR101CADCORE_API std::pair<PlanPoint, PlanPoint> dimensionLine(const Dimension& dimension);
 	FLOOR101CADCORE_API PlanPoint dimensionLabelPoint(const Dimension& dimension);
+	// The measured value as the plan writes it, in metres without the unit: automatic dimensions with two decimals
+	// ("3,55"), manual ones to the millimetre ("3,555").
+	FLOOR101CADCORE_API std::string dimensionFigure(const Dimension& dimension, char decimalSeparator);
+	// What the plan writes: the figure, or the custom text followed by the figure in brackets ("eje (3,55)"), so a
+	// custom text never hides the real measurement. A text that already is the figure (with either decimal separator)
+	// is written once.
+	FLOOR101CADCORE_API std::string dimensionLabel(const Dimension& dimension, char decimalSeparator);
 	// Conservative physical text width; short figures move outside their measured segment, also for picking.
 	FLOOR101CADCORE_API double dimensionLabelWidthMm(const Dimension& dimension);
 	FLOOR101CADCORE_API bool dimensionLabelOutside(const Dimension& dimension);
