@@ -31,7 +31,7 @@ por el panel para acceder a todos los campos.
 Las cotas miden en planta. Editarlas no modifica paredes, áreas, acabados ni
 rodapiés. Las manuales conservan puntos fijos; las automáticas siguen la geometría.
 Los archivos guardados requieren un lector del esquema 13; esta versión abre
-proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
+proyectos anteriores. Decisiones: [ADR-0031](adr/ADR-0031-editable-dimensions.md).
 
 ## Verificación
 

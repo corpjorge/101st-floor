@@ -21,7 +21,7 @@ renombrarse por separado. No cambian dimensiones ni áreas.
 El formato de proyecto pasa al esquema 11; los proyectos anteriores siguen
 abriendo con nombres automáticos. Después de guardar con esta versión, el archivo
 requiere una versión del juego compatible con el esquema 11. Los nombres siguen
-las claves derivadas de los muros; ver [ADR-0029](adr/0029-room-names.md) para las
+las claves derivadas de los muros; ver [ADR-0029](adr/ADR-0029-room-names.md) para las
 limitaciones de reasociación al eliminar muros.
 
 ## Verificación

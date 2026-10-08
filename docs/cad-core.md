@@ -60,4 +60,4 @@ Tests: `Tests/Unit/UnitsTests.cpp`, `IdTests.cpp`, `Geometry2DTests.cpp`, `WallT
 
 - Las cotas de `Project::dimensions` admiten creación, edición, eliminación y
   restauración por planta como transacciones. Las automáticas guardan presentación;
-  sus puntos reales vienen del dibujo. Ver [ADR-0031](adr/0031-editable-dimensions.md).
+  sus puntos reales vienen del dibujo. Ver [ADR-0031](adr/ADR-0031-editable-dimensions.md).

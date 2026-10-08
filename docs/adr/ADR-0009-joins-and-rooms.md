@@ -54,7 +54,7 @@ guarda en `project.json` y cómo se presenta mientras se edita.
   habrá que indexar o recompilar por zonas.
 - Limitaciones conocidas: un grupo de muros suelto dentro de una habitación no le hace un agujero; muros solapados
   (colineales superpuestos) no se fusionan en el modelo. Los nombres persistentes
-  se implementaron posteriormente en [ADR-0029](0029-room-names.md).
+  se implementaron posteriormente en [ADR-0029](ADR-0029-room-names.md).
 - Puertas y ventanas (huecos) se apoyarán en estas huellas y en los tramos de muro.
 
 ## Verificación

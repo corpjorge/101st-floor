@@ -45,7 +45,7 @@ Opciones sí se guardan. `Quiet` no admite `DebugMode` ni `ShowLogs` a la vez.
 .\Scripts\CheckStartup.ps1 -DebugMode
 ```
 
-Decisión: [ADR-0027](adr/0027-branded-startup-and-diagnostics.md).
+Decisión: [ADR-0027](adr/ADR-0027-branded-startup-and-diagnostics.md).
 
 
 ![Componente de carga con marca propia](images/startup-loading.png)

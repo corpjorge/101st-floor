@@ -27,13 +27,13 @@
 | [0023](ADR-0023-native-fullscreen-resolution.md) | Pantalla completa nativa, selector de modos del monitor y medición del render interno al 100 % | aceptado y verificado |
 | [0024](ADR-0024-camera-navigation.md) | Modo Navegar, WASD/QE con prioridad de atajos y zoom continuo después del foco orbital | aceptado y verificado |
 | [0025](ADR-0025-wall-junction-segments.md) | Paredes divididas en tramos independientes al unir o cruzar ejes; conservar huecos, acabados y deshacer/rehacer | aceptado y verificado |
-
-| [0028](0028-windows-distribution.md) | Distribución Windows Shipping, diagnóstico propio compatible con el motor instalado, biblioteca NonUFS y MSI/Burn | aceptado y verificado localmente |
-
-| [0029](0029-room-names.md) | Nombres personalizados por habitación, transacciones, esquema 11 y rótulos compartidos | aceptado |
-
-| [0030](0030-room-baseboards.md) | Rodapiés por habitación con huecos y acabados persistentes | aceptado |
-| [0031](0031-editable-dimensions.md) | Cotas manuales y preferencias automáticas persistentes, comandos y esquema 13 | aceptado |
+| [0026](ADR-0026-studio-interface.md) | Interfaz de estudio en Slate/C++: modos Diseñar, Recorrer y Foto, componentes compartidos y distribución para ventanas pequeñas | aceptado |
+| [0027](ADR-0027-branded-startup-and-diagnostics.md) | Splash y pantalla de carga propios (`Floor101Startup`) y diagnóstico local configurable | aceptado |
+| [0028](ADR-0028-windows-distribution.md) | Distribución Windows Shipping, diagnóstico propio compatible con el motor instalado, biblioteca NonUFS y MSI/Burn | aceptado y verificado localmente |
+| [0029](ADR-0029-room-names.md) | Nombres personalizados por habitación, transacciones, esquema 11 y rótulos compartidos | aceptado |
+| [0030](ADR-0030-room-baseboards.md) | Rodapiés por habitación con huecos y acabados persistentes; esquema 12 | aceptado |
+| [0031](ADR-0031-editable-dimensions.md) | Cotas manuales y preferencias automáticas persistentes, comandos y esquema 13 | aceptado |
+| [0032](ADR-0032-wall-body-drag.md) | Arrastre del cuerpo de una pared con sus uniones (`TranslateWallCommand`) en una transacción; sin cambio de esquema | aceptado |
 
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

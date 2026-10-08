@@ -51,4 +51,4 @@ anillos y tintes de las instalaciones).
 Las manuales y las preferencias de automáticas provienen de `Project::dimensions`.
 `PlanOverlay::selectedDimension` y `previewDimension` resaltan selección y gestos;
 exportar omite estas marcas. SVG y PNG respetan ocultación, separación y rótulos.
-Ver [guía](dimensions.md) y [ADR-0031](adr/0031-editable-dimensions.md).
+Ver [guía](dimensions.md) y [ADR-0031](adr/ADR-0031-editable-dimensions.md).
