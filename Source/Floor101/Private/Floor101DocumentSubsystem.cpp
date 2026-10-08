@@ -306,9 +306,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
-	Document->setRoomBaseboardTransfer(f101::geometry::makeRoomBaseboardTransfer());
-	Document->setRoomNameTransfer(f101::geometry::makeRoomNameTransfer());
-	Document->setRoomFinishTransfer(f101::geometry::makeRoomFinishTransfer()); // wall segments retain room finishes (ADR-0025)
+	Document->setRoomTransfer(f101::geometry::makeRoomTransfer()); // wall segments retain room settings (ADR-0025)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	PlanDrawing = MakePimpl<f101::drawing::PlanDrawing>();
 	Models = MakePimpl<f101::assets::ModelCache>();

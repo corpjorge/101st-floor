@@ -222,7 +222,7 @@ TEST_CASE("selecting painting and deleting one divided span leaves the other spa
 TEST_CASE("room floors and ceilings inherit finishes even when split walls change the room keys")
 {
 	Document document{makeSequentialUuidSource()};
-	document.setRoomFinishTransfer(geometry::makeRoomFinishTransfer());
+	document.setRoomTransfer(geometry::makeRoomTransfer());
 	Project legacy = document.project();
 	legacy.walls = {
 		Wall{WallId{Uuid{0, 100}}, {0, 0}, {10000, 0}, 120, 2800},
@@ -251,4 +251,41 @@ TEST_CASE("room floors and ceilings inherit finishes even when split walls chang
 	CHECK(document.project().roomFinishes == legacy.roomFinishes);
 	REQUIRE(document.redo().ok());
 	CHECK(document.project().roomFinishes == divided);
+}
+
+TEST_CASE("one split hands finishes, names and baseboards to every new room in one undo step")
+{
+	Document document{makeSequentialUuidSource()};
+	document.setRoomTransfer(geometry::makeRoomTransfer());
+	Project legacy = document.project();
+	legacy.walls = {
+		Wall{WallId{Uuid{0, 100}}, {0, 0}, {10000, 0}, 120, 2800},
+		Wall{WallId{Uuid{0, 101}}, {10000, 0}, {10000, 4000}, 120, 2800},
+		Wall{WallId{Uuid{0, 102}}, {10000, 4000}, {0, 4000}, 120, 2800},
+		Wall{WallId{Uuid{0, 103}}, {0, 4000}, {0, 0}, 120, 2800}};
+	for (Wall& wall : legacy.walls) wall.level = legacy.levels.front().id;
+	const auto oldRooms = geometry::detectRooms(legacy);
+	REQUIRE(oldRooms.size() == 1);
+	const std::string& key = oldRooms.front().key;
+	legacy.roomFinishes.push_back({key, "tile-grey", "plaster-white"});
+	legacy.roomNames.push_back({key, "Sal\xc3\xb3n"});
+	legacy.roomBaseboards.push_back({key, true, 80, 15, "wood-walnut"});
+	REQUIRE(document.replaceProject(legacy).ok());
+	REQUIRE(document.addWall({4000, 0}, {4000, 4000}, 120, 2800).ok());
+	const auto rooms = geometry::detectRooms(document.project());
+	REQUIRE(rooms.size() == 2);
+	for (const auto& room : rooms)
+	{
+		REQUIRE(document.project().findRoomFinish(room.key) != nullptr);
+		CHECK(document.project().findRoomFinish(room.key)->floor == "tile-grey");
+		REQUIRE(document.project().findRoomName(room.key) != nullptr);
+		CHECK(document.project().findRoomName(room.key)->name == "Sal\xc3\xb3n");
+		const RoomBaseboard* baseboard = document.project().findRoomBaseboard(room.key);
+		REQUIRE(baseboard != nullptr);
+		CHECK(*baseboard == RoomBaseboard{room.key, true, 80, 15, "wood-walnut"});
+	}
+	REQUIRE(document.undo().ok());
+	CHECK(document.project().roomFinishes == legacy.roomFinishes);
+	CHECK(document.project().roomNames == legacy.roomNames);
+	CHECK(document.project().roomBaseboards == legacy.roomBaseboards);
 }

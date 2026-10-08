@@ -130,7 +130,8 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
   habitaciones como caras acotadas del grafo de ejes, con su suelo (caras interiores) y su área neta.
 - **Tramos editables guardados (ADR-0025):** crear o modificar ejes divide las paredes de la misma planta en sus T y
   cruces. Cada tramo tiene su ID, huecos y acabados; las divisiones son parte de la misma transacción. El Geometry Engine
-  transfiere acabados de habitaciones por un proveedor inyectado en `Document`, sin invertir dependencias. Abrir un
+  transfiere acabados, nombres y rodapiés de habitaciones por un proveedor inyectado en `Document`
+  (`geometry::makeRoomTransfer`, una detección por planta), sin invertir dependencias. Abrir un
   proyecto antiguo no lo divide automáticamente. Ver [división de paredes](wall-splitting.md).
 - **Esquinas:** `MoveJointCommand` mueve de una vez todos los extremos que comparten un punto; es lo que hace arrastrar
   el asa de una esquina.
