@@ -81,6 +81,18 @@ namespace Floor101::PackageCheck
 					Viewport->SetPlanView(false);
 					Check(Document->NewProject().ok(), TEXT("clear_overlap_fixture"));
 				}
+				{
+					const auto Wall = Document->GetMutableDocument().addWall({0,0},{0,3000},120,2800);
+					Check(Wall.ok(), TEXT("wall_body_fixture"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.pointerPressed({25,1400,10000,0,0,-1}); }).ok() &&
+						Document->GetEditController().isDragging(), TEXT("wall_body_grab"));
+					Check(Document->Edit([](f101::cad::EditController& E) { E.pointerMoved({438,1523,10000,0,0,-1}); return E.pointerReleased({438,1523,10000,0,0,-1}); }).ok(), TEXT("wall_body_drag"));
+					const auto* Moved = Wall ? Document->GetDocument().project().findWall(Wall.value()) : nullptr;
+					Check(Moved && Moved->start == f101::cad::Point2D{413,123} && Moved->end == f101::cad::Point2D{413,3123}, TEXT("wall_body_exact_translation"));
+					Check(Document->Edit([](f101::cad::EditController& E) { return E.undo(); }).ok() &&
+						Document->GetDocument().project().walls.front().start == f101::cad::Point2D{0,0}, TEXT("wall_body_undo"));
+					Check(Document->NewProject().ok(), TEXT("clear_wall_body_fixture"));
+				}
 				Check(Document->SaveProject(FPaths::Combine(Directory, TEXT("project.json"))).ok(), TEXT("save_empty"));
 				for (const auto& Ends : {std::pair<f101::cad::Point2D, f101::cad::Point2D>{{0,0},{4000,0}}, {{4000,0},{4000,4000}}, {{4000,4000},{0,4000}}, {{0,4000},{0,0}}})
 				{ Check(Document->GetMutableDocument().addWall(Ends.first, Ends.second, 120, 2800).ok(), TEXT("create_wall")); }
@@ -189,6 +201,28 @@ namespace Floor101::PackageCheck
 				{
 					const FVector Before = Pawn->GetFocus(); Pawn->Move(FVector(1,0,0), 1.0f, false);
 					Check(!Pawn->GetFocus().Equals(Before), TEXT("camera_motion"));
+					const FVector LookPosition = Pawn->GetActorLocation();
+					const FRotator LookDirection = Pawn->GetActorRotation();
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::RightMouseButton, IE_Pressed, 0ULL));
+					Viewport->ApplyRightDrag(FVector2D(80,-120), true);
+					Check(Pawn->GetActorLocation().Equals(LookPosition, 1e-6) && !Pawn->GetActorRotation().Equals(LookDirection, 1e-6) && !Viewport->IsNavigationMode(), TEXT("look_in_place_without_n"));
+					Viewport->ApplyRightDrag(FVector2D(20,10), false);
+					Check(Pawn->GetActorLocation().Equals(LookPosition, 1e-6), TEXT("look_latches_until_release"));
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::RightMouseButton, IE_Released, 0ULL));
+					const bool OriginalPlan = Viewport->IsPlanView();
+					Viewport->SetPlanView(false);
+					Pawn->Zoom(2); Pawn->Pan(FVector2D(60,40), FVector2D(1280,720));
+					const FVector PerspectiveFocus = Pawn->GetFocus();
+					const double PerspectiveDistance = Pawn->GetDistance();
+					Viewport->SetPlanView(true);
+					Pawn->Zoom(2); Pawn->Pan(FVector2D(-80,25), FVector2D(1280,720));
+					const FVector PlanFocus = Pawn->GetFocus();
+					const double PlanDistance = Pawn->GetDistance();
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::Tab, IE_Pressed, 0ULL));
+					Check(!Viewport->IsPlanView() && Pawn->GetFocus().Equals(PerspectiveFocus, 1e-6) && FMath::IsNearlyEqual(Pawn->GetDistance(), PerspectiveDistance, 1e-6), TEXT("tab_restores_3d_view"));
+					Viewport->InputKey(FInputKeyEventArgs(Viewport->Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::Tab, IE_Pressed, 0ULL));
+					Check(Viewport->IsPlanView() && Pawn->GetFocus().Equals(PlanFocus, 1e-6) && FMath::IsNearlyEqual(Pawn->GetDistance(), PlanDistance, 1e-6), TEXT("tab_restores_2d_view"));
+					Viewport->SetPlanView(OriginalPlan);
 				}
 				Preferences::SetDiagnosticMode(true);
 				Check(Diagnostics::IsVerbose() && Preferences::DiagnosticMode(), TEXT("debug_toggle_on"));

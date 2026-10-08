@@ -3,6 +3,7 @@
 #include "F101/Cad/Units.h"
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 
 namespace f101::cad
@@ -37,14 +38,41 @@ namespace f101::cad
 			PlanPoint{static_cast<double>(dimension.end.x_mm), static_cast<double>(dimension.end.y_mm)}, a, b};
 	}
 
+	double dimensionLabelWidthMm(const Dimension& dimension)
+	{
+		std::string text = dimension.text;
+		if (text.empty())
+		{
+			if (dimension.automatic)
+			{
+				const auto hundredths = std::llround((dimension.end - dimension.start).lengthMm() / 10.0);
+				return static_cast<double>(std::to_string(hundredths / 100).size() + 3) * 150.0 * 0.85;
+			}
+			text = formatLength((dimension.end - dimension.start).lengthMm(), LengthUnit::Meter);
+			text.resize(text.size() - 2); // implicit metres, as in the drawing
+		}
+		const auto characters = std::count_if(text.begin(), text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; });
+		return static_cast<double>(characters) * 150.0 * 0.85;
+	}
+
+	bool dimensionLabelOutside(const Dimension& dimension)
+	{
+		return (dimension.end - dimension.start).lengthMm() < dimensionLabelWidthMm(dimension) + 150.0;
+	}
+
 	PlanPoint dimensionLabelPoint(const Dimension& dimension)
 	{
 		const auto [a, b] = dimensionLine(dimension);
 		const Vector2D axis = dimension.end - dimension.start;
 		const double length = axis.lengthMm();
+		if (length == 0.0) return a;
 		const double sign = dimension.offsetMm < 0 ? -1.0 : 1.0;
-		return {(a.x_mm + b.x_mm) / 2.0 - static_cast<double>(axis.dy_mm) / length * sign * 135.0,
-			(a.y_mm + b.y_mm) / 2.0 + static_cast<double>(axis.dx_mm) / length * sign * 135.0};
+		const double width = dimensionLabelWidthMm(dimension);
+		const bool outside = length < width + 150.0;
+		const double along = outside ? length / 2.0 + width / 2.0 + 100.0 : 0.0;
+		const double across = sign * (outside ? 435.0 : 135.0);
+		return {(a.x_mm + b.x_mm) / 2.0 + static_cast<double>(axis.dx_mm) / length * along - static_cast<double>(axis.dy_mm) / length * across,
+			(a.y_mm + b.y_mm) / 2.0 + static_cast<double>(axis.dy_mm) / length * along + static_cast<double>(axis.dx_mm) / length * across};
 	}
 
 	Status validateRoomBaseboard(const Project& project, const RoomBaseboard& baseboard)

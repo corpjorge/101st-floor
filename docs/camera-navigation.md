@@ -12,9 +12,12 @@ Los atajos de Pared y Muebles son **B** y **G**.
 | Shift + movimiento | cuatro veces más rápido |
 | Números superiores 1–9 / 0 | elegir nivel 1–9 / 10; el teclado numérico no cambia la velocidad |
 | Selector Velocidad | niveles 1–10; muestra la velocidad en m/s y guarda la elección |
-| Derecho arrastrando | mirar desde la posición de la cámara, incluso hacia arriba |
+| Shift + derecho arrastrando | mirar desde la posición actual sin desplazarse, en Diseñar, Recorrer y Foto |
+| Derecho arrastrando | orbitar en Diseñar/Foto; mirar desde la posición actual en Recorrer |
+| Central arrastrando | deslizar la vista sin girarla |
 | N / Esc | volver a editar |
 | F | encuadrar el proyecto y recuperar una vista general |
+| Tab | alternar 2D/3D conservando el encuadre y zoom de cada vista |
 
 En edición, **WASD/QE** mueve la cámara sin mantener el botón derecho. **B** dibuja paredes y **G** abre muebles. Un derecho arrastrado sin teclas de movimiento conserva la órbita habitual.
 En plano 2D, WASD desplaza el plano sobre los ejes de pantalla; Q/E no cambian su altura.
@@ -48,3 +51,44 @@ Compilación Win64 Development, 265 tests unitarios (12.892 aserciones) y 67 tes
 Decisión: [ADR-0024](adr/ADR-0024-camera-navigation.md).
 
 ![Navegación, nivel de velocidad, sincronización vertical y Salir](images/camera-navigation.png)
+
+## Memoria de las vistas (0.1.7)
+
+Tab conserva dos encuadres independientes: posición y zoom del plano 2D, y posición, zoom y orientación de la
+cámara 3D. La primera entrada en 2D usa el centro y escala actuales; volver a una vista recupera el último
+encuadre de esa vista. **F** sigue encuadrando explícitamente la vista activa. Abrir o crear otro proyecto descarta
+el encuadre anterior; cambiar de planta actualiza también la altura del encuadre guardado.
+
+La regresión `Floor101.Interaction.PlanViewMemory` cubre alternancias repetidas, desplazamiento, zoom, orientación,
+encuadre explícito, cambio de altura y reinicio. La comprobación portable pulsa Tab en el ejecutable Shipping.
+
+Validación 0.1.7: compilación Win64 Development sin advertencias nuevas, 315 casos C++ / 14.064 aserciones y 87
+pruebas Unreal aprobadas. Reporte: `Saved/Automation/20261005-192519`.
+
+Portable Windows **0.1.7 Shipping** aprobado, generado desde `4e30d1f` con árbol limpio. El test pulsa Tab y verifica
+`tab_restores_3d_view=PASS` y `tab_restores_2d_view=PASS` con encuadres y zoom distintos. Reporte:
+`Saved/PackageChecks/20261005-193542-functional`. Ejecutable: `Packaged/0.1.7/Windows/Floor101.exe`.
+La validación corresponde a este equipo; sigue pendiente probar en otro equipo sin Unreal instalado.
+
+## Mirar desde la posición actual (0.1.8)
+
+En 3D, mantén **Shift + botón derecho** y arrastra para mirar a los lados o arriba/abajo sin desplazar la cámara.
+Funciona en Diseñar y Foto sin activar N. El botón derecho solo conserva la órbita; en Recorrer sigue mirando.
+Al comenzar a mirar, el gesto mantiene ese comportamiento hasta soltar el botón, incluso si sueltas Shift primero.
+Un giro pequeño tampoco cancela la herramienta de construcción. Abrir un menú o perder el foco termina el gesto.
+En 2D se conserva la orientación del plano; usa el botón central o WASD para desplazarlo.
+
+Validación: Win64 Development compilado sin advertencias nuevas; 315 casos C++ / 14.064 aserciones y 88 pruebas
+Unreal Automation aprobadas. Reporte: `Saved/Automation/20261006-175123`. `Floor101.Navigation.LookInPlaceGesture`
+comprueba posición fija, dirección, orden de liberación, órbita, cancelación de construcción, 2D y pérdida de foco/menús.
+
+La ayuda se revisó en capturas reales a 1280×720 y 800×600.
+
+![Controles: mirar desde la posición actual](images/camera-look-controls.png)
+![Controles en ventana pequeña](images/camera-look-controls-small.png)
+
+Portable Windows **0.1.8 Shipping** aprobado, generado desde `ef54060` con árbol limpio. El ejecutable comprueba
+`look_in_place_without_n=PASS` y `look_latches_until_release=PASS`; integridad SHA-256, dependencias locales y
+regresiones funcionales aprobadas. Reporte: `Saved/PackageChecks/20261006-180006-functional`.
+Ejecutable: `Packaged/0.1.8/Windows/Floor101.exe`. ZIP: `Packaged/0.1.8/101st-Floor-portable.zip`.
+La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue pendiente.

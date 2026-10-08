@@ -5,6 +5,7 @@
 #include "F101/Drawing/SvgWriter.h"
 
 #include <algorithm>
+#include <cmath>
 
 using namespace f101;
 using namespace f101::cad;
@@ -374,4 +375,81 @@ TEST_CASE("dimension JSON rejects malformed fields duplicates and accepts legacy
 	legacy.replace(legacy.find(version), version.size(), "\"schemaVersion\": 12");
 	REQUIRE(readProjectJson(legacy).ok());
 	CHECK(readProjectJson(legacy).value().dimensions.empty());
+}
+
+TEST_CASE("short dimensions place their figure beyond the ticks without changing measurement and remain pickable")
+{
+	for (const Point2D end : {Point2D{80, 0}, Point2D{0, 80}, Point2D{48, 64}, Point2D{-80, 0}})
+	{
+		Document doc{makeSequentialUuidSource()};
+		EditController editor{doc, {}};
+		dimensions(editor);
+		Dimension d{"short", editor.activeLevel(), {0, 0}, end, 600};
+		REQUIRE(doc.execute(SetDimensionCommand{d}).ok());
+		const std::string saved = writeProjectJson(doc.project());
+		const auto plan = drawing::buildPlanDrawing(doc.project(), editor.activeLevel());
+		REQUIRE(plan.dimensions.size() == 1);
+		CHECK(plan.dimensions.front() == d);
+		CHECK(dimensionLabelOutside(d));
+		const PlanPoint at = dimensionLabelPoint(d);
+		const Vector2D axis = end - d.start;
+		const double along = (at.x_mm * static_cast<double>(axis.dx_mm) + at.y_mm * static_cast<double>(axis.dy_mm)) / axis.lengthMm();
+		CHECK(along - dimensionLabelWidthMm(d) / 2.0 >= axis.lengthMm() + 99.0);
+		REQUIRE(plan.labels.size() == 1);
+		CHECK(plan.labels.front().at.x_mm == doctest::Approx(at.x_mm));
+		CHECK(plan.labels.front().at.y_mm == doctest::Approx(at.y_mm));
+		CHECK(plan.min.x_mm <= at.x_mm);
+		CHECK(plan.max.x_mm >= at.x_mm);
+		CHECK(drawing::writeSvg(plan).find("<rect x=") != std::string::npos);
+		REQUIRE(editor.pointerPressed(above(at.x_mm, at.y_mm)).ok());
+		REQUIRE(editor.pointerReleased(above(at.x_mm, at.y_mm)).ok());
+		REQUIRE(editor.selectedDimension());
+		CHECK(editor.selectedDimension()->id == d.id);
+		CHECK(writeProjectJson(doc.project()) == saved);
+	}
+}
+
+TEST_CASE("short automatic and custom figures retain identity and readable tick spacing")
+{
+	Document doc{makeSequentialUuidSource()};
+	const auto wall = doc.addWall({0,0}, {0,80}, 120, 2800).value();
+	const LevelId level = doc.project().levels.front().id;
+	const auto plan = drawing::buildPlanDrawing(doc.project(), level);
+	REQUIRE(plan.dimensions.size() == 1);
+	const Dimension d = plan.dimensions.front();
+	CHECK(d.automatic);
+	CHECK(d.id == "auto/" + toString(wall) + "/overall");
+	CHECK((d.end - d.start).lengthMm() == 80);
+	CHECK(dimensionLabelOutside(d));
+	const auto ticks = std::count_if(plan.strokes.begin(), plan.strokes.end(), [](const auto& stroke)
+	{
+		if (stroke.ink != drawing::Ink::Dimension || stroke.widthMm != 15.0 || stroke.points.size() != 2) return false;
+		return std::hypot(stroke.points[1].x_mm - stroke.points[0].x_mm, stroke.points[1].y_mm - stroke.points[0].y_mm) < 80.0;
+	});
+	CHECK(ticks == 2);
+	Dimension custom = d;
+	custom.text = "Límite baño";
+	REQUIRE(doc.execute(SetDimensionCommand{custom}).ok());
+	const auto changed = drawing::buildPlanDrawing(doc.project(), level);
+	CHECK(hasFigure(changed, custom.text));
+	CHECK(changed.dimensions.front().start == d.start);
+	CHECK(changed.dimensions.front().end == d.end);
+	CHECK(dimensionLabelWidthMm(custom) == doctest::Approx(11 * 150.0 * 0.85)); // UTF-8 glyphs, not bytes
+	Dimension longDimension = d;
+	longDimension.end = {0, 2000};
+	CHECK_FALSE(dimensionLabelOutside(longDimension));
+	CHECK(dimensionLabelPoint(longDimension).y_mm == 1000);
+}
+
+TEST_CASE("short opening chain callouts use a separate row from neighbouring figures")
+{
+	Document doc{makeSequentialUuidSource()};
+	const auto wall = doc.addWall({0,0}, {4000,0}, 120, 2800).value();
+	REQUIRE(doc.addOpening(wall, Opening{OpeningId{}, OpeningKind::Door, 80, 900, 2100, 0}).ok());
+	const auto plan = drawing::buildPlanDrawing(doc.project(), doc.project().levels.front().id);
+	const auto shortDim = std::find_if(plan.dimensions.begin(), plan.dimensions.end(), [](const Dimension& d) { return (d.end - d.start).lengthMm() == 80; });
+	const auto openingDim = std::find_if(plan.dimensions.begin(), plan.dimensions.end(), [](const Dimension& d) { return (d.end - d.start).lengthMm() == 900; });
+	REQUIRE(shortDim != plan.dimensions.end());
+	REQUIRE(openingDim != plan.dimensions.end());
+	CHECK(std::fabs(dimensionLabelPoint(*shortDim).y_mm - dimensionLabelPoint(*openingDim).y_mm) >= 300.0);
 }

@@ -68,7 +68,7 @@ void SFloor101Overlay::EnterWorkspace(bool bFrame)
 	{
 		Client->SetPhotoMode(false);
 		Client->SetNavigationMode(false);
-		if (bFrame) { Client->FrameProject(); }
+		if (bFrame) { Client->FrameProject(true); }
 	}
 	CloseHome();
 }

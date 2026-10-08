@@ -156,9 +156,16 @@ int32 SFloor101PlanView::OnPaint(const FPaintArgs& Args, const FGeometry& Allott
 		const FString Text = UTF8_TO_TCHAR(Label.text.c_str());
 		const FVector2D Size = Measure->Measure(Text, Font);
 		const FSlateRenderTransform Turn(FQuat2D(FMath::DegreesToRadians(static_cast<float>(-Label.angleDegrees))));
-		FSlateDrawElement::MakeText(OutDrawElements, LayerId + 3,
+		if (Label.ink == Ink::Dimension || Label.ink == Ink::DimensionSelected)
+		{
+			const FVector2D PaperSize = Size + FVector2D(4.0, 4.0);
+			FSlateDrawElement::MakeBox(OutDrawElements, LayerId + 3,
+				AllottedGeometry.ToPaintGeometry(PaperSize, FSlateLayoutTransform(ToLocal(Label.at) - PaperSize / 2.0), Turn, FVector2D(0.5, 0.5)),
+				White, ESlateDrawEffect::None, FLinearColor::White);
+		}
+		FSlateDrawElement::MakeText(OutDrawElements, LayerId + 4,
 			AllottedGeometry.ToPaintGeometry(Size, FSlateLayoutTransform(ToLocal(Label.at) - Size / 2.0), Turn, FVector2D(0.5, 0.5)), Text, Font,
 			ESlateDrawEffect::None, FLinearColor(InkColor(Label.ink)));
 	}
-	return LayerId + 3;
+	return LayerId + 4;
 }

@@ -1589,4 +1589,97 @@ bool FFloor101NewProjectTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("old selection is cleared"), Document->GetEditController().selection().isNil());
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101WallBodyDragTest, "Floor101.Interaction.WallBodyDrag", InteractionTestFlags)
+bool FFloor101WallBodyDragTest::RunTest(const FString& Parameters)
+{
+	using namespace f101::cad;
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) return false;
+	for (const auto& Ends : {std::pair<Point2D, Point2D>{{0,0},{4000,0}}, {{4000,0},{4000,3000}},
+		{{4000,3000},{0,3000}}, {{0,3000},{0,0}}})
+		if (!TestTrue(TEXT("wall"), Document->GetMutableDocument().addWall(Ends.first, Ends.second, 120, 2800).ok())) return false;
+	const WallId Id = Document->GetDocument().project().walls.back().id;
+	if (!TestEqual(TEXT("room detected"), Document->GetRooms().Num(), 1)) return false;
+	const std::string Key = TCHAR_TO_UTF8(*Document->GetRooms()[0].Key);
+	TestTrue(TEXT("name and baseboards"), Document->Edit([Key](EditController& E)
+	{
+		if (const auto Status = E.selectRoom(Key); !Status) return Status;
+		if (const auto Status = E.setSelectedRoomName("Cocina"); !Status) return Status;
+		return E.setSelectedRoomBaseboard(true);
+	}).ok());
+	const std::string Before = writeProjectJson(Document->GetDocument().project());
+	TestTrue(TEXT("grab body on first click"), Document->Edit([](EditController& E) { return E.pointerPressed(Down(25, 1400)); }).ok());
+	TestTrue(TEXT("drag active"), Document->GetEditController().isDragging());
+	Document->UpdatePointer(Down(438, 1400));
+	TestEqual(TEXT("three joined walls previewed"), Document->GetEditController().view().previewWalls.size(), std::size_t{3});
+	auto* Preview = Cast<AFloor101SceneNodeActor>(Document->FindWallActor(Id));
+	if (TestNotNull(TEXT("existing actor renders the preview"), Preview))
+		TestEqual(TEXT("preview mesh follows translation in centimetres"), Preview->GetMeshBounds().Min.X, 35.3, 1e-4);
+	TestTrue(TEXT("model untouched during preview"), writeProjectJson(Document->GetDocument().project()) == Before);
+	TestTrue(TEXT("release moves wall"), Document->Edit([](EditController& E) { return E.pointerReleased(Down(438, 1400)); }).ok());
+	const Wall* Moved = Document->GetDocument().project().findWall(Id);
+	TestTrue(TEXT("both ends translated exactly"), Moved && Moved->start == Point2D{413,3000} && Moved->end == Point2D{413,0});
+	TestEqual(TEXT("room still closed"), Document->GetRooms().Num(), 1);
+	if (!Document->GetRooms().IsEmpty()) TestEqual(TEXT("room name retained"), Document->GetRooms()[0].Name, FString(TEXT("Cocina")));
+	TestTrue(TEXT("baseboard retained"), Document->GetDocument().project().findRoomBaseboard(Key) != nullptr);
+	TestNotNull(TEXT("updated actor"), Document->FindWallActor(Id));
+	const std::string After = writeProjectJson(Document->GetDocument().project());
+	TestTrue(TEXT("one undo restores all joints"), Document->Edit([](EditController& E) { return E.undo(); }).ok() && writeProjectJson(Document->GetDocument().project()) == Before);
+	TestTrue(TEXT("redo restores movement"), Document->Edit([](EditController& E) { return E.redo(); }).ok() && writeProjectJson(Document->GetDocument().project()) == After);
+	return true;
+}
+
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PlanViewMemoryTest, "Floor101.Interaction.PlanViewMemory", InteractionTestFlags)
+bool FFloor101PlanViewMemoryTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* Pawn = TestWorld.World->SpawnActor<AFloor101EditingPawn>();
+	if (!TestNotNull(TEXT("pawn"), Pawn)) return false;
+	Pawn->Frame(FBox(FVector(-300,-400,0), FVector(500,600,280)));
+	Pawn->Orbit(FVector2D(60,20));
+	Pawn->Zoom(4);
+	Pawn->Pan(FVector2D(170,80), FVector2D(1280,720));
+	const FVector PerspectiveFocus = Pawn->GetFocus();
+	const FVector PerspectivePosition = Pawn->GetActorLocation();
+	const FRotator PerspectiveRotation = Pawn->GetActorRotation();
+	const double PerspectiveDistance = Pawn->GetDistance();
+	Pawn->SetPlanView(true);
+	TestEqual(TEXT("first plan entry keeps focus"), Pawn->GetFocus(), PerspectiveFocus, 1e-6f);
+	TestEqual(TEXT("first plan entry keeps scale"), Pawn->GetDistance(), PerspectiveDistance, 1e-6);
+	Pawn->Zoom(3);
+	Pawn->Pan(FVector2D(-120,45), FVector2D(1280,720));
+	const FVector PlanFocus = Pawn->GetFocus();
+	const double PlanDistance = Pawn->GetDistance();
+	const double PlanWidth = Pawn->GetViewWidth();
+	for (int32 Round = 0; Round < 3; ++Round)
+	{
+		Pawn->SetPlanView(false);
+		TestEqual(TEXT("3D focus remembered"), Pawn->GetFocus(), PerspectiveFocus, 1e-6f);
+		TestEqual(TEXT("3D position remembered"), Pawn->GetActorLocation(), PerspectivePosition, 1e-6f);
+		TestEqual(TEXT("3D angle remembered"), Pawn->GetActorRotation(), PerspectiveRotation, 1e-6f);
+		TestEqual(TEXT("3D zoom remembered"), Pawn->GetDistance(), PerspectiveDistance, 1e-6);
+		Pawn->SetPlanView(true);
+		TestEqual(TEXT("2D pan remembered"), Pawn->GetFocus(), PlanFocus, 1e-6f);
+		TestEqual(TEXT("2D zoom remembered"), Pawn->GetDistance(), PlanDistance, 1e-6);
+		TestEqual(TEXT("2D width remembered"), Pawn->GetViewWidth(), PlanWidth, 1e-6);
+	}
+	Pawn->Frame(FBox(FVector(0,0,0), FVector(900,700,280)));
+	const FVector Framed = Pawn->GetFocus();
+	Pawn->SetPlanView(false);
+	TestEqual(TEXT("explicit plan framing does not reset 3D"), Pawn->GetFocus(), PerspectiveFocus, 1e-6f);
+	Pawn->RaiseFocus(300);
+	Pawn->SetPlanView(true);
+	TestEqual(TEXT("level movement follows saved plan"), Pawn->GetFocus(), Framed + FVector(0,0,300), 1e-6f);
+	Pawn->ResetViewHistory();
+	const FVector ResetFocus = Pawn->GetFocus();
+	const double ResetDistance = Pawn->GetDistance();
+	Pawn->SetPlanView(false);
+	TestEqual(TEXT("new project discards stale inactive view"), Pawn->GetFocus(), ResetFocus, 1e-6f);
+	TestEqual(TEXT("new project starts from current scale"), Pawn->GetDistance(), ResetDistance, 1e-6);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

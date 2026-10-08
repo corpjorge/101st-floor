@@ -781,7 +781,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
 							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
 							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
-								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar: arrastrar con botón derecho · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I · Cotas: H\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
+								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar sin moverse: Shift + botón derecho · Orbitar: botón derecho\nDesplazar vista: botón central · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I · Cotas: H\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
 					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
@@ -823,6 +823,27 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		const auto Id = Document->GetDocument().project().walls.front().id;
 		Run([Id](EditController& E) { return E.select(Id); });
 	}
+	if (Screen == TEXT("wall-drag") && Document.IsValid() && !Document->GetDocument().project().walls.empty())
+	{
+		if (auto* C = ViewportClient.Get()) C->SetPlanView(true);
+		const auto Wall = Document->GetDocument().project().walls.front();
+		Run([Wall](EditController& E)
+		{
+			E.setMode(f101::cad::EditMode::Select);
+			E.setDimensionsVisible(false);
+			const double X = (static_cast<double>(Wall.start.x_mm) + static_cast<double>(Wall.end.x_mm)) / 2.0;
+			const double Y = (static_cast<double>(Wall.start.y_mm) + static_cast<double>(Wall.end.y_mm)) / 2.0;
+			const f101::cad::Ray3 Ray{X, Y, 10000, 0, 0, -1};
+			if (const auto Status = E.pointerPressed(Ray); !Status) return Status;
+			const f101::cad::Ray3 Moved{X + 400, Y, 10000, 0, 0, -1};
+			E.pointerMoved(Moved);
+			const auto Status = E.pointerReleased(Moved);
+			E.setDimensionsVisible(true);
+			return Status;
+		});
+		if (auto* C = ViewportClient.Get()) C->FrameProject();
+		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
+	}
 	if ((Screen == TEXT("room") || Screen == TEXT("baseboards")) && Document.IsValid() && !Document->GetRooms().IsEmpty())
 	{
 		const std::string Key = TCHAR_TO_UTF8(*Document->GetRooms()[0].Key);
@@ -853,7 +874,29 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 		if (auto* C = ViewportClient.Get()) C->FrameProject();
 		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
 	}
+	if (Screen == TEXT("short-dimensions") && Document.IsValid())
+	{
+		if (auto* C = ViewportClient.Get()) C->SetPlanView(true);
+		Run([](EditController& E)
+		{
+			E.setMode(f101::cad::EditMode::Dimension);
+			for (const auto Point : {f101::cad::Point2D{0, 0}, f101::cad::Point2D{0, 80}, f101::cad::Point2D{360, 40}})
+			{
+				const f101::cad::Ray3 Ray{static_cast<double>(Point.x_mm), static_cast<double>(Point.y_mm), 10000, 0, 0, -1};
+				if (const auto Status = E.pointerPressed(Ray); !Status) return Status;
+				(void)E.pointerReleased(Ray);
+			}
+			return f101::Status::success();
+		});
+		if (auto* C = ViewportClient.Get()) C->FrameProject();
+		if (const auto* Controller = Document->GetWorld()->GetFirstPlayerController())
+		{
+			if (auto* Pawn = Cast<AFloor101EditingPawn>(Controller->GetPawn())) Pawn->Zoom(2);
+		}
+		if (ViewSize.X < 950.0 && PropertiesMenu) PropertiesMenu->SetIsOpen(true);
+	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
+	if (Screen == TEXT("controls")) { OpenOptions(); OptionsPage = 2; }
 	if (Screen == TEXT("levels") && LevelMenu) { LevelMenu->SetIsOpen(true); }
 	if (UFloor101GameViewportClient* Client = ViewportClient.Get())
 	{
@@ -1146,6 +1189,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
 					[
 						SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("SelectedWall", "Muro seleccionado")).Font(Font(11, true))
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 6.0f)
+					[
+						SNew(STextBlock).Text(LOCTEXT("WallBodyDragHint", "Arrastra el cuerpo para mover la pared. Las puntas ajustan sus extremos."))
+						.Font(Font(9)).ColorAndOpacity(MutedColor).AutoWrapText(true)
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
 					[
@@ -1700,7 +1748,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 {
 	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
 		.IsFocusable(false)
-		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; arrastrar con botón derecho: mirar. WASD funciona también al diseñar, sin activar N."))
+		.ToolTipText(LOCTEXT("NavigationTip", "N: navegar o volver a editar. WASD: moverse; Q/E: bajar/subir; Shift: más rápido; derecho: mirar en Recorrer; Shift + derecho: mirar también en Diseñar y Foto. WASD funciona también al diseñar, sin activar N."))
 		.ButtonColorAndOpacity_Lambda([this]()
 		{
 			const UFloor101GameViewportClient* Client = ViewportClient.Get();
@@ -3282,7 +3330,7 @@ FText SFloor101Overlay::GetHintText() const
 	}
 	if (IsPhotoMode())
 	{
-		return LOCTEXT("HintPhoto", "Foto · derecho arrastrando: orbitar · central: desplazar · rueda: zoom · al mover la cámara la imagen empieza de nuevo · R o Esc: volver a editar");
+		return LOCTEXT("HintPhoto", "Foto · Shift + derecho: mirar sin moverse · derecho: orbitar · central: desplazar · rueda: zoom · al mover la cámara la imagen empieza de nuevo · R o Esc: volver a editar");
 	}
 	const EditController& Editor = Subsystem->GetEditController();
 	if (Editor.mode() == EditMode::Dimension)
@@ -3415,7 +3463,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeStatusBar()
 					if (!IsDesignMode()) { return GetHintText(); }
 					const auto* S = Document.Get();
 					return S && (S->GetEditController().mode() != EditMode::Select || GetSelectedDimension()) ? GetHintText()
-						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Moverse · WASD   |   Acercarse · Rueda");
+						: LOCTEXT("StudioSelectHint", "Seleccionar · V   |   Cancelar · Esc   |   Moverse · WASD   |   Mirar · Shift + derecho   |   Acercarse · Rueda");
 				})
 				.ToolTipText_Lambda([this]() { return GetHintText(); })]]
 		+ SWrapBox::Slot()

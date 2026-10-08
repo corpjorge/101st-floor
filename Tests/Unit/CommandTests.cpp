@@ -1,6 +1,9 @@
 #include "doctest.h"
 
 #include "F101/Cad/Document.h"
+#include "F101/Cad/ProjectFile.h"
+#include "F101/Cad/Units.h"
+#include <limits>
 
 #include <string>
 #include <vector>
@@ -249,4 +252,66 @@ TEST_CASE("a wall change that would leave an opening outside the wall is refused
 	CHECK(shorter.error().message.find("does not fit") != std::string::npos);
 	CHECK_FALSE(document.execute(ChangeWallHeightCommand{wall, 2100}).ok()); // no lintel left
 	CHECK(document.project().findWall(wall)->end == Point2D{4000, 0});
+}
+
+TEST_CASE_FIXTURE(TwoWalls, "whole wall translation only moves joints on its level and preserves finishes")
+{
+	const LevelId upper = document.addLevel(3000, 300).value();
+	const WallId stacked = document.addWall({0, 0}, {3550, 0}, 120, 2400, upper).value();
+	REQUIRE(document.execute(SetWallFinishCommand{first, WallSide::Left, "plaster-white"}).ok());
+	const std::string before = writeProjectJson(document.project());
+	REQUIRE(document.execute(TranslateWallCommand{first, {311, -417}}).ok());
+	CHECK(wall(first).start == Point2D{311, -417});
+	CHECK(wall(first).end == Point2D{3861, -417});
+	CHECK(wall(second).start == wall(first).end);
+	CHECK(wall(second).end == Point2D{3550, 4000});
+	CHECK(wall(stacked).start == Point2D{0, 0});
+	CHECK(wall(stacked).end == Point2D{3550, 0});
+	CHECK(wall(first).finishLeft == "plaster-white");
+	CHECK(changes.back().modifiedWalls.size() == 2);
+	const std::string after = writeProjectJson(document.project());
+	REQUIRE(document.undo().ok());
+	CHECK(writeProjectJson(document.project()) == before);
+	REQUIRE(document.redo().ok());
+	CHECK(writeProjectJson(document.project()) == after);
+}
+
+TEST_CASE_FIXTURE(TwoWalls, "whole wall translation rejects collapsed neighbours and out of range deltas atomically")
+{
+	const std::string before = writeProjectJson(document.project());
+	CHECK_FALSE(document.execute(TranslateWallCommand{first, {0, 4000}}).ok());
+	CHECK_FALSE(document.execute(TranslateWallCommand{first, {std::numeric_limits<std::int64_t>::max(), 0}}).ok());
+	CHECK_FALSE(document.execute(TranslateWallCommand{first, {MaxAbsMillimeters, 0}}).ok());
+	CHECK_FALSE(document.execute(TranslateWallCommand{WallId{}, {100, 0}}).ok());
+	CHECK(writeProjectJson(document.project()) == before);
+	CHECK(changes.empty());
+	CHECK(document.undoLabel() == "Create wall");
+	REQUIRE(document.execute(TranslateWallCommand{first, {0, 0}}).ok());
+	CHECK(changes.empty());
+	CHECK(document.undoLabel() == "Create wall");
+}
+
+TEST_CASE_FIXTURE(TwoWalls, "whole wall translation rejects an attached wall shortened through its opening")
+{
+	REQUIRE(document.addOpening(second, Opening{OpeningId{}, OpeningKind::Door, 2500, 900, 2100, 0}).ok());
+	const std::string before = writeProjectJson(document.project());
+	CHECK_FALSE(document.execute(TranslateWallCommand{first, {0, 1000}}).ok());
+	CHECK(writeProjectJson(document.project()) == before);
+}
+
+TEST_CASE("whole wall translation retains automatic splitting and undoes the entire new junction")
+{
+	Document document{makeSequentialUuidSource()};
+	const WallId moving = document.addWall({0, 0}, {0, 4000}, 120, 2800).value();
+	REQUIRE(document.addWall({1000, 2000}, {4000, 2000}, 120, 2800).ok());
+	const std::string before = writeProjectJson(document.project());
+	REQUIRE(document.execute(TranslateWallCommand{moving, {2000, 0}}).ok());
+	CHECK(document.project().walls.size() == 4);
+	CHECK(document.project().findWall(moving)->start == Point2D{2000, 0});
+	CHECK(document.project().findWall(moving)->end == Point2D{2000, 2000});
+	const std::string after = writeProjectJson(document.project());
+	REQUIRE(document.undo().ok());
+	CHECK(writeProjectJson(document.project()) == before);
+	REQUIRE(document.redo().ok());
+	CHECK(writeProjectJson(document.project()) == after);
 }

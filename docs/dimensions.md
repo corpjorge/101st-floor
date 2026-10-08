@@ -63,9 +63,9 @@ proyectos anteriores. Decisiones: [ADR-0031](adr/0031-editable-dimensions.md).
 
 ## Entrega portable
 
-Extrae `Packaged/0.1.5/101st-Floor-portable.zip` y abre `Floor101.exe`.
+Extrae `Packaged/0.1.7/101st-Floor-portable.zip` y abre `Floor101.exe`.
 Conserva todos los archivos de la carpeta junto al ejecutable. La carpeta
-ya extraída está en `Packaged/0.1.5/Windows/`.
+ya extraída está en `Packaged/0.1.7/Windows/`.
 La validación se ejecutó en este equipo; queda pendiente probar la entrega
 en otro equipo sin Unreal instalado.
 
@@ -76,3 +76,20 @@ en otro equipo sin Unreal instalado.
 
 ![Extremos y esquinas para ajustar una cota](images/dimension-grips.png)
 ![Controles de cota en ventana pequeña](images/dimension-grips-small.png)
+
+## Cotas cortas (0.1.7)
+
+Las cifras que no caben entre las marcas se sitúan fuera del tramo, con una línea de referencia. Las marcas se
+reducen para no superponerse y el texto tiene fondo blanco. Se mantienen la distancia exacta, los extremos,
+la edición y la selección al pulsar sobre la cifra. La misma presentación se utiliza en el plano, SVG y PNG.
+
+Validación 0.1.7: 315 casos C++ / 14.064 aserciones y 87 pruebas Unreal aprobadas.
+Las regresiones incluyen horizontales, verticales, diagonales, automáticas, rótulos UTF-8, selección desde la cifra,
+precisión persistida y separación de una cota corta en cadenas de huecos. Reporte: `Saved/Automation/20261005-192519`.
+
+![Cota de 8 cm junto a la unión, con cifra separada](images/short-dimensions.png)
+![Cota corta y propiedades en ventana pequeña](images/short-dimensions-small.png)
+
+Portable Windows **0.1.7 Shipping** generado desde `4e30d1f` con árbol limpio. Integridad, dependencias y comprobación
+funcional aprobadas en el ejecutable real; guardado, reapertura, cotas, SVG/PNG, arrastre de paredes y deshacer/rehacer
+siguen pasando. Reporte: `Saved/PackageChecks/20261005-193542-functional`.

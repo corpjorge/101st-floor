@@ -116,6 +116,7 @@ namespace f101::cad
 	//
 	// Select mode: a click picks a wall (or clears the selection); dragging a handle of the selected wall moves that
 	// corner: every wall ending there follows (MoveJointCommand on release; MoveWallEndpointCommand for a free end).
+	// Dragging its solid body translates both joints together (TranslateWallCommand), preserving its length and angle.
 	// Wall mode: WallTool (click, move, type a length, Enter).
 	// Door and Window modes: the pointer over a wall previews the opening centred on it (offset on the snap grid) in the
 	// free stretch nearest to it, clear of the walls joined to its host and of its other openings (ADR-0013), opening
@@ -290,7 +291,7 @@ namespace f101::cad
 		const EditSettings& settings() const { return editSettings; }
 		bool isDragging() const
 		{
-			return dimensionDrag.has_value() || drag.has_value() || openingDrag.has_value() || furnitureDrag.has_value() || columnDrag.has_value() ||
+			return dimensionDrag.has_value() || drag.has_value() || wallBodyDrag.has_value() || openingDrag.has_value() || furnitureDrag.has_value() || columnDrag.has_value() ||
 				runDrag.has_value();
 		}
 		bool isDraggingOpening() const { return openingDrag.has_value(); }
@@ -364,6 +365,14 @@ namespace f101::cad
 			PlanPoint grabOffset;        // origin minus the pointer at the press: the corner keeps its offset
 		};
 
+		struct WallBodyDrag
+		{
+			Wall wall;
+			PlanPoint grab;
+			Vector2D delta;
+			std::vector<WallId> joined;
+		};
+
 		// The selected piece being moved.
 		struct FurnitureDrag
 		{
@@ -394,6 +403,7 @@ namespace f101::cad
 		// Edits a copy of the selected opening and changes it (one undoable step).
 		Status editSelectedOpening(const std::function<void(Opening&)>& edit);
 		void updateDrag();
+		void updateWallBodyDrag();
 		void updatePlacement();
 		void updateOpeningDrag();
 		std::int64_t gridMm() const;
@@ -461,6 +471,7 @@ namespace f101::cad
 		WallId selected;
 		OpeningId selectedOpeningId; // with `selected` as its wall
 		std::optional<EndpointDrag> drag;
+		std::optional<WallBodyDrag> wallBodyDrag;
 		std::optional<OpeningDrag> openingDrag;
 		std::optional<OpeningRef> placement;
 		std::optional<PlanPoint> planPoint;

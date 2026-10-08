@@ -42,8 +42,11 @@ public:
 	// Moves the focus (and the camera with it) up by DeltaCm; e.g. to follow the edited level.
 	void RaiseFocus(double DeltaCm);
 	// 2D plan (ADR-0015): an orthographic camera straight down, north up, high above everything, as wide as the
-	// perspective view was at the focus. Orbiting does nothing meanwhile; zoom and pan keep working.
+	// perspective view was at the focus on first entry. Each mode then remembers its own pan and zoom.
+	// Orbiting does nothing meanwhile; zoom and pan keep working.
 	void SetPlanView(bool bPlan);
+	// For a different project: forget the inactive view without changing the current camera.
+	void ResetViewHistory();
 	bool IsPlanView() const { return bPlanView; }
 
 	UCameraComponent* GetCamera() const { return Camera; }
@@ -63,5 +66,12 @@ private:
 	double Pitch = -35.0;                // degrees, looking down
 	double Distance = 1500.0;            // cm from the focus
 	bool bPlanView = false;
+	struct SavedView
+	{
+		FVector Focus;
+		double Distance;
+	};
+	TOptional<SavedView> PlanViewState;
+	TOptional<SavedView> PerspectiveViewState;
 	int32 NavigationSpeedLevel = 5;
 };

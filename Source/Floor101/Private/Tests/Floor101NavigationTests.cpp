@@ -257,4 +257,92 @@ bool FFloor101NumberRowInputTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101LookInPlaceTest, "Floor101.Navigation.LookInPlaceGesture", NavigationTestFlags)
+bool FFloor101LookInPlaceTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("Floor101LookTestWorld"));
+	FWorldContext& Context = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Context.SetCurrentWorld(World);
+	ON_SCOPE_EXIT { GEngine->DestroyWorldContext(World); World->DestroyWorld(false); };
+	auto* Client = NewObject<UFloor101GameViewportClient>(GEngine);
+	auto* GameInstance = NewObject<UGameInstance>(GEngine);
+	World->SetGameInstance(GameInstance);
+	Context.OwningGameInstance = GameInstance;
+	Client->Init(Context, GameInstance, false);
+	const TSharedRef<SViewport> View = SNew(SViewport);
+	FSceneViewport Viewport(View);
+	Viewport.SetViewportClient(TStrongPtrVariant<FViewportClient>(Client));
+	Client->Viewport = &Viewport;
+	ON_SCOPE_EXIT { Client->Viewport = nullptr; };
+	auto* Controller = World->SpawnActor<APlayerController>();
+	auto* Pawn = World->SpawnActor<AFloor101EditingPawn>();
+	auto* Document = World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("controller"), Controller) || !TestNotNull(TEXT("pawn"), Pawn) || !TestNotNull(TEXT("document"), Document)) return false;
+	World->AddController(Controller);
+	Controller->Possess(Pawn);
+	Pawn->Frame(FBox(FVector::ZeroVector, FVector(400, 300, 280)));
+	const auto OriginalFocus = FSlateApplication::Get().GetKeyboardFocusedWidget();
+	FSlateApplication::Get().ClearKeyboardFocus();
+	ON_SCOPE_EXIT { if (OriginalFocus) FSlateApplication::Get().SetKeyboardFocus(OriginalFocus); };
+	auto Key = [Client, &Viewport](EInputEvent Event)
+	{
+		Client->InputKey(FInputKeyEventArgs(&Viewport, FInputDeviceId::CreateFromInternalId(0), EKeys::RightMouseButton, Event, 0ULL));
+	};
+	const FVector Start = Pawn->GetActorLocation();
+	const FRotator Orientation = Pawn->GetActorRotation();
+	const double Distance = Pawn->GetDistance();
+	Client->ApplyRightDrag(FVector2D(80, 30), true);
+	TestEqual(TEXT("no button press means no rotation"), Pawn->GetActorRotation(), Orientation, 1e-6f);
+	Key(IE_Pressed);
+	Client->ApplyRightDrag(FVector2D(80, -300), true);
+	TestFalse(TEXT("Shift right drag changes direction without N"), Pawn->GetActorRotation().Equals(Orientation, 1e-6));
+	TestEqual(TEXT("camera stays at exactly the same position"), Pawn->GetActorLocation(), Start, 1e-6f);
+	TestEqual(TEXT("view distance is unchanged"), Pawn->GetDistance(), Distance, 1e-6);
+	TestTrue(TEXT("can look above the horizon"), Pawn->GetActorForwardVector().Z > 0.0);
+	Client->ApplyRightDrag(FVector2D(20, 10), false);
+	TestEqual(TEXT("releasing Shift first does not start orbiting"), Pawn->GetActorLocation(), Start, 1e-6f);
+	Key(IE_Released);
+	const FRotator ReleasedOrientation = Pawn->GetActorRotation();
+	Client->ApplyRightDrag(FVector2D(20, 10), true);
+	TestEqual(TEXT("button release ends the gesture"), Pawn->GetActorRotation(), ReleasedOrientation, 1e-6f);
+	const FVector OrbitFocus = Pawn->GetFocus();
+	Key(IE_Pressed);
+	Client->ApplyRightDrag(FVector2D(80, 0), false);
+	TestEqual(TEXT("ordinary right drag retains the orbit focus"), Pawn->GetFocus(), OrbitFocus, 1e-6f);
+	TestFalse(TEXT("ordinary orbit moves the camera around the focus"), Pawn->GetActorLocation().Equals(Start, 1e-6));
+	Key(IE_Released);
+	(void)Document->Edit([](f101::cad::EditController& E) { E.setMode(f101::cad::EditMode::Wall); return E.pointerPressed({0,0,10000,0,0,-1}); });
+	Key(IE_Pressed);
+	Client->ApplyRightDrag(FVector2D(0.1, 0.1), true);
+	Key(IE_Released);
+	TestTrue(TEXT("a tiny look does not cancel the wall being drawn"), Document->GetEditController().wallTool().state() == f101::cad::WallTool::State::Drafting);
+	Key(IE_Pressed);
+	Key(IE_Released);
+	TestFalse(TEXT("ordinary right click still cancels"), Document->GetEditController().wallTool().state() == f101::cad::WallTool::State::Drafting);
+	Client->SetPlanView(true);
+	const FVector PlanPosition = Pawn->GetActorLocation();
+	const FRotator PlanOrientation = Pawn->GetActorRotation();
+	Key(IE_Pressed);
+	Client->ApplyRightDrag(FVector2D(90, 90), true);
+	TestEqual(TEXT("2D position remains fixed"), Pawn->GetActorLocation(), PlanPosition, 1e-6f);
+	TestEqual(TEXT("2D orientation remains fixed"), Pawn->GetActorRotation(), PlanOrientation, 1e-6f);
+	Key(IE_Released);
+	Client->SetPlanView(false);
+	Key(IE_Pressed);
+	Client->ApplyRightDrag(FVector2D(20, 10), true);
+	Client->LostFocus(&Viewport);
+	const FRotator FocusLost = Pawn->GetActorRotation();
+	Client->ApplyRightDrag(FVector2D(20, 10), true);
+	TestEqual(TEXT("focus loss ends looking"), Pawn->GetActorRotation(), FocusLost, 1e-6f);
+	Key(IE_Pressed);
+	Client->SetInterfaceOpen(true);
+	Client->ApplyRightDrag(FVector2D(20, 10), true);
+	TestEqual(TEXT("options block camera rotation"), Pawn->GetActorRotation(), FocusLost, 1e-6f);
+	Client->SetInterfaceOpen(false);
+	Client->ApplyRightDrag(FVector2D(20, 10), true);
+	TestEqual(TEXT("closing options requires a new mouse press"), Pawn->GetActorRotation(), FocusLost, 1e-6f);
+	return true;
+}
+
 #endif
