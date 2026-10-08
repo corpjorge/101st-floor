@@ -1294,7 +1294,6 @@ namespace f101::cad
 		if (added)
 		{
 			runDraft.clear();
-			dimensionDraft.clear();
 			updateRunPointer();
 		}
 		return added;
@@ -1335,7 +1334,6 @@ namespace f101::cad
 		else if (currentMode == EditMode::Services && !runDraft.empty())
 		{
 			runDraft.clear();
-			dimensionDraft.clear();
 			updateRunPointer();
 		}
 		else if (currentMode != EditMode::Select)

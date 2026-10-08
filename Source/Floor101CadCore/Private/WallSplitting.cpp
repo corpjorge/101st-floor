@@ -160,7 +160,9 @@ namespace f101::cad
 					if (cut.alongMm > static_cast<double>(span.fromMm) + EpsilonMm &&
 						cut.alongMm < static_cast<double>(span.toMm) - EpsilonMm)
 					{
-						return Error{ErrorCode::OutOfRange, "No se puede dividir la pared a traves de una puerta, ventana o bolsillo de puerta corrediza"};
+						// Shown as is in the status bar, hence Spanish (UTF-8; core sources keep literals ASCII).
+						return Error{ErrorCode::OutOfRange,
+							"No se puede dividir la pared a trav\xc3\xa9s de una puerta, ventana o bolsillo de puerta corrediza"};
 					}
 				}
 			}

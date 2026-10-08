@@ -302,7 +302,7 @@ namespace f101::drawing
 		}
 
 		// Every segment has a stable key made of its wall and opening-edge identities, never its measured value.
-		void drawDimension(Builder& builder, const Frame& frame, std::vector<double> us, double faceS, double s, double side,
+		void drawDimension(Builder& builder, const Frame& frame, std::vector<double> us, double faceS, double s,
 			const DrawingTexts& texts, const cad::Wall& wall, const cad::Project& project, const PlanOverlay& overlay,
 			std::string_view role, PlanDrawing& drawing)
 		{
@@ -352,7 +352,6 @@ namespace f101::drawing
 				drawing.dimensions.push_back(d);
 				drawAnnotation(builder, d, texts, d.id == overlay.selectedDimension ? Ink::DimensionSelected : Ink::Dimension, faceS, !continuous);
 			}
-			(void)side;
 		}
 
 		void includeBounds(PlanDrawing& drawing)
@@ -584,7 +583,7 @@ namespace f101::drawing
 			const double faceS = side > 0.0 ? leftS : rightS;
 			if (roomLeft && roomRight)
 			{
-				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * PartitionOffsetMm, side, texts, wall, project, overlay, "partition", drawing);
+				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * PartitionOffsetMm, texts, wall, project, overlay, "partition", drawing);
 				continue;
 			}
 			std::vector<double> chain{0.0, frame.length};
@@ -594,10 +593,10 @@ namespace f101::drawing
 				chain.push_back(static_cast<double>(opening.offsetMm + opening.widthMm));
 			}
 			const bool withOpenings = !wall.openings.empty();
-			drawDimension(builder, frame, chain, faceS, faceS + side * ChainOffsetMm, side, texts, wall, project, overlay, withOpenings ? "chain" : "overall", drawing);
+			drawDimension(builder, frame, chain, faceS, faceS + side * ChainOffsetMm, texts, wall, project, overlay, withOpenings ? "chain" : "overall", drawing);
 			if (withOpenings)
 			{
-				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, side, texts, wall, project, overlay, "overall", drawing);
+				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, texts, wall, project, overlay, "overall", drawing);
 			}
 		}
 

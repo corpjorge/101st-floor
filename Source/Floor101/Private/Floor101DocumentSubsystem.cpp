@@ -105,7 +105,7 @@ namespace
 		Texts.wall = ToUtf8(LOCTEXT("GltfWall", "Muro"));
 		Texts.joint = ToUtf8(LOCTEXT("GltfJoint", "Unión"));
 		Texts.floor = ToUtf8(LOCTEXT("GltfFloor", "Suelo"));
-		Texts.baseboard = TCHAR_TO_UTF8(*LOCTEXT("ExportBaseboard", "Rodapié").ToString());
+		Texts.baseboard = ToUtf8(LOCTEXT("GltfBaseboard", "Rodapié"));
 		Texts.slab = ToUtf8(LOCTEXT("GltfSlab", "Forjado"));
 		Texts.door = ToUtf8(LOCTEXT("GltfDoor", "Puerta"));
 		Texts.window = ToUtf8(LOCTEXT("GltfWindow", "Ventana"));
