@@ -146,8 +146,20 @@ namespace f101::cad
 			{
 				cut.alongMm = dot(vector(source.start, cut.point), vector(source.start, source.end)) / source.lengthMm();
 			}
-			std::erase_if(wallCuts, [&source](const Cut& cut)
-				{ return cut.alongMm <= EpsilonMm || cut.alongMm >= source.lengthMm() - EpsilonMm; });
+			// A cut at an end of the wall divides nothing. One beyond an end means a branch was joined to a stretch that
+			// joining this wall's own end to another axis removed, inside that other wall: refuse the edit rather than leave
+			// the branch disconnected.
+			for (const Cut& cut : wallCuts)
+			{
+				const bool outside = cut.alongMm <= EpsilonMm || cut.alongMm >= source.lengthMm() - EpsilonMm;
+				if (outside && cut.point != source.start && cut.point != source.end)
+				{
+					// Shown as is in the status bar (UTF-8; core sources keep literals ASCII).
+					return Error{ErrorCode::InvalidArgument,
+						"La uni\xc3\xb3n queda dentro del grosor de otra pared; separa las paredes o \xc3\xbanelas por su eje"};
+				}
+			}
+			std::erase_if(wallCuts, [&source](const Cut& cut) { return cut.point == source.start || cut.point == source.end; });
 			if (wallCuts.empty()) continue;
 			std::sort(wallCuts.begin(), wallCuts.end(), [](const Cut& a, const Cut& b) { return a.alongMm < b.alongMm; });
 			wallCuts.erase(std::unique(wallCuts.begin(), wallCuts.end(), [](const Cut& a, const Cut& b)

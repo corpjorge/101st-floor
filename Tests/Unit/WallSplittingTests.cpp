@@ -198,6 +198,24 @@ TEST_CASE("a branch joined to a face keeps its openings in place when another fa
 	}
 }
 
+TEST_CASE("a branch joined to the part of a host that the host's own join removes refuses the edit")
+{
+	// Legacy layout: the host starts on the face of a 200 mm wall, and a branch parallel to that wall meets the host's
+	// face 50 mm from its start, inside the thick wall. Editing the host joins its start to the thick wall's axis
+	// (x = 100), which removes the stretch the branch was joined to; the branch must not be left disconnected.
+	Document document{makeSequentialUuidSource()};
+	Project legacy = document.project();
+	const WallId host{Uuid{0, 100}};
+	legacy.walls = {
+		Wall{WallId{Uuid{0, 101}}, {100, -2000}, {100, 2000}, 200, 2800},
+		Wall{host, {0, 0}, {5000, 0}, 120, 2800},
+		Wall{WallId{Uuid{0, 102}}, {50, 3000}, {50, 60}, 120, 2800}};
+	for (Wall& wall : legacy.walls) wall.level = legacy.levels.front().id;
+	REQUIRE(document.replaceProject(legacy).ok());
+	CHECK_FALSE(document.execute(MoveWallEndpointCommand{host, WallEndpoint::End, {5500, 0}}).ok());
+	CHECK(document.project().walls == legacy.walls);
+}
+
 TEST_CASE("selecting painting and deleting one divided span leaves the other span intact")
 {
 	Document document{makeSequentialUuidSource()};
