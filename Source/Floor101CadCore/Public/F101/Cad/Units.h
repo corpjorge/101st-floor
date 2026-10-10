@@ -43,4 +43,6 @@ namespace f101::cad
 	// Display text in the given unit at millimetre resolution, without trailing zeros:
 	// 3550 -> "3550 mm", "355 cm", "3.55 m"; 3555 -> "355.5 cm"; 1234.4 -> "1234 mm".
 	FLOOR101CADCORE_API std::string formatLength(double millimeters, LengthUnit unit);
+	// Two decimals of a whole number of hundredths, with the given decimal separator: "3.55", "3,55", "-0.07".
+	FLOOR101CADCORE_API std::string formatHundredths(std::int64_t hundredths, char decimalSeparator);
 }

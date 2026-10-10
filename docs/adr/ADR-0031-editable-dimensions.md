@@ -19,7 +19,8 @@ de presentación conservando la geometría CAD como fuente de verdad.
   producen transacciones reversibles y notificaciones. Eliminar una planta incluye
   sus anotaciones en la misma transacción.
 - Drawing devuelve las cotas resueltas para picking mediante un proveedor inyectado
-  en EditController; CadCore sigue sin depender de Drawing ni Unreal.
+  en EditController; CadCore sigue sin depender de Drawing ni Unreal. La edición de
+  cotas está en `DimensionEditor`, dirigido por EditController como `WallTool`.
 - Herramienta en plano 2D: inicio, fin y colocación. Desde 0.1.4, extremos
   libres cuantizados a 1 mm, sin snapping de construcción: medir una cara o un
   punto cercano a una esquina no debe desplazarlo al eje ni a la rejilla.
@@ -44,7 +45,10 @@ no mediciones verticales. Las manuales fijan puntos: no siguen entidades movidas
 Dividir muros crea cotas para los nuevos tramos; las preferencias quedan ligadas
 al tramo que conserva el UUID. Las referencias obsoletas no se dibujan y pueden
 limpiarse con Restaurar. Un rótulo personalizado es texto de presentación;
-Propiedades siempre muestra la distancia real y permite recuperar su cifra.
+Propiedades siempre muestra la distancia real y permite recuperar su cifra. El plano
+escribe tras él la medida real entre paréntesis (`eje (3,55)`), salvo que el rótulo ya
+sea esa cifra con cualquier separador decimal: un rótulo nunca oculta una medida que
+cambió. `cad::dimensionLabel` compone ese texto para el dibujo y para el picking.
 
 ## Verificación
 Regresiones doctest e integración Unreal: clics exactos, diagonales, precisión,

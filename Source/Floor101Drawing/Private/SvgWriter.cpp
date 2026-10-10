@@ -1,7 +1,6 @@
 #include "F101/Drawing/SvgWriter.h"
 
 #include <charconv>
-#include <algorithm>
 #include <cmath>
 
 namespace f101::drawing
@@ -102,8 +101,7 @@ namespace f101::drawing
 			const std::string y = number(maxY - label.at.y_mm);
 			if (label.ink == Ink::Dimension || label.ink == Ink::DimensionSelected)
 			{
-				const auto characters = std::count_if(label.text.begin(), label.text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; });
-				const double paperWidth = static_cast<double>(characters) * label.heightMm * 0.85 + 20.0;
+				const double paperWidth = cad::planTextWidthMm(cad::textCharacters(label.text), label.heightMm) + 20.0;
 				svg += "  <rect x=\"" + number(label.at.x_mm - minX - paperWidth / 2.0) + "\" y=\"" +
 					number(maxY - label.at.y_mm - label.heightMm / 2.0 - 10.0) + "\" width=\"" + number(paperWidth) +
 					"\" height=\"" + number(label.heightMm + 20.0) + "\" fill=\"#ffffff\"" +

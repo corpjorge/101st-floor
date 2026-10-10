@@ -422,13 +422,17 @@ namespace f101::cad
 		// included (ADR-0014). The Geometry Engine provides the spans (geometry::makeWallObstructions); without it only the
 		// wall itself is checked.
 		void setWallObstructions(WallObstructions provider) { obstructions = std::move(provider); }
-		// Geometry supplies inherited room finishes when splitting changes derived room keys (ADR-0025).
-		using RoomFinishTransfer = std::function<std::vector<RoomFinish>(const Project&, const Project&)>;
-		void setRoomFinishTransfer(RoomFinishTransfer provider) { roomFinishTransfer = std::move(provider); }
-		using RoomBaseboardTransfer = std::function<std::vector<RoomBaseboard>(const Project&, const Project&)>;
-		void setRoomBaseboardTransfer(RoomBaseboardTransfer provider) { roomBaseboardTransfer = std::move(provider); }
-		using RoomNameTransfer = std::function<std::vector<RoomName>(const Project&, const Project&)>;
-		void setRoomNameTransfer(RoomNameTransfer provider) { roomNameTransfer = std::move(provider); }
+		// What the derived rooms of `after` inherit from those of `before` when splitting walls changes their keys
+		// (ADR-0025): finishes, names and baseboards, each for rooms that have none of their own yet. The Geometry Engine
+		// supplies it (geometry::makeRoomTransfer); without it these settings stay on the old keys.
+		struct RoomInheritance
+		{
+			std::vector<RoomFinish> finishes;
+			std::vector<RoomName> names;
+			std::vector<RoomBaseboard> baseboards;
+		};
+		using RoomTransfer = std::function<RoomInheritance(const Project& before, const Project& after)>;
+		void setRoomTransfer(RoomTransfer provider) { roomTransfer = std::move(provider); }
 		// Where `wall` of `levelWalls` must not have an opening; empty without a provider.
 		FLOOR101CADCORE_API std::vector<AxisSpan> openingObstructions(const Project& levelWalls, const Wall& wall) const;
 
@@ -450,9 +454,7 @@ namespace f101::cad
 		std::vector<std::pair<std::size_t, ChangeListener>> listeners;
 		std::size_t nextListenerHandle = 1;
 		WallObstructions obstructions;
-		RoomFinishTransfer roomFinishTransfer;
-		RoomNameTransfer roomNameTransfer;
-		RoomBaseboardTransfer roomBaseboardTransfer;
+		RoomTransfer roomTransfer;
 	};
 
 	// Checks a whole project: at least one level, every level, wall, piece of furniture, asset, column and service run valid,

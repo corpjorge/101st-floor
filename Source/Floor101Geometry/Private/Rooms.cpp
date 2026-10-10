@@ -382,81 +382,50 @@ namespace f101::geometry
 		return buildPrismMesh(room.outline, bottomZ, topZ, PrismSlots{slab_slots::Top, slab_slots::Side, slab_slots::Ceiling});
 	}
 
-	cad::Document::RoomFinishTransfer makeRoomFinishTransfer()
+	cad::Document::RoomTransfer makeRoomTransfer()
 	{
 		return [](const cad::Project& before, const cad::Project& after)
 		{
-			std::vector<cad::RoomFinish> inherited;
+			cad::Document::RoomInheritance inherited;
 			for (const cad::Level& level : before.levels)
 			{
 				const auto oldRooms = detectRooms(cad::wallsOnLevel(before, level.id));
 				const auto newRooms = detectRooms(cad::wallsOnLevel(after, level.id));
-				for (const Room& room : newRooms)
+				// The setting `find` gives for the first old room that has one and contains the new room's label point.
+				auto inheritedBy = [&oldRooms](const Room& room, auto find) -> decltype(find(std::string()))
 				{
-					if (after.findRoomFinish(room.key)) continue;
 					for (const Room& previous : oldRooms)
 					{
-						const cad::RoomFinish* finish = before.findRoomFinish(previous.key);
-						if (finish && containsPoint(previous.outline, room.labelPoint))
+						if (const auto* setting = find(previous.key); setting && containsPoint(previous.outline, room.labelPoint))
 						{
-							inherited.push_back({room.key, finish->floor, finish->ceiling});
-							break;
+							return setting;
 						}
 					}
-				}
-			}
-			return inherited;
-		};
-	}
-
-	cad::Document::RoomNameTransfer makeRoomNameTransfer()
-	{
-		return [](const cad::Project& before, const cad::Project& after)
-		{
-			std::vector<cad::RoomName> inherited;
-			for (const cad::Level& level : before.levels)
-			{
-				const auto oldRooms = detectRooms(cad::wallsOnLevel(before, level.id));
-				const auto newRooms = detectRooms(cad::wallsOnLevel(after, level.id));
+					return nullptr;
+				};
 				for (const Room& room : newRooms)
 				{
-					if (after.findRoomName(room.key)) continue;
-					for (const Room& previous : oldRooms)
+					if (!after.findRoomFinish(room.key))
 					{
-						const cad::RoomName* finish = before.findRoomName(previous.key);
-						if (finish && containsPoint(previous.outline, room.labelPoint))
+						if (const cad::RoomFinish* finish = inheritedBy(room, [&before](const std::string& key) { return before.findRoomFinish(key); }))
 						{
-							inherited.push_back({room.key, finish->name});
-							break;
+							inherited.finishes.push_back({room.key, finish->floor, finish->ceiling});
 						}
 					}
-				}
-			}
-			return inherited;
-		};
-	}
-
-	cad::Document::RoomBaseboardTransfer makeRoomBaseboardTransfer()
-	{
-		return [](const cad::Project& before, const cad::Project& after)
-		{
-			std::vector<cad::RoomBaseboard> inherited;
-			for (const cad::Level& level : before.levels)
-			{
-				const auto oldRooms = detectRooms(cad::wallsOnLevel(before, level.id));
-				const auto newRooms = detectRooms(cad::wallsOnLevel(after, level.id));
-				for (const Room& room : newRooms)
-				{
-					if (after.findRoomBaseboard(room.key)) continue;
-					for (const Room& previous : oldRooms)
+					if (!after.findRoomName(room.key))
 					{
-						const cad::RoomBaseboard* setting = before.findRoomBaseboard(previous.key);
-						if (setting && containsPoint(previous.outline, room.labelPoint))
+						if (const cad::RoomName* name = inheritedBy(room, [&before](const std::string& key) { return before.findRoomName(key); }))
+						{
+							inherited.names.push_back({room.key, name->name});
+						}
+					}
+					if (!after.findRoomBaseboard(room.key))
+					{
+						if (const cad::RoomBaseboard* setting = inheritedBy(room, [&before](const std::string& key) { return before.findRoomBaseboard(key); }))
 						{
 							cad::RoomBaseboard entry = *setting;
 							entry.room = room.key;
-							inherited.push_back(entry);
-							break;
+							inherited.baseboards.push_back(entry);
 						}
 					}
 				}

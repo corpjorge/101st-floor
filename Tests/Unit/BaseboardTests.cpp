@@ -187,7 +187,7 @@ TEST_CASE("baseboards follow angled walls and concave room corners")
 TEST_CASE("room division inherits baseboards atomically and scene includes the finish")
 {
 	Document document{makeSequentialUuidSource()};
-	document.setRoomBaseboardTransfer(geometry::makeRoomBaseboardTransfer());
+	document.setRoomTransfer(geometry::makeRoomTransfer());
 	Project project = roomProject(document);
 	project.roomBaseboards.push_back({geometry::detectRooms(project).front().key, true, 120, 18, "wood-walnut"});
 	REQUIRE(document.replaceProject(project).ok());

@@ -47,6 +47,23 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   sobre el suelo de su planta; color y diámetro fijados por la red: electricidad, agua, aguas negras, gas). Los tramos
   solo se ven con la capa de instalaciones (X), que deja la arquitectura en `Ghost`; los exportadores los llevan siempre.
   `project.json` esquema 10 (ADR-0021).
+- Pantalla: HDR opcional por preferencia local (fotos EXR con HDR, PNG sin él), pantalla completa nativa y render al
+  100 % sin resolución dinámica (ADR-0022, ADR-0023).
+- Cámara: órbita, Navegar (N) y WASD/QE con velocidad por niveles; solo cambia la vista, nunca el modelo (ADR-0024).
+- Al crear o mover ejes, las paredes de la planta se dividen en tramos en sus T y cruces, en la misma transacción; los
+  huecos conservan su posición y un corte que los atraviese se rechaza. Abrir un proyecto no lo divide. Acabados,
+  nombres y rodapiés de habitación pasan a las claves nuevas por un proveedor del Geometry Engine (ADR-0025).
+- Interfaz de estudio en Slate/C++ con modos Diseñar, Recorrer y Foto (ADR-0026). Arranque propio en `Floor101Startup`
+  (ADR-0027).
+- Registro: `F101_LOG` (es `UE_LOG` en Development; en Shipping escribe el log propio `Floor101-product.log`). No activar
+  `bUseLoggingInShipping`: rompe la ABI del motor instalado. Distribución Shipping, paquete y MSI/Burn (ADR-0028).
+- Por clave de habitación, separados de los acabados: nombres (`roomNames`, esquema 11, ADR-0029) y rodapiés
+  (`roomBaseboards`, esquema 12, ADR-0030).
+- Cotas: anotaciones por planta en `Project::dimensions`; las automáticas se recalculan del modelo (id
+  `auto/<muro>/…`) y lo guardado solo cambia separación, rótulo y visibilidad. Medidas de las cifras compartidas por
+  el picking y el dibujo. `project.json` esquema 13 (ADR-0031).
+- Arrastrar el cuerpo de una pared la traslada con sus uniones (`TranslateWallCommand`), sin cambio de esquema
+  (ADR-0032).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
@@ -54,6 +71,8 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Nunca invocar `bash` desde `.ps1` (en PowerShell resuelve a WSL). Localizar el motor con `Scripts/Common.ps1`.
 - Compilar: `.\Scripts\Build.ps1` (con el editor cerrado; abierto → Live Coding vía MCP). Validar render: `.\Scripts\CheckRendering.ps1`.
 - Tests: `.\Scripts\Test.ps1` (arquitectura + unitarios CMake, segundos); `-Integration` añade Unreal Automation.
+- Distribución: `.\Scripts\Package.ps1`, `.\Scripts\CheckPackage.ps1` (ejecutable Shipping real) e `.\Scripts\Installer.ps1`;
+  detalle en `docs/distribution.md`.
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, esquinas,
   habitaciones, puertas y ventanas con su carpintería, muebles, pilares, instalaciones y su capa, assets importados,

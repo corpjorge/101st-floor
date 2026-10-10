@@ -264,14 +264,6 @@ namespace f101::cad
 			return at;
 		}
 
-		std::optional<Point2D> measurementPoint(PlanPoint point)
-		{
-			const auto x = quantizeMillimeters(point.x_mm);
-			const auto y = quantizeMillimeters(point.y_mm);
-			if (!x || !y) return std::nullopt;
-			return Point2D{x.value(), y.value()};
-		}
-
 		bool sameSpot(const ServicePoint& a, const ServicePoint& b)
 		{
 			return a.x_mm == b.x_mm && a.y_mm == b.y_mm;
@@ -294,6 +286,7 @@ namespace f101::cad
 		: document(targetDocument)
 		, editSettings(std::move(settings))
 		, tool(targetDocument, editSettings.wallTool)
+		, dimensions(targetDocument)
 	{
 	}
 
@@ -306,7 +299,7 @@ namespace f101::cad
 		dropDrags();
 		tool.cancel();
 		runDraft.clear();
-		dimensionDraft.clear();
+		dimensions.clearDraft();
 		placement.reset();
 		furnitureAt.reset();
 		columnAt.reset();
@@ -333,9 +326,7 @@ namespace f101::cad
 
 	void EditController::dropDrags()
 	{
-		dimensionDrag.reset();
-		dimensionDragOriginal.reset();
-		dimensionDragHandle = -1;
+		dimensions.dropDrag();
 		drag.reset();
 		wallBodyDrag.reset();
 		openingDrag.reset();
@@ -349,7 +340,7 @@ namespace f101::cad
 		selected = WallId();
 		selectedOpeningId = OpeningId();
 		selectedRoomKey.clear();
-		selectedDimensionId.clear();
+		dimensions.clearSelection();
 		selectedFurnitureId = FurnitureId();
 		selectedColumnId = ColumnId();
 		selectedRunId = ServiceRunId();
@@ -404,37 +395,9 @@ namespace f101::cad
 		{
 			return; // off the floor: keep the last preview
 		}
-		if (dimensionDrag && dimensionDragOriginal)
+		if (dimensions.dragging())
 		{
-			const Vector2D axis = dimensionDragOriginal->end - dimensionDragOriginal->start;
-			if (dimensionDragHandle >= 0)
-			{
-				const bool start = dimensionDragHandle % 2 == 0;
-				const Point2D anchor = start ? dimensionDragOriginal->start : dimensionDragOriginal->end;
-				double dx = planPoint->x_mm - dimensionGrabPoint.x_mm;
-				double dy = planPoint->y_mm - dimensionGrabPoint.y_mm;
-				if (dimensionDragHandle >= 2)
-				{
-					const double ux = static_cast<double>(axis.dx_mm) / axis.lengthMm();
-					const double uy = static_cast<double>(axis.dy_mm) / axis.lengthMm();
-					const double along = dx * ux + dy * uy;
-					dx = along * ux; dy = along * uy;
-				}
-				const auto point = measurementPoint({static_cast<double>(anchor.x_mm) + dx, static_cast<double>(anchor.y_mm) + dy});
-				if (!point) return;
-				Dimension candidate = *dimensionDragOriginal;
-				(start ? candidate.start : candidate.end) = *point;
-				if (candidate.start == candidate.end) return;
-				const Vector2D moved = candidate.end - candidate.start;
-				if (dimensionDragHandle >= 2 && static_cast<double>(moved.dx_mm) * static_cast<double>(axis.dx_mm) +
-					static_cast<double>(moved.dy_mm) * static_cast<double>(axis.dy_mm) <= 0.0) return;
-				if (validateDimension(document.project(), candidate)) dimensionDrag = candidate;
-				return;
-			}
-			const double across = ((planPoint->y_mm - static_cast<double>(dimensionDragOriginal->start.y_mm)) * static_cast<double>(axis.dx_mm) -
-				(planPoint->x_mm - static_cast<double>(dimensionDragOriginal->start.x_mm)) * static_cast<double>(axis.dy_mm)) / axis.lengthMm();
-			const auto offset = quantizeMillimeters(static_cast<double>(dimensionDragOriginal->offsetMm) + across - dimensionGrabAcross);
-			if (offset) dimensionDrag->offsetMm = offset.value();
+			dimensions.moveDrag(*planPoint);
 			return;
 		}
 		if (currentMode == EditMode::Wall)
@@ -855,69 +818,25 @@ namespace f101::cad
 		const Project project = levelProject();
 		if (currentMode == EditMode::Dimension)
 		{
-			if (!dimensionsVisible || !planPoint) return Error{ErrorCode::InvalidArgument, "Use the 2D plan to place dimensions"};
-			if (dimensionDraft.size() < 2)
+			if (!dimensions.visible() || !planPoint) return Error{ErrorCode::InvalidArgument, "Use the 2D plan to place dimensions"};
+			const Result<std::optional<std::string>> placed = dimensions.place(*planPoint, activeLevel());
+			if (!placed) return placed.error();
+			if (placed.value())
 			{
-				const auto point = measurementPoint(*planPoint);
-				if (!point) return Error{ErrorCode::InvalidArgument, "Invalid measurement point"};
-				if (!dimensionDraft.empty() && *point == dimensionDraft.front()) return Error{ErrorCode::InvalidArgument, "Choose two distinct points"};
-				dimensionDraft.push_back(*point);
-				return Status::success();
+				setMode(EditMode::Select); // keeps the new dimension selected
 			}
-			const auto draft = dimensionPreview();
-			if (!draft) return Error{ErrorCode::InvalidArgument, "Invalid dimension"};
-			const auto applied = document.execute(SetDimensionCommand{*draft});
-			if (!applied) return applied.error();
-			const std::string id = applied.value().dimensions.front().id;
-			setMode(EditMode::Select);
-			selectedDimensionId = id;
 			return Status::success();
 		}
-		if (dimensionsVisible && dimensionProvider && currentMode == EditMode::Select && planPoint)
+		if (dimensions.visible() && dimensions.hasProvider() && currentMode == EditMode::Select && planPoint)
 		{
-			if (const auto current = selectedDimension())
-			{
-				std::array<PlanPoint, 4> handles;
-				dimensionHandles(*current, handles);
-				int handle = -1;
-				double nearestHandle = dimensionPickToleranceMm;
-				for (int i = 0; i < 4; ++i)
-				{
-					const double distance = std::hypot(planPoint->x_mm - handles[i].x_mm, planPoint->y_mm - handles[i].y_mm);
-					if (distance < nearestHandle) { nearestHandle = distance; handle = i; }
-				}
-				if (handle >= 0)
-				{
-					dropDrags();
-					dimensionDrag = current;
-					dimensionDragOriginal = current;
-					dimensionDragHandle = handle;
-					dimensionGrabPoint = *planPoint;
-					return Status::success();
-				}
-			}
-			std::optional<Dimension> picked;
-			double nearest = dimensionPickToleranceMm;
-			for (const Dimension& d : dimensionProvider(document.project(), activeLevel()))
-			{
-				const auto [a, b] = dimensionLine(d);
-				const double dx = b.x_mm - a.x_mm, dy = b.y_mm - a.y_mm;
-				const double t = std::clamp(((planPoint->x_mm - a.x_mm) * dx + (planPoint->y_mm - a.y_mm) * dy) / (dx * dx + dy * dy), 0.0, 1.0);
-				const PlanPoint label = dimensionLabelPoint(d);
-				const double distance = std::min(std::hypot(planPoint->x_mm - a.x_mm - t * dx, planPoint->y_mm - a.y_mm - t * dy),
-					std::hypot(planPoint->x_mm - label.x_mm, planPoint->y_mm - label.y_mm));
-				if (!d.hidden && distance < nearest) { nearest = distance; picked = d; }
-			}
-			if (picked)
+			if (const std::optional<DimensionEditor::Grab> grab = dimensions.hit(*planPoint, activeLevel()))
 			{
 				dropDrags();
-				clearSelected();
-				selectedDimensionId = picked->id;
-				dimensionDrag = picked;
-				dimensionDragOriginal = picked;
-				const Vector2D axis = picked->end - picked->start;
-				dimensionGrabAcross = ((planPoint->y_mm - static_cast<double>(picked->start.y_mm)) * static_cast<double>(axis.dx_mm) -
-					(planPoint->x_mm - static_cast<double>(picked->start.x_mm)) * static_cast<double>(axis.dy_mm)) / axis.lengthMm();
+				if (grab->grip == DimensionEditor::Grab::Line)
+				{
+					clearSelected(); // a grip belongs to the dimension already selected
+				}
+				dimensions.startDrag(*grab, *planPoint);
 				return Status::success();
 			}
 		}
@@ -1155,20 +1074,9 @@ namespace f101::cad
 
 	Status EditController::pointerReleased(const Ray3&)
 	{
-		if (dimensionDrag && dimensionDragOriginal)
+		if (dimensions.dragging())
 		{
-			const Dimension after = *dimensionDrag;
-			const bool changed = after != *dimensionDragOriginal;
-			const bool convert = after.automatic && dimensionDragHandle >= 0 && changed;
-			dropDrags();
-			if (convert)
-			{
-				const auto applied = document.execute(MakeDimensionManualCommand{after});
-				if (!applied) return applied.error();
-				selectedDimensionId = applied.value().dimensions.back().id;
-				return Status::success();
-			}
-			return changed ? toStatus(document.execute(SetDimensionCommand{after})) : Status::success();
+			return dimensions.release();
 		}
 		// Each drag: moved as the last pointerMoved() left it; one undoable change, or none if it did not move.
 		if (wallBodyDrag)
@@ -1294,7 +1202,6 @@ namespace f101::cad
 		if (added)
 		{
 			runDraft.clear();
-			dimensionDraft.clear();
 			updateRunPointer();
 		}
 		return added;
@@ -1324,9 +1231,9 @@ namespace f101::cad
 		{
 			dropDrags();
 		}
-		else if (currentMode == EditMode::Dimension && !dimensionDraft.empty())
+		else if (currentMode == EditMode::Dimension && dimensions.hasDraft())
 		{
-			dimensionDraft.clear();
+			dimensions.clearDraft();
 		}
 		else if (currentMode == EditMode::Wall && tool.state() == WallTool::State::Drafting)
 		{
@@ -1335,7 +1242,6 @@ namespace f101::cad
 		else if (currentMode == EditMode::Services && !runDraft.empty())
 		{
 			runDraft.clear();
-			dimensionDraft.clear();
 			updateRunPointer();
 		}
 		else if (currentMode != EditMode::Select)
@@ -1372,12 +1278,12 @@ namespace f101::cad
 	Status EditController::deleteSelection()
 	{
 		dropDrags();
-		if (auto d = selectedDimension())
+		if (currentMode == EditMode::Select)
 		{
-			d->hidden = true;
-			const Status deleted = d->automatic ? toStatus(document.execute(SetDimensionCommand{*d})) : toStatus(document.execute(DeleteDimensionCommand{d->id}));
-			if (deleted) selectedDimensionId.clear();
-			return deleted;
+			if (const std::optional<Status> deleted = dimensions.deleteSelected(activeLevel()))
+			{
+				return *deleted;
+			}
 		}
 		if (const std::optional<Column> column = selectedColumn())
 		{
@@ -1434,7 +1340,7 @@ namespace f101::cad
 		dropDrags();
 		tool.cancel();
 		runDraft.clear();
-		dimensionDraft.clear();
+		dimensions.clearDraft();
 		const Status undone = document.undo();
 		refreshPlacements();
 		return undone;
@@ -1445,7 +1351,7 @@ namespace f101::cad
 		dropDrags();
 		tool.cancel();
 		runDraft.clear();
-		dimensionDraft.clear();
+		dimensions.clearDraft();
 		const Status redone = document.redo();
 		refreshPlacements();
 		return redone;
@@ -1453,88 +1359,42 @@ namespace f101::cad
 
 	std::optional<Dimension> EditController::selectedDimension() const
 	{
-		if (!dimensionsVisible || selectedDimensionId.empty() || currentMode != EditMode::Select) return std::nullopt;
-		if (dimensionDrag) return dimensionDrag;
-		if (dimensionProvider)
-		{
-			for (const Dimension& d : dimensionProvider(document.project(), activeLevel())) if (d.id == selectedDimensionId && !d.hidden) return d;
-			return std::nullopt;
-		}
-		const Dimension* d = document.project().findDimension(selectedDimensionId);
-		return d && d->level == activeLevel() && !d->hidden ? std::optional<Dimension>(*d) : std::nullopt;
+		return currentMode == EditMode::Select ? dimensions.selected(activeLevel()) : std::nullopt;
 	}
 
 	std::optional<Dimension> EditController::dimensionPreview() const
 	{
-		if (dimensionDrag) return dimensionDrag;
-		if (currentMode != EditMode::Dimension || dimensionDraft.empty() || !planPoint) return std::nullopt;
-		Dimension d;
-		d.level = activeLevel();
-		d.start = dimensionDraft.front();
-		const auto end = dimensionDraft.size() < 2 ? measurementPoint(*planPoint) : std::optional<Point2D>(dimensionDraft[1]);
-		if (!end) return std::nullopt;
-		d.end = *end;
-		if (d.start == d.end) return std::nullopt;
-		if (dimensionDraft.size() == 2)
-		{
-			const Vector2D axis = d.end - d.start;
-			const auto offset = quantizeMillimeters(((planPoint->y_mm - static_cast<double>(d.start.y_mm)) * static_cast<double>(axis.dx_mm) -
-				(planPoint->x_mm - static_cast<double>(d.start.x_mm)) * static_cast<double>(axis.dy_mm)) / axis.lengthMm());
-			if (!offset) return std::nullopt;
-			d.offsetMm = offset.value();
-		}
-		else d.offsetMm = 0;
-		return d;
+		return dimensions.preview(planPoint, activeLevel(), currentMode == EditMode::Dimension);
 	}
 
 	Status EditController::selectDimension(std::string_view id)
 	{
 		setMode(EditMode::Select);
 		clearSelection();
-		selectedDimensionId = id;
-		if (!selectedDimension()) { selectedDimensionId.clear(); return nothingSelected(); }
-		return Status::success();
+		return dimensions.select(id, activeLevel());
 	}
 
 	Status EditController::setDimensionOffset(std::string_view text)
 	{
-		auto d = selectedDimension();
-		if (!d) return nothingSelected();
-		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
-		if (!value) return value.error();
-		d->offsetMm = value.value();
-		return toStatus(document.execute(SetDimensionCommand{*d}));
+		if (currentMode != EditMode::Select) return nothingSelected();
+		return dimensions.setOffset(text, editSettings.wallTool.inputUnit, activeLevel());
 	}
 
 	Status EditController::setDimensionText(std::string_view text)
 	{
-		auto d = selectedDimension();
-		if (!d) return nothingSelected();
-		d->text = text;
-		return toStatus(document.execute(SetDimensionCommand{*d}));
+		if (currentMode != EditMode::Select) return nothingSelected();
+		return dimensions.setText(text, activeLevel());
 	}
 
 	Status EditController::setDimensionCoordinate(std::string_view text, int coordinate)
 	{
-		auto d = selectedDimension();
-		if (!d) return nothingSelected();
-		if (d->automatic) return Error{ErrorCode::InvalidArgument, "Automatic endpoints follow the model"};
-		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
-		if (!value) return value.error();
-		switch (coordinate)
-		{
-		case 0: d->start.x_mm = value.value(); break;
-		case 1: d->start.y_mm = value.value(); break;
-		case 2: d->end.x_mm = value.value(); break;
-		case 3: d->end.y_mm = value.value(); break;
-		default: return Error{ErrorCode::InvalidArgument, "Invalid dimension coordinate"};
-		}
-		return toStatus(document.execute(SetDimensionCommand{*d}));
+		if (currentMode != EditMode::Select) return nothingSelected();
+		return dimensions.setCoordinate(text, coordinate, editSettings.wallTool.inputUnit, activeLevel());
 	}
 
 	Status EditController::restoreAutomaticDimensions()
 	{
-		return toStatus(document.execute(ResetDimensionsCommand{activeLevel()}));
+		return dimensions.restoreAutomatic(activeLevel());
 	}
 
 	void EditController::reset()
@@ -1542,7 +1402,7 @@ namespace f101::cad
 		dropDrags();
 		tool.cancel();
 		runDraft.clear();
-		dimensionDraft.clear();
+		dimensions.clearDraft();
 		clearSelected();
 		refreshPlacements();
 	}
@@ -2287,7 +2147,7 @@ namespace f101::cad
 		furnitureAt.reset();
 		columnAt.reset();
 		runDraft.clear();
-		dimensionDraft.clear();
+		dimensions.clearDraft();
 		runCursor.reset();
 		tool.setLevel(level);
 		planPoint.reset(); // it was measured on the other level; the next pointer move sets it again

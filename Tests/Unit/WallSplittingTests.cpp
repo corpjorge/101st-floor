@@ -160,6 +160,62 @@ TEST_CASE("a face join preserves the world position of a branch opening")
 	CHECK(joined->findOpening(window)->offsetMm == 1060);
 }
 
+TEST_CASE("a branch joined to a face keeps its openings in place when another face join divides it")
+{
+	// Legacy layout, not divided on load: the branch starts on the host's face and a third wall starts on the branch's
+	// face. Editing the branch joins its start to the host axis, 100 mm lower, and divides it where the third wall meets
+	// it; the cut must be measured on the joined branch, like its openings.
+	for (const bool overCut : {false, true})
+	{
+		CAPTURE(overCut);
+		Document document{makeSequentialUuidSource()};
+		Project legacy = document.project();
+		Wall branch{WallId{Uuid{0, 101}}, {5000, 100}, {5000, 5000}, 200, 2800};
+		// Joined offsets: 3050 leaves the cut at 3000 before the window; 2950 puts the cut inside it.
+		const OpeningId window{Uuid{0, 200}};
+		branch.openings.push_back(Opening{window, OpeningKind::Window, overCut ? 2850 : 2950, 500, 1200, 900});
+		legacy.walls = {
+			Wall{WallId{Uuid{0, 100}}, {0, 0}, {10000, 0}, 200, 2800},
+			branch,
+			Wall{WallId{Uuid{0, 102}}, {5100, 3000}, {8000, 3000}, 200, 2800}};
+		for (Wall& wall : legacy.walls) wall.level = legacy.levels.front().id;
+		REQUIRE(document.replaceProject(legacy).ok());
+		const auto moved = document.execute(MoveWallEndpointCommand{branch.id, WallEndpoint::End, {5000, 5500}});
+		if (overCut)
+		{
+			CHECK_FALSE(moved.ok());
+			CHECK(document.project().walls == legacy.walls);
+			continue;
+		}
+		REQUIRE(moved.ok());
+		CHECK(document.project().findWall(branch.id)->start == Point2D{5000, 0});
+		CHECK(document.project().findWall(branch.id)->end == Point2D{5000, 3000});
+		const Wall* holder = nullptr;
+		for (const Wall& wall : document.project().walls) holder = wall.findOpening(window) ? &wall : holder;
+		REQUIRE(holder != nullptr);
+		CHECK(holder->start == Point2D{5000, 3000});
+		CHECK(holder->start.y_mm + holder->findOpening(window)->offsetMm == 3050); // 100 + 2950, as before the edit
+	}
+}
+
+TEST_CASE("a branch joined to the part of a host that the host's own join removes refuses the edit")
+{
+	// Legacy layout: the host starts on the face of a 200 mm wall, and a branch parallel to that wall meets the host's
+	// face 50 mm from its start, inside the thick wall. Editing the host joins its start to the thick wall's axis
+	// (x = 100), which removes the stretch the branch was joined to; the branch must not be left disconnected.
+	Document document{makeSequentialUuidSource()};
+	Project legacy = document.project();
+	const WallId host{Uuid{0, 100}};
+	legacy.walls = {
+		Wall{WallId{Uuid{0, 101}}, {100, -2000}, {100, 2000}, 200, 2800},
+		Wall{host, {0, 0}, {5000, 0}, 120, 2800},
+		Wall{WallId{Uuid{0, 102}}, {50, 3000}, {50, 60}, 120, 2800}};
+	for (Wall& wall : legacy.walls) wall.level = legacy.levels.front().id;
+	REQUIRE(document.replaceProject(legacy).ok());
+	CHECK_FALSE(document.execute(MoveWallEndpointCommand{host, WallEndpoint::End, {5500, 0}}).ok());
+	CHECK(document.project().walls == legacy.walls);
+}
+
 TEST_CASE("selecting painting and deleting one divided span leaves the other span intact")
 {
 	Document document{makeSequentialUuidSource()};
@@ -184,7 +240,7 @@ TEST_CASE("selecting painting and deleting one divided span leaves the other spa
 TEST_CASE("room floors and ceilings inherit finishes even when split walls change the room keys")
 {
 	Document document{makeSequentialUuidSource()};
-	document.setRoomFinishTransfer(geometry::makeRoomFinishTransfer());
+	document.setRoomTransfer(geometry::makeRoomTransfer());
 	Project legacy = document.project();
 	legacy.walls = {
 		Wall{WallId{Uuid{0, 100}}, {0, 0}, {10000, 0}, 120, 2800},
@@ -213,4 +269,41 @@ TEST_CASE("room floors and ceilings inherit finishes even when split walls chang
 	CHECK(document.project().roomFinishes == legacy.roomFinishes);
 	REQUIRE(document.redo().ok());
 	CHECK(document.project().roomFinishes == divided);
+}
+
+TEST_CASE("one split hands finishes, names and baseboards to every new room in one undo step")
+{
+	Document document{makeSequentialUuidSource()};
+	document.setRoomTransfer(geometry::makeRoomTransfer());
+	Project legacy = document.project();
+	legacy.walls = {
+		Wall{WallId{Uuid{0, 100}}, {0, 0}, {10000, 0}, 120, 2800},
+		Wall{WallId{Uuid{0, 101}}, {10000, 0}, {10000, 4000}, 120, 2800},
+		Wall{WallId{Uuid{0, 102}}, {10000, 4000}, {0, 4000}, 120, 2800},
+		Wall{WallId{Uuid{0, 103}}, {0, 4000}, {0, 0}, 120, 2800}};
+	for (Wall& wall : legacy.walls) wall.level = legacy.levels.front().id;
+	const auto oldRooms = geometry::detectRooms(legacy);
+	REQUIRE(oldRooms.size() == 1);
+	const std::string& key = oldRooms.front().key;
+	legacy.roomFinishes.push_back({key, "tile-grey", "plaster-white"});
+	legacy.roomNames.push_back({key, "Sal\xc3\xb3n"});
+	legacy.roomBaseboards.push_back({key, true, 80, 15, "wood-walnut"});
+	REQUIRE(document.replaceProject(legacy).ok());
+	REQUIRE(document.addWall({4000, 0}, {4000, 4000}, 120, 2800).ok());
+	const auto rooms = geometry::detectRooms(document.project());
+	REQUIRE(rooms.size() == 2);
+	for (const auto& room : rooms)
+	{
+		REQUIRE(document.project().findRoomFinish(room.key) != nullptr);
+		CHECK(document.project().findRoomFinish(room.key)->floor == "tile-grey");
+		REQUIRE(document.project().findRoomName(room.key) != nullptr);
+		CHECK(document.project().findRoomName(room.key)->name == "Sal\xc3\xb3n");
+		const RoomBaseboard* baseboard = document.project().findRoomBaseboard(room.key);
+		REQUIRE(baseboard != nullptr);
+		CHECK(*baseboard == RoomBaseboard{room.key, true, 80, 15, "wood-walnut"});
+	}
+	REQUIRE(document.undo().ok());
+	CHECK(document.project().roomFinishes == legacy.roomFinishes);
+	CHECK(document.project().roomNames == legacy.roomNames);
+	CHECK(document.project().roomBaseboards == legacy.roomBaseboards);
 }

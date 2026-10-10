@@ -105,7 +105,7 @@ namespace
 		Texts.wall = ToUtf8(LOCTEXT("GltfWall", "Muro"));
 		Texts.joint = ToUtf8(LOCTEXT("GltfJoint", "Unión"));
 		Texts.floor = ToUtf8(LOCTEXT("GltfFloor", "Suelo"));
-		Texts.baseboard = TCHAR_TO_UTF8(*LOCTEXT("ExportBaseboard", "Rodapié").ToString());
+		Texts.baseboard = ToUtf8(LOCTEXT("GltfBaseboard", "Rodapié"));
 		Texts.slab = ToUtf8(LOCTEXT("GltfSlab", "Forjado"));
 		Texts.door = ToUtf8(LOCTEXT("GltfDoor", "Puerta"));
 		Texts.window = ToUtf8(LOCTEXT("GltfWindow", "Ventana"));
@@ -306,9 +306,7 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
-	Document->setRoomBaseboardTransfer(f101::geometry::makeRoomBaseboardTransfer());
-	Document->setRoomNameTransfer(f101::geometry::makeRoomNameTransfer());
-	Document->setRoomFinishTransfer(f101::geometry::makeRoomFinishTransfer()); // wall segments retain room finishes (ADR-0025)
+	Document->setRoomTransfer(f101::geometry::makeRoomTransfer()); // wall segments retain room settings (ADR-0025)
 	Reconciler = MakePimpl<FFloor101SceneReconciler>(GetWorld());
 	PlanDrawing = MakePimpl<f101::drawing::PlanDrawing>();
 	Models = MakePimpl<f101::assets::ModelCache>();
@@ -1026,7 +1024,13 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 	{
 		F101_LOG(LogFloor101, Display, TEXT("F101: scene resync in %.3f ms (created %d, updated %d, unchanged %d, removed %d)"),
 			(FPlatformTime::Seconds() - Start) * 1000.0, Stats.Created, Stats.Updated, Stats.Unchanged, Stats.Removed);
-		LogStatus();
+		// A line per wall and room on every edit: cheap through UE_LOG (CheckRendering reads it), but in Shipping each
+		// line goes to the product log on disk, so there it is a debug-mode detail.
+		const bool bLogEveryEntity = !UE_BUILD_SHIPPING || Floor101::Diagnostics::IsVerbose();
+		if (bLogEveryEntity)
+		{
+			LogStatus();
+		}
 	}
 	else
 	{

@@ -111,7 +111,7 @@ TEST_CASE("plan and scene show custom names without changing geometry or automat
 TEST_CASE("automatic wall splitting inherits names; rooms can then be renamed independently")
 {
 	Document document{makeSequentialUuidSource()};
-	document.setRoomNameTransfer(geometry::makeRoomNameTransfer());
+	document.setRoomTransfer(geometry::makeRoomTransfer());
 	Project project = enclosedRoom(document);
 	project.roomNames.push_back({geometry::detectRooms(project).front().key, "Sala"});
 	REQUIRE(document.replaceProject(project).ok());

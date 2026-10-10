@@ -38,26 +38,44 @@ namespace f101::cad
 			PlanPoint{static_cast<double>(dimension.end.x_mm), static_cast<double>(dimension.end.y_mm)}, a, b};
 	}
 
+	std::size_t textCharacters(std::string_view utf8)
+	{
+		return static_cast<std::size_t>(std::count_if(utf8.begin(), utf8.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; }));
+	}
+
+	double planTextWidthMm(std::size_t characters, double heightMm)
+	{
+		return static_cast<double>(characters) * heightMm * 0.85;
+	}
+
+	std::string dimensionFigure(const Dimension& dimension, char decimalSeparator)
+	{
+		const double length = (dimension.end - dimension.start).lengthMm();
+		if (dimension.automatic) return formatHundredths(std::llround(length / 10.0), decimalSeparator);
+		std::string figure = formatLength(length, LengthUnit::Meter);
+		figure.resize(figure.size() - 2); // implicit metres
+		std::replace(figure.begin(), figure.end(), '.', decimalSeparator);
+		return figure;
+	}
+
+	std::string dimensionLabel(const Dimension& dimension, char decimalSeparator)
+	{
+		std::string figure = dimensionFigure(dimension, decimalSeparator);
+		if (dimension.text.empty()) return figure;
+		const auto pointed = [](std::string text) { std::replace(text.begin(), text.end(), ',', '.'); return text; };
+		if (pointed(dimension.text) == pointed(figure)) return dimension.text;
+		return dimension.text + " (" + figure + ")";
+	}
+
 	double dimensionLabelWidthMm(const Dimension& dimension)
 	{
-		std::string text = dimension.text;
-		if (text.empty())
-		{
-			if (dimension.automatic)
-			{
-				const auto hundredths = std::llround((dimension.end - dimension.start).lengthMm() / 10.0);
-				return static_cast<double>(std::to_string(hundredths / 100).size() + 3) * 150.0 * 0.85;
-			}
-			text = formatLength((dimension.end - dimension.start).lengthMm(), LengthUnit::Meter);
-			text.resize(text.size() - 2); // implicit metres, as in the drawing
-		}
-		const auto characters = std::count_if(text.begin(), text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; });
-		return static_cast<double>(characters) * 150.0 * 0.85;
+		// The separator does not change the number of characters.
+		return planTextWidthMm(textCharacters(dimensionLabel(dimension, '.')), DimensionFigureHeightMm);
 	}
 
 	bool dimensionLabelOutside(const Dimension& dimension)
 	{
-		return (dimension.end - dimension.start).lengthMm() < dimensionLabelWidthMm(dimension) + 150.0;
+		return (dimension.end - dimension.start).lengthMm() < dimensionLabelWidthMm(dimension) + DimensionFitMarginMm;
 	}
 
 	PlanPoint dimensionLabelPoint(const Dimension& dimension)
@@ -68,9 +86,9 @@ namespace f101::cad
 		if (length == 0.0) return a;
 		const double sign = dimension.offsetMm < 0 ? -1.0 : 1.0;
 		const double width = dimensionLabelWidthMm(dimension);
-		const bool outside = length < width + 150.0;
-		const double along = outside ? length / 2.0 + width / 2.0 + 100.0 : 0.0;
-		const double across = sign * (outside ? 435.0 : 135.0);
+		const bool outside = length < width + DimensionFitMarginMm;
+		const double along = outside ? length / 2.0 + width / 2.0 + DimensionLeaderRunMm : 0.0;
+		const double across = sign * (outside ? DimensionLeaderRiseMm + DimensionFigureGapMm : DimensionFigureGapMm);
 		return {(a.x_mm + b.x_mm) / 2.0 + static_cast<double>(axis.dx_mm) / length * along - static_cast<double>(axis.dy_mm) / length * across,
 			(a.y_mm + b.y_mm) / 2.0 + static_cast<double>(axis.dy_mm) / length * along + static_cast<double>(axis.dx_mm) / length * across};
 	}

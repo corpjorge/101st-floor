@@ -1,5 +1,6 @@
 #pragma once
 
+#include "F101/Cad/DimensionEditor.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/Export.h"
 #include "F101/Cad/Picking.h"
@@ -181,11 +182,13 @@ namespace f101::cad
 		FLOOR101CADCORE_API WallId selection() const;
 		FLOOR101CADCORE_API Status select(const WallId& id);
 		FLOOR101CADCORE_API void clearSelection();
-		using DimensionProvider = std::function<std::vector<Dimension>(const Project&, const LevelId&)>;
-		void setDimensionProvider(DimensionProvider provider) { dimensionProvider = std::move(provider); }
-		void setDimensionsVisible(bool visible) { dimensionsVisible = visible; if (!visible) { dimensionDraft.clear(); selectedDimensionId.clear(); dimensionDrag.reset(); dimensionDragOriginal.reset(); dimensionDragHandle = -1; } }
-		void setDimensionPickTolerance(double mm) { dimensionPickToleranceMm = mm; }
-		double dimensionHandleSizeMm() const { return dimensionPickToleranceMm * 1.25; }
+		// Plan annotations (ADR-0031), edited by DimensionEditor: placed in Dimension mode, picked and edited in Select mode,
+		// only while the 2D plan is shown.
+		using DimensionProvider = DimensionEditor::Provider;
+		void setDimensionProvider(DimensionProvider provider) { dimensions.setProvider(std::move(provider)); }
+		void setDimensionsVisible(bool visible) { dimensions.setVisible(visible); }
+		void setDimensionPickTolerance(double mm) { dimensions.setPickTolerance(mm); }
+		double dimensionHandleSizeMm() const { return dimensions.handleSizeMm(); }
 		FLOOR101CADCORE_API std::optional<Dimension> selectedDimension() const;
 		FLOOR101CADCORE_API std::optional<Dimension> dimensionPreview() const;
 		FLOOR101CADCORE_API Status selectDimension(std::string_view id);
@@ -193,7 +196,7 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setDimensionText(std::string_view text);
 		FLOOR101CADCORE_API Status setDimensionCoordinate(std::string_view text, int coordinate);
 		FLOOR101CADCORE_API Status restoreAutomaticDimensions();
-		std::size_t dimensionPointCount() const { return dimensionDraft.size(); }
+		std::size_t dimensionPointCount() const { return dimensions.draftPointCount(); }
 		// Property edits of the selected wall, typed like the wall tool input ("355", "3.55 m"...).
 		FLOOR101CADCORE_API Status setSelectionLength(std::string_view text);
 		FLOOR101CADCORE_API Status setSelectionThickness(std::string_view text);
@@ -291,7 +294,7 @@ namespace f101::cad
 		const EditSettings& settings() const { return editSettings; }
 		bool isDragging() const
 		{
-			return dimensionDrag.has_value() || drag.has_value() || wallBodyDrag.has_value() || openingDrag.has_value() || furnitureDrag.has_value() || columnDrag.has_value() ||
+			return dimensions.dragging() || drag.has_value() || wallBodyDrag.has_value() || openingDrag.has_value() || furnitureDrag.has_value() || columnDrag.has_value() ||
 				runDrag.has_value();
 		}
 		bool isDraggingOpening() const { return openingDrag.has_value(); }
@@ -454,19 +457,10 @@ namespace f101::cad
 		// Drops every selection.
 		void clearSelected();
 
-		DimensionProvider dimensionProvider;
-		bool dimensionsVisible = false;
-		double dimensionPickToleranceMm = 150.0;
-		std::string selectedDimensionId;
-		std::vector<Point2D> dimensionDraft;
-		std::optional<Dimension> dimensionDrag;
-		std::optional<Dimension> dimensionDragOriginal;
-		double dimensionGrabAcross = 0.0;
-		int dimensionDragHandle = -1; // 0/1: measured points; 2/3: resize along the original axis
-		PlanPoint dimensionGrabPoint;
 		Document& document;
 		EditSettings editSettings;
 		WallTool tool;
+		DimensionEditor dimensions;
 		EditMode currentMode = EditMode::Select;
 		WallId selected;
 		OpeningId selectedOpeningId; // with `selected` as its wall

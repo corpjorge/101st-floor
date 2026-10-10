@@ -63,14 +63,6 @@ namespace f101::drawing
 			return frame;
 		}
 
-		// Two decimals of a whole number of hundredths: "3.55", "-0.07".
-		std::string formatHundredths(long long hundredths, char separator)
-		{
-			const long long magnitude = std::llabs(hundredths);
-			const std::string cents = std::to_string(magnitude % 100);
-			return std::string(hundredths < 0 ? "-" : "") + std::to_string(magnitude / 100) + separator + (cents.size() < 2 ? "0" : "") + cents;
-		}
-
 		class Builder
 		{
 		public:
@@ -277,9 +269,10 @@ namespace f101::drawing
 			if (cad::dimensionLabelOutside(d))
 			{
 				// A short value belongs beyond its end, over a leader, rather than over the two crowded ticks.
-				const double labelS = frame.across(cad::dimensionLabelPoint(d)) - side * 135.0;
-				builder.stroke({frame.at(frame.length, s), frame.at(frame.length + 100.0, s), frame.at(frame.length + 100.0, labelS),
-					frame.at(frame.length + cad::dimensionLabelWidthMm(d) + 100.0, labelS)}, ink, ThinMm);
+				const double labelS = frame.across(cad::dimensionLabelPoint(d)) - side * cad::DimensionFigureGapMm;
+				const double run = frame.length + cad::DimensionLeaderRunMm;
+				builder.stroke({frame.at(frame.length, s), frame.at(run, s), frame.at(run, labelS),
+					frame.at(frame.length + cad::dimensionLabelWidthMm(d) + cad::DimensionLeaderRunMm, labelS)}, ink, ThinMm);
 			}
 			for (const double u : {0.0, frame.length})
 			{
@@ -290,18 +283,11 @@ namespace f101::drawing
 			double angle = std::atan2(frame.axis.y_mm, frame.axis.x_mm) * 180.0 / Pi;
 			if (angle > 90.0) angle -= 180.0;
 			else if (angle <= -90.0) angle += 180.0;
-			std::string figure = formatMeters(frame.length, texts.decimalSeparator);
-			if (!d.automatic)
-			{
-				figure = cad::formatLength(frame.length, cad::LengthUnit::Meter);
-				figure.resize(figure.size() - 2); // unit is implicit in plan figures
-				std::replace(figure.begin(), figure.end(), '.', texts.decimalSeparator);
-			}
-			builder.label(cad::dimensionLabelPoint(d), angle, FigureHeightMm, d.text.empty() ? figure : d.text, ink);
+			builder.label(cad::dimensionLabelPoint(d), angle, FigureHeightMm, cad::dimensionLabel(d, texts.decimalSeparator), ink);
 		}
 
 		// Every segment has a stable key made of its wall and opening-edge identities, never its measured value.
-		void drawDimension(Builder& builder, const Frame& frame, std::vector<double> us, double faceS, double s, double side,
+		void drawDimension(Builder& builder, const Frame& frame, std::vector<double> us, double faceS, double s,
 			const DrawingTexts& texts, const cad::Wall& wall, const cad::Project& project, const PlanOverlay& overlay,
 			std::string_view role, PlanDrawing& drawing)
 		{
@@ -351,7 +337,6 @@ namespace f101::drawing
 				drawing.dimensions.push_back(d);
 				drawAnnotation(builder, d, texts, d.id == overlay.selectedDimension ? Ink::DimensionSelected : Ink::Dimension, faceS, !continuous);
 			}
-			(void)side;
 		}
 
 		void includeBounds(PlanDrawing& drawing)
@@ -383,8 +368,7 @@ namespace f101::drawing
 			}
 			for (const Label& label : drawing.labels)
 			{
-				const auto characters = std::count_if(label.text.begin(), label.text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; });
-				const double halfWidth = static_cast<double>(characters) * label.heightMm * 0.85 / 2.0 + 10.0;
+				const double halfWidth = cad::planTextWidthMm(cad::textCharacters(label.text), label.heightMm) / 2.0 + 10.0;
 				const double halfHeight = label.heightMm / 2.0 + 10.0;
 				const double angle = label.angleDegrees * Pi / 180.0;
 				const double padX = std::fabs(std::cos(angle)) * halfWidth + std::fabs(std::sin(angle)) * halfHeight;
@@ -509,7 +493,7 @@ namespace f101::drawing
 
 	std::string formatMeters(double millimeters, char decimalSeparator)
 	{
-		return formatHundredths(std::llround(millimeters / 10.0), decimalSeparator);
+		return cad::formatHundredths(std::llround(millimeters / 10.0), decimalSeparator);
 	}
 
 	PlanDrawing buildPlanDrawing(const cad::Project& project, const cad::LevelId& level, const PlanOverlay& overlay, const DrawingTexts& texts)
@@ -584,7 +568,7 @@ namespace f101::drawing
 			const double faceS = side > 0.0 ? leftS : rightS;
 			if (roomLeft && roomRight)
 			{
-				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * PartitionOffsetMm, side, texts, wall, project, overlay, "partition", drawing);
+				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * PartitionOffsetMm, texts, wall, project, overlay, "partition", drawing);
 				continue;
 			}
 			std::vector<double> chain{0.0, frame.length};
@@ -594,10 +578,10 @@ namespace f101::drawing
 				chain.push_back(static_cast<double>(opening.offsetMm + opening.widthMm));
 			}
 			const bool withOpenings = !wall.openings.empty();
-			drawDimension(builder, frame, chain, faceS, faceS + side * ChainOffsetMm, side, texts, wall, project, overlay, withOpenings ? "chain" : "overall", drawing);
+			drawDimension(builder, frame, chain, faceS, faceS + side * ChainOffsetMm, texts, wall, project, overlay, withOpenings ? "chain" : "overall", drawing);
 			if (withOpenings)
 			{
-				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, side, texts, wall, project, overlay, "overall", drawing);
+				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, texts, wall, project, overlay, "overall", drawing);
 			}
 		}
 
@@ -636,7 +620,7 @@ namespace f101::drawing
 			}
 			builder.label(add(room.labelPoint, {0.0, RoomNameHeightMm * 0.8}), 0.0, RoomNameHeightMm, std::move(name), Ink::Label);
 			builder.label(add(room.labelPoint, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, RoomAreaHeightMm,
-				formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit, Ink::Label);
+				cad::formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit, Ink::Label);
 		}
 
 		// Furniture, as the overlay previews it: its outline, then the details of its type.

@@ -7,7 +7,8 @@ no un porcentaje de progreso.
 
 ## Opciones → Diagnóstico
 
-- **Modo depuración: registro detallado**: añade trazas de edición y entrada;
+- **Modo depuración: registro detallado**: añade trazas de edición y entrada,
+  y en Shipping el estado de cada muro y habitación tras cada edición;
   actívalo antes de reproducir un problema.
 - **Mostrar ventana de logs**: muestra u oculta la consola inmediatamente.
   Funciona independientemente del modo depuración.
@@ -44,7 +45,7 @@ Opciones sí se guardan. `Quiet` no admite `DebugMode` ni `ShowLogs` a la vez.
 .\Scripts\CheckStartup.ps1 -DebugMode
 ```
 
-Decisión: [ADR-0027](adr/0027-branded-startup-and-diagnostics.md).
+Decisión: [ADR-0027](adr/ADR-0027-branded-startup-and-diagnostics.md).
 
 
 ![Componente de carga con marca propia](images/startup-loading.png)

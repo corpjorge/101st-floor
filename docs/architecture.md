@@ -36,7 +36,7 @@ CMake (tests sin Unreal). Ver ADR-0002.
 |---|---|---|---|---|
 | `Floor101Diagnostics` | Unreal temprano | `Floor101::Diagnostics` | Core | registro del producto en Shipping y ventana opcional; no cambia la ABI del motor instalado (ADR-0028) |
 | `Floor101Startup` | Unreal temprano | `Floor101::Startup` | Core, Slate, PreLoadScreen, Diagnostics | splash propio, barra de actividad y transición al juego; carga en PreLoadingScreen (ADR-0027) |
-| `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController`, mobiliario (`Furniture`, catálogo), pilares e instalaciones (`Column`, `ServiceRun`, ADR-0021), `project.json` |
+| `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController` (con `DimensionEditor` para las cotas del plano), mobiliario (`Furniture`, catálogo), pilares e instalaciones (`Column`, `ServiceRun`, ADR-0021), `project.json` |
 | `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`) y tramos que ocupan en cada muro (`wallObstructions`), `WallGeometryBuilder` sobre huellas (con huecos), carpintería de huecos (`buildOpeningMesh`), polígonos y prismas, habitaciones (`detectRooms`), suelos, forjados y rodapiés (`buildBaseboardMesh`, ADR-0030), muebles (`furnitureShape`, `buildFurnitureMesh`), pilares y tuberías (`buildColumnMesh`, `buildServiceRunMesh`) |
 | `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos y habitaciones), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos, rodapiés, carpintería, muebles, pilares, tuberías; con `ViewOverlay` que compila el proyecto como quedaría y la capa de instalaciones con la arquitectura en `Ghost`); más adelante materiales portables, luces, cámaras, `SceneDiff` |
 | `Floor101Drawing` | C++ puro | `f101::drawing` | CadCore, Geometry | planos 2D de una planta (`buildPlanDrawing`: muros y pilares cortados, carpintería, muebles, cotas, habitaciones, tuberías con la capa, marcas de edición) y su SVG (`writeSvg`); cotas manuales y preferencias automáticas compartidas con CAD (ADR-0031); paleta común (ADR-0015) |
@@ -130,7 +130,8 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
   habitaciones como caras acotadas del grafo de ejes, con su suelo (caras interiores) y su área neta.
 - **Tramos editables guardados (ADR-0025):** crear o modificar ejes divide las paredes de la misma planta en sus T y
   cruces. Cada tramo tiene su ID, huecos y acabados; las divisiones son parte de la misma transacción. El Geometry Engine
-  transfiere acabados de habitaciones por un proveedor inyectado en `Document`, sin invertir dependencias. Abrir un
+  transfiere acabados, nombres y rodapiés de habitaciones por un proveedor inyectado en `Document`
+  (`geometry::makeRoomTransfer`, una detección por planta), sin invertir dependencias. Abrir un
   proyecto antiguo no lo divide automáticamente. Ver [división de paredes](wall-splitting.md).
 - **Esquinas:** `MoveJointCommand` mueve de una vez todos los extremos que comparten un punto; es lo que hace arrastrar
   el asa de una esquina.

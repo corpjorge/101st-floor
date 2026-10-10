@@ -140,6 +140,27 @@ namespace f101::cad
 			auto& wallCuts = cuts[i];
 			if (wallCuts.empty()) continue;
 			const Wall source = project.walls[i];
+			// A host cut was found on the wall as it was. Measure it on the wall as it is now: its own ends may have been
+			// joined to another axis above, and its openings were already measured from the joined start.
+			for (Cut& cut : wallCuts)
+			{
+				cut.alongMm = dot(vector(source.start, cut.point), vector(source.start, source.end)) / source.lengthMm();
+			}
+			// A cut at an end of the wall divides nothing. One beyond an end means a branch was joined to a stretch that
+			// joining this wall's own end to another axis removed, inside that other wall: refuse the edit rather than leave
+			// the branch disconnected.
+			for (const Cut& cut : wallCuts)
+			{
+				const bool outside = cut.alongMm <= EpsilonMm || cut.alongMm >= source.lengthMm() - EpsilonMm;
+				if (outside && cut.point != source.start && cut.point != source.end)
+				{
+					// Shown as is in the status bar (UTF-8; core sources keep literals ASCII).
+					return Error{ErrorCode::InvalidArgument,
+						"La uni\xc3\xb3n queda dentro del grosor de otra pared; separa las paredes o \xc3\xbanelas por su eje"};
+				}
+			}
+			std::erase_if(wallCuts, [&source](const Cut& cut) { return cut.point == source.start || cut.point == source.end; });
+			if (wallCuts.empty()) continue;
 			std::sort(wallCuts.begin(), wallCuts.end(), [](const Cut& a, const Cut& b) { return a.alongMm < b.alongMm; });
 			wallCuts.erase(std::unique(wallCuts.begin(), wallCuts.end(), [](const Cut& a, const Cut& b)
 				{ return a.point == b.point; }), wallCuts.end());
@@ -151,7 +172,9 @@ namespace f101::cad
 					if (cut.alongMm > static_cast<double>(span.fromMm) + EpsilonMm &&
 						cut.alongMm < static_cast<double>(span.toMm) - EpsilonMm)
 					{
-						return Error{ErrorCode::OutOfRange, "No se puede dividir la pared a traves de una puerta, ventana o bolsillo de puerta corrediza"};
+						// Shown as is in the status bar, hence Spanish (UTF-8; core sources keep literals ASCII).
+						return Error{ErrorCode::OutOfRange,
+							"No se puede dividir la pared a trav\xc3\xa9s de una puerta, ventana o bolsillo de puerta corrediza"};
 					}
 				}
 			}

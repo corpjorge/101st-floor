@@ -189,6 +189,19 @@ namespace f101::cad
 			return changes;
 		}
 
+		// Adds the room settings inherited through a split (ADR-0025) to the project and the transaction, except where a
+		// room already has its own.
+		template <typename Entry, typename Change>
+		void inheritRoomEntries(std::vector<Entry>& entries, std::vector<Change>& changes, const std::vector<Entry>& inherited)
+		{
+			for (const Entry& entry : inherited)
+			{
+				if (findIndex(entries, keyOf(entry))) continue;
+				changes.push_back(Change{keyOf(entry), entries.size(), std::nullopt, entry});
+				entries.push_back(entry);
+			}
+		}
+
 		// Applies one entity kind of a transaction: removals first (from the back), then insertions/replacements in index
 		// order, so indices stay valid.
 		template <typename Entity, typename Change>
@@ -1110,38 +1123,13 @@ namespace f101::cad
 			applyChanges(prospective.walls, transaction.walls, true);
 			const std::size_t unsplitCount = prospective.walls.size();
 			if (Status valid = splitJoinedWalls(prospective, edited, newUuid); !valid) return valid.error();
-			if (roomFinishTransfer && prospective.walls.size() > unsplitCount && !model.roomFinishes.empty())
+			const bool roomSettings = !model.roomFinishes.empty() || !model.roomBaseboards.empty() || !model.roomNames.empty();
+			if (roomTransfer && prospective.walls.size() > unsplitCount && roomSettings)
 			{
-				for (const RoomFinish& finish : roomFinishTransfer(model, prospective))
-				{
-					if (!prospective.findRoomFinish(finish.room))
-					{
-						transaction.roomFinishes.push_back({finish.room, prospective.roomFinishes.size(), std::nullopt, finish});
-						prospective.roomFinishes.push_back(finish);
-					}
-				}
-			}
-			if (roomBaseboardTransfer && prospective.walls.size() > unsplitCount && !model.roomBaseboards.empty())
-			{
-				for (const RoomBaseboard& entry : roomBaseboardTransfer(model, prospective))
-				{
-					if (!prospective.findRoomBaseboard(entry.room))
-					{
-						transaction.roomBaseboards.push_back({entry.room, prospective.roomBaseboards.size(), std::nullopt, entry});
-						prospective.roomBaseboards.push_back(entry);
-					}
-				}
-			}
-			if (roomNameTransfer && prospective.walls.size() > unsplitCount && !model.roomNames.empty())
-			{
-				for (const RoomName& entry : roomNameTransfer(model, prospective))
-				{
-					if (!prospective.findRoomName(entry.room))
-					{
-						transaction.roomNames.push_back({entry.room, prospective.roomNames.size(), std::nullopt, entry});
-						prospective.roomNames.push_back(entry);
-					}
-				}
+				const RoomInheritance inherited = roomTransfer(model, prospective);
+				inheritRoomEntries(prospective.roomFinishes, transaction.roomFinishes, inherited.finishes);
+				inheritRoomEntries(prospective.roomBaseboards, transaction.roomBaseboards, inherited.baseboards);
+				inheritRoomEntries(prospective.roomNames, transaction.roomNames, inherited.names);
 			}
 			if (Status valid = validateProject(prospective); !valid) return valid.error();
 			// Keep the initiating change first: addWall and WallTool return that wall's retained identity.

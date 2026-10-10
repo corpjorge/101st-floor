@@ -21,7 +21,7 @@ habitación, las resultantes heredan los ajustes y pueden editarse por separado.
 
 Se guarda con el proyecto sin modificar paredes, áreas ni acabados del suelo.
 Los proyectos antiguos abren sin rodapiés; los archivos guardados con esta versión
-requieren compatibilidad con el esquema 12. Ver [ADR-0030](adr/0030-room-baseboards.md).
+requieren compatibilidad con el esquema 12. Ver [ADR-0030](adr/ADR-0030-room-baseboards.md).
 
 ## Verificación
 
