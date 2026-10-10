@@ -55,6 +55,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   nombres y rodapiés de habitación pasan a las claves nuevas por un proveedor del Geometry Engine (ADR-0025).
 - Interfaz de estudio en Slate/C++ con modos Diseñar, Recorrer y Foto (ADR-0026). Arranque propio en `Floor101Startup`
   (ADR-0027).
+- Sistema de diseño Cota Cero (ADR-0033): colores, tipos y medidas solo desde `Floor101Style`; componentes en
+  `Floor101Ui` e iconos en `SFloor101Icon`. Nada de colores ni tamaños literales en las pantallas; cada control conserva
+  la llamada que ejecuta. Fuentes de Windows leídas en su sitio (Segoe UI, Bahnschrift), sin redistribuirlas.
 - Registro: `F101_LOG` (es `UE_LOG` en Development; en Shipping escribe el log propio `Floor101-product.log`). No activar
   `bUseLoggingInShipping`: rompe la ABI del motor instalado. Distribución Shipping, paquete y MSI/Burn (ADR-0028).
 - Por clave de habitación, separados de los acabados: nombres (`roomNames`, esquema 11, ADR-0029) y rodapiés

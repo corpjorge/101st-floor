@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "F101/Cad/EditController.h"
+#include "SFloor101Icon.h"
 #include "SFloor101PlanView.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/SCompoundWidget.h"
@@ -12,10 +13,12 @@ struct FSlateBrush;
 struct FFloor101RoomView;
 class UFloor101GameViewportClient;
 class SComboButton;
+class SBox;
 
-// Editing UI drawn over the game viewport (ADR-0008): toolbar with the levels, properties of the selection (or of the
-// active level when nothing is selected), status bar and a label next to the cursor with the length being drawn or typed. It reads the document subsystem every frame and changes
-// things only through it, so the keyboard, the mouse and this UI stay equivalent.
+// Editing UI drawn over the game viewport (ADR-0008, ADR-0026, Cota Cero): a top bar, floating islands over the view (tools,
+// view controls, levels, the inspector of the selection or of the active level, hints and status) and a label next to the
+// cursor with the length being drawn or typed. It reads the document subsystem every frame and changes things only through
+// it, so the keyboard, the mouse and this UI stay equivalent.
 class SFloor101Overlay : public SCompoundWidget
 {
 public:
@@ -40,6 +43,32 @@ private:
 
 	TSharedRef<SWidget> MakeToolbar();
 	TSharedRef<SWidget> MakeToolRail();
+	// View controls over the view: framing, top view, 2D plan, X-ray, the View menu, speed and, in narrow windows, the inspector.
+	TSharedRef<SWidget> MakeViewBar();
+	// The levels as a stack with their elevations (or a selector when the window is short), rebuilt when the levels change.
+	TSharedRef<SWidget> MakeLevelIsland();
+	void RefreshLevelIsland();
+	bool IsLevelIslandCompact() const;
+	TSharedPtr<SBox> LevelIslandHost;
+	FString LevelSignature;
+	// What the inspector is showing: its icon, title and one line under it.
+	struct FInspectorHeading
+	{
+		EFloor101Icon Icon = EFloor101Icon::Levels;
+		FText Title;
+		FText Subtitle;
+	};
+	FInspectorHeading GetInspectorHeading() const;
+	TSharedRef<SWidget> MakeInspectorHeader();
+	bool IsInspectorDocked() const;
+	// The hint pill (current tool, keys drawn as keycaps), rebuilt when the hint changes, and the status island.
+	TSharedRef<SWidget> MakeHintBar();
+	TSharedRef<SWidget> MakeHintContent(const FText& Hint, bool bDefault);
+	TSharedRef<SWidget> MakeStatusIsland();
+	TSharedPtr<SBox> HintHost;
+	FString ShownHint;
+	// The cursor label sits above the selected wall (anchored) or beside the pointer while drawing.
+	bool bCursorAnchored = false;
 	TSharedRef<SWidget> MakeFileMenu();
 	TSharedRef<SWidget> MakeViewMenu();
 	TSharedRef<SWidget> MakeUtilityMenu();
@@ -121,7 +150,7 @@ private:
 	// Opens the system's file dialog and imports the chosen texture or model, then uses it (Pintar or Amueblar).
 	void ImportFromDialog(bool bModel);
 	// A row with a label and a text box: `Apply` gets what is typed (Enter or leaving the box).
-	TSharedRef<SWidget> MakeEditRow(const FText& Label, TFunction<FText()> Current, TFunction<void(const FString&)> Apply);
+	TSharedRef<SWidget> MakeEditRow(const FText& Label, TFunction<FText()> Current, TFunction<void(const FString&)> Apply, bool bNumeric = true);
 	// The swatch of a finish: its colour, or the image of an imported texture.
 	TSharedRef<SWidget> MakeSwatch(const std::string& FinishId, float Size);
 	// The image an imported texture shows now (its brush follows it), or a grey swatch while it has none.
@@ -139,7 +168,7 @@ private:
 	// A length property: the value shown (mm, unset = nothing selected) and the controller call that sets it.
 	TSharedRef<SWidget> MakePropertyRow(const FText& Label, TFunction<TOptional<double>()> Value, FSelectionSetter Setter);
 	// A typed property: the text shown and the controller call that parses and sets what is typed.
-	TSharedRef<SWidget> MakeTextRow(const FText& Label, TFunction<FText()> CurrentText, FSelectionSetter Setter);
+	TSharedRef<SWidget> MakeTextRow(const FText& Label, TFunction<FText()> CurrentText, FSelectionSetter Setter, bool bNumeric = true);
 	// How the selected door or window opens (ADR-0014): its type, its hinges, the face it opens to, how open it is shown.
 	TSharedRef<SWidget> MakeOpeningTypeSection();
 	// Door and Window modes: the type the next ones are placed with.
@@ -154,7 +183,6 @@ private:
 	TSharedRef<SWidget> MakeNavigationSpeed();
 	TSharedRef<SWidget> MakeVSyncButton();
 	TSharedRef<SWidget> MakeExitButton(bool bCompact = false);
-	TSharedRef<SWidget> MakeStatusBar();
 	TSharedRef<SWidget> MakeCursorLabel();
 
 	// Runs an editing action through the subsystem and gives the keyboard back to the viewport.
@@ -179,6 +207,9 @@ private:
 	TWeakObjectPtr<UFloor101GameViewportClient> ViewportClient;
 	TSharedPtr<SComboButton> PropertiesMenu;
 	TSharedPtr<SComboButton> LevelMenu;
+	TSharedPtr<SComboButton> DocumentMenu;
+	TSharedPtr<SComboButton> ViewMenu;
+	TSharedPtr<SComboButton> SpeedMenu;
 	FVector2D CursorPosition = FVector2D::ZeroVector; // local to this widget
 	// Finish ids each surface allows, for the drop-downs (on the heap: SComboBox keeps a pointer to the list).
 	TMap<uint8, TSharedPtr<TArray<TSharedPtr<FString>>>> FinishOptions;

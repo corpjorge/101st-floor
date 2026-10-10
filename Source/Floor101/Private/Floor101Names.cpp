@@ -177,6 +177,23 @@ namespace Floor101
 	{
 		return Shape == f101::cad::ColumnShape::Round ? LOCTEXT("ColumnRound", "Redondo") : LOCTEXT("ColumnRectangle", "Rectangular");
 	}
+
+	FText LevelName(const f101::cad::Project& Project, const f101::cad::LevelId& Level)
+	{
+		const std::size_t Index = Project.levelIndex(Level).value_or(0);
+		const f101::cad::Level* Found = Project.findLevel(Level);
+		if (Found && !Found->name.empty())
+		{
+			return FText::FromString(UTF8_TO_TCHAR(Found->name.c_str()));
+		}
+		return Index == 0 ? LOCTEXT("GroundFloor", "Planta baja") : FText::Format(LOCTEXT("FloorN", "Planta {0}"), FText::AsNumber(static_cast<int32>(Index)));
+	}
+
+	FText LevelTag(const f101::cad::Project& Project, const f101::cad::LevelId& Level)
+	{
+		const std::size_t Index = Project.levelIndex(Level).value_or(0);
+		return Index == 0 ? LOCTEXT("GroundFloorTag", "PB") : FText::Format(LOCTEXT("FloorTag", "P{0}"), FText::AsNumber(static_cast<int32>(Index)));
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
