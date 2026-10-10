@@ -95,3 +95,13 @@ esa prueba. Los resultados concretos de esta entrega se registran al terminar su
 ![Shipping: inicio](images/packaged-home.png)
 ![Shipping: diagnóstico](images/packaged-diagnostics.png)
 ![Shipping: carga](images/packaged-startup.png)
+
+## Entrega 0.1.9 (2026-10-09)
+
+Portable Windows **0.1.9 Shipping** aprobado, generado desde `ba98025` con árbol limpio: editor de cotas propio
+(`DimensionEditor`), cortes de muro que conservan los huecos, divisiones que no desconectan ramas, traspaso conjunto de
+acabados, nombres y rodapiés de habitación, medida real junto a cotas con texto propio y log de producto acotado.
+Antes: 320 unitarios y 88 Unreal Automation aprobados (`Saved/Automation/20261009-201104`). El ejecutable aprueba las
+86 comprobaciones funcionales, integridad SHA-256 y dependencias locales: `Saved/PackageChecks/20261009-201850-functional`.
+Ejecutable: `Packaged/0.1.9/Windows/Floor101.exe`. ZIP: `Packaged/0.1.9/101st-Floor-portable.zip`.
+La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue pendiente.
