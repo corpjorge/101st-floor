@@ -92,6 +92,7 @@ private:
 	void CloseOptions();
 	bool bOptionsOpen = false;
 	int32 OptionsPage = 0;
+	bool bDisplayAdvanced = false; // Options > Pantalla: the monitor details are open
 	bool IsDesignMode() const;
 	FVector2D ViewSize = FVector2D(1920.0, 1080.0);
 	TSharedRef<SWidget> MakeLevelRow();

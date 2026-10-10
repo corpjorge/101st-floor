@@ -102,6 +102,14 @@ namespace Floor101::Studio
 			P.Paper = Color(TEXT("E4E2DC"));
 			P.Scrim = Alpha(TEXT("0C0E10"), 0.62f);
 			P.Glass = Alpha(TEXT("1A1E22"), 0.92f);
+			P.Shadow = FLinearColor(0.0f, 0.0f, 0.0f, 0.045f); // one layer of an island's shadow
+			P.Sheen = FLinearColor(1.0f, 1.0f, 1.0f, 0.05f);
+			P.GlassEdge = FLinearColor(1.0f, 1.0f, 1.0f, 0.08f);
+			P.BarEdge = Color(TEXT("262B30"));
+			P.SwatchEdge = FLinearColor(0.0f, 0.0f, 0.0f, 0.35f);
+			P.OnPaper = Color(TEXT("5C5A55"));
+			P.Missing = FLinearColor(0.5f, 0.5f, 0.52f); // a picture or finish that is not there
+			P.Invalid = FLinearColor(1.0f, 0.0f, 1.0f); // a finish id the catalogue does not know
 			return P;
 		}();
 		return Value;

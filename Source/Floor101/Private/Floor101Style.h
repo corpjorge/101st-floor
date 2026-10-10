@@ -16,6 +16,7 @@ namespace Floor101::Studio
 		FLinearColor Text1, Text2, Text3, Text4;
 		FLinearColor Brass, BrassHi, BrassLo, BrassSel, BrassLine, OnBrass;
 		FLinearColor Danger, DangerFill, DangerPress, Ok, Warn, Info, Paper, Scrim, Glass;
+		FLinearColor Shadow, Sheen, GlassEdge, BarEdge, SwatchEdge, OnPaper, Missing, Invalid;
 	};
 	const FPalette& Palette();
 

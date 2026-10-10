@@ -108,13 +108,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 	auto Wide = [this]() { return ViewSize.X >= Studio::Breakpoint::BarLabels ? EVisibility::Visible : EVisibility::Collapsed; };
 	auto Narrow = [this]() { return ViewSize.X < Studio::Breakpoint::BarLabels ? EVisibility::Visible : EVisibility::Collapsed; };
 
-	const TSharedRef<SWidget> Wordmark = SNew(SHorizontalBox).Visibility_Lambda(Wide)
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-		[SNew(STextBlock).Text(INVTEXT("101")).Font(Studio::Text(EText::Wordmark)).ColorAndOpacity(P.Text1)]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Top).Padding(1.0f, 0.0f, 5.0f, 0.0f)
-		[SNew(STextBlock).Text(INVTEXT("st")).Font(Studio::Text(EText::WordmarkSuffix)).ColorAndOpacity(P.Text1)]
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
-		[SNew(STextBlock).Text(INVTEXT("FLOOR")).Font(Studio::Text(EText::Wordmark)).ColorAndOpacity(P.Text1)];
+	const TSharedRef<SWidget> Wordmark = SNew(SBox).Visibility_Lambda(Wide)[Ui::Wordmark()];
 
 	const TSharedRef<SWidget> Brand = SNew(SButton).ButtonStyle(&Studio::ButtonStyle(EButton::Ghost)).IsFocusable(false)
 		.ContentPadding(FMargin(6.0f, 0.0f, 8.0f, 0.0f)).VAlign(VAlign_Center)
@@ -220,7 +214,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 		]
 		+ SVerticalBox::Slot().AutoHeight()
 		[
-			SNew(SBox).HeightOverride(1.0f)[SNew(SBorder).BorderImage(Studio::White()).BorderBackgroundColor(Studio::Color(TEXT("262B30"))).Padding(0.0f)]
+			SNew(SBox).HeightOverride(1.0f)[SNew(SBorder).BorderImage(Studio::White()).BorderBackgroundColor(P.BarEdge).Padding(0.0f)]
 		];
 }
 

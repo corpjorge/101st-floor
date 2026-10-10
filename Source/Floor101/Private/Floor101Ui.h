@@ -68,6 +68,8 @@ namespace Floor101::Ui
 	TSharedRef<SWidget> Note(TAttribute<FText> Text, EFloor101Icon Icon = EFloor101Icon::Info, TAttribute<FSlateColor> Accent = FSlateColor::UseForeground());
 	TSharedRef<SWidget> Divider(bool bVertical = false, float Length = 20.0f);
 	TSharedRef<SWidget> Dot(TAttribute<FSlateColor> Color, float Size = 7.0f);
+	// "101st FLOOR" with the raised suffix; Scale 1 is the bar size.
+	TSharedRef<SWidget> Wordmark(float Scale = 1.0f);
 
 	// Menus: rows run their action and close every open menu.
 	TSharedRef<SWidget> MenuItem(TOptional<EFloor101Icon> Icon, TAttribute<FText> Text, TFunction<void()> OnClicked, const FText& Keys = FText::GetEmpty(),

@@ -1,7 +1,8 @@
 # ADR-0033: sistema de diseño Cota Cero
 
 Estado: aceptado por el usuario el 2026-10-09 (dirección, Salir discreto, Segoe UI + Bahnschrift, texto base de
-14 px y salto directo de planta). Primera pantalla implementada: Diseñar. Amplía ADR-0026 sin sustituirlo.
+14 px y salto directo de planta). Implementado en todo el producto: Diseñar, Recorrer, Foto, catálogos, Opciones,
+Inicio, aviso de cambios y arranque. Amplía ADR-0026 sin sustituirlo.
 
 ## Contexto
 La interfaz Estudio (ADR-0026) organizó modos, herramientas y propiedades, pero cada control se configuraba en su
@@ -37,8 +38,12 @@ ocupaban el 13 % de la altura a 1920 × 1080 y el 36 % a 800 × 600. Diagnóstic
 - Ningún control cambia la función que llama, ni atajos, Esc o bloqueo de entrada. La API pública de
   `SFloor101Overlay` se mantiene; `CaptureUI.ps1` añade pantallas de menús para revisión.
 - Pulsar una planta de la isla llama a `EditController::setActiveLevel`, ya existente: comodidad aprobada.
-- Pendiente (fase 5): catálogos, Opciones, Inicio, aviso de cambios y arranque con los mismos componentes.
+- En el aviso de cambios, Descartar queda a la izquierda, separado de Cancelar y Guardar; las tres respuestas y
+  `ResolveUnsavedPrompt` no cambian.
+- `SFloor101ToolIcon` y `SFloor101FavoriteIcon` desaparecen: sus dibujos viven en `SFloor101Icon`. La pantalla de
+  arranque (`Floor101Startup`, sin dependencia de `Floor101`) copia los tres colores que usa.
 
 ## Verificación
 Compilación, `Test.ps1 -Integration` y capturas reales con `CaptureUI.ps1` a 1920 × 1080, 1280 × 720 y 800 × 600 en
-Diseñar (sin selección, muro, habitación, cotas, muebles, materiales), Recorrer y menús abiertos.
+Diseñar (sin selección, muro, habitación, cotas, muebles, materiales, favoritos), Recorrer, Foto, Opciones (todas las
+secciones), Inicio, aviso de cambios y menús abiertos. Selección en `docs/images/ui-cota-cero/`.

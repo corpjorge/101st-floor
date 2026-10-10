@@ -1,7 +1,7 @@
-# Cota Cero — propuesta de interfaz v2
+# Cota Cero — interfaz v2
 
-Estado: **propuesta pendiente de aprobación**. Rama `design/studio-ui-redesign`. No cambia código.
-Documento visual completo (diagnóstico anotado, maquetas a escala real, sistema y plan):
+Estado: **implementada** en la rama `design/studio-ui-redesign` (fases 3–5). Dirección aprobada el 2026-10-09;
+decisión en ADR-0033. Documento visual de la propuesta (diagnóstico anotado, maquetas a escala real, sistema y plan):
 `design/cota-cero/index.html`. Capturas de la auditoría generadas con `Scripts/CaptureUI.ps1`
 sobre el build de desarrollo del 2026-10-09 (`Tests/Data/ui-studio-project.json`).
 
@@ -48,3 +48,35 @@ inspector 320/296 px. Texto base Segoe UI 10,5 pt (14 px); cifras Bahnschrift co
 
 Invariantes: cada control llama a la misma función que hoy; atajos, Esc y bloqueos de entrada iguales;
 API pública de `SFloor101Overlay` intacta; sin cambios en módulos puros, `project.json`, escena 3D ni plano 2D.
+
+## Resultado
+
+Los cimientos quedaron en `Floor101Style` (tokens), `Floor101Ui` (componentes) y `SFloor101Icon` (iconos); el
+estilo de Slate propio previsto en el plan no hizo falta. Se retiraron `SFloor101ToolIcon` y `SFloor101FavoriteIcon`.
+
+- **Diseñar:** barra única, dock agrupado con teclas, barra de vista, isla de Plantas con cotas y salto directo,
+  inspector por secciones con pie de Eliminar, etiquetas de habitación en chip, medida junto al cursor, píldora de
+  ayuda que separa teclas y gestos, estado y unidades.
+- **Expansión:** catálogos con búsqueda, filtro de favoritos, fichas con anillo de latón y estado vacío; Foto con
+  progreso, calidad segmentada y acción principal; Opciones como diálogo con navegación lateral, interruptores y
+  tabla de atajos; Inicio con la torre de 101 plantas, «Continuar» y recientes; aviso de cambios con la acción
+  destructiva separada; pantalla de arranque con los colores del sistema.
+- **Revisión visual** (`Saved/UI/v2`, selección en `images/ui-cota-cero/`): defectos corregidos durante la
+  evaluación — etiquetas de habitación ilegibles (el pincel no aplicaba su tinte), icono de nota magenta, píldora
+  de ayuda partida a 800 px, tecla de pie de Plantas cortada, tecla de Navegar estirada, botones del aviso apilados,
+  marca de Inicio sin el «st» elevado, ruta del registro con barras de Unix.
+- **Validación:** `Build.ps1` sin avisos; `Test.ps1 -Integration`: arquitectura correcta, 320 casos unitarios
+  (14 132 aserciones) y 88 pruebas de integración en verde.
+
+![Inicio](images/ui-cota-cero/home-1920.jpg)
+![Diseñar con muro seleccionado](images/ui-cota-cero/selection-1920.jpg)
+![Habitación](images/ui-cota-cero/room-1920.jpg)
+![Materiales](images/ui-cota-cero/materials-1920.jpg)
+![Muebles](images/ui-cota-cero/furniture-1920.jpg)
+![Recorrer](images/ui-cota-cero/walk-1920.jpg)
+![Foto](images/ui-cota-cero/photo-1920.jpg)
+![Opciones](images/ui-cota-cero/options-1920.jpg)
+![Cambios sin guardar](images/ui-cota-cero/unsaved-1920.jpg)
+![1280 × 720](images/ui-cota-cero/selection-1280.jpg)
+![800 × 600: Plantas como selector](images/ui-cota-cero/levels-800.jpg)
+![Inicio a 800 × 600](images/ui-cota-cero/home-800.jpg)

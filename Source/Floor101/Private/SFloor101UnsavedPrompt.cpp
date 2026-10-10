@@ -2,12 +2,12 @@
 #include "Floor101DocumentSubsystem.h"
 #include "Floor101FileActions.h"
 #include "Floor101Style.h"
+#include "Floor101Ui.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
-#include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -44,42 +44,63 @@ void SFloor101Overlay::ResolveUnsavedPrompt(EAppReturnType::Type Choice)
 
 TSharedRef<SWidget> SFloor101Overlay::MakeUnsavedPanel()
 {
-	auto ChoiceButton = [this](const TCHAR* Label, EAppReturnType::Type Choice)
+	namespace Studio = Floor101::Studio;
+	namespace Ui = Floor101::Ui;
+	const Studio::FPalette& P = Studio::Palette();
+	auto Choice = [this](Studio::EButton Kind, const TCHAR* Label, EAppReturnType::Type Result, const FText& Keys)
 	{
-		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(18.0f, 12.0f))
-			.IsEnabled_Lambda([this]() { return !bResolvingUnsaved; })
-			.OnClicked_Lambda([this, Choice]() { ResolveUnsavedPrompt(Choice); return FReply::Handled(); })
-			[SNew(STextBlock).Font(Floor101::Studio::Font(14, true)).ColorAndOpacity(Floor101::Studio::Color(TEXT("EEF0EC")))
-				.Text(FText::FromString(Label))];
+		return Ui::Button(Kind, FText::FromString(Label), [this, Result]() { ResolveUnsavedPrompt(Result); }, {}, FText::GetEmpty(), Keys,
+			TAttribute<bool>::CreateLambda([this]() { return !bResolvingUnsaved; }), 36.0f);
 	};
-	return SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-		.BorderBackgroundColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.72f)).Padding(20.0f).HAlign(HAlign_Center).VAlign(VAlign_Center)
+	const TSharedRef<SWidget> Dialog = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(24.0f, 24.0f, 24.0f, 8.0f))
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Top)
+			[
+				SNew(SBox).WidthOverride(40.0f).HeightOverride(40.0f)
+				[SNew(SBorder).BorderImage(Studio::Box(P.BrassSel, 10.0f)).HAlign(HAlign_Center).VAlign(VAlign_Center)[Ui::Icon(EFloor101Icon::Warn, 20.0f, FSlateColor(P.Brass))]]
+			]
+			+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(16.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()
+				[SNew(STextBlock).Font(Studio::Text(Studio::EText::Title)).ColorAndOpacity(P.Text1).AutoWrapText(true).Text(FText::FromString(TEXT("Hay cambios sin guardar")))]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+				[
+					SNew(STextBlock).Font(Studio::Text(Studio::EText::Body)).ColorAndOpacity(P.Text2).AutoWrapText(true)
+					.Text_Lambda([this]() { return FText::FromString(bUnsavedExit
+						? TEXT("Guarda tu trabajo antes de salir, descarta los cambios o cancela para seguir trabajando.")
+						: TEXT("Guarda tu trabajo antes de cambiar de proyecto, descarta los cambios o cancela para seguir trabajando.")); })
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f, 0.0f, 0.0f)
+				[
+					// A save that failed or was cancelled keeps every choice and says why.
+					SNew(SHorizontalBox).Visibility_Lambda([this]() { return bUnsavedSaveFailed ? EVisibility::Visible : EVisibility::Collapsed; })
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Top).Padding(0.0f, 1.0f, 8.0f, 0.0f)[Ui::Icon(EFloor101Icon::Warn, 16.0f, FSlateColor(P.Danger))]
+					+ SHorizontalBox::Slot().FillWidth(1.0f)
+					[
+						SNew(STextBlock).Font(Studio::Text(Studio::EText::Help)).ColorAndOpacity(P.Danger).AutoWrapText(true)
+						.Text_Lambda([this]() { const auto* D = Document.Get(); return D ? D->GetStatusMessage() : FText::GetEmpty(); })
+					]
+				]
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(24.0f, 16.0f, 24.0f, 22.0f))
+		[
+			// The destructive choice stands apart from the safe pair.
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth()[Choice(Studio::EButton::Danger, TEXT("Descartar"), EAppReturnType::No, FText::GetEmpty())]
+			+ SHorizontalBox::Slot().FillWidth(1.0f).MinWidth(8.0f)
+			+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 8.0f, 0.0f)[Choice(Studio::EButton::Ghost, TEXT("Cancelar"), EAppReturnType::Cancel, INVTEXT("Esc"))]
+			+ SHorizontalBox::Slot().AutoWidth()[Choice(Studio::EButton::Primary, TEXT("Guardar"), EAppReturnType::Yes, FText::GetEmpty())]
+		];
+	return SNew(SBorder).BorderImage(Studio::White()).BorderBackgroundColor(P.Scrim).Padding(20.0f).HAlign(HAlign_Center).VAlign(VAlign_Center)
 		.Visibility_Lambda([this]() { return bUnsavedPromptOpen ? EVisibility::Visible : EVisibility::Collapsed; })
 		.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
 		[
-			SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Clamp(ViewSize.X - 40.0, 120.0, 620.0))); })
+			SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Clamp(ViewSize.X - 40.0, 120.0, 500.0))); })
 			.MaxDesiredHeight_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Max(120.0, ViewSize.Y - 40.0))); })
-			[SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(Floor101::Studio::Color(TEXT("252B30"))).Padding(24.0f)
-			[SNew(SScrollBox) + SScrollBox::Slot()
-			[SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()
-				[SNew(STextBlock).Font(Floor101::Studio::Font(23, true)).ColorAndOpacity(Floor101::Studio::Color(TEXT("D6AD78")))
-					.AutoWrapText(true).Text(FText::FromString(TEXT("Hay cambios sin guardar")))]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
-				[SNew(STextBlock).Font(Floor101::Studio::Font(15)).ColorAndOpacity(Floor101::Studio::Color(TEXT("EEF0EC"))).AutoWrapText(true)
-					.Text_Lambda([this]() { return FText::FromString(bUnsavedExit
-						? TEXT("Guarda tu trabajo antes de salir, descarta los cambios o cancela para seguir trabajando.")
-						: TEXT("Guarda tu trabajo antes de cambiar de proyecto, descarta los cambios o cancela para seguir trabajando.")); })]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 0.0f, 0.0f, 16.0f)
-				[SNew(STextBlock).Font(Floor101::Studio::Font(12)).ColorAndOpacity(Floor101::Studio::Color(TEXT("B3BAB9"))).AutoWrapText(true)
-					.Visibility_Lambda([this]() { return bUnsavedSaveFailed ? EVisibility::Visible : EVisibility::Collapsed; })
-					.Text_Lambda([this]() { const auto* D = Document.Get(); return D ? D->GetStatusMessage() : FText::GetEmpty(); })]
-				+ SVerticalBox::Slot().AutoHeight()
-				[SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(10.0, 10.0))
-					+ SWrapBox::Slot()[ChoiceButton(TEXT("Guardar"), EAppReturnType::Yes)]
-					+ SWrapBox::Slot()[ChoiceButton(TEXT("Descartar"), EAppReturnType::No)]
-					+ SWrapBox::Slot()[ChoiceButton(TEXT("Cancelar · Esc"), EAppReturnType::Cancel)]
-				]
-			]]]
+			[Ui::Island(SNew(SScrollBox).ScrollBarStyle(&Studio::ScrollBar()) + SScrollBox::Slot()[Dialog], FMargin(0.0f), EVisibility::SelfHitTestInvisible, Studio::Size::RadiusDialog)]
 		];
 }

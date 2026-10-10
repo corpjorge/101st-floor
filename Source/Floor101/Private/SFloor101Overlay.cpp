@@ -129,7 +129,7 @@ namespace
 	FLinearColor FinishSwatch(std::string_view Id)
 	{
 		const f101::cad::FinishInfo* Finish = f101::cad::findFinish(Id);
-		return Finish ? FLinearColor::FromSRGBColor(FColor(Finish->color.r, Finish->color.g, Finish->color.b)) : FLinearColor(1.0f, 0.0f, 1.0f);
+		return Finish ? FLinearColor::FromSRGBColor(FColor(Finish->color.r, Finish->color.g, Finish->color.b)) : Floor101::Studio::Palette().Invalid;
 	}
 
 	// A plan direction as a compass point (plan: +x east, +y north).
@@ -205,6 +205,30 @@ namespace
 			+ SVerticalBox::Slot().AutoHeight().Padding(16.0f, 0.0f, 16.0f, 12.0f)[Rows];
 	}
 
+	// A setting of Options: its name and what it does on the left, its control on the right.
+	TSharedRef<SWidget> SettingRow(const FText& Title, TAttribute<FText> Description, const TSharedRef<SWidget>& Control)
+	{
+		const auto& P = Floor101::Studio::Palette();
+		return SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 14.0f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center).Padding(0.0f, 0.0f, 20.0f, 0.0f)
+				[
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot().AutoHeight()
+					[SNew(STextBlock).Text(Title).Font(Floor101::Studio::Text(Floor101::Studio::EText::BodyStrong)).ColorAndOpacity(P.Text1)]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 3.0f, 0.0f, 0.0f)
+					[
+						SNew(STextBlock).Text(Description).Font(Floor101::Studio::Text(Floor101::Studio::EText::Help)).ColorAndOpacity(P.Text3).AutoWrapText(true)
+						.Visibility_Lambda([Description]() { return Description.Get().IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible; })
+					]
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Control]
+			]
+			+ SVerticalBox::Slot().AutoHeight()[Floor101::Ui::Divider()];
+	}
+
 	// Rows of the inspector, 6 units apart.
 	TSharedRef<SVerticalBox> Stack(std::initializer_list<TSharedRef<SWidget>> Rows)
 	{
@@ -261,7 +285,7 @@ public:
 		const FSlateFontInfo NameFont = Floor101::Studio::Text(Floor101::Studio::EText::Button);
 		const FSlateFontInfo AreaFont = Floor101::Studio::Text(Floor101::Studio::EText::NumericSmall);
 		const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-		const FSlateBrush* Chip = Floor101::Studio::Box(P.Glass, 7.0f, FLinearColor(1.0f, 1.0f, 1.0f, 0.08f), 1.0f);
+		const FSlateBrush* Chip = Floor101::Studio::Box(P.Glass, 7.0f, P.GlassEdge, 1.0f);
 		const FSlateBrush* Chosen = Floor101::Studio::Box(P.Glass, 7.0f, P.Brass, 1.0f);
 		const FString Selected = UTF8_TO_TCHAR(Subsystem->GetEditController().selectedRoom().c_str());
 		const FVector2D Padding(10.0, 6.0);
@@ -552,92 +576,263 @@ FReply SFloor101Overlay::OnKeyDown(const FGeometry& Geometry, const FKeyEvent& E
 
 TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 {
+	namespace Studio = Floor101::Studio;
+	namespace Ui = Floor101::Ui;
+	const Studio::FPalette& P = Studio::Palette();
 	const FText Pages[] = {LOCTEXT("StudioDisplayPage", "Pantalla"), LOCTEXT("StudioGraphicsPage", "Gráficos"), LOCTEXT("StudioControlsPage", "Controles"), LOCTEXT("StudioDiagnosticsPage", "Diagnóstico")};
 	const EFloor101Icon PageIcons[] = {EFloor101Icon::Monitor, EFloor101Icon::Sliders, EFloor101Icon::Keys, EFloor101Icon::Pulse};
-	TArray<Floor101::Ui::FSegment> PageSegments;
+	auto Wide = [this]() { return ViewSize.X >= 640.0; };
+
+	// Pages: a column on the left, or a segmented control above the content in narrow windows.
+	TSharedRef<SVerticalBox> Nav = SNew(SVerticalBox);
+	TArray<Ui::FSegment> PageSegments;
 	for (int32 I = 0; I < UE_ARRAY_COUNT(Pages); ++I)
 	{
-		PageSegments.Add({PageIcons[I], Pages[I], FText::GetEmpty(), FText::GetEmpty(), [this, I]() { return OptionsPage == I; }, [this, I]() { OptionsPage = I; }});
+		auto Active = [this, I]() { return OptionsPage == I; };
+		Nav->AddSlot().AutoHeight().Padding(0.0f, I > 0 ? 2.0f : 0.0f, 0.0f, 0.0f)
+		[
+			Ui::Selectable(SNew(SBox).HeightOverride(36.0f).Padding(FMargin(10.0f, 0.0f)).VAlign(VAlign_Center)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 10.0f, 0.0f)
+					[Ui::Icon(PageIcons[I], 16.0f, TAttribute<FSlateColor>::CreateLambda([Active]() { return Active() ? FSlateColor(Floor101::Studio::Palette().Brass) : FSlateColor::UseForeground(); }))]
+					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+					[SNew(STextBlock).Text(Pages[I]).Font(Studio::Text(Studio::EText::Body)).ColorAndOpacity(FSlateColor::UseForeground())]
+				],
+				TAttribute<bool>::CreateLambda(Active), [this, I]() { OptionsPage = I; })
+		];
+		PageSegments.Add({PageIcons[I], Pages[I], FText::GetEmpty(), Pages[I], Active, [this, I]() { OptionsPage = I; }});
 	}
-	const TSharedRef<SWidget> Tabs = SNew(SBox).HAlign(HAlign_Left)[Floor101::Ui::Segmented(PageSegments, TAttribute<bool>::CreateLambda([this]() { return ViewSize.X >= 560.0; }))];
-	TSharedRef<SWidget> Quality = SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f)).OnGetMenuContent_Lambda([]()
+	auto Page = [this](int32 Index, const TSharedRef<SWidget>& Content)
 	{
-		FMenuBuilder Menu(true, nullptr);
-		const FText Names[] = {LOCTEXT("StudioLightQuality", "Fluida"), LOCTEXT("StudioBalancedQuality", "Equilibrada"), LOCTEXT("StudioHighQuality", "Alta")};
-		for (int32 I = 0; I < UE_ARRAY_COUNT(Names); ++I)
+		return SNew(SBox).Visibility_Lambda([this, Index]() { return OptionsPage == Index ? EVisibility::Visible : EVisibility::Collapsed; })[Content];
+	};
+
+	// 1 · Display: the same calls the buttons made, now as a selector and switches that show the state.
+	const TSharedRef<SWidget> Resolution = Ui::MenuButton(
+		SNew(SBox).WidthOverride(200.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Font(Studio::Text(Studio::EText::Numeric)).ColorAndOpacity(P.Text1)
+				.Text_Lambda([this]()
+				{
+					const Floor101::Display::FStatus State = Floor101::Display::Query(ViewportClient.Get());
+					return FText::FromString(FString::Printf(TEXT("%d × %d%s"), State.Image.X, State.Image.Y, State.Image == State.Native ? TEXT(" (nativa)") : TEXT("")));
+				})
+			]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Ui::Icon(EFloor101Icon::ChevronDown, 16.0f, FSlateColor(P.Text3))]
+		],
+		[this]() -> TSharedRef<SWidget>
 		{
-			Menu.AddMenuEntry(Names[I], FText::GetEmpty(), FSlateIcon(), FUIAction(
-				FExecuteAction::CreateLambda([I]() { Floor101::Preferences::SetGraphicsQuality(I); }), FCanExecuteAction(),
-				FIsActionChecked::CreateLambda([I]() { return Floor101::Preferences::GraphicsQuality() == I; })), NAME_None, EUserInterfaceActionType::RadioButton);
-		}
-		return Menu.MakeWidget();
-	}).ButtonContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).Text_Lambda([]()
+			TSharedRef<SVerticalBox> Menu = SNew(SVerticalBox);
+			for (const FIntPoint Size : Floor101::Display::Resolutions(ViewportClient.Get()))
+			{
+				const FText Label = FText::FromString(FString::Printf(TEXT("%d × %d%s"), Size.X, Size.Y,
+					Size == Floor101::Display::Query(ViewportClient.Get()).Native ? TEXT(" (nativa)") : TEXT("")));
+				Menu->AddSlot().AutoHeight()[Ui::MenuItem({}, Label, [this, Size]()
+				{
+					Floor101::Display::SetResolution(ViewportClient.Get(), Size);
+					FSlateApplication::Get().SetAllUserFocusToGameViewport();
+				}, FText::GetEmpty(), FText::GetEmpty(), [this, Size]() { return Floor101::Display::Query(ViewportClient.Get()).Image == Size; })];
+			}
+			return SNew(SBox).WidthOverride(240.0f).MaxDesiredHeight(360.0f)[SNew(SScrollBox).ScrollBarStyle(&Floor101::Studio::ScrollBar()) + SScrollBox::Slot()[Menu]];
+		},
+		LOCTEXT("ResolutionTip", "Elige una resolución admitida por este monitor. La opción nativa coincide con los píxeles de la pantalla; el render se mantiene al 100 %."),
+		Studio::EButton::Field, FMargin(10.0f, 0.0f), 30.0f);
+
+	const TSharedRef<SWidget> Advanced = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 10.0f, 0.0f, 0.0f).HAlign(HAlign_Left)
+		[
+			Ui::Selectable(SNew(SBox).HeightOverride(30.0f).Padding(FMargin(6.0f, 0.0f, 10.0f, 0.0f)).VAlign(VAlign_Center)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 6.0f, 0.0f)
+					[SNew(SFloor101Icon).Size(16.0f).Icon_Lambda([this]() { return bDisplayAdvanced ? EFloor101Icon::ChevronDown : EFloor101Icon::ChevronRight; })]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+					[SNew(STextBlock).Text(LOCTEXT("StudioAdvancedDisplay", "Información avanzada")).Font(Studio::Text(Studio::EText::Button)).ColorAndOpacity(FSlateColor::UseForeground())]
+				],
+				false, [this]() { bDisplayAdvanced = !bDisplayAdvanced; })
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(10.0f, 6.0f, 0.0f, 0.0f)
+		[
+			SNew(SVerticalBox).Visibility_Lambda([this]() { return bDisplayAdvanced ? EVisibility::Visible : EVisibility::Collapsed; })
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Font(Studio::Text(Studio::EText::Help)).AutoWrapText(true)
+				.Text_Lambda([this]() { return Floor101::Display::Describe(Floor101::Display::Query(ViewportClient.Get())); })
+				.ColorAndOpacity_Lambda([this]()
+				{
+					// Anything but native image and render is worth noticing.
+					const Floor101::Display::FStatus State = Floor101::Display::Query(ViewportClient.Get());
+					return State.Native == State.Image && (!State.bWorldRendering || State.Image == State.Render)
+						? FSlateColor(Floor101::Studio::Palette().Text3) : FSlateColor(Floor101::Studio::Palette().Warn);
+				})
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			[
+				SNew(STextBlock).Font(Studio::Text(Studio::EText::Help)).ColorAndOpacity(P.Text3).AutoWrapText(true)
+				.Text_Lambda([this]() { return FText::FromString(Floor101::Display::Query(ViewportClient.Get()).MonitorName); })
+			]
+		];
+
+	const TSharedRef<SWidget> DisplayPage = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[SettingRow(LOCTEXT("ResolutionLabel", "Resolución"), LOCTEXT("ResolutionHelp", "Admitida por este monitor. La nativa coincide con sus píxeles; el render se mantiene al 100 %."), Resolution)]
+		+ SVerticalBox::Slot().AutoHeight()[MakeDisplayControls()]
+		+ SVerticalBox::Slot().AutoHeight()[Advanced];
+
+	// 2 · Graphics: the three profiles of the quality menu.
+	TArray<Ui::FSegment> Profiles;
+	const FText Names[] = {LOCTEXT("StudioLightQuality", "Fluida"), LOCTEXT("StudioBalancedQuality", "Equilibrada"), LOCTEXT("StudioHighQuality", "Alta")};
+	for (int32 I = 0; I < UE_ARRAY_COUNT(Names); ++I)
 	{
-		const TCHAR* Names[] = {TEXT("Fluida"), TEXT("Equilibrada"), TEXT("Alta")};
-		return FText::FromString(FString(TEXT("Calidad gráfica: ")) + Names[Floor101::Preferences::GraphicsQuality()]);
-	})];
-	return SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-		.BorderBackgroundColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f)).HAlign(HAlign_Center).VAlign(VAlign_Center).Padding(12.0f)
+		Profiles.Add({{}, Names[I], FText::GetEmpty(), FText::GetEmpty(), [I]() { return Floor101::Preferences::GraphicsQuality() == I; },
+			[I]() { Floor101::Preferences::SetGraphicsQuality(I); }});
+	}
+	const TSharedRef<SWidget> GraphicsPage = SettingRow(LOCTEXT("QualityLabel", "Calidad gráfica"),
+		LOCTEXT("StudioQualityPolicy", "Los perfiles ajustan detalle y sombras. Conservan Lumen y el render al 100 %; no cambian HDR ni la sincronización vertical. La calidad de la fotografía se elige en Foto."),
+		Ui::Segmented(Profiles, true, true));
+
+	// 3 · Controls: speed, and every shortcut drawn as keycaps.
+	struct FShortcut
+	{
+		const TCHAR* Action;
+		const TCHAR* Keys; // alternatives separated by " / "
+	};
+	struct FShortcutGroup
+	{
+		FText Title;
+		TArray<FShortcut> Rows;
+	};
+	const FShortcutGroup Groups[] = {
+		{LOCTEXT("ShortcutsMove", "Moverse"), {{TEXT("Moverse"), TEXT("W+A+S+D")}, {TEXT("Recorrer"), TEXT("N")}, {TEXT("Subir / bajar"), TEXT("E / Q")},
+			{TEXT("Más rápido"), TEXT("Shift")}, {TEXT("Velocidad (no al escribir medidas)"), TEXT("1 … 9 / 0")}, {TEXT("Mirar sin moverse"), TEXT("Shift+Clic der.")},
+			{TEXT("Orbitar"), TEXT("Clic der.")}, {TEXT("Desplazar la vista"), TEXT("Clic central")}, {TEXT("Acercarse"), TEXT("Rueda")}}},
+		{LOCTEXT("ShortcutsTools", "Herramientas"), {{TEXT("Seleccionar"), TEXT("V")}, {TEXT("Pared"), TEXT("B")}, {TEXT("Puerta"), TEXT("P")}, {TEXT("Ventana"), TEXT("O")},
+			{TEXT("Columna"), TEXT("C")}, {TEXT("Instalaciones"), TEXT("I")}, {TEXT("Muebles"), TEXT("G")}, {TEXT("Materiales"), TEXT("M")}, {TEXT("Cotas"), TEXT("H")}}},
+		{LOCTEXT("ShortcutsFile", "Documento"), {{TEXT("Guardar"), TEXT("Ctrl+S")}, {TEXT("Abrir"), TEXT("Ctrl+O")}, {TEXT("Deshacer"), TEXT("Ctrl+Z")},
+			{TEXT("Rehacer"), TEXT("Ctrl+Y / Ctrl+Shift+Z")}}},
+		{LOCTEXT("ShortcutsView", "Vista"), {{TEXT("Encuadrar"), TEXT("F")}, {TEXT("Vista superior"), TEXT("T")}, {TEXT("Plano 2D"), TEXT("Tab")}, {TEXT("Foto"), TEXT("R")},
+			{TEXT("Cerrar Opciones; al editar, cancelar"), TEXT("Esc")}}},
+	};
+	TSharedRef<SVerticalBox> Shortcuts = SNew(SVerticalBox);
+	for (const FShortcutGroup& Group : Groups)
+	{
+		Shortcuts->AddSlot().AutoHeight().Padding(0.0f, Shortcuts->NumSlots() > 0 ? 14.0f : 0.0f, 0.0f, 6.0f)
+			[SNew(STextBlock).Text(Group.Title.ToUpper()).Font(Studio::Text(Studio::EText::Overline)).ColorAndOpacity(P.Text3)];
+		for (const FShortcut& Entry : Group.Rows)
+		{
+			TSharedRef<SHorizontalBox> Keys = SNew(SHorizontalBox);
+			TArray<FString> Alternatives;
+			FString(Entry.Keys).ParseIntoArray(Alternatives, TEXT(" / "));
+			for (int32 Index = 0; Index < Alternatives.Num(); ++Index)
+			{
+				if (Index > 0)
+				{
+					Keys->AddSlot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f)
+						[SNew(STextBlock).Text(LOCTEXT("ShortcutOr", "o")).Font(Studio::Text(Studio::EText::Help)).ColorAndOpacity(P.Text3)];
+				}
+				Keys->AddSlot().AutoWidth().VAlign(VAlign_Center)[Ui::Shortcut(FText::FromString(Alternatives[Index]))];
+			}
+			Shortcuts->AddSlot().AutoHeight()
+			[
+				SNew(SBox).MinDesiredHeight(30.0f)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+					[SNew(STextBlock).Text(FText::FromString(Entry.Action)).Font(Studio::Text(Studio::EText::Label)).ColorAndOpacity(P.Text2)]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[Keys]
+				]
+			];
+		}
+	}
+	const TSharedRef<SWidget> ControlsPage = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[SettingRow(LOCTEXT("SpeedLabelLong", "Velocidad de navegación"), LOCTEXT("SpeedHelp", "Se guarda y no cambia al acercarte. Shift la multiplica por cuatro."), MakeNavigationSpeed())]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 14.0f, 0.0f, 0.0f)[Shortcuts];
+
+	// 4 · Diagnostics.
+	const TSharedRef<SWidget> DiagnosticsPage = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SettingRow(LOCTEXT("DiagnosticMode", "Modo depuración"), LOCTEXT("DiagnosticModeHelp", "Registro detallado de lo que hace el programa."),
+				Ui::Switch(TAttribute<bool>::CreateLambda([]() { return Floor101::Diagnostics::IsVerbose(); }),
+					[](bool bOn) { Floor101::Preferences::SetDiagnosticMode(bOn); }))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SettingRow(LOCTEXT("DiagnosticWindow", "Ventana de registros"), LOCTEXT("DiagnosticWindowHelp", "Muestra el registro en una ventana aparte mientras trabajas."),
+				Ui::Switch(TAttribute<bool>::CreateLambda([]() { return Floor101::Diagnostics::IsWindowVisible(); }),
+					[](bool bOn) { Floor101::Preferences::SetShowLogWindow(bOn); }))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 14.0f, 0.0f, 0.0f)
+		[
+			Ui::Note(LOCTEXT("DiagnosticHelp", "Los errores se guardan en archivo aunque esta ventana esté oculta. Activa el modo depuración antes de reproducir un problema y revisa el registro. Ambos ajustes se aplican ahora y se recuerdan al reiniciar."))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 14.0f, 0.0f, 0.0f).HAlign(HAlign_Left)
+		[
+			Ui::Button(Studio::EButton::Secondary, LOCTEXT("DiagnosticFolder", "Abrir carpeta de registros"),
+				[]() { FPlatformProcess::ExploreFolder(*FPaths::GetPath(Floor101::Diagnostics::LogPath())); }, EFloor101Icon::Folder)
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f, 0.0f, 0.0f)
+		[
+			SNew(STextBlock).Font(Studio::Text(Studio::EText::Help)).ColorAndOpacity(P.Text3).AutoWrapText(true)
+			.Text_Lambda([]() { FString Shown = Floor101::Diagnostics::LogPath(); FPaths::MakePlatformFilename(Shown); return FText::FromString(Shown); })
+		];
+
+	const TSharedRef<SWidget> Body = SNew(SScrollBox).ScrollBarStyle(&Studio::ScrollBar())
+		+ SScrollBox::Slot().Padding(FMargin(24.0f, 8.0f, 24.0f, 20.0f))
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight()[Page(0, DisplayPage)]
+			+ SVerticalBox::Slot().AutoHeight()[Page(1, GraphicsPage)]
+			+ SVerticalBox::Slot().AutoHeight()[Page(2, ControlsPage)]
+			+ SVerticalBox::Slot().AutoHeight()[Page(3, DiagnosticsPage)]
+		];
+
+	const TSharedRef<SWidget> Dialog = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(24.0f, 16.0f, 16.0f, 14.0f))
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[SNew(STextBlock).Text(LOCTEXT("StudioOptionsHeading", "Opciones")).Font(Studio::Text(Studio::EText::Title)).ColorAndOpacity(P.Text1)]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+			[Ui::IconButton(EFloor101Icon::Close, [this]() { CloseOptions(); }, LOCTEXT("StudioCloseOptions", "Cerrar"), INVTEXT("Esc"))]
+		]
+		+ SVerticalBox::Slot().AutoHeight()[Ui::Divider()]
+		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(16.0f, 12.0f, 16.0f, 0.0f))
+		[SNew(SBox).HAlign(HAlign_Left).Visibility_Lambda([Wide]() { return Wide() ? EVisibility::Collapsed : EVisibility::Visible; })[Ui::Segmented(PageSegments, false)]]
+		+ SVerticalBox::Slot().FillHeight(1.0f)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SBox).WidthOverride(184.0f).Visibility_Lambda([Wide]() { return Wide() ? EVisibility::Visible : EVisibility::Collapsed; })
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().FillWidth(1.0f).Padding(12.0f)[Nav]
+					+ SHorizontalBox::Slot().AutoWidth()[SNew(SBox).WidthOverride(1.0f)[SNew(SBorder).BorderImage(Studio::White()).BorderBackgroundColor(P.Line).Padding(0.0f)]]
+				]
+			]
+			+ SHorizontalBox::Slot().FillWidth(1.0f)[Body]
+		]
+		+ SVerticalBox::Slot().AutoHeight()[Ui::Divider()]
+		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(16.0f, 12.0f))
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f)
+			+ SHorizontalBox::Slot().AutoWidth()[Ui::Button(Studio::EButton::Primary, LOCTEXT("StudioOptionsDone", "Listo"), [this]() { CloseOptions(); })]
+		];
+
+	return SNew(SBorder).BorderImage(Studio::White()).BorderBackgroundColor(P.Scrim).HAlign(HAlign_Center).VAlign(VAlign_Center).Padding(16.0f)
 		.Visibility_Lambda([this]() { return bOptionsOpen ? EVisibility::Visible : EVisibility::Collapsed; })
 		.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
 		[
-			SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Min(720.0, ViewSize.X - 24.0))); })
-			.MaxDesiredHeight_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Max(120.0, ViewSize.Y - 24.0))); })
-			[
-				Panel(SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().Padding(12.0f)
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot().FillWidth(1.0f)[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioOptionsHeading", "Opciones")).Font(Font(22))]
-					+ SHorizontalBox::Slot().AutoWidth()[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
-						[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioCloseOptions", "Cerrar · Esc")).Font(Font(11))]]
-				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(12.0f, 4.0f)[Tabs]
-				+ SVerticalBox::Slot().FillHeight(1.0f).Padding(12.0f, 16.0f)
-				[
-					SNew(SScrollBox) + SScrollBox::Slot()
-					[
-						SNew(SVerticalBox)
-						+ SVerticalBox::Slot().AutoHeight()
-						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 3 ? EVisibility::Visible : EVisibility::Collapsed; })
-							+ SVerticalBox::Slot().AutoHeight()
-							[SNew(SCheckBox).IsChecked_Lambda([]() { return Floor101::Diagnostics::IsVerbose() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-								.OnCheckStateChanged_Lambda([](ECheckBoxState State) { Floor101::Preferences::SetDiagnosticMode(State == ECheckBoxState::Checked); })
-								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticMode", "Modo depuración: registro detallado"))]]
-							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
-							[SNew(SCheckBox).IsChecked_Lambda([]() { return Floor101::Diagnostics::IsWindowVisible() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-								.OnCheckStateChanged_Lambda([](ECheckBoxState State) { Floor101::Preferences::SetShowLogWindow(State == ECheckBoxState::Checked); })
-								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticWindow", "Mostrar ventana de logs"))]]
-							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
-							[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(MutedColor).AutoWrapText(true)
-								.Text(LOCTEXT("DiagnosticHelp", "Los errores se guardan en archivo aunque esta ventana esté oculta. Activa el modo depuración antes de reproducir un problema y revisa el registro. Ambos ajustes se aplican ahora y se recuerdan al reiniciar."))]
-							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
-							[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(12.0f, 8.0f)).IsFocusable(false)
-								.OnClicked_Lambda([]() { FPlatformProcess::ExploreFolder(*FPaths::GetPath(Floor101::Diagnostics::LogPath())); return FReply::Handled(); })
-								[SNew(STextBlock).Font(Font(12)).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("DiagnosticFolder", "Abrir carpeta de registros"))]]
-							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
-							[SNew(STextBlock).Font(Font(10)).ColorAndOpacity(MutedColor).AutoWrapText(true)
-								.Text_Lambda([]() { return FText::FromString(Floor101::Diagnostics::LogPath()); })]]
-						+ SVerticalBox::Slot().AutoHeight()
-						[SNew(SBox).Visibility_Lambda([this]() { return OptionsPage == 0 ? EVisibility::Visible : EVisibility::Collapsed; })[MakeDisplayControls(true)]]
-						+ SVerticalBox::Slot().AutoHeight()
-						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 1 ? EVisibility::Visible : EVisibility::Collapsed; })
-							+ SVerticalBox::Slot().AutoHeight()[Quality]
-							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
-							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).ColorAndOpacity(MutedColor)
-								.Text(LOCTEXT("StudioQualityPolicy", "Los perfiles ajustan detalle y sombras. Conservan Lumen y el render al 100 %; no cambian HDR ni la sincronización vertical. La calidad de la fotografía se elige en Foto."))]]
-						+ SVerticalBox::Slot().AutoHeight()
-						[SNew(SVerticalBox).Visibility_Lambda([this]() { return OptionsPage == 2 ? EVisibility::Visible : EVisibility::Collapsed; })
-							+ SVerticalBox::Slot().AutoHeight()[MakeNavigationSpeed()]
-							+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f)
-							[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(12)).AutoWrapText(true).Text(LOCTEXT("StudioShortcuts",
-								"Moverse siempre: WASD · Recorrer: N · Subir/bajar: E/Q · Acelerar: Shift\nVelocidad: números superiores 1–9; 0 = nivel 10 (excepto al escribir medidas)\nMirar sin moverse: Shift + botón derecho · Orbitar: botón derecho\nDesplazar vista: botón central · Acercarse: rueda\nDiseñar: V · Pared: B · Puerta: P · Ventana: O\nMateriales: M · Muebles: G · Columna: C · Instalaciones: I · Cotas: H\nGuardar: Ctrl+S · Abrir: Ctrl+O\nDeshacer: Ctrl+Z · Rehacer: Ctrl+Y / Ctrl+Shift+Z\nEncuadrar: F · Superior: T · Plano: Tab · Foto: R\nEsc: cerrar Opciones; al editar, cancelar la acción."))]]
-					]
-				]
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(12.0f)
-				[SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f)).IsFocusable(false).OnClicked_Lambda([this]() { CloseOptions(); return FReply::Handled(); })
-					[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioOptionsDone", "Listo")).Font(Font(12))]])
-			]
+			SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Min(760.0, ViewSize.X - 32.0))); })
+			.HeightOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Min(600.0, ViewSize.Y - 32.0))); })
+			[Ui::Island(Dialog, FMargin(0.0f), EVisibility::SelfHitTestInvisible, Studio::Size::RadiusDialog)]
 		];
 }
 
@@ -1333,55 +1528,28 @@ bool SFloor101Overlay::IsPhotoMode() const
 
 TSharedRef<SWidget> SFloor101Overlay::MakeHdrButton()
 {
-	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-		.IsFocusable(false)
-		.IsEnabled_Lambda([this]() { return Floor101::HDR::Query(ViewportClient.Get()).bAvailable; })
-		.ToolTipText_Lambda([this]() { return Floor101::HDR::Tooltip(Floor101::HDR::Query(ViewportClient.Get())); })
-		.ButtonColorAndOpacity_Lambda([this]()
-		{
-			return Floor101::HDR::Query(ViewportClient.Get()).bEnabled ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
-		})
-		.OnClicked_Lambda([this]()
-		{
-			Floor101::HDR::SetEnabled(ViewportClient.Get(), !Floor101::HDR::Query(ViewportClient.Get()).bEnabled);
-			FSlateApplication::Get().SetAllUserFocusToGameViewport();
-			return FReply::Handled();
-		})
-		[
-			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10, true))
-			.Text_Lambda([this]()
+	// HDR on or off, only where Windows offers it; the explanation says why it is unavailable.
+	return SettingRow(LOCTEXT("HDRLabel", "HDR"),
+		TAttribute<FText>::CreateLambda([this]() { return Floor101::HDR::Tooltip(Floor101::HDR::Query(ViewportClient.Get())); }),
+		Floor101::Ui::Switch(TAttribute<bool>::CreateLambda([this]() { return Floor101::HDR::Query(ViewportClient.Get()).bEnabled; }),
+			[this](bool bOn)
 			{
-				const Floor101::HDR::FStatus Status = Floor101::HDR::Query(ViewportClient.Get());
-				return Status.bEnabled ? LOCTEXT("HDRDisable", "Desactivar HDR")
-					: Status.bAvailable ? LOCTEXT("HDREnable", "Activar HDR") : LOCTEXT("HDRUnavailable", "HDR no disponible");
-			})
-		];
+				Floor101::HDR::SetEnabled(ViewportClient.Get(), bOn);
+				FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			},
+			TAttribute<bool>::CreateLambda([this]() { return Floor101::HDR::Query(ViewportClient.Get()).bAvailable; })));
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeVSyncButton()
 {
-	return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-		.IsFocusable(false)
-		.ToolTipText(LOCTEXT("VSyncTip", "Activar sincroniza los fotogramas con el monitor para reducir cortes de imagen. Desactivar permite una frecuencia de fotogramas independiente. Se guarda para la próxima sesión."))
-		.ButtonColorAndOpacity_Lambda([]()
-		{
-			return Floor101::Display::IsVSyncEnabled() ? FSlateColor(ActiveButtonColor) : FSlateColor(FLinearColor::White);
-		})
-		.OnClicked_Lambda([]()
-		{
-			Floor101::Display::SetVSyncEnabled(!Floor101::Display::IsVSyncEnabled());
-			FSlateApplication::Get().SetAllUserFocusToGameViewport();
-			return FReply::Handled();
-		})
-		[
-			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10))
-			.Text_Lambda([]()
+	return SettingRow(LOCTEXT("VSyncLabel", "Sincronización vertical"),
+		LOCTEXT("VSyncTip", "Activar sincroniza los fotogramas con el monitor para reducir cortes de imagen. Desactivar permite una frecuencia de fotogramas independiente. Se guarda para la próxima sesión."),
+		Floor101::Ui::Switch(TAttribute<bool>::CreateLambda([]() { return Floor101::Display::IsVSyncEnabled(); }),
+			[](bool bOn)
 			{
-				return Floor101::Display::IsVSyncEnabled() ? LOCTEXT("VSyncOff", "Desactivar sincronización vertical")
-					: LOCTEXT("VSyncOn", "Activar sincronización vertical");
-			})
-			.AutoWrapText(true)
-		];
+				Floor101::Display::SetVSyncEnabled(bOn);
+				FSlateApplication::Get().SetAllUserFocusToGameViewport();
+			}));
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
@@ -1409,75 +1577,28 @@ TSharedRef<SWidget> SFloor101Overlay::MakeNavigationButton()
 
 TSharedRef<SWidget> SFloor101Overlay::MakeDisplayControls(bool bCompact)
 {
-	const TSharedRef<SWidget> Fullscreen = SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-		.IsFocusable(false)
-		.IsEnabled_Lambda([this]() { return Floor101::Display::Query(ViewportClient.Get()).Native.X > 0; })
-		.ToolTipText(LOCTEXT("FullscreenTip", "Pantalla completa dedicada con la resolución nativa de este monitor y render al 100 %. F11 vuelve a la ventana anterior."))
-		.OnClicked_Lambda([this]()
-		{
-			Floor101::Display::ToggleFullscreen(ViewportClient.Get());
-			RefreshModalInput();
-			return FReply::Handled();
-		})
-		[
-			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10, true))
-			.Text_Lambda([this]()
-			{
-				return Floor101::Display::Query(ViewportClient.Get()).bFullscreen
-					? LOCTEXT("LeaveFullscreen", "Volver a ventana (F11)") : LOCTEXT("Fullscreen", "Pantalla completa (F11)");
-			})
-		];
-	const TSharedRef<SWidget> Resolution = SNew(SComboButton).ComboButtonStyle(&Floor101::Studio::ComboButton()).ContentPadding(FMargin(10.0f, 6.0f))
-		.ToolTipText(LOCTEXT("ResolutionTip", "Elige una resolución admitida por este monitor. La opción nativa coincide con los píxeles de la pantalla; el render se mantiene al 100 %."))
-		.OnGetMenuContent_Lambda([this]()
-		{
-			FMenuBuilder Menu(true, nullptr);
-			for (const FIntPoint Size : Floor101::Display::Resolutions(ViewportClient.Get()))
-			{
-				const FString Label = FString::Printf(TEXT("%d × %d%s"), Size.X, Size.Y,
-					Size == Floor101::Display::Query(ViewportClient.Get()).Native ? TEXT(" (nativa)") : TEXT(""));
-				Menu.AddMenuEntry(FText::FromString(Label), FText::GetEmpty(), FSlateIcon(),
-					FUIAction(FExecuteAction::CreateLambda([this, Size]()
-					{
-						Floor101::Display::SetResolution(ViewportClient.Get(), Size);
-						FSlateApplication::Get().SetAllUserFocusToGameViewport();
-					}), FCanExecuteAction(), FIsActionChecked::CreateLambda([this, Size]() { return Floor101::Display::Query(ViewportClient.Get()).Image == Size; })),
-					NAME_None, EUserInterfaceActionType::RadioButton);
-			}
-			return Menu.MakeWidget();
-		})
-		.ButtonContent()
-		[
-			SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(10))
-			.Text_Lambda([this]()
-			{
-				const FIntPoint Size = Floor101::Display::Query(ViewportClient.Get()).Image;
-				return FText::FromString(FString::Printf(TEXT("Resolución: %d × %d"), Size.X, Size.Y));
-			})
-		];
-	const TSharedRef<SWidget> Status = SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(9)).AutoWrapText(true)
-		.Text_Lambda([this]() { return Floor101::Display::Describe(Floor101::Display::Query(ViewportClient.Get())); })
-		.ColorAndOpacity_Lambda([this]()
-		{
-			const Floor101::Display::FStatus State = Floor101::Display::Query(ViewportClient.Get());
-			return State.Native == State.Image && (!State.bWorldRendering || State.Image == State.Render) ? FSlateColor(MutedColor) : FSlateColor(ActiveButtonColor);
-		});
 	(void)bCompact;
+	const TSharedRef<SWidget> Fullscreen = SettingRow(LOCTEXT("FullscreenLabel", "Pantalla completa"),
+		LOCTEXT("FullscreenTip", "Pantalla completa dedicada con la resolución nativa de este monitor y render al 100 %. F11 vuelve a la ventana anterior."),
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 12.0f, 0.0f)[Floor101::Ui::Keycap(INVTEXT("F11"))]
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+		[
+			Floor101::Ui::Switch(TAttribute<bool>::CreateLambda([this]() { return Floor101::Display::Query(ViewportClient.Get()).bFullscreen; }),
+				[this](bool bOn)
+				{
+					if (bOn != Floor101::Display::Query(ViewportClient.Get()).bFullscreen)
+					{
+						Floor101::Display::ToggleFullscreen(ViewportClient.Get());
+					}
+					RefreshModalInput();
+				},
+				TAttribute<bool>::CreateLambda([this]() { return Floor101::Display::Query(ViewportClient.Get()).Native.X > 0; }))
+		]);
 	return SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[Resolution]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[Fullscreen]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeVSyncButton()]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[MakeHdrButton()]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)
-		[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(11)).AutoWrapText(true).ColorAndOpacity(MutedColor)
-			.Text_Lambda([this]() { return Floor101::HDR::Tooltip(Floor101::HDR::Query(ViewportClient.Get())); })]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 12.0f)
-		[SNew(SExpandableArea).InitiallyCollapsed(true)
-			.HeaderContent()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("StudioAdvancedDisplay", "Información avanzada")).Font(Font(12))]
-			.BodyContent()[SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 8.0f)[Status]
-				+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Font(Font(11)).AutoWrapText(true)
-					.Text_Lambda([this]() { return FText::FromString(Floor101::Display::Query(ViewportClient.Get()).MonitorName); })]]];
+		+ SVerticalBox::Slot().AutoHeight()[Fullscreen]
+		+ SVerticalBox::Slot().AutoHeight()[MakeVSyncButton()]
+		+ SVerticalBox::Slot().AutoHeight()[MakeHdrButton()];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
@@ -1999,7 +2120,7 @@ const FSlateBrush* SFloor101Overlay::GetPictureBrush(const FString& Path)
 	{
 		if (!NoImageBrush)
 		{
-			NoImageBrush = MakeShared<FSlateColorBrush>(FLinearColor(0.5f, 0.5f, 0.52f));
+			NoImageBrush = MakeShared<FSlateColorBrush>(Floor101::Studio::Palette().Missing);
 		}
 		return NoImageBrush.Get();
 	}
@@ -2255,7 +2376,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 	Refresh();
 	auto Swatch = [this](const std::string& Id)
 	{
-		return SNew(SBorder).BorderImage(Studio::Box(FLinearColor::Transparent, 3.0f, FLinearColor(0.0f, 0.0f, 0.0f, 0.35f), 1.0f)).Padding(0.0f)
+		return SNew(SBorder).BorderImage(Studio::Box(FLinearColor::Transparent, 3.0f, Floor101::Studio::Palette().SwatchEdge, 1.0f)).Padding(0.0f)
 			[MakeSwatch(Id, 14.0f)];
 	};
 	auto Row = [this, Swatch](const FString& Id)
@@ -2306,7 +2427,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 					SNew(SBox).WidthOverride(16.0f).HeightOverride(16.0f)
 					[
 						SNew(SBorder).BorderImage(Studio::Box(FLinearColor::White, 3.0f)).Padding(1.0f)
-						.BorderBackgroundColor(FLinearColor(0.0f, 0.0f, 0.0f, 0.35f))
+						.BorderBackgroundColor(Floor101::Studio::Palette().SwatchEdge)
 						[
 							// The same picture as the catalogue: an imported texture, a pattern, or the plain colour.
 							SNew(SImage)
@@ -2329,7 +2450,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFinishCombo(f101::cad::Surface Surface
 								{
 									return FSlateColor(FLinearColor::White);
 								}
-								return FSlateColor(Id.empty() || !Finish ? FLinearColor(0.5f, 0.5f, 0.52f) : FinishSwatch(Id));
+								return FSlateColor(Id.empty() || !Finish ? Floor101::Studio::Palette().Missing : FinishSwatch(Id));
 							})
 						]
 					]
@@ -2947,7 +3068,7 @@ const FSlateBrush* SFloor101Overlay::GetAssetBrush(const FString& FinishId)
 	{
 		if (!NoImageBrush)
 		{
-			NoImageBrush = MakeShared<FSlateColorBrush>(FLinearColor(0.5f, 0.5f, 0.52f));
+			NoImageBrush = MakeShared<FSlateColorBrush>(Floor101::Studio::Palette().Missing);
 		}
 		return NoImageBrush.Get();
 	}
@@ -2976,7 +3097,7 @@ const FSlateBrush* SFloor101Overlay::GetCatalogueBrush(const FString& FinishId)
 	{
 		if (!NoImageBrush)
 		{
-			NoImageBrush = MakeShared<FSlateColorBrush>(FLinearColor(0.5f, 0.5f, 0.52f));
+			NoImageBrush = MakeShared<FSlateColorBrush>(Floor101::Studio::Palette().Missing);
 		}
 		return NoImageBrush.Get();
 	}
@@ -3002,7 +3123,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeSwatch(const std::string& FinishId, fl
 		return SNew(SBox).WidthOverride(Size).HeightOverride(Size)
 			[SNew(SImage).Image_Lambda([this, Key = FString(UTF8_TO_TCHAR(FinishId.c_str()))]() { return GetCatalogueBrush(Key); })];
 	}
-	const FLinearColor Colour = FinishId.empty() ? FLinearColor(0.5f, 0.5f, 0.52f) : FinishSwatch(FinishId);
+	const FLinearColor Colour = FinishId.empty() ? Floor101::Studio::Palette().Missing : FinishSwatch(FinishId);
 	return SNew(SBorder)
 		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 		.BorderBackgroundColor(Colour)
@@ -3072,6 +3193,8 @@ void SFloor101Overlay::RebuildImportedLists()
 }
 TSharedRef<SWidget> SFloor101Overlay::MakeImportedTextures()
 {
+	namespace Studio = Floor101::Studio;
+	namespace Ui = Floor101::Ui;
 	auto Texture = [this]() { return GetPaintAsset(); };
 	// The settings of an imported texture; a library one comes with its real size (ADR-0019).
 	auto Visible = [Texture]() { return Texture() && Texture()->library.empty() ? EVisibility::Visible : EVisibility::Collapsed; };
@@ -3112,72 +3235,55 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedTextures()
 		[
 			ImportedTextureList.ToSharedRef()
 		]
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 4.0f)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 6.0f)
 		[
-			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-			.IsFocusable(false)
-			.ToolTipText(LOCTEXT("ImportTextureTip", "Trae una imagen PNG o JPEG al proyecto (se copia junto a project.json) para usarla como acabado"))
-			.OnClicked_Lambda([this]() { ImportFromDialog(false); return FReply::Handled(); })
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ImportTexture", "Importar textura…")).Font(Font(10))
-			]
+			Ui::Button(Studio::EButton::Secondary, LOCTEXT("ImportTexture", "Importar textura…"), [this]() { ImportFromDialog(false); }, EFloor101Icon::Plus,
+				LOCTEXT("ImportTextureTip", "Trae una imagen PNG o JPEG al proyecto (se copia junto a project.json) para usarla como acabado"), FText::GetEmpty(), true, 30.0f)
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
 			SNew(SVerticalBox)
 			.Visibility_Lambda(Visible)
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			+ SVerticalBox::Slot().AutoHeight()
 			[
-				MakeEditRow(LOCTEXT("AssetName", "Nombre"),
-					[Texture]() { const f101::cad::Asset* A = Texture(); return A ? FText::FromString(UTF8_TO_TCHAR(A->name.c_str())) : FText::GetEmpty(); },
-					[Changed](const FString& Typed) { Changed([&Typed](f101::cad::Asset& Asset) { Asset.name = TCHAR_TO_UTF8(*Typed); return true; }); }, false)
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				LengthRow(LOCTEXT("TextureWidth", "Ancho de la imagen"), &f101::cad::TextureAsset::widthMm)
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				LengthRow(LOCTEXT("TextureHeight", "Alto de la imagen"), &f101::cad::TextureAsset::heightMm)
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				MakeEditRow(LOCTEXT("TextureRoughness", "Rugosidad (%)"),
-					[Texture]() { const f101::cad::Asset* A = Texture(); return A ? FText::AsNumber(A->texture.roughnessPercent) : FText::GetEmpty(); },
-					[Changed](const FString& Typed)
-					{
-						Changed([&Typed](f101::cad::Asset& Asset)
+				Stack({
+					MakeEditRow(LOCTEXT("AssetName", "Nombre"),
+						[Texture]() { const f101::cad::Asset* A = Texture(); return A ? FText::FromString(UTF8_TO_TCHAR(A->name.c_str())) : FText::GetEmpty(); },
+						[Changed](const FString& Typed) { Changed([&Typed](f101::cad::Asset& Asset) { Asset.name = TCHAR_TO_UTF8(*Typed); return true; }); }, false),
+					LengthRow(LOCTEXT("TextureWidth", "Ancho de la imagen"), &f101::cad::TextureAsset::widthMm),
+					LengthRow(LOCTEXT("TextureHeight", "Alto de la imagen"), &f101::cad::TextureAsset::heightMm),
+					MakeEditRow(LOCTEXT("TextureRoughness", "Rugosidad (%)"),
+						[Texture]() { const f101::cad::Asset* A = Texture(); return A ? FText::AsNumber(A->texture.roughnessPercent) : FText::GetEmpty(); },
+						[Changed](const FString& Typed)
 						{
-							Asset.texture.roughnessPercent = FCString::Atoi(*Typed);
-							return true;
-						});
-					})
+							Changed([&Typed](f101::cad::Asset& Asset)
+							{
+								Asset.texture.roughnessPercent = FCString::Atoi(*Typed);
+								return true;
+							});
+						})})
 			]
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 4.0f, 0.0f, 0.0f)
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 8.0f, 0.0f, 0.0f)
 			[
-				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-				.IsFocusable(false)
-				.ToolTipText(LOCTEXT("RemoveTextureTip", "Quita la textura del proyecto si ninguna superficie la usa (se puede deshacer)"))
-				.OnClicked_Lambda([this, Texture]()
-				{
-					const f101::cad::Asset* Current = Texture();
-					UFloor101DocumentSubsystem* Subsystem = Document.Get();
-					if (Current && Subsystem && Subsystem->RemoveAsset(Current->id).ok())
+				Ui::Button(Studio::EButton::Danger, LOCTEXT("RemoveTexture", "Eliminar textura"), [this, Texture]()
 					{
-						(void)Run([](EditController& Editor) { return Editor.setPaintFinish("paint-sand"); });
-					}
-					FSlateApplication::Get().SetAllUserFocusToGameViewport();
-					return FReply::Handled();
-				})
-				[
-					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("RemoveTexture", "Eliminar textura")).Font(Font(9))
-				]
+						const f101::cad::Asset* Current = Texture();
+						UFloor101DocumentSubsystem* Subsystem = Document.Get();
+						if (Current && Subsystem && Subsystem->RemoveAsset(Current->id).ok())
+						{
+							(void)Run([](EditController& Editor) { return Editor.setPaintFinish("paint-sand"); });
+						}
+						FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					}, EFloor101Icon::Trash,
+					LOCTEXT("RemoveTextureTip", "Quita la textura del proyecto si ninguna superficie la usa (se puede deshacer)"), FText::GetEmpty(), true, 30.0f)
 			]
 		];
 }
 
 TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 {
+	namespace Studio = Floor101::Studio;
+	namespace Ui = Floor101::Ui;
 	using f101::cad::ModelUnit;
 	if (ModelUnits.IsEmpty())
 	{
@@ -3210,13 +3316,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 	};
 	auto Toggle = [](const FText& Label, const FText& ToolTip, TFunction<void()> OnClicked)
 	{
-		return SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-			.IsFocusable(false)
-			.ToolTipText(ToolTip)
-			.OnClicked_Lambda([OnClicked]() { OnClicked(); return FReply::Handled(); })
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(Label).Font(Font(9))
-			];
+		return Ui::Button(Studio::EButton::Secondary, Label, OnClicked, {}, ToolTip, FText::GetEmpty(), true, 28.0f);
 	};
 
 	SAssignNew(ImportedModelList, SVerticalBox);
@@ -3226,140 +3326,103 @@ TSharedRef<SWidget> SFloor101Overlay::MakeImportedModels()
 		[
 			ImportedModelList.ToSharedRef()
 		]
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 4.0f)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.0f, 6.0f)
 		[
-			SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-			.IsFocusable(false)
-			.ToolTipText(LOCTEXT("ImportModelTip", "Trae un modelo glTF (.glb, .gltf) u OBJ con sus texturas al proyecto para colocarlo como mueble"))
-			.OnClicked_Lambda([this]() { ImportFromDialog(true); return FReply::Handled(); })
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ImportModel", "Importar modelo…")).Font(Font(10))
-			]
+			Ui::Button(Studio::EButton::Secondary, LOCTEXT("ImportModel", "Importar modelo…"), [this]() { ImportFromDialog(true); }, EFloor101Icon::Plus,
+				LOCTEXT("ImportModelTip", "Trae un modelo glTF (.glb, .gltf) u OBJ con sus texturas al proyecto para colocarlo como mueble"), FText::GetEmpty(), true, 30.0f)
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 4.0f, 0.0f, 0.0f)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f)
 		[
 			SNew(SVerticalBox)
 			.Visibility_Lambda(Visible)
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
+			+ SVerticalBox::Slot().AutoHeight()
 			[
-				MakeEditRow(LOCTEXT("AssetName", "Nombre"),
-					[Model]() { const f101::cad::Asset* A = Model(); return A ? FText::FromString(UTF8_TO_TCHAR(A->name.c_str())) : FText::GetEmpty(); },
-					[Changed](const FString& Typed) { Changed([&Typed](f101::cad::Asset& Asset) { Asset.name = TCHAR_TO_UTF8(*Typed); }); }, false)
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
-				[
-					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ModelUnits", "Unidades del archivo")).Font(Font(10))
-				]
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SBox)
-					.WidthOverride(120.0f)
-					[
-						SNew(SComboBox<TSharedPtr<ModelUnit>>).ComboBoxStyle(&Floor101::Studio::ComboBox())
-						.IsFocusable(false)
-						.OptionsSource(&ModelUnits)
-						.OnGenerateWidget_Lambda([UnitName](TSharedPtr<ModelUnit> Unit) { return SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(UnitName(*Unit)).Font(Font(9)); })
-						.OnSelectionChanged_Lambda([Changed](TSharedPtr<ModelUnit> Unit, ESelectInfo::Type Info)
-						{
-							if (Unit && Info != ESelectInfo::Direct)
-							{
-								const ModelUnit Chosen = *Unit;
-								Changed([Chosen](f101::cad::Asset& Asset) { Asset.model.unit = Chosen; });
-							}
-						})
+				Stack({
+					MakeEditRow(LOCTEXT("AssetName", "Nombre"),
+						[Model]() { const f101::cad::Asset* A = Model(); return A ? FText::FromString(UTF8_TO_TCHAR(A->name.c_str())) : FText::GetEmpty(); },
+						[Changed](const FString& Typed) { Changed([&Typed](f101::cad::Asset& Asset) { Asset.name = TCHAR_TO_UTF8(*Typed); }); }, false),
+					Ui::Row(LOCTEXT("ModelUnits", "Unidades del archivo"),
+						SNew(SBox).HeightOverride(Studio::Size::Field)
 						[
-							SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
-							.Font(Font(9))
-							.ColorAndOpacity(FLinearColor::White)
-							.Text_Lambda([Model, UnitName]() { const f101::cad::Asset* A = Model(); return A ? UnitName(A->model.unit) : FText::GetEmpty(); })
-						]
+							SNew(SComboBox<TSharedPtr<ModelUnit>>).ComboBoxStyle(&Studio::ComboBox()).ItemStyle(&Studio::ListRow()).HasDownArrow(false)
+							.IsFocusable(false)
+							.OptionsSource(&ModelUnits)
+							.OnGenerateWidget_Lambda([UnitName](TSharedPtr<ModelUnit> Unit)
+							{
+								return SNew(STextBlock).Text(UnitName(*Unit)).Font(Floor101::Studio::Text(Floor101::Studio::EText::Body)).ColorAndOpacity(Floor101::Studio::Palette().Text1);
+							})
+							.OnSelectionChanged_Lambda([Changed](TSharedPtr<ModelUnit> Unit, ESelectInfo::Type Info)
+							{
+								if (Unit && Info != ESelectInfo::Direct)
+								{
+									const ModelUnit Chosen = *Unit;
+									Changed([Chosen](f101::cad::Asset& Asset) { Asset.model.unit = Chosen; });
+								}
+							})
+							[
+								SNew(SHorizontalBox)
+								+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+								[
+									SNew(STextBlock).Font(Studio::Text(Studio::EText::Label)).ColorAndOpacity(Studio::Palette().Text1)
+									.Text_Lambda([Model, UnitName]() { const f101::cad::Asset* A = Model(); return A ? UnitName(A->model.unit) : FText::GetEmpty(); })
+								]
+								+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(6.0f, 0.0f, 2.0f, 0.0f)
+								[Ui::Icon(EFloor101Icon::ChevronDown, 16.0f, FSlateColor(Studio::Palette().Text3))]
+							]
+						]),
+					SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.0, 6.0))
+					+ SWrapBox::Slot()
+					[
+						Toggle(LOCTEXT("ModelUp", "Cambiar eje arriba"), LOCTEXT("ModelUpTip", "Alterna entre Y arriba (glTF y la mayoría de OBJ) y Z arriba"),
+							[Changed]() { Changed([](f101::cad::Asset& Asset) { Asset.model.up = Asset.model.up == f101::cad::ModelUpAxis::Y ? f101::cad::ModelUpAxis::Z : f101::cad::ModelUpAxis::Y; }); })
 					]
-				]
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth().Padding(0.0f, 0.0f, 4.0f, 0.0f)
-				[
-					Toggle(LOCTEXT("ModelUp", "Cambiar eje arriba"), LOCTEXT("ModelUpTip", "Alterna entre Y arriba (glTF y la mayoría de OBJ) y Z arriba"),
-						[Changed]() { Changed([](f101::cad::Asset& Asset) { Asset.model.up = Asset.model.up == f101::cad::ModelUpAxis::Y ? f101::cad::ModelUpAxis::Z : f101::cad::ModelUpAxis::Y; }); })
-				]
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					Toggle(LOCTEXT("ModelFront", "Girar frente 90°"), LOCTEXT("ModelFrontTip", "Gira el modelo para que su frente sea el que mira a la habitación"),
-						[Changed]() { Changed([](f101::cad::Asset& Asset) { Asset.model.frontQuarterTurns = (Asset.model.frontQuarterTurns + 1) % 4; }); })
-				]
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				SNew(SCheckBox)
-				.IsFocusable(false)
-				.IsChecked_Lambda([Model]() { const f101::cad::Asset* A = Model(); return A && A->model.againstWall ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
-				.OnCheckStateChanged_Lambda([Changed](ECheckBoxState State)
-				{
-					Changed([State](f101::cad::Asset& Asset) { Asset.model.againstWall = State == ECheckBoxState::Checked; });
-				})
-				[
-					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("ModelAgainstWall", "Se apoya en los muros")).Font(Font(10))
-				]
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
-				.Font(Font(9))
-				.ColorAndOpacity(MutedColor)
-				.AutoWrapText(true)
-				.Text_Lambda([Model]()
-				{
-					const f101::cad::Asset* A = Model();
-					if (!A)
+					+ SWrapBox::Slot()
+					[
+						Toggle(LOCTEXT("ModelFront", "Girar frente 90°"), LOCTEXT("ModelFrontTip", "Gira el modelo para que su frente sea el que mira a la habitación"),
+							[Changed]() { Changed([](f101::cad::Asset& Asset) { Asset.model.frontQuarterTurns = (Asset.model.frontQuarterTurns + 1) % 4; }); })
+					],
+					Ui::Row(LOCTEXT("ModelAgainstWall", "Se apoya en los muros"),
+						SNew(SBox).HAlign(HAlign_Left)
+						[
+							Ui::Switch(TAttribute<bool>::CreateLambda([Model]() { const f101::cad::Asset* A = Model(); return A && A->model.againstWall; }),
+								[Changed](bool bOn) { Changed([bOn](f101::cad::Asset& Asset) { Asset.model.againstWall = bOn; }); })
+						]),
+					SNew(STextBlock).Font(Studio::Text(Studio::EText::Help)).ColorAndOpacity(Studio::Palette().Text3).AutoWrapText(true)
+					.Text_Lambda([Model]()
 					{
-						return FText::GetEmpty();
-					}
-					FNumberFormattingOptions Centimetres;
-					Centimetres.SetMaximumFractionalDigits(1);
-					return FText::Format(LOCTEXT("ModelInfo", "Tamaño {0} × {1} × {2} cm · {3} triángulos"),
-						FText::AsNumber(A->model.widthMm / 10.0, &Centimetres), FText::AsNumber(A->model.depthMm / 10.0, &Centimetres),
-						FText::AsNumber(A->model.heightMm / 10.0, &Centimetres), FText::AsNumber(A->model.triangles));
-				})
-			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 2.0f)
-			[
-				SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground())
-				.Font(Font(9))
-				.ColorAndOpacity(ErrorColor)
-				.AutoWrapText(true)
-				.Text_Lambda([this, Model]()
-				{
-					const f101::cad::Asset* A = Model();
-					const UFloor101DocumentSubsystem* S = Document.Get();
-					const FString Problem = A && S ? S->GetAssetProblem(A->id) : FString();
-					return Problem.IsEmpty() ? FText::GetEmpty()
-						: FText::Format(LOCTEXT("ModelProblem", "No se puede mostrar ({0}); se ve como una caja"), FText::FromString(Problem));
-				})
-			]
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 4.0f, 0.0f, 0.0f)
-			[
-				SNew(SButton).ButtonStyle(&Floor101::Studio::Button()).ContentPadding(FMargin(10.0f, 6.0f))
-				.IsFocusable(false)
-				.ToolTipText(LOCTEXT("RemoveModelTip", "Quita el modelo del proyecto si ningún mueble lo usa (se puede deshacer)"))
-				.OnClicked_Lambda([this, Model]()
-				{
-					const f101::cad::Asset* Current = Model();
-					UFloor101DocumentSubsystem* Subsystem = Document.Get();
-					if (Current && Subsystem && Subsystem->RemoveAsset(Current->id).ok())
+						const f101::cad::Asset* A = Model();
+						if (!A)
+						{
+							return FText::GetEmpty();
+						}
+						FNumberFormattingOptions Centimetres;
+						Centimetres.SetMaximumFractionalDigits(1);
+						return FText::Format(LOCTEXT("ModelInfo", "Tamaño {0} × {1} × {2} cm · {3} triángulos"),
+							FText::AsNumber(A->model.widthMm / 10.0, &Centimetres), FText::AsNumber(A->model.depthMm / 10.0, &Centimetres),
+							FText::AsNumber(A->model.heightMm / 10.0, &Centimetres), FText::AsNumber(A->model.triangles));
+					}),
+					Ui::Note(TAttribute<FText>::CreateLambda([this, Model]()
 					{
-						(void)Run([](EditController& Editor) { return Editor.setFurnitureType("sofa"); });
-					}
-					FSlateApplication::Get().SetAllUserFocusToGameViewport();
-					return FReply::Handled();
-				})
-				[
-					SNew(STextBlock).ColorAndOpacity(FSlateColor::UseForeground()).Text(LOCTEXT("RemoveModel", "Eliminar modelo")).Font(Font(9))
-				]
+						const f101::cad::Asset* A = Model();
+						const UFloor101DocumentSubsystem* S = Document.Get();
+						const FString Problem = A && S ? S->GetAssetProblem(A->id) : FString();
+						return Problem.IsEmpty() ? FText::GetEmpty()
+							: FText::Format(LOCTEXT("ModelProblem", "No se puede mostrar ({0}); se ve como una caja"), FText::FromString(Problem));
+					}), EFloor101Icon::Warn, FSlateColor(Studio::Palette().Danger))})
+			]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right).Padding(0.0f, 8.0f, 0.0f, 0.0f)
+			[
+				Ui::Button(Studio::EButton::Danger, LOCTEXT("RemoveModel", "Eliminar modelo"), [this, Model]()
+					{
+						const f101::cad::Asset* Current = Model();
+						UFloor101DocumentSubsystem* Subsystem = Document.Get();
+						if (Current && Subsystem && Subsystem->RemoveAsset(Current->id).ok())
+						{
+							(void)Run([](EditController& Editor) { return Editor.setFurnitureType("sofa"); });
+						}
+						FSlateApplication::Get().SetAllUserFocusToGameViewport();
+					}, EFloor101Icon::Trash,
+					LOCTEXT("RemoveModelTip", "Quita el modelo del proyecto si ningún mueble lo usa (se puede deshacer)"), FText::GetEmpty(), true, 30.0f)
 			]
 		];
 }

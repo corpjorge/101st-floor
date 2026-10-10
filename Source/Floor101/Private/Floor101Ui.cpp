@@ -40,7 +40,7 @@ namespace
 				const float Grow = 2.0f * (Layer + 1);
 				const FVector2f Offset(-Grow, -Grow + 3.0f + 0.5f * Layer);
 				FSlateDrawElement::MakeBox(Out, LayerId, Geometry.ToPaintGeometry(Size + FVector2f(2.0f * Grow), FSlateLayoutTransform(Offset)),
-					Brushes[Layer].Get(), ESlateDrawEffect::None, FLinearColor(0.0f, 0.0f, 0.0f, 0.045f) * Style.GetColorAndOpacityTint());
+					Brushes[Layer].Get(), ESlateDrawEffect::None, Floor101::Studio::Palette().Shadow * Style.GetColorAndOpacityTint());
 			}
 			return LayerId;
 		}
@@ -319,7 +319,7 @@ namespace Floor101::Ui
 				[
 					SNew(SBorder).BorderImage_Lambda([IsActive]()
 					{
-						return IsActive && IsActive() ? Studio::Box(Studio::Palette().Hover, 6.0f, FLinearColor(1.0f, 1.0f, 1.0f, 0.05f), 1.0f) : Studio::Box(FLinearColor::Transparent, 6.0f);
+						return IsActive && IsActive() ? Studio::Box(Studio::Palette().Hover, 6.0f, Studio::Palette().Sheen, 1.0f) : Studio::Box(FLinearColor::Transparent, 6.0f);
 					}).Padding(0.0f)
 					[
 						SNew(SButton).ButtonStyle(&Studio::ButtonStyle(EButton::Row)).IsFocusable(false)
@@ -395,6 +395,20 @@ namespace Floor101::Ui
 	{
 		return SNew(SBox).WidthOverride(Size).HeightOverride(Size)
 			[SNew(SBorder).BorderImage(Studio::Box(FLinearColor::White, Size * 0.5f)).BorderBackgroundColor(Color).Padding(0.0f)];
+	}
+
+	TSharedRef<SWidget> Wordmark(float Scale)
+	{
+		const FLinearColor Ink = Studio::Palette().Text1;
+		FSlateFontInfo Main = Studio::Text(EText::Wordmark);
+		FSlateFontInfo Suffix = Studio::Text(EText::WordmarkSuffix);
+		Main.Size *= Scale;
+		Suffix.Size *= Scale;
+		return SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(STextBlock).Text(INVTEXT("101")).Font(Main).ColorAndOpacity(Ink)]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Top).Padding(1.0f * Scale, 0.0f, 5.0f * Scale, 0.0f)
+			[SNew(STextBlock).Text(INVTEXT("st")).Font(Suffix).ColorAndOpacity(Ink)]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)[SNew(STextBlock).Text(INVTEXT("FLOOR")).Font(Main).ColorAndOpacity(Ink)];
 	}
 
 	TSharedRef<SWidget> MenuItem(TOptional<EFloor101Icon> Leading, TAttribute<FText> Text, TFunction<void()> OnClicked, const FText& Keys,
