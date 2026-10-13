@@ -73,7 +73,9 @@ centro, ancho y fondo o diámetro, giro y acabado de muro; ancho 0 = 30 cm), `Ge
 `SetServiceRun`/`RemoveServiceRun` (tramos de electricidad, agua, aguas negras o gas por sus puntos `XMm, YMm, ZMm`, con
 z sobre el suelo de su planta; devuelven longitud y diámetro), `SetServicesView`/`GetServicesView` (la capa de instalaciones y
 las redes que muestra, en 3D, en el plano y en el plano exportado: sin ella, o con su red oculta, los
-tramos no tienen actor; `GetFinishes` informa `bForServices`),
+tramos no tienen actor; `GetFinishes` informa `bForServices`), `SetInteriorDimensionsShown`/`GetInteriorDimensionsShown`
+(las cotas interiores de cara a cara del plano, ADR-0034: ocultas no se dibujan, no se exportan ni se seleccionan; no
+cambian el proyecto ni la preferencia guardada de la aplicación),
 `GetLevels`/`AddLevel`/`SetLevel`/`RemoveLevel` (plantas: cota derivada,
 altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y `SetLevelView` (qué planta muestra el
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`

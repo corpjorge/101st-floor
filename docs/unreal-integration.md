@@ -140,7 +140,8 @@ Toolset MCP `Floor101Editor.Floor101DocumentToolset`: `GetLevels`, `AddLevel`, `
 `SetWallThickness`, `SetWallHeight`, `AddOpening`, `SetOpening`, `SetOpeningFinish`, `SetOpeningOperation`,
 `RemoveOpening`, `RemoveWall`, `GetFurnitureTypes`, `GetFurniture`, `AddFurniture`, `SetFurniture`,
 `SetFurnitureFinish`, `RemoveFurniture`, `GetColumns`, `AddColumn`, `SetColumn`, `SetColumnFinish`, `RemoveColumn`,
-`GetServiceRuns`, `AddServiceRun`, `SetServiceRun`, `RemoveServiceRun`, `SetServicesView`, `GetAssets`, `ImportAsset`, `SetTextureAsset`, `SetModelAsset`, `RemoveAsset`,
+`GetServiceRuns`, `AddServiceRun`, `SetServiceRun`, `RemoveServiceRun`, `SetServicesView`, `SetInteriorDimensionsShown`,
+`GetInteriorDimensionsShown`, `GetAssets`, `ImportAsset`, `SetTextureAsset`, `SetModelAsset`, `RemoveAsset`,
 `GetLibrary`, `AddFromLibrary`, `ExportGltf`,
 `Undo`, `Redo`,
 `SaveProject`, `OpenProject`, `ExportPlan`, en mm enteros. Los muros y muebles de plantas que la vista oculta no tienen actor (`SetLevelView`

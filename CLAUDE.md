@@ -82,7 +82,7 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, esquinas,
   habitaciones, puertas y ventanas con su carpintería, muebles, pilares, instalaciones y su capa, assets importados,
-  biblioteca, acabados, vista por planta,
+  biblioteca, acabados, vista por planta, cotas interiores visibles u ocultas,
   deshacer/rehacer, guardar/abrir, exportar el plano y el `.glb` para Twinmotion). Con PIE activo actúa sobre el documento de PIE; si no, sobre el del editor.
 - Unreal MCP: descubrir con `list_toolsets`/`describe_toolset`, invocar con `call_tool`, verificar cada resultado.
   Commit antes de sesiones MCP largas o mutativas.
