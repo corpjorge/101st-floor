@@ -105,3 +105,13 @@ Antes: 320 unitarios y 88 Unreal Automation aprobados (`Saved/Automation/2026100
 86 comprobaciones funcionales, integridad SHA-256 y dependencias locales: `Saved/PackageChecks/20261009-201850-functional`.
 Ejecutable: `Packaged/0.1.9/Windows/Floor101.exe`. ZIP: `Packaged/0.1.9/101st-Floor-portable.zip`.
 La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue pendiente.
+
+## Entrega 0.2.0 (2026-10-10)
+
+Portable Windows **0.2.0 Shipping**, generado desde `0f87f1a` con árbol limpio: interfaz Cota Cero en todo el estudio
+(ADR-0033, `docs/ui-cota-cero.md`) sin cambios de funciones. Antes: 320 unitarios y 88 Unreal Automation aprobados
+(`Saved/Automation/20261010-124543`). El ejecutable aprueba las 86 comprobaciones funcionales, integridad SHA-256 y
+dependencias locales (`Saved/PackageChecks/20261010-131358-functional`) y la de inicio a 1920 × 1080
+(`Saved/PackageChecks/20261010-131415-home`). Ejecutable: `Packaged/0.2.0/Windows/Floor101.exe`. ZIP:
+`Packaged/0.2.0/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. La comprobación se realizó en este
+equipo; la prueba en otro equipo sin Unreal sigue pendiente.
