@@ -14,6 +14,7 @@
 
 namespace
 {
+	// Cota Cero canvas, track and brass (Floor101Style): this module loads before the application module and cannot use it.
 	FLinearColor StartupColor(const TCHAR* Hex) { return FLinearColor::FromSRGBColor(FColor::FromHex(Hex)); }
 
 	// Indeterminate activity, never an invented loading percentage or a fixed delay.
@@ -32,11 +33,11 @@ namespace
 			const double Left = FMath::Max(0.0, Position);
 			const double Right = FMath::Min(Width, Position + 88.0);
 			const FSlateBrush* Brush = FCoreStyle::Get().GetBrush("WhiteBrush");
-			FSlateDrawElement::MakeBox(Elements, Layer, Geometry.ToPaintGeometry(), Brush, ESlateDrawEffect::None, StartupColor(TEXT("3C454B")));
+			FSlateDrawElement::MakeBox(Elements, Layer, Geometry.ToPaintGeometry(), Brush, ESlateDrawEffect::None, StartupColor(TEXT("2D3439")));
 			if (Right > Left)
 			{
 				FSlateDrawElement::MakeBox(Elements, Layer + 1, Geometry.ToPaintGeometry(FVector2D(Right - Left, Height), FSlateLayoutTransform(FVector2D(Left, 0.0))),
-					Brush, ESlateDrawEffect::None, StartupColor(TEXT("D6AD78")));
+					Brush, ESlateDrawEffect::None, StartupColor(TEXT("D6A65F")));
 			}
 			return Layer + 1;
 		}
@@ -51,7 +52,7 @@ namespace
 			Image = MakeShared<FSlateDynamicImageBrush>(FName(*FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Splash/Splash.png"))), FVector2D(720.0, 420.0));
 			ChildSlot
 			[
-				SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(StartupColor(TEXT("1E2328")))
+				SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(StartupColor(TEXT("121518")))
 				.Padding(0.0f).HAlign(HAlign_Center).VAlign(VAlign_Center)
 				[
 					SNew(SScaleBox).Stretch(EStretch::ScaleToFit).StretchDirection(EStretchDirection::DownOnly)

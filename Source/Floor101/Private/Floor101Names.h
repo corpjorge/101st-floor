@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 
 #include "F101/Cad/Column.h"
+#include "F101/Cad/Id.h"
 #include "F101/Cad/Services.h"
 
 #include <string_view>
@@ -23,4 +24,7 @@ namespace Floor101
 	// A kind of building-services run and a column's shape (ADR-0021).
 	FText ServiceKindName(f101::cad::ServiceKind Kind);
 	FText ColumnShapeName(f101::cad::ColumnShape Shape);
+	// "Planta baja", "Planta 1"... unless the level has a name of its own (ADR-0011), and its short tag: "PB", "P1"...
+	FText LevelName(const f101::cad::Project& Project, const f101::cad::LevelId& Level);
+	FText LevelTag(const f101::cad::Project& Project, const f101::cad::LevelId& Level);
 }
