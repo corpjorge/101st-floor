@@ -49,6 +49,10 @@ ejes. Para la cifra al milímetro, selecciona la cota y mira «distancia real».
 
 En habitaciones estrechas (un baño o un pasillo de 1 m), el nombre y el área se apartan a un lado para no quedar
 debajo de una cifra. Solo se mueven en el plano; las cotas manuales no los desplazan.
+
+**Vista → Cotas interiores** las muestra u oculta todas a la vez, en el plano y en el SVG/PNG exportado. Ocultas no se
+pueden seleccionar, y los rótulos de las habitaciones vuelven a su sitio. Es una opción de la vista, no del proyecto:
+no se deshace con Ctrl+Z y la aplicación la recuerda en este equipo. Las cotas de los muros y las manuales no cambian.
 Decisiones: [ADR-0034](adr/ADR-0034-interior-dimensions.md).
 
 ## Verificación

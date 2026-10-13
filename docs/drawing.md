@@ -24,7 +24,8 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
     trazos a 45° en cada punto y cifras sobre la línea.
   - **Cotas interiores** (ADR-0034), de cara a cara: cada tramo recto del suelo de una habitación (`Room::sides`, unidos
     los colineales), a `InteriorOffsetMm` (15 cm) hacia dentro, sin partir por los huecos. No a lo largo de la cara con la
-    cota de partición; de dos caras opuestas con el mismo tramo, solo la de menor nombre.
+    cota de partición; de dos caras opuestas con el mismo tramo, solo la de menor nombre. `PlanOverlay::interiorDimensions`
+    (por defecto, sí) las quita del dibujo, de `PlanDrawing::dimensions` y de la exportación cuando la vista las oculta.
   - **Habitaciones** (`detectRooms`): nombre personalizado (`Project::roomNames`) o automático (`DrawingTexts::roomName`,
     "{n}" = 1, 2... por clave) y área neta, en su punto de rótulo; si una cifra de cota automática los taparía, se
     desplazan en horizontal (después en vertical) al sitio libre más cercano del suelo. SVG y PNG usan los mismos nombres.

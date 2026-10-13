@@ -29,6 +29,11 @@ void AFloor101PlayerController::BeginPlay()
 	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
 	SetInputMode(InputMode);
 	Floor101::Preferences::ApplySavedGraphics();
+	if (UFloor101DocumentSubsystem* Subsystem = GetWorld()->GetSubsystem<UFloor101DocumentSubsystem>())
+	{
+		// The application's own view preference (ADR-0034); tests and the editor's toolset keep the default.
+		Subsystem->SetInteriorDimensionsShown(Floor101::Preferences::ShowInteriorDimensions());
+	}
 
 	const ULocalPlayer* LocalPlayer = GetLocalPlayer();
 	UGameViewportClient* Viewport = LocalPlayer ? LocalPlayer->ViewportClient.Get() : nullptr;

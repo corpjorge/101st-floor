@@ -795,10 +795,13 @@ namespace f101::drawing
 				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, texts, wall, project, overlay, "overall", drawing);
 			}
 		}
-		// Inside each room, face to face.
-		for (const geometry::Room& room : rooms)
+		// Inside each room, face to face, unless the view hides them.
+		if (overlay.interiorDimensions)
 		{
-			drawInteriorDimensions(builder, room, partitions, project.levels.empty() ? cad::LevelId() : level, texts, project, overlay, drawing);
+			for (const geometry::Room& room : rooms)
+			{
+				drawInteriorDimensions(builder, room, partitions, project.levels.empty() ? cad::LevelId() : level, texts, project, overlay, drawing);
+			}
 		}
 
 		for (const cad::Dimension& d : project.dimensions)

@@ -281,6 +281,18 @@ TSharedRef<SWidget> SFloor101Overlay::MakeViewMenu()
 					[]() { Floor101::Preferences::SetShowGrid(!Floor101::Preferences::ShowGrid()); }, FText::GetEmpty(), FText::GetEmpty(),
 					[]() { return Floor101::Preferences::ShowGrid(); })]
 				+ SVerticalBox::Slot().AutoHeight()[Ui::MenuSeparator()]
+				+ SVerticalBox::Slot().AutoHeight()[Ui::MenuItem({}, LOCTEXT("StudioInteriorDimensions", "Cotas interiores"),
+					[this]()
+					{
+						Run([](EditController& E)
+						{
+							E.setShowInteriorDimensions(!E.showsInteriorDimensions());
+							Floor101::Preferences::SetShowInteriorDimensions(E.showsInteriorDimensions());
+							return f101::Status::success();
+						});
+					}, FText::GetEmpty(),
+					LOCTEXT("StudioInteriorDimensionsTip", "Muestra u oculta en el plano las cotas de cara a cara de cada habitación, también al exportar SVG y PNG. Se recuerda en este equipo."),
+					[this]() { const auto* S = Document.Get(); return S && S->GetEditController().showsInteriorDimensions(); })]
 				+ SVerticalBox::Slot().AutoHeight()[Ui::MenuItem(EFloor101Icon::Dimension, LOCTEXT("RestoreDimensions", "Restaurar cotas automáticas de esta planta"),
 					[this]() { Run([](EditController& E) { return E.restoreAutomaticDimensions(); }); }, FText::GetEmpty(),
 					LOCTEXT("RestoreDimensionsTip", "Recupera cotas ocultas y sus rótulos y posiciones originales. Se puede deshacer."))]

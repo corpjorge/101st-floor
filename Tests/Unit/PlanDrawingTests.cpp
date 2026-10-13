@@ -302,6 +302,22 @@ TEST_CASE("in a narrow room, the name and area move sideways off the interior fi
 	CHECK(name->at.x_mm - nameHalf >= 60.0);
 }
 
+TEST_CASE("the view can hide the interior dimensions; the room's name and area then stay at its label point")
+{
+	Project bath;
+	bath.walls = {wallOf(1, {0, 0}, {3050, 0}), wallOf(2, {3050, 0}, {3050, 1070}), wallOf(3, {3050, 1070}, {0, 1070}),
+		wallOf(4, {0, 1070}, {0, 0})};
+	PlanOverlay overlay;
+	overlay.interiorDimensions = false;
+	const PlanDrawing drawing = buildPlanDrawing(bath, LevelId(), overlay);
+	CHECK(interior(drawing).empty());
+	CHECK(drawing.dimensions.size() == 4); // the walls' own, outside
+	CHECK(findLabel(drawing, "2.93", {1525.0, 345.0}) == nullptr);
+	CHECK(findLabel(drawing, "Room 1", {1525.0, 535.0 + 160.0}) != nullptr);
+	CHECK(findLabel(drawing, "2.78 m2", {1525.0, 535.0 - 135.0}) != nullptr);
+	CHECK(PlanOverlay{}.interiorDimensions); // shown unless the view says otherwise
+}
+
 TEST_CASE("a wall between two rooms only gets its length; rooms get their name and area")
 {
 	Project project = room();

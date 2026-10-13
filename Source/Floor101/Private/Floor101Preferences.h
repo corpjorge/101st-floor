@@ -15,4 +15,7 @@ namespace Floor101::Preferences
 	void ApplySavedDiagnostics();
 	bool ShowGrid();
 	void SetShowGrid(bool bShow);
+	// The plan's interior dimensions (ADR-0034), applied to the document when the application starts.
+	bool ShowInteriorDimensions();
+	void SetShowInteriorDimensions(bool bShow);
 }

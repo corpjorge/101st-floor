@@ -358,6 +358,49 @@ TEST_CASE("interior dimensions are picked, dragged, hidden and restored like the
 	CHECK_FALSE(shown(doc.project()));
 }
 
+TEST_CASE("hiding the interior dimensions lets go of a selected one, keeps them from being picked and leaves the project")
+{
+	Document doc{makeSequentialUuidSource()};
+	const Point2D corners[] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+	std::vector<WallId> walls;
+	for (int i = 0; i < 4; ++i) walls.push_back(doc.addWall(corners[i], corners[(i + 1) % 4], 120, 2800).value());
+	EditController editor{doc, {}};
+	editor.setDimensionsVisible(true);
+	// As the application wires it: the plan's dimensions as the view shows them.
+	editor.setDimensionProvider([&editor](const Project& p, const LevelId& level)
+	{
+		drawing::PlanOverlay layers;
+		layers.interiorDimensions = editor.showsInteriorDimensions();
+		return drawing::buildPlanDrawing(p, level, layers).dimensions;
+	});
+	CHECK(editor.showsInteriorDimensions());
+	CHECK(editor.view().showInteriorDimensions);
+	const std::string interiorId = "auto/" + toString(walls[0]) + "/interior-left-0";
+	const std::string exteriorId = "auto/" + toString(walls[0]) + "/overall";
+	REQUIRE(editor.selectDimension(interiorId).ok());
+	const PlanPoint figure = dimensionLabelPoint(*editor.selectedDimension());
+	const std::string saved = writeProjectJson(doc.project());
+	const bool couldUndo = doc.canUndo();
+
+	editor.setShowInteriorDimensions(false);
+	CHECK_FALSE(editor.showsInteriorDimensions());
+	CHECK_FALSE(editor.view().showInteriorDimensions);
+	CHECK_FALSE(editor.selectedDimension());
+	CHECK_FALSE(editor.selectDimension(interiorId).ok());
+	REQUIRE(editor.pointerPressed(above(figure.x_mm, figure.y_mm)).ok());
+	CHECK_FALSE(editor.selectedDimension()); // nothing there to pick any more
+	REQUIRE(editor.pointerReleased(above(figure.x_mm, figure.y_mm)).ok());
+	REQUIRE(editor.selectDimension(exteriorId).ok());
+	editor.setShowInteriorDimensions(false);
+	REQUIRE(editor.selectedDimension()); // the others stay selected
+	CHECK(editor.selectedDimension()->id == exteriorId);
+	CHECK(writeProjectJson(doc.project()) == saved); // a view setting: no change, nothing to undo
+	CHECK(doc.canUndo() == couldUndo);
+
+	editor.setShowInteriorDimensions(true);
+	CHECK(editor.selectDimension(interiorId).ok());
+}
+
 TEST_CASE("opening-chain overrides belong to stable boundaries and never hide newly inserted spans")
 {
 	Document doc{makeSequentialUuidSource()};

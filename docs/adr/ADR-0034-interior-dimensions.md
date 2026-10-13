@@ -34,6 +34,15 @@ clic y no sigue a las paredes, así que es fácil leer como "la misma medida" do
   habitación por su suelo no cambian. Cuenta cualquier cifra automática, también la de una partición que ya caía dentro
   de una habitación; las cotas manuales no desplazan rótulos.
 
+- **Interruptor en Vista → Cotas interiores.** Es estado de vista del `EditController`
+  (`setShowInteriorDimensions`, `EditView::showInteriorDimensions`), visible por defecto, como la capa de instalaciones:
+  llega al dibujo como `PlanOverlay::interiorDimensions` en la vista, en el SVG/PNG exportado y en el proveedor de cotas,
+  así que ocultas no se pueden seleccionar; ocultarlas suelta la que estuviera seleccionada. No es un cambio del modelo:
+  no se guarda en `project.json` ni se deshace. Se recuerda en el equipo como preferencia local
+  (`Floor101.Interface/ShowInteriorDimensions`, igual que la cuadrícula); la aplica el controlador del jugador al
+  arrancar la aplicación (`UFloor101DocumentSubsystem::SetInteriorDimensionsShown`, sin tocar el mensaje de estado), de
+  modo que las pruebas de integración y el toolset MCP del editor parten siempre de visibles.
+
 ## Consecuencias
 Cada habitación muestra al menos su luz libre en ambas direcciones. Los planos existentes ganan cotas sin tocar el
 proyecto; las que sobren se ocultan una a una. Los 150 mm dejan la línea por debajo del rótulo en habitaciones estrechas
@@ -44,5 +53,7 @@ separan arrastrando su línea. Un nombre más ancho que la habitación no encuen
 Regresiones doctest: lados de habitación (sentido, cara, tramos, muro que entra), cotas interiores del rectángulo (caras
 opuestas, huecos), planta en L, muros colineales y con escalón, partición con nombre menor, baño estrecho con los rótulos
 desplazados, y selección, arrastre, seguimiento de paredes, ocultación persistente, Restaurar y deshacer con el
-`EditController`. Las pruebas de integración de Unreal y la comprobación Shipping se ejecutan en Windows con
+`EditController`; con el interruptor apagado, ni dibujo, ni rótulos desplazados, ni selección, y el proyecto y su
+historial intactos. `Floor101.Interaction.PlanView` comprueba la cota interior en el plano, su desaparición al ocultarlas,
+el SVG exportado sin ella y su vuelta. Las pruebas de integración de Unreal y la comprobación Shipping se ejecutan en Windows con
 `Test.ps1 -Integration` y `CheckPackage.ps1`.
