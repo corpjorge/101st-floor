@@ -483,10 +483,18 @@ namespace f101::drawing
 			return textBox(cad::dimensionLabelPoint(d), angle, cad::dimensionLabelWidthMm(d), FigureHeightMm, FigureClearanceMm);
 		}
 
-		// Where a room's name and area stand: at its label point, or else the nearest point sideways from it, then up or
+		// A room text placed automatically: its centre relative to the spot of the room's texts, and its size.
+		struct SpotText
+		{
+			PlanPoint offset;
+			double widthMm = 0.0;
+			double heightMm = 0.0;
+		};
+
+		// Where a room's automatic texts stand: at its label point, or else the nearest point sideways from it, then up or
 		// down, where they cover no automatic dimension figure and stay on the floor (ADR-0034); the label point if there
 		// is none. Sideways first: right over or under a figure, they would read as one block with it.
-		PlanPoint roomLabelSpot(const geometry::Room& room, double nameWidthMm, double areaWidthMm, const std::vector<Box>& figures)
+		PlanPoint roomLabelSpot(const geometry::Room& room, const std::vector<SpotText>& texts, const std::vector<Box>& figures)
 		{
 			Box bounds{room.outline.front(), room.outline.front()};
 			for (const PlanPoint& p : room.outline)
@@ -498,8 +506,9 @@ namespace f101::drawing
 			std::copy_if(figures.begin(), figures.end(), std::back_inserter(nearby), [&bounds](const Box& figure) { return overlaps(figure, bounds); });
 			const auto boxes = [&](PlanPoint at)
 			{
-				return std::array<Box, 2>{textBox(add(at, {0.0, RoomNameHeightMm * 0.8}), 0.0, nameWidthMm, RoomNameHeightMm, 0.0),
-					textBox(add(at, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, areaWidthMm, RoomAreaHeightMm, 0.0)};
+				std::vector<Box> result;
+				for (const SpotText& text : texts) result.push_back(textBox(add(at, text.offset), 0.0, text.widthMm, text.heightMm, 0.0));
+				return result;
 			};
 			const auto clear = [&](PlanPoint at)
 			{
@@ -846,10 +855,28 @@ namespace f101::drawing
 				name.replace(token, 3, std::to_string(index + 1));
 			}
 			std::string area = cad::formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit;
-			const PlanPoint at = roomLabelSpot(room, cad::planTextWidthMm(cad::textCharacters(name), RoomNameHeightMm),
-				cad::planTextWidthMm(cad::textCharacters(area), RoomAreaHeightMm), figures);
-			builder.label(add(at, {0.0, RoomNameHeightMm * 0.8}), 0.0, RoomNameHeightMm, std::move(name), Ink::Label);
-			builder.label(add(at, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, RoomAreaHeightMm, std::move(area), Ink::Label);
+			// Its sizes and moved texts (ADR-0035), as a drag would leave them.
+			const cad::RoomLabel* stored = project.findRoomLabel(room.key);
+			const bool previewed = overlay.previewRoomLabel && overlay.previewRoomLabel->room == room.key;
+			const cad::RoomLabel layout = previewed ? *overlay.previewRoomLabel : stored ? *stored : cad::RoomLabel{room.key};
+			const double nameHeight = static_cast<double>(layout.nameHeightMm);
+			const double areaHeight = static_cast<double>(layout.areaHeightMm);
+			const SpotText nameText{{0.0, nameHeight * 0.8}, cad::planTextWidthMm(cad::textCharacters(name), nameHeight), nameHeight};
+			const SpotText areaText{{0.0, -areaHeight * 0.9}, cad::planTextWidthMm(cad::textCharacters(area), areaHeight), areaHeight};
+			std::vector<SpotText> automatic;
+			if (!layout.nameOffset) automatic.push_back(nameText);
+			if (!layout.areaOffset) automatic.push_back(areaText);
+			const PlanPoint spot = automatic.empty() ? room.labelPoint : roomLabelSpot(room, automatic, figures);
+			const Ink ink = !overlay.selectedRoom.empty() && overlay.selectedRoom == room.key ? Ink::DimensionSelected : Ink::Label;
+			const auto place = [&](const std::optional<cad::Vector2D>& moved, const SpotText& text, bool isArea, std::string written)
+			{
+				const PlanPoint centre = moved ? add(room.labelPoint, {static_cast<double>(moved->dx_mm), static_cast<double>(moved->dy_mm)})
+					: add(spot, text.offset);
+				builder.label(centre, 0.0, text.heightMm, std::move(written), ink);
+				drawing.roomTexts.push_back(cad::RoomText{room.key, isArea, centre, text.widthMm, text.heightMm, room.labelPoint});
+			};
+			place(layout.nameOffset, nameText, false, std::move(name));
+			place(layout.areaOffset, areaText, true, std::move(area));
 		}
 
 		// Furniture, as the overlay previews it: its outline, then the details of its type.

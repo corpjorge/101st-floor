@@ -44,6 +44,7 @@
 #include "TextureResource.h"
 
 #include <filesystem>
+#include <memory>
 #include <string_view>
 
 #define LOCTEXT_NAMESPACE "Floor101Document"
@@ -292,22 +293,38 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Super::Initialize(Collection);
 	Document = MakePimpl<f101::cad::Document>(f101::cad::makeRandomUuidSource());
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
-	Editor->setDimensionProvider([this, CachedChange = ~uint64{0}, CachedLevel = f101::cad::LevelId{}, bCachedInterior = true,
-		Cached = std::vector<f101::cad::Dimension>{}](const f101::cad::Project& Project, const f101::cad::LevelId& Level) mutable
+	// What the plan lets the pointer pick: its dimensions (ADR-0031) and the rooms' names and areas (ADR-0035), where
+	// the plan writes them in the application's words. Slate reads selection several times per frame; derive once per
+	// model revision, level and interior layer (hidden interior dimensions cannot be picked, ADR-0034).
+	struct FPickedPlan
 	{
-		// Slate reads selection several times per frame; derive once per model revision, level and interior layer
-		// (hidden interior dimensions cannot be picked, ADR-0034).
+		uint64 Change = ~uint64{0};
+		f101::cad::LevelId Level;
+		bool bInterior = true;
+		f101::drawing::PlanDrawing Drawing;
+	};
+	const auto Picked = [this, Cache = std::make_shared<FPickedPlan>()](const f101::cad::Project& Project, const f101::cad::LevelId& Level)
+		-> const f101::drawing::PlanDrawing&
+	{
 		const bool bInterior = Editor->showsInteriorDimensions();
-		if (CachedChange != ChangeCount || CachedLevel != Level || bCachedInterior != bInterior)
+		if (Cache->Change != ChangeCount || Cache->Level != Level || Cache->bInterior != bInterior)
 		{
 			f101::drawing::PlanOverlay Layers;
 			Layers.interiorDimensions = bInterior;
-			Cached = f101::drawing::buildPlanDrawing(Project, Level, Layers).dimensions;
-			CachedChange = ChangeCount;
-			CachedLevel = Level;
-			bCachedInterior = bInterior;
+			Cache->Drawing = f101::drawing::buildPlanDrawing(Project, Level, Layers, PlanTexts());
+			Cache->Change = ChangeCount;
+			Cache->Level = Level;
+			Cache->bInterior = bInterior;
 		}
-		return Cached;
+		return Cache->Drawing;
+	};
+	Editor->setDimensionProvider([Picked](const f101::cad::Project& Project, const f101::cad::LevelId& Level)
+	{
+		return Picked(Project, Level).dimensions;
+	});
+	Editor->setRoomTextProvider([Picked](const f101::cad::Project& Project, const f101::cad::LevelId& Level)
+	{
+		return Picked(Project, Level).roomTexts;
 	});
 	Editor->setRoomLocator(f101::geometry::makeRoomLocator()); // rooms are picked by their floor (ADR-0012)
 	Document->setWallObstructions(f101::geometry::makeWallObstructions()); // openings clear of joined walls (ADR-0013)
@@ -1010,6 +1027,8 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		Marks.selectedServiceRun = View.selectedServiceRun;
 		Marks.previewServiceRuns = View.previewServiceRuns;
 		Marks.interiorDimensions = View.showInteriorDimensions;
+		Marks.selectedRoom = View.selectedRoom;
+		Marks.previewRoomLabel = View.previewRoomLabel;
 		Marks.handles = View.handles;
 		Marks.handleSizeMm = static_cast<double>(Editor->settings().handleSizeMm);
 		*PlanDrawing = f101::drawing::buildPlanDrawing(Document->project(), View.activeLevel, Marks, PlanTexts());

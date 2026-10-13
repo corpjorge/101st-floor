@@ -327,6 +327,7 @@ namespace f101::cad
 	void EditController::dropDrags()
 	{
 		dimensions.dropDrag();
+		roomTextDrag.reset();
 		drag.reset();
 		wallBodyDrag.reset();
 		openingDrag.reset();
@@ -394,6 +395,11 @@ namespace f101::cad
 		if (!planPoint)
 		{
 			return; // off the floor: keep the last preview
+		}
+		if (roomTextDrag)
+		{
+			updateRoomTextDrag();
+			return;
 		}
 		if (dimensions.dragging())
 		{
@@ -827,9 +833,23 @@ namespace f101::cad
 			}
 			return Status::success();
 		}
-		if (dimensions.visible() && dimensions.hasProvider() && currentMode == EditMode::Select && planPoint)
+		if (dimensions.visible() && currentMode == EditMode::Select && planPoint)
 		{
-			if (const std::optional<DimensionEditor::Grab> grab = dimensions.hit(*planPoint, activeLevel()))
+			const std::optional<DimensionEditor::Grab> grab =
+				dimensions.hasProvider() ? dimensions.hit(*planPoint, activeLevel()) : std::nullopt;
+			// The selected dimension's grips first; then room texts, so a name can be taken off a figure (ADR-0035).
+			const bool grip = grab && grab->grip != DimensionEditor::Grab::Line;
+			if (const std::optional<RoomText> text = grip ? std::nullopt : roomTextAt(*planPoint))
+			{
+				dropDrags();
+				clearSelected();
+				selectedRoomKey = text->room;
+				const RoomLabel* stored = document.project().findRoomLabel(text->room);
+				roomTextDrag = RoomTextDrag{stored ? *stored : RoomLabel{text->room}, text->area, text->centre, *planPoint, text->anchor,
+					text->heightMm * 0.2};
+				return Status::success();
+			}
+			if (grab)
 			{
 				dropDrags();
 				if (grab->grip == DimensionEditor::Grab::Line)
@@ -1074,6 +1094,12 @@ namespace f101::cad
 
 	Status EditController::pointerReleased(const Ray3&)
 	{
+		if (roomTextDrag)
+		{
+			const RoomTextDrag finished = *roomTextDrag;
+			roomTextDrag.reset();
+			return finished.moved ? toStatus(document.execute(SetRoomLabelCommand{finished.label})) : Status::success();
+		}
 		if (dimensions.dragging())
 		{
 			return dimensions.release();
@@ -2139,6 +2165,72 @@ namespace f101::cad
 		return setRoomFinishes(current ? std::string_view(current->floor) : std::string_view(), finish);
 	}
 
+	RoomLabel EditController::selectedRoomLabel() const
+	{
+		if (selectedRoom().empty()) return RoomLabel{};
+		const RoomLabel* stored = document.project().findRoomLabel(selectedRoomKey);
+		return stored ? *stored : RoomLabel{selectedRoomKey};
+	}
+
+	Status EditController::editRoomLabel(const std::function<void(RoomLabel&)>& change)
+	{
+		if (selectedRoom().empty()) return nothingSelected();
+		RoomLabel entry = selectedRoomLabel();
+		change(entry);
+		return toStatus(document.execute(SetRoomLabelCommand{entry}));
+	}
+
+	Status EditController::setRoomTextHeight(std::string_view text, bool area)
+	{
+		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value) return value.error();
+		return editRoomLabel([&](RoomLabel& entry) { (area ? entry.areaHeightMm : entry.nameHeightMm) = value.value(); });
+	}
+
+	Status EditController::setSelectedRoomNameHeight(std::string_view text) { return setRoomTextHeight(text, false); }
+	Status EditController::setSelectedRoomAreaHeight(std::string_view text) { return setRoomTextHeight(text, true); }
+
+	Status EditController::resetSelectedRoomTextPositions()
+	{
+		return editRoomLabel([](RoomLabel& entry)
+		{
+			entry.nameOffset.reset();
+			entry.areaOffset.reset();
+		});
+	}
+
+	std::optional<RoomText> EditController::roomTextAt(PlanPoint point) const
+	{
+		if (!roomTexts) return std::nullopt;
+		const std::vector<RoomText> texts = roomTexts(document.project(), activeLevel());
+		// The last one is drawn on top. A quarter of its height around it still grabs it, as the letters reach past the
+		// height of their capitals.
+		for (auto text = texts.rbegin(); text != texts.rend(); ++text)
+		{
+			if (text->contains(point, text->heightMm * 0.25)) return *text;
+		}
+		return std::nullopt;
+	}
+
+	void EditController::updateRoomTextDrag()
+	{
+		RoomTextDrag& moving = *roomTextDrag;
+		const PlanPoint delta{planPoint->x_mm - moving.grab.x_mm, planPoint->y_mm - moving.grab.y_mm};
+		if (!moving.moved && std::hypot(delta.x_mm, delta.y_mm) < moving.startMm)
+		{
+			return; // a click that only shook: the text stays automatic
+		}
+		moving.moved = true;
+		const auto component = [](double mm)
+		{
+			const double limit = static_cast<double>(MaxRoomTextOffsetMm);
+			return static_cast<std::int64_t>(std::llround(std::clamp(mm, -limit, limit)));
+		};
+		const Vector2D offset{component(moving.centre.x_mm + delta.x_mm - moving.anchor.x_mm),
+			component(moving.centre.y_mm + delta.y_mm - moving.anchor.y_mm)};
+		(moving.area ? moving.label.areaOffset : moving.label.nameOffset) = offset;
+	}
+
 	Status EditController::setWallFinish(WallSide side, std::string_view finish)
 	{
 		const WallId current = selection();
@@ -2273,6 +2365,10 @@ namespace f101::cad
 		result.showServices = servicesShown;
 		result.serviceKinds = serviceKindsShown;
 		result.showInteriorDimensions = interiorDimensionsShown;
+		if (roomTextDrag && roomTextDrag->moved)
+		{
+			result.previewRoomLabel = roomTextDrag->label;
+		}
 		const Project& project = document.project();
 		if (currentMode == EditMode::Column)
 		{

@@ -442,6 +442,21 @@ TArray<FFloor101RoomInfo> UFloor101DocumentToolset::GetRooms()
 		{
 			Info.WallIds.Add(ToFString(f101::cad::toString(Wall)));
 		}
+		Info.LabelPointXMm = FMath::RoundToInt64(Room.labelPoint.x_mm);
+		Info.LabelPointYMm = FMath::RoundToInt64(Room.labelPoint.y_mm);
+		const f101::cad::RoomLabel* Stored = Subsystem->GetDocument().project().findRoomLabel(Room.key);
+		const f101::cad::RoomLabel Label = Stored ? *Stored : f101::cad::RoomLabel{Room.key};
+		const auto TextInfo = [](std::int64_t HeightMm, const std::optional<f101::cad::Vector2D>& Offset)
+		{
+			FFloor101RoomTextInfo Text;
+			Text.HeightMm = HeightMm;
+			Text.bMoved = Offset.has_value();
+			Text.OffsetXMm = Offset ? Offset->dx_mm : 0;
+			Text.OffsetYMm = Offset ? Offset->dy_mm : 0;
+			return Text;
+		};
+		Info.NameText = TextInfo(Label.nameHeightMm, Label.nameOffset);
+		Info.AreaText = TextInfo(Label.areaHeightMm, Label.areaOffset);
 		Info.FloorActor = Subsystem->FindRoomFloorActor(Info.Key);
 		Rooms.Add(MoveTemp(Info));
 	}
@@ -558,6 +573,64 @@ void UFloor101DocumentToolset::SetRoomFinish(const FString& RoomKey, const FStri
 	{
 		RaiseError(FString::Printf(TEXT("cannot change the finishes of room %s: %s"), *RoomKey, *ToFString(Changed.error().message)));
 	}
+}
+
+namespace
+{
+	// Edits how the plan writes an existing room's name and area (ADR-0035) in one undoable step; returns the room.
+	FFloor101RoomInfo ChangeRoomLabel(const FString& RoomKey, TFunctionRef<void(f101::cad::RoomLabel&)> Edit)
+	{
+		UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+		if (!Subsystem)
+		{
+			return {};
+		}
+		const auto IsRoom = [&RoomKey](const FFloor101RoomInfo& Room) { return Room.Key == RoomKey; };
+		if (!UFloor101DocumentToolset::GetRooms().ContainsByPredicate(IsRoom))
+		{
+			RaiseError(FString::Printf(TEXT("no room has the key '%s' (see GetRooms)"), *RoomKey));
+			return {};
+		}
+		const std::string Key = TCHAR_TO_UTF8(*RoomKey);
+		const f101::cad::RoomLabel* Stored = Subsystem->GetDocument().project().findRoomLabel(Key);
+		f101::cad::RoomLabel Label = Stored ? *Stored : f101::cad::RoomLabel{Key};
+		Edit(Label);
+		const f101::Result<f101::cad::Transaction> Changed = Subsystem->GetMutableDocument().execute(f101::cad::SetRoomLabelCommand{Label});
+		if (!Changed)
+		{
+			RaiseError(FString::Printf(TEXT("cannot change the texts of room %s: %s"), *RoomKey, *ToFString(Changed.error().message)));
+			return {};
+		}
+		const TArray<FFloor101RoomInfo> Rooms = UFloor101DocumentToolset::GetRooms();
+		const FFloor101RoomInfo* Room = Rooms.FindByPredicate(IsRoom);
+		return Room ? *Room : FFloor101RoomInfo{};
+	}
+}
+
+FFloor101RoomInfo UFloor101DocumentToolset::SetRoomLabelSize(const FString& RoomKey, int64 NameHeightMm, int64 AreaHeightMm)
+{
+	return ChangeRoomLabel(RoomKey, [NameHeightMm, AreaHeightMm](f101::cad::RoomLabel& Label)
+	{
+		Label.nameHeightMm = NameHeightMm;
+		Label.areaHeightMm = AreaHeightMm;
+	});
+}
+
+FFloor101RoomInfo UFloor101DocumentToolset::MoveRoomText(const FString& RoomKey, bool bArea, int64 OffsetXMm, int64 OffsetYMm)
+{
+	return ChangeRoomLabel(RoomKey, [bArea, OffsetXMm, OffsetYMm](f101::cad::RoomLabel& Label)
+	{
+		(bArea ? Label.areaOffset : Label.nameOffset) = f101::cad::Vector2D{OffsetXMm, OffsetYMm};
+	});
+}
+
+FFloor101RoomInfo UFloor101DocumentToolset::ResetRoomTextPositions(const FString& RoomKey)
+{
+	return ChangeRoomLabel(RoomKey, [](f101::cad::RoomLabel& Label)
+	{
+		Label.nameOffset.reset();
+		Label.areaOffset.reset();
+	});
 }
 
 void UFloor101DocumentToolset::RemoveWall(const FString& WallId)

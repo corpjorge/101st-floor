@@ -51,6 +51,46 @@ namespace f101::cad
 		friend bool operator==(const RoomBaseboard&, const RoomBaseboard&) = default;
 	};
 
+	// How a room's name and area are written on the plan (ADR-0035): the height of their capitals and, for each text the
+	// user moved, its centre as an offset from the room's label point (geometry::Room::labelPoint); unset: placed
+	// automatically. Only rooms that differ from the defaults have one.
+	inline constexpr std::int64_t DefaultRoomNameHeightMm = 200;
+	inline constexpr std::int64_t DefaultRoomAreaHeightMm = 150;
+	inline constexpr std::int64_t MinRoomTextHeightMm = 50;
+	inline constexpr std::int64_t MaxRoomTextHeightMm = 1000;
+	inline constexpr std::int64_t MaxRoomTextOffsetMm = 100'000; // each component
+	struct RoomLabel
+	{
+		std::string room;
+		std::int64_t nameHeightMm = DefaultRoomNameHeightMm;
+		std::int64_t areaHeightMm = DefaultRoomAreaHeightMm;
+		std::optional<Vector2D> nameOffset;
+		std::optional<Vector2D> areaOffset;
+		// Everything automatic: no entry is needed.
+		bool isDefault() const
+		{
+			return nameHeightMm == DefaultRoomNameHeightMm && areaHeightMm == DefaultRoomAreaHeightMm && !nameOffset && !areaOffset;
+		}
+		friend bool operator==(const RoomLabel&, const RoomLabel&) = default;
+	};
+
+	// Where the plan writes one of a room's texts (ADR-0035), as Floor101Drawing paints it: picking uses the same box.
+	struct RoomText
+	{
+		std::string room;
+		bool area = false; // false: its name
+		PlanPoint centre;
+		double widthMm = 0.0;
+		double heightMm = 0.0;
+		PlanPoint anchor; // the room's label point, which offsets start from
+
+		bool contains(PlanPoint point, double marginMm) const
+		{
+			return std::abs(point.x_mm - centre.x_mm) <= widthMm / 2.0 + marginMm &&
+				std::abs(point.y_mm - centre.y_mm) <= heightMm / 2.0 + marginMm;
+		}
+	};
+
 	// Annotation only: automatic entries override presentation, never architectural geometry.
 	struct Dimension
 	{
@@ -96,6 +136,7 @@ namespace f101::cad
 
 	inline constexpr std::size_t MaxRoomNameBytes = 256;
 	FLOOR101CADCORE_API Status validateRoomName(std::string_view name);
+	FLOOR101CADCORE_API Status validateRoomLabel(const RoomLabel& label);
 
 	// The editable architectural model: the source of truth of 101st Floor.
 	struct Project
@@ -111,10 +152,17 @@ namespace f101::cad
 		std::vector<RoomName> roomNames; // only rooms with a custom name
 		std::vector<RoomBaseboard> roomBaseboards;
 		std::vector<Dimension> dimensions;
+		std::vector<RoomLabel> roomLabels; // only rooms whose texts are not all automatic (ADR-0035)
 
 		const Dimension* findDimension(std::string_view id) const
 		{
 			for (const Dimension& entry : dimensions) if (entry.id == id) return &entry;
+			return nullptr;
+		}
+
+		const RoomLabel* findRoomLabel(std::string_view room) const
+		{
+			for (const RoomLabel& entry : roomLabels) if (entry.room == room) return &entry;
 			return nullptr;
 		}
 

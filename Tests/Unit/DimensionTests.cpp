@@ -471,7 +471,7 @@ TEST_CASE("dimension JSON rejects malformed fields duplicates and accepts legacy
 	CHECK_FALSE(doc.replaceProject(duplicate).ok());
 	duplicate.dimensions.clear();
 	std::string legacy = writeProjectJson(duplicate);
-	const std::string version = "\"schemaVersion\": 13";
+	const std::string version = "\"schemaVersion\": " + std::to_string(ProjectSchemaVersion);
 	legacy.replace(legacy.find(version), version.size(), "\"schemaVersion\": 12");
 	REQUIRE(readProjectJson(legacy).ok());
 	CHECK(readProjectJson(legacy).value().dimensions.empty());

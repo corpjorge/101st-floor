@@ -49,7 +49,7 @@ namespace f101::geometry
 
 	// For cad::EditController: the key of the room of `levelWalls` whose floor contains the point.
 	FLOOR101GEOMETRY_API cad::RoomLocator makeRoomLocator();
-	// For cad::Document: finishes, names and baseboards follow derived rooms through automatic wall splitting
+	// For cad::Document: finishes, names, baseboards and label layouts follow derived rooms through automatic wall splitting
 	// (ADR-0025). Each new room takes every setting it lacks from the first old room (by key) of its level that has that
 	// setting and whose floor contains the new room's label point. Rooms are detected once per level and project.
 	FLOOR101GEOMETRY_API cad::Document::RoomTransfer makeRoomTransfer();

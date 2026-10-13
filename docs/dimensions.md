@@ -55,6 +55,22 @@ pueden seleccionar, y los rótulos de las habitaciones vuelven a su sitio. Es un
 no se deshace con Ctrl+Z y la aplicación la recuerda en este equipo. Las cotas de los muros y las manuales no cambian.
 Decisiones: [ADR-0034](adr/ADR-0034-interior-dimensions.md).
 
+## Nombre y área de cada habitación
+
+Si el nombre o el área de una habitación no caben o tapan una cota:
+
+- **Moverlos:** en el plano 2D (Tab), con Seleccionar, arrastra el nombre o el área; cada uno se mueve por su cuenta y
+  queda donde lo sueltes, aunque cambien las cotas. Pulsar el texto también selecciona la habitación (sus textos se
+  ven en color de selección). Un texto encima de una cifra se coge antes que la cota; Esc cancela el arrastre.
+- **Tamaño:** en **Propiedades → Rótulo en el plano**, *Tamaño del nombre* y *Tamaño del área* son la altura de las
+  letras en el plano (sin unidad = cm; por defecto 20 y 15 cm; de 5 cm a 1 m). Solo cambian esa habitación.
+- **Colocación automática** devuelve los dos textos a su sitio automático (apartados de las cotas) y conserva los
+  tamaños.
+
+Todo se deshace con Ctrl+Z, se guarda en el proyecto (`project.json` esquema 14) y sale igual en el SVG y el PNG. Al
+dividir una habitación con una pared, las dos nuevas heredan su rótulo. En 3D los rótulos no cambian. Decisiones:
+[ADR-0035](adr/ADR-0035-room-label-layout.md).
+
 ## Verificación
 
 - 303 pruebas C++ / 13.880 aserciones aprobadas, incluidas mediciones libres

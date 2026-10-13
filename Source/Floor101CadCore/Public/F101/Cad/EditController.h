@@ -111,6 +111,8 @@ namespace f101::cad
 		std::vector<ServiceRun> previewServiceRuns;
 		// The plan's interior dimensions (ADR-0034), in the view and in the exported plan.
 		bool showInteriorDimensions = true;
+		// The selected room's label layout while one of its texts is dragged, as the drag would leave it (ADR-0035).
+		std::optional<RoomLabel> previewRoomLabel;
 	};
 
 	// Interactive editing of a document, independent of any engine (ADR-0008). The engine translates its input into
@@ -188,7 +190,11 @@ namespace f101::cad
 		// only while the 2D plan is shown.
 		using DimensionProvider = DimensionEditor::Provider;
 		void setDimensionProvider(DimensionProvider provider) { dimensions.setProvider(std::move(provider)); }
-		void setDimensionsVisible(bool visible) { dimensions.setVisible(visible); }
+		void setDimensionsVisible(bool visible)
+		{
+			dimensions.setVisible(visible);
+			if (!visible) roomTextDrag.reset();
+		}
 		void setDimensionPickTolerance(double mm) { dimensions.setPickTolerance(mm); }
 		double dimensionHandleSizeMm() const { return dimensions.handleSizeMm(); }
 		FLOOR101CADCORE_API std::optional<Dimension> selectedDimension() const;
@@ -301,7 +307,7 @@ namespace f101::cad
 		bool isDragging() const
 		{
 			return dimensions.dragging() || drag.has_value() || wallBodyDrag.has_value() || openingDrag.has_value() || furnitureDrag.has_value() || columnDrag.has_value() ||
-				runDrag.has_value();
+				runDrag.has_value() || roomTextDrag.has_value();
 		}
 		bool isDraggingOpening() const { return openingDrag.has_value(); }
 		bool isDraggingFurniture() const { return furnitureDrag.has_value(); }
@@ -326,6 +332,20 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setSelectedRoomName(std::string_view name);
 		FLOOR101CADCORE_API Status setSelectedRoomFloor(std::string_view finish);
 		FLOOR101CADCORE_API Status setSelectedRoomCeiling(std::string_view finish);
+		// Room names and areas on the plan (ADR-0035). In Select mode with the plan shown, a press on one of them selects
+		// its room and drags that text (the selected dimension's grips come first, then texts, then dimensions and the
+		// rest); once the pointer has moved a fifth of the text's height, the text follows it, and releasing moves it from
+		// the room's label point (one SetRoomLabelCommand). The provider gives the texts of a level where the plan writes
+		// them (Floor101Drawing: PlanDrawing::roomTexts); without it texts cannot be picked.
+		using RoomTextProvider = std::function<std::vector<RoomText>(const Project&, const LevelId&)>;
+		void setRoomTextProvider(RoomTextProvider provider) { roomTexts = std::move(provider); }
+		// The selected room's layout as stored, or the defaults; an empty room when none is selected.
+		FLOOR101CADCORE_API RoomLabel selectedRoomLabel() const;
+		// Heights of its texts' capitals on the plan, typed like lengths; positions back to automatic (sizes stay).
+		FLOOR101CADCORE_API Status setSelectedRoomNameHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setSelectedRoomAreaHeight(std::string_view text);
+		FLOOR101CADCORE_API Status resetSelectedRoomTextPositions();
+		bool isDraggingRoomText() const { return roomTextDrag.has_value(); }
 		// A face of the selected wall; an empty finish restores the default.
 		FLOOR101CADCORE_API Status setWallFinish(WallSide side, std::string_view finish);
 
@@ -396,6 +416,18 @@ namespace f101::cad
 			PlanPoint grabOffset; // its centre minus the pointer at the press
 		};
 
+		// A room's name or area being moved on the plan.
+		struct RoomTextDrag
+		{
+			RoomLabel label;     // as it would be left (the stored one until the pointer has moved far enough)
+			bool area = false;   // false: the name
+			PlanPoint centre;    // the text's centre at the press
+			PlanPoint grab;      // the pointer at the press
+			PlanPoint anchor;    // the room's label point
+			double startMm = 0.0; // how far the pointer must move before the text follows
+			bool moved = false;
+		};
+
 		// The selected run being moved (bend nullopt) or one of its bends.
 		struct RunDrag
 		{
@@ -432,6 +464,11 @@ namespace f101::cad
 		Status editRoomBaseboard(const std::function<void(RoomBaseboard&)>& change);
 		Status setBaseboardDimension(std::string_view text, bool height);
 		Status setRoomFinishes(std::string_view floor, std::string_view ceiling);
+		Status editRoomLabel(const std::function<void(RoomLabel&)>& change);
+		Status setRoomTextHeight(std::string_view text, bool area);
+		// The room text the plan writes under `point` on the active level (the topmost), if any.
+		std::optional<RoomText> roomTextAt(PlanPoint point) const;
+		void updateRoomTextDrag();
 		Status changeActiveLevel(const std::function<Status(Level&)>& edit);
 		// Where `piece` goes for a wanted centre on the active level (snapping, ADR-0016); `freeRotation` when it does not
 		// go against a wall. It goes on the side of the wall the pointer is on: while dragging, the wanted centre (the
@@ -478,6 +515,8 @@ namespace f101::cad
 		bool allLevels = false;
 		std::string selectedRoomKey;
 		RoomLocator roomLocator;
+		RoomTextProvider roomTexts;
+		std::optional<RoomTextDrag> roomTextDrag;
 		FurnitureId selectedFurnitureId;
 		std::optional<FurnitureDrag> furnitureDrag;
 		std::optional<Furniture> furnitureAt; // Furniture mode placement

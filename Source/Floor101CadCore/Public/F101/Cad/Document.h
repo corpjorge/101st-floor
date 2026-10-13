@@ -129,6 +129,12 @@ namespace f101::cad
 		RoomBaseboard baseboard;
 	};
 
+	// Sets the sizes and moved texts of a room's name and area (ADR-0035); all automatic removes the room's entry.
+	struct SetRoomLabelCommand
+	{
+		RoomLabel label;
+	};
+
 	// Nil id adds a manual dimension with a generated UUID; existing id replaces an annotation/automatic override.
 	struct SetDimensionCommand { Dimension dimension; };
 	// Hide the derived original and add a resized manual copy in one transaction.
@@ -234,7 +240,7 @@ namespace f101::cad
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand, TranslateWallCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
-		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetDimensionCommand, MakeDimensionManualCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
+		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetRoomLabelCommand, SetDimensionCommand, MakeDimensionManualCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
 		ChangeAssetCommand, DeleteAssetCommand, AddColumnCommand, ChangeColumnCommand, DeleteColumnCommand,
 		AddServiceRunCommand, ChangeServiceRunCommand, DeleteServiceRunCommand>;
 
@@ -293,6 +299,14 @@ namespace f101::cad
 		std::optional<RoomName> after;
 	};
 
+	struct RoomLabelChange
+	{
+		std::string id;
+		std::size_t index = 0;
+		std::optional<RoomLabel> before;
+		std::optional<RoomLabel> after;
+	};
+
 	// Same for a piece of furniture; `index` is its position in Project::furniture.
 	struct FurnitureChange
 	{
@@ -343,11 +357,12 @@ namespace f101::cad
 		std::vector<RoomNameChange> roomNames;
 		std::vector<RoomBaseboardChange> roomBaseboards;
 		std::vector<DimensionChange> dimensions;
+		std::vector<RoomLabelChange> roomLabels;
 
 		bool empty() const
 		{
 			return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty() && assets.empty() && columns.empty() &&
-				services.empty() && roomNames.empty() && roomBaseboards.empty() && dimensions.empty();
+				services.empty() && roomNames.empty() && roomBaseboards.empty() && dimensions.empty() && roomLabels.empty();
 		}
 	};
 
@@ -376,6 +391,7 @@ namespace f101::cad
 		std::vector<std::string> changedRoomNames;
 		std::vector<std::string> changedRoomBaseboards;
 		std::vector<std::string> changedDimensions;
+		std::vector<std::string> changedRoomLabels;
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;
@@ -423,13 +439,14 @@ namespace f101::cad
 		// wall itself is checked.
 		void setWallObstructions(WallObstructions provider) { obstructions = std::move(provider); }
 		// What the derived rooms of `after` inherit from those of `before` when splitting walls changes their keys
-		// (ADR-0025): finishes, names and baseboards, each for rooms that have none of their own yet. The Geometry Engine
-		// supplies it (geometry::makeRoomTransfer); without it these settings stay on the old keys.
+		// (ADR-0025): finishes, names, baseboards and label layouts (ADR-0035), each for rooms that have none of their own
+		// yet. The Geometry Engine supplies it (geometry::makeRoomTransfer); without it these settings stay on the old keys.
 		struct RoomInheritance
 		{
 			std::vector<RoomFinish> finishes;
 			std::vector<RoomName> names;
 			std::vector<RoomBaseboard> baseboards;
+			std::vector<RoomLabel> labels;
 		};
 		using RoomTransfer = std::function<RoomInheritance(const Project& before, const Project& after)>;
 		void setRoomTransfer(RoomTransfer provider) { roomTransfer = std::move(provider); }
