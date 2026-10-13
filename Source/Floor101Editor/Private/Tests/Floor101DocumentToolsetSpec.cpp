@@ -248,6 +248,61 @@ void FFloor101DocumentToolsetSpec::Define()
 		});
 	});
 
+	Describe("room texts", [this]()
+	{
+		It("sizes a room's name and area, moves each one and puts them back, also in the exported plan", [this]()
+		{
+			TArray<FString> Ids;
+			const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+			for (int32 i = 0; i < 4; ++i)
+			{
+				const int64* A = Corners[i];
+				const int64* B = Corners[(i + 1) % 4];
+				Ids.Add(UFloor101DocumentToolset::AddWall(TEXT(""), A[0] + 160000, A[1], B[0] + 160000, B[1], 120, 2800).Id);
+			}
+			const TArray<FFloor101RoomInfo> Rooms = UFloor101DocumentToolset::GetRooms();
+			const FFloor101RoomInfo* Room = Rooms.FindByPredicate([&Ids](const FFloor101RoomInfo& R) { return R.WallIds.Contains(Ids[0]); });
+			if (TestNotNull(TEXT("room"), Room))
+			{
+				const FString Key = Room->Key;
+				TestEqual(TEXT("name 200 mm"), Room->NameText.HeightMm, int64{200});
+				TestEqual(TEXT("area 150 mm"), Room->AreaText.HeightMm, int64{150});
+				TestTrue(TEXT("placed by the plan"), !Room->NameText.bMoved && !Room->AreaText.bMoved);
+				TestEqual(TEXT("label point inside"), Room->LabelPointXMm, int64{162000});
+
+				const FFloor101RoomInfo Sized = UFloor101DocumentToolset::SetRoomLabelSize(Key, 300, 100);
+				TestTrue(TEXT("sized"), Sized.NameText.HeightMm == 300 && Sized.AreaText.HeightMm == 100);
+				const FFloor101RoomInfo Moved = UFloor101DocumentToolset::MoveRoomText(Key, false, -500, 1000);
+				TestTrue(TEXT("name moved"), Moved.NameText.bMoved && Moved.NameText.OffsetXMm == -500 && Moved.NameText.OffsetYMm == 1000);
+				TestFalse(TEXT("area still placed by the plan"), Moved.AreaText.bMoved);
+
+				// The plan writes them at their sizes (SVG font size: the capital height / 0.72).
+				const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101Toolset")));
+				const FString Path = FPaths::Combine(Directory, TEXT("room-texts.svg"));
+				UFloor101DocumentToolset::ExportPlan(Path, TEXT(""));
+				TArray<FString> Lines;
+				TestTrue(TEXT("plan written"), FFileHelper::LoadFileToStringArray(Lines, *Path));
+				TestTrue(TEXT("name at 300 mm"), Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT(">Habitación")) && L.Contains(TEXT("font-size=\"416.7\"")); }));
+				TestTrue(TEXT("area at 100 mm"), Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT(" m²<")) && L.Contains(TEXT("font-size=\"138.9\"")); }));
+				IFileManager::Get().Delete(*Path, false, true, true);
+
+				const FFloor101RoomInfo Back = UFloor101DocumentToolset::ResetRoomTextPositions(Key);
+				TestTrue(TEXT("placed by the plan again, sizes kept"), !Back.NameText.bMoved && Back.NameText.HeightMm == 300 && Back.AreaText.HeightMm == 100);
+				TestEqual(TEXT("undo"), UFloor101DocumentToolset::Undo(), FString(TEXT("Change room label")));
+				TestTrue(TEXT("moved again"), UFloor101DocumentToolset::GetRooms().ContainsByPredicate(
+					[&Key](const FFloor101RoomInfo& R) { return R.Key == Key && R.NameText.bMoved; }));
+
+				ExpectRaises(TEXT("cannot change the texts of room"), [&Key] { UFloor101DocumentToolset::SetRoomLabelSize(Key, 10, 150); });
+				ExpectRaises(TEXT("cannot change the texts of room"), [&Key] { UFloor101DocumentToolset::MoveRoomText(Key, true, 200000, 0); });
+				ExpectRaises(TEXT("no room has the key"), [] { UFloor101DocumentToolset::ResetRoomTextPositions(TEXT("some-room")); });
+			}
+			for (const FString& Id : Ids)
+			{
+				UFloor101DocumentToolset::RemoveWall(Id);
+			}
+		});
+	});
+
 	Describe("openings", [this]()
 	{
 		It("adds a door and a window, moves the window, and removes them", [this]()

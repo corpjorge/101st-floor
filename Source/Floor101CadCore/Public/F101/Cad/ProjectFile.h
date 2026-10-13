@@ -18,8 +18,8 @@ namespace f101::cad
 	// 7: furniture (ADR-0016). 8: imported assets, textures and models (ADR-0017). 9: an asset may name the built-in
 	// library item it came from ("library", ADR-0019). 10: columns and runs of the building services (ADR-0021).
 	// 11: custom room names (ADR-0029). 12: per-room baseboards (ADR-0030). 13: plan dimensions, manual ones and the
-	// overrides of automatic ones (ADR-0031).
-	inline constexpr int ProjectSchemaVersion = 13;
+	// overrides of automatic ones (ADR-0031). 14: sizes and moved texts of room names and areas (ADR-0035).
+	inline constexpr int ProjectSchemaVersion = 14;
 
 	// Files before schema 3 have no levels: their walls are read onto one level with this id
 	// (f1010000-0000-4000-8000-000000000001), as tall as the tallest wall so the derived slabs stay inside the walls.

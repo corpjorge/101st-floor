@@ -81,7 +81,10 @@ altura, forjado; al cambiar la altura, los muros a altura completa la siguen) y 
 mundo y si se ven todas; los muros de plantas ocultas no tienen actor). `AddWall` y `MoveCorner` reciben `LevelId`
 (vacío = la primera planta); muros y habitaciones informan su `LevelId`. `GetFinishes`/`SetWallFinish`/`SetRoomFinish`
 (acabados, ADR-0012: el catálogo; una cara de muro, izquierda o derecha de su eje; suelo y techo de una habitación por
-su clave) y sus acabados en `GetWalls` y `GetRooms`,
+su clave) y sus acabados en `GetWalls` y `GetRooms`, `SetRoomLabelSize`/`MoveRoomText`/`ResetRoomTextPositions` (nombre y
+área de una habitación en el plano, ADR-0035: altura de sus letras, 50–1000 mm; centro de un texto como desplazamiento
+desde el punto de rótulo; vuelta a la colocación automática; `GetRooms` informa `LabelPointXMm/YMm`, `NameText` y
+`AreaText`),
 `SetWallHeight`, `RemoveWall`, `Undo`/`Redo` (devuelven la etiqueta, p. ej. `Create wall`) y `SaveProject`/
 `OpenProject` (rutas absolutas), con coordenadas y dimensiones en mm enteros. **Mundo objetivo:** el de la sesión PIE
 mientras exista (lo que el usuario está editando; empieza vacío), si no el del editor. Cada cambio es un paso

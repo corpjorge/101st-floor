@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <string>
 
 namespace f101::cad
@@ -108,6 +109,25 @@ namespace f101::cad
 		if (name.size() > MaxRoomNameBytes || std::any_of(name.begin(), name.end(), [](unsigned char ch) { return ch < 32 || ch == 127; }))
 		{
 			return Error{ErrorCode::InvalidArgument, "Room names must be a single line of at most 256 UTF-8 bytes"};
+		}
+		return Status::success();
+	}
+
+	Status validateRoomLabel(const RoomLabel& label)
+	{
+		const auto height = [](std::int64_t mm) { return mm >= MinRoomTextHeightMm && mm <= MaxRoomTextHeightMm; };
+		const auto offset = [](const std::optional<Vector2D>& at)
+		{
+			return !at || (std::llabs(at->dx_mm) <= MaxRoomTextOffsetMm && std::llabs(at->dy_mm) <= MaxRoomTextOffsetMm);
+		};
+		if (label.room.empty()) return Error{ErrorCode::InvalidArgument, "No room"};
+		if (!height(label.nameHeightMm) || !height(label.areaHeightMm))
+		{
+			return Error{ErrorCode::InvalidArgument, "Room texts must be 50..1000 mm high"};
+		}
+		if (!offset(label.nameOffset) || !offset(label.areaOffset))
+		{
+			return Error{ErrorCode::InvalidArgument, "Room texts must stay within 100 m of their room"};
 		}
 		return Status::success();
 	}

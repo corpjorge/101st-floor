@@ -70,6 +70,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Cotas interiores automáticas de cara a cara: una por tramo recto del suelo de cada habitación (`Room::sides`), salvo la
   cara con la cota de partición y la repetida de dos caras opuestas; el nombre y el área se apartan de sus cifras.
   Vista → Cotas interiores las oculta (estado del `EditController`, preferencia local). Sin cambio de esquema (ADR-0034).
+- Rótulos de habitación por clave (`roomLabels`): altura del nombre y del área y, si se arrastraron en el plano, el
+  desplazamiento de cada texto desde `Room::labelPoint`; los movidos no se apartan de las cifras. El `EditController` los
+  elige por las cajas que publica el dibujo (`PlanDrawing::roomTexts`). `project.json` esquema 14 (ADR-0035).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno

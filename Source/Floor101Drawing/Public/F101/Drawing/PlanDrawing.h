@@ -85,7 +85,8 @@ namespace f101::drawing
 		std::vector<Stroke> strokes; // then these
 		std::vector<Label> labels;   // on top
 		std::vector<cad::Dimension> dimensions; // visible, resolved annotations for CAD picking
-		cad::PlanPoint min;          // bounds of everything (labels by their anchor and height); zero when empty
+		std::vector<cad::RoomText> roomTexts;   // each room's name and area where they are written, for CAD picking
+		cad::PlanPoint min;         // bounds of everything (labels by their anchor and height); zero when empty
 		cad::PlanPoint max;
 
 		bool empty() const { return fills.empty() && strokes.empty() && labels.empty(); }
@@ -113,6 +114,9 @@ namespace f101::drawing
 		// it, one with a nil id is added.
 		std::vector<cad::ServiceRun> previewServiceRuns;
 		bool interiorDimensions = true; // the rooms' interior dimensions (ADR-0034), in the view and in exports
+		std::string selectedRoom; // room key: its name and area are drawn selected; empty: none
+		// A room's label layout as a drag of one of its texts would leave it, drawn instead of the stored one (ADR-0035).
+		std::optional<cad::RoomLabel> previewRoomLabel;
 		std::vector<cad::Point2D> handles;
 		double handleSizeMm = 240.0;
 	};
@@ -134,8 +138,9 @@ namespace f101::drawing
 	// Interior dimensions stand this far into the room from the face they measure (ADR-0034).
 	inline constexpr double InteriorOffsetMm = 150.0;
 	inline constexpr double FigureHeightMm = cad::DimensionFigureHeightMm;
-	inline constexpr double RoomNameHeightMm = 200.0;
-	inline constexpr double RoomAreaHeightMm = 150.0;
+	// Room names and areas unless their room sets its own sizes (cad::RoomLabel, ADR-0035).
+	inline constexpr double RoomNameHeightMm = static_cast<double>(cad::DefaultRoomNameHeightMm);
+	inline constexpr double RoomAreaHeightMm = static_cast<double>(cad::DefaultRoomAreaHeightMm);
 	// A run's core is drawn as wide as its pipe, never thinner than this, inside a casing this much wider on each side.
 	inline constexpr double MinServiceCoreMm = 40.0;
 	inline constexpr double ServiceCasingMm = 10.0;
@@ -151,8 +156,10 @@ namespace f101::drawing
 	// - with the overlay's interiorDimensions (the default), interior dimensions (ADR-0034), face to face: each straight
 	//   stretch of a room's floor edge, InteriorOffsetMm into the room, except along the face that carries a partition's
 	//   length and the repeated opposite side of a rectangle;
-	// - each room's custom name or automatic name ("Room 1"...) and net area at its label point, or moved straight along
-	//   an axis to the nearest place on its floor where they cover no automatic dimension figure;
+	// - each room's custom name or automatic name ("Room 1"...) and net area, as high as its cad::RoomLabel says (ADR-0035):
+	//   a text the user moved at its offset from the room's label point; the others at the label point, or moved straight
+	//   along an axis to the nearest place on its floor where they cover no automatic dimension figure. Their boxes go to
+	//   PlanDrawing::roomTexts; the overlay's selected room has them in DimensionSelected ink;
 	// - each piece of furniture: its outline and the details of its type (a mattress, a basin, a hob) as thin lines;
 	// - each column: cut, as a solid fill of its outline (ADR-0021);
 	// - with the overlay's services layer, each run on the level of the networks it shows: its plan path (a casing, then

@@ -126,3 +126,14 @@ integridad SHA-256 y dependencias locales, con las cotas interiores en el plano 
 (`Saved/PackageChecks/20261013-170311-home`). Ejecutable: `Packaged/0.2.1/Windows/Floor101.exe`. ZIP:
 `Packaged/0.2.1/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. La comprobación se realizó en este
 equipo; la prueba en otro equipo sin Unreal sigue pendiente.
+
+## Entrega 0.2.2 (2026-10-13)
+
+Portable Windows **0.2.2 Shipping**, generado desde `bc41615` con árbol limpio: tamaño del nombre y del área de cada
+habitación y cada texto arrastrable en el plano 2D (ADR-0035, `project.json` esquema 14). Antes: 339 unitarios y 90
+Unreal Automation aprobados (`Saved/Automation/20261013-175148`). El ejecutable aprueba las 93 comprobaciones
+funcionales, entre ellas arrastrar el nombre de la habitación estrecha, reducir sus textos y reabrirlos, con integridad
+SHA-256 y dependencias locales (`Saved/PackageChecks/20261013-175030-functional`), y la de inicio a 1920 × 1080
+(`Saved/PackageChecks/20261013-175051-home`). Ejecutable: `Packaged/0.2.2/Windows/Floor101.exe`. ZIP:
+`Packaged/0.2.2/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. El panel del rótulo no se probó a mano en
+la ventana. La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue pendiente.

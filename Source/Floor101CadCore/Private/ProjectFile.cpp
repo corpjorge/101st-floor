@@ -779,6 +779,18 @@ namespace f101::cad
 			for (const RoomName& entry : project.roomNames) names.push_back(Json{{"room", entry.room}, {"name", entry.name}});
 			root["roomNames"] = std::move(names);
 		}
+		if (!project.roomLabels.empty())
+		{
+			Json labels = Json::array();
+			for (const RoomLabel& entry : project.roomLabels)
+			{
+				Json item{{"room", entry.room}, {"nameHeightMm", entry.nameHeightMm}, {"areaHeightMm", entry.areaHeightMm}};
+				if (entry.nameOffset) item["nameOffset"] = Json::array({entry.nameOffset->dx_mm, entry.nameOffset->dy_mm});
+				if (entry.areaOffset) item["areaOffset"] = Json::array({entry.areaOffset->dx_mm, entry.areaOffset->dy_mm});
+				labels.push_back(std::move(item));
+			}
+			root["roomLabels"] = std::move(labels);
+		}
 		if (!project.roomFinishes.empty())
 		{
 			Json rooms = Json::array();
@@ -1059,6 +1071,29 @@ namespace f101::cad
 					return formatError("roomNames entries need room and name strings");
 				}
 				project.roomNames.push_back({item["room"].get<std::string>(), item["name"].get<std::string>()});
+			}
+		}
+		if (const auto labels = root.find("roomLabels"); labels != root.end()) // schema 14
+		{
+			if (!labels->is_array()) return formatError("roomLabels must be an array");
+			for (const Json& item : *labels)
+			{
+				if (!item.is_object() || !item.contains("room") || !item["room"].is_string()) return formatError("Invalid room label entry");
+				RoomLabel entry{item["room"].get<std::string>()};
+				const auto name = readMillimetersField(item, "nameHeightMm", "roomLabels");
+				const auto area = readMillimetersField(item, "areaHeightMm", "roomLabels");
+				if (!name) return name.error();
+				if (!area) return area.error();
+				entry.nameHeightMm = name.value();
+				entry.areaHeightMm = area.value();
+				for (const auto& [key, offset] : {std::pair{"nameOffset", &entry.nameOffset}, std::pair{"areaOffset", &entry.areaOffset}})
+				{
+					if (!item.contains(key)) continue;
+					const auto at = readPoint(item, key, "roomLabels");
+					if (!at) return at.error();
+					*offset = Vector2D{at.value().x_mm, at.value().y_mm};
+				}
+				project.roomLabels.push_back(std::move(entry));
 			}
 		}
 		if (const auto assets = root.find("assets"); assets != root.end()) // schema 8

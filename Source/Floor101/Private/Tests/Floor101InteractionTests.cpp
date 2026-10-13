@@ -700,6 +700,93 @@ bool FFloor101RoomNamesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoomLabelsTest, "Floor101.Interaction.RoomLabels", InteractionTestFlags)
+bool FFloor101RoomLabelsTest::RunTest(const FString& Parameters)
+{
+	// ADR-0035: sizes and moved texts of a room's name and area, edited on the plan the user sees.
+	FTestWorld TestWorld;
+	auto* Document = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), Document)) return false;
+	const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+	for (int32 i = 0; i < 4; ++i)
+	{
+		TestTrue(TEXT("enclose room"), Document->GetMutableDocument().addWall({Corners[i][0], Corners[i][1]},
+			{Corners[(i + 1) % 4][0], Corners[(i + 1) % 4][1]}, 120, 2800).ok());
+	}
+	Document->SetPlanView(true);
+	auto Text = [Document](bool bArea) -> std::optional<f101::cad::RoomText>
+	{
+		const auto& Texts = Document->GetPlanDrawing().roomTexts;
+		const auto Found = std::find_if(Texts.begin(), Texts.end(), [bArea](const f101::cad::RoomText& T) { return T.area == bArea; });
+		return Found == Texts.end() ? std::nullopt : std::optional<f101::cad::RoomText>(*Found);
+	};
+	auto Written = [Document](const std::string& Prefix) -> const f101::drawing::Label*
+	{
+		const auto& Labels = Document->GetPlanDrawing().labels;
+		const auto Found = std::find_if(Labels.begin(), Labels.end(), [&Prefix](const auto& L) { return L.text.starts_with(Prefix); });
+		return Found == Labels.end() ? nullptr : &*Found;
+	};
+	const auto Name = Text(false);
+	if (!TestTrue(TEXT("the plan publishes the name"), Name.has_value() && Written("Habitación 1") != nullptr)) return false;
+	TestEqual(TEXT("published where it is painted"), Name->centre.x_mm, Written("Habitación 1")->at.x_mm);
+
+	// Grabbed near the end of "Habitación 1": picking measures the words the plan writes, not other ones.
+	const double GrabX = Name->centre.x_mm + Name->widthMm / 2.0 - 60.0;
+	TestTrue(TEXT("press the name"), Document->Edit([&](EditController& E) { return E.pointerPressed(Down(GrabX, Name->centre.y_mm)); }).ok());
+	TestFalse(TEXT("its room selected"), Document->GetEditController().selectedRoom().empty());
+	TestTrue(TEXT("drag"), Document->Edit([&](EditController& E) { E.pointerMoved(Down(GrabX, Name->centre.y_mm + 800.0)); return f101::Status::success(); }).ok());
+	TestTrue(TEXT("the plan follows the drag"), FMath::IsNearlyEqual(Written("Habitación 1")->at.y_mm, Name->centre.y_mm + 800.0, 0.5));
+	TestTrue(TEXT("nothing stored mid-drag"), Document->GetDocument().project().roomLabels.empty());
+	TestTrue(TEXT("release"), Document->Edit([&](EditController& E) { return E.pointerReleased(Down(GrabX, Name->centre.y_mm + 800.0)); }).ok());
+	const f101::cad::RoomLabel* Stored = Document->GetDocument().project().findRoomLabel(Document->GetEditController().selectedRoom());
+	if (!TestNotNull(TEXT("layout stored"), Stored)) return false;
+	TestTrue(TEXT("name offset from the label point"), Stored->nameOffset == f101::cad::Vector2D{
+		static_cast<int64>(std::llround(Name->centre.x_mm - Name->anchor.x_mm)), static_cast<int64>(std::llround(Name->centre.y_mm + 800.0 - Name->anchor.y_mm))});
+	TestFalse(TEXT("area untouched"), Stored->areaOffset.has_value());
+
+	// Sizes typed in the panel (cm), then the area dragged on its own.
+	TestTrue(TEXT("name size"), Document->Edit([](EditController& E) { return E.setSelectedRoomNameHeight("30"); }).ok());
+	TestTrue(TEXT("area size"), Document->Edit([](EditController& E) { return E.setSelectedRoomAreaHeight("10"); }).ok());
+	TestEqual(TEXT("name written at 300 mm"), Written("Habitación 1")->heightMm, 300.0);
+	const auto Area = Text(true);
+	if (!TestTrue(TEXT("the plan publishes the area"), Area.has_value() && Area->heightMm == 100.0)) return false;
+	TestTrue(TEXT("press the area"), Document->Edit([&](EditController& E) { return E.pointerPressed(Down(Area->centre.x_mm, Area->centre.y_mm)); }).ok());
+	TestTrue(TEXT("drag the area"), Document->Edit([&](EditController& E) { E.pointerMoved(Down(Area->centre.x_mm + 1000.0, Area->centre.y_mm - 500.0)); return f101::Status::success(); }).ok());
+	TestTrue(TEXT("release the area"), Document->Edit([&](EditController& E) { return E.pointerReleased(Down(Area->centre.x_mm + 1000.0, Area->centre.y_mm - 500.0)); }).ok());
+	TestTrue(TEXT("area moved"), Text(true).has_value() && FMath::IsNearlyEqual(Text(true)->centre.x_mm, Area->centre.x_mm + 1000.0, 0.5));
+	TestTrue(TEXT("undo the area"), Document->Edit([](EditController& E) { return E.undo(); }).ok());
+	TestTrue(TEXT("area back"), FMath::IsNearlyEqual(Text(true)->centre.x_mm, Area->centre.x_mm, 0.5));
+	TestTrue(TEXT("redo the area"), Document->Edit([](EditController& E) { return E.redo(); }).ok());
+
+	// Saved with the project and written into the exported plan.
+	const std::vector<f101::cad::RoomLabel> Layouts = Document->GetDocument().project().roomLabels;
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101/RoomLabels")));
+	const FString Json = FPaths::Combine(Folder, TEXT("project.json"));
+	TestTrue(TEXT("save"), Document->SaveProject(Json).ok());
+	TestTrue(TEXT("new document"), Document->NewProject().ok());
+	TestTrue(TEXT("reopen"), Document->OpenProject(Json).ok());
+	TestTrue(TEXT("layouts persisted"), Document->GetDocument().project().roomLabels == Layouts);
+	const FString SvgPath = FPaths::Combine(Folder, TEXT("plan.svg"));
+	TestTrue(TEXT("SVG export"), Document->ExportPlan(SvgPath, {}).ok());
+	TArray<FString> Lines;
+	TestTrue(TEXT("SVG written"), FFileHelper::LoadFileToStringArray(Lines, *SvgPath));
+	TestTrue(TEXT("SVG name at its size"), Lines.ContainsByPredicate([](const FString& L) { return L.Contains(TEXT(">Habitación 1<")) && L.Contains(TEXT("font-size=\"416.7\"")); }));
+
+	// Back to automatic: positions first (sizes stay), then sizes, which leaves nothing to store.
+	Document->SetPlanView(true);
+	TestTrue(TEXT("select the room"), Document->Edit([](EditController& E) { return E.pointerPressed(Down(500.0, 600.0)); }).ok());
+	TestTrue(TEXT("automatic positions"), Document->Edit([](EditController& E) { return E.resetSelectedRoomTextPositions(); }).ok());
+	TestTrue(TEXT("sizes kept"), Document->GetEditController().selectedRoomLabel().nameHeightMm == 300 &&
+		!Document->GetEditController().selectedRoomLabel().nameOffset);
+	TestTrue(TEXT("default sizes"), Document->Edit([](EditController& E)
+	{
+		const f101::Status Name = E.setSelectedRoomNameHeight("20");
+		return Name ? E.setSelectedRoomAreaHeight("15") : Name;
+	}).ok());
+	TestTrue(TEXT("nothing left to store"), Document->GetDocument().project().roomLabels.empty());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OverlappingRoomTest, "Floor101.Interaction.OverlappingRoomNames", InteractionTestFlags)
 bool FFloor101OverlappingRoomTest::RunTest(const FString& Parameters)
 {

@@ -160,6 +160,31 @@ namespace Floor101::PackageCheck
 				Check(Document->Edit([](f101::cad::EditController& E) { return E.deleteSelection(); }).ok(), TEXT("dimension_delete_automatic"));
 				Check(Document->Edit([](f101::cad::EditController& E) { return E.undo(); }).ok(), TEXT("dimension_undo"));
 				Check(Document->Edit([](f101::cad::EditController& E) { return E.redo(); }).ok(), TEXT("dimension_redo"));
+				// Room texts (ADR-0035): the narrow room's name dragged up on the plan, then both of its texts made smaller.
+				{
+					const auto& Texts = Document->GetPlanDrawing().roomTexts;
+					const auto Narrow = std::find_if(Texts.begin(), Texts.end(), [](const f101::cad::RoomText& T) { return !T.area && T.anchor.x_mm < 1000.0; });
+					if (Check(Narrow != Texts.end(), TEXT("room_text_published")))
+					{
+						const f101::cad::RoomText Name = *Narrow;
+						Check(Document->Edit([Name](f101::cad::EditController& E) { return E.pointerPressed({Name.centre.x_mm,Name.centre.y_mm,10000,0,0,-1}); }).ok() &&
+							Document->GetEditController().isDraggingRoomText(), TEXT("room_text_grab"));
+						Check(Document->Edit([Name](f101::cad::EditController& E)
+						{
+							E.pointerMoved({Name.centre.x_mm,Name.centre.y_mm + 1200,10000,0,0,-1});
+							return E.pointerReleased({Name.centre.x_mm,Name.centre.y_mm + 1200,10000,0,0,-1});
+						}).ok(), TEXT("room_text_drag"));
+						const auto* Layout = Document->GetDocument().project().findRoomLabel(Name.room);
+						Check(Layout && Layout->nameOffset && !Layout->areaOffset, TEXT("room_text_moved"));
+						Check(Document->Edit([](f101::cad::EditController& E)
+						{
+							const f101::Status Sized = E.setSelectedRoomNameHeight("12");
+							return Sized ? E.setSelectedRoomAreaHeight("9") : Sized;
+						}).ok(), TEXT("room_text_size"));
+						Check(std::any_of(Document->GetPlanDrawing().labels.begin(), Document->GetPlanDrawing().labels.end(),
+							[](const auto& Label) { return Label.heightMm == 120.0; }), TEXT("room_text_plan"));
+					}
+				}
 				const auto Walls = Document->GetDocument().project().walls.size();
 				Check(Document->SaveProject(FPaths::Combine(Directory, TEXT("project.json"))).ok(), TEXT("save_project"));
 				Check(Document->NewProject().ok() && Document->OpenProject(FPaths::Combine(Directory, TEXT("project.json"))).ok() &&
@@ -172,6 +197,9 @@ namespace Floor101::PackageCheck
 					BaseboardsPersisted = BaseboardsPersisted && B && B->enabled && B->heightMm == 150 && B->finish == "wood-walnut";
 				}
 				Check(BaseboardsPersisted, TEXT("baseboard_division_reopen"));
+				const auto& Layouts = Document->GetDocument().project().roomLabels;
+				Check(Layouts.size() == 1 && Layouts.front().nameHeightMm == 120 && Layouts.front().areaHeightMm == 90 && Layouts.front().nameOffset,
+					TEXT("room_text_reopen"));
 				const auto* HiddenDimension = Document->GetDocument().project().findDimension(Automatic.id);
 				Check(HiddenDimension && HiddenDimension->automatic && HiddenDimension->hidden && HiddenDimension->offsetMm == -1500 &&
 					Document->GetDocument().project().dimensions.size() == 2, TEXT("dimensions_reopen"));

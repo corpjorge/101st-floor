@@ -2642,6 +2642,13 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		return S ? S->GetDocument().project().findRoomBaseboard(S->GetEditController().selectedRoom()) : nullptr;
 	};
 
+	// How its name and area are written on the plan (ADR-0035).
+	auto Label = [this]() -> f101::cad::RoomLabel
+	{
+		const auto* S = Document.Get();
+		return S ? S->GetEditController().selectedRoomLabel() : f101::cad::RoomLabel{};
+	};
+
 	return SNew(SVerticalBox)
 		.Visibility_Lambda([this]() { return GetSelectedRoom() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight()
@@ -2654,6 +2661,23 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 					return Entry ? FText::FromString(UTF8_TO_TCHAR(Entry->name.c_str())) : FText::GetEmpty();
 				}, &EditController::setSelectedRoomName, false),
 				Ui::Note(LOCTEXT("RoomNameHint", "Nombre de habitación. Ej.: Cocina, Baño o Sala. Vacío: nombre automático."))}))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			Group(LOCTEXT("GroupRoomTexts", "Rótulo en el plano"), Stack({
+				MakePropertyRow(LOCTEXT("RoomNameSize", "Tamaño del nombre"), [Label]() -> TOptional<double>
+				{ return static_cast<double>(Label().nameHeightMm); }, &EditController::setSelectedRoomNameHeight),
+				MakePropertyRow(LOCTEXT("RoomAreaSize", "Tamaño del área"), [Label]() -> TOptional<double>
+				{ return static_cast<double>(Label().areaHeightMm); }, &EditController::setSelectedRoomAreaHeight),
+				Ui::Row(LOCTEXT("RoomTextsPlace", "Posición"),
+					SNew(SBox).HAlign(HAlign_Left)
+					[
+						Ui::Button(Floor101::Studio::EButton::Ghost, LOCTEXT("RoomTextsAuto", "Colocación automática"),
+							[this]() { Run([](EditController& E) { return E.resetSelectedRoomTextPositions(); }); }, {},
+							LOCTEXT("RoomTextsAutoTip", "Devuelve el nombre y el área a su sitio automático, apartados de las cotas. Conserva los tamaños."),
+							FText::GetEmpty(), TAttribute<bool>::CreateLambda([Label]() { const f101::cad::RoomLabel L = Label(); return L.nameOffset || L.areaOffset; }))
+					]),
+				Ui::Note(LOCTEXT("RoomTextsHint", "Altura de las letras en el plano. Para mover el nombre o el área, arrástralos en el plano 2D (Tab)."))}))
 		]
 		+ SVerticalBox::Slot().AutoHeight()
 		[

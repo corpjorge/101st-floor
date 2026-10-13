@@ -231,6 +231,30 @@ struct FFloor101WallInfo
 };
 
 /**
+ * How the plan writes one of a room's texts, its name or its area (ADR-0035).
+ */
+USTRUCT(BlueprintType)
+struct FFloor101RoomTextInfo
+{
+	GENERATED_BODY()
+
+	/** Height of its capitals on the plan, in millimetres. */
+	UPROPERTY()
+	int64 HeightMm = 0;
+
+	/** Whether it was moved; if not, the plan places it (off the automatic dimension figures where it can). */
+	UPROPERTY()
+	bool bMoved = false;
+
+	/** Where it was moved: its centre's offset from the room's label point, in millimetres. */
+	UPROPERTY()
+	int64 OffsetXMm = 0;
+
+	UPROPERTY()
+	int64 OffsetYMm = 0;
+};
+
+/**
  * A room: a region closed by walls. Derived from the walls, never stored.
  */
 USTRUCT(BlueprintType)
@@ -260,6 +284,20 @@ struct FFloor101RoomInfo
 	/** Ids of the walls around it. */
 	UPROPERTY()
 	TArray<FString> WallIds;
+
+	/** A point inside its floor, where its name and area go by default and moved texts are measured from; millimetres. */
+	UPROPERTY()
+	int64 LabelPointXMm = 0;
+
+	UPROPERTY()
+	int64 LabelPointYMm = 0;
+
+	/** Its name and its net area on the plan. */
+	UPROPERTY()
+	FFloor101RoomTextInfo NameText;
+
+	UPROPERTY()
+	FFloor101RoomTextInfo AreaText;
 
 	/** Transient actor of its floor slab in the target world. */
 	UPROPERTY()
@@ -843,6 +881,30 @@ public:
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void SetRoomFinish(const FString& RoomKey, const FString& FloorFinishId, const FString& CeilingFinishId);
+
+	/**
+	 * Sets how high the plan writes a room's name and area (GetRooms Key): the height of their capitals, 50 to 1000 mm
+	 * each (by default 200 and 150). Texts that were moved stay where they are.
+	 * @return The room.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101RoomInfo SetRoomLabelSize(const FString& RoomKey, int64 NameHeightMm, int64 AreaHeightMm);
+
+	/**
+	 * Moves a room's name (bArea false) or its area on the plan: its centre goes this far from the room's label point
+	 * (GetRooms LabelPointXMm/YMm), up to 100 m on each axis. It then stays there, and no longer moves off the dimension
+	 * figures.
+	 * @return The room.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101RoomInfo MoveRoomText(const FString& RoomKey, bool bArea, int64 OffsetXMm, int64 OffsetYMm);
+
+	/**
+	 * Puts a room's name and area back where the plan places them by itself; their sizes stay.
+	 * @return The room.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101RoomInfo ResetRoomTextPositions(const FString& RoomKey);
 
 	/**
 	 * Removes a wall and its actor.

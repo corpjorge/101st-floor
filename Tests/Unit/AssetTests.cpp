@@ -226,7 +226,7 @@ TEST_CASE_FIXTURE(Library, "project.json saves the asset library (schema 8; the 
 	REQUIRE(document.execute(ChangeAssetCommand{turned}).ok());
 	REQUIRE(document.execute(SetWallFinishCommand{wall, WallSide::Left, assetRef(parquet.id)}).ok());
 	const std::string json = writeProjectJson(document.project());
-	CHECK(json.find("\"schemaVersion\": 13") != std::string::npos);
+	CHECK(json.find("\"schemaVersion\": " + std::to_string(ProjectSchemaVersion)) != std::string::npos);
 	CHECK(json.find("\"kind\": \"texture\"") != std::string::npos);
 	CHECK(json.find("\"surfaces\": [\n          \"floors\"\n        ]") != std::string::npos);
 	CHECK(json.find("\"unit\": \"cm\"") != std::string::npos);

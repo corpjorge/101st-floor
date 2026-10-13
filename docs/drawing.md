@@ -29,6 +29,12 @@ Geometry, nunca de Unreal. Se deriva bajo demanda y nunca se guarda.
   - **Habitaciones** (`detectRooms`): nombre personalizado (`Project::roomNames`) o automático (`DrawingTexts::roomName`,
     "{n}" = 1, 2... por clave) y área neta, en su punto de rótulo; si una cifra de cota automática los taparía, se
     desplazan en horizontal (después en vertical) al sitio libre más cercano del suelo. SVG y PNG usan los mismos nombres.
+    Cada habitación puede tener su `Project::roomLabels` (ADR-0035): la altura de sus dos textos y, para el que el usuario
+    arrastró, su centro como desplazamiento desde el punto de rótulo; ese texto se queda ahí y no se aparta de las
+    cifras, y los que siguen automáticos se colocan como siempre con sus alturas. `PlanDrawing::roomTexts` publica la caja
+    de cada texto (habitación, nombre o área, centro, ancho, alto y punto de rótulo), con las mismas medidas con que se
+    pinta, para el picking del `EditController`. En la vista, `PlanOverlay::selectedRoom` pinta los textos de la habitación
+    seleccionada en `DimensionSelected` y `PlanOverlay::previewRoomLabel` dibuja el arrastre en curso.
   - **Muebles** (ADR-0016): el contorno de la huella de cada mueble de la planta y los detalles de su tipo
     (`geometry::furnitureShape`: almohadas, edredón, cojines, cubetas, fuegos, desagüe...), en trazos finos grises.
     Un modelo importado (ADR-0017) solo dibuja su huella.
