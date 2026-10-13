@@ -115,3 +115,14 @@ dependencias locales (`Saved/PackageChecks/20261010-131358-functional`) y la de 
 (`Saved/PackageChecks/20261010-131415-home`). Ejecutable: `Packaged/0.2.0/Windows/Floor101.exe`. ZIP:
 `Packaged/0.2.0/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. La comprobación se realizó en este
 equipo; la prueba en otro equipo sin Unreal sigue pendiente.
+
+## Entrega 0.2.1 (2026-10-13)
+
+Portable Windows **0.2.1 Shipping**, generado desde `fe48585` con árbol limpio: cotas interiores automáticas de cara a
+cara, con su interruptor en Vista → Cotas interiores y en el toolset MCP (ADR-0034). Antes: 329 unitarios y 88 Unreal
+Automation aprobados (`Saved/Automation/20261013-162629`). El ejecutable aprueba las 86 comprobaciones funcionales,
+integridad SHA-256 y dependencias locales, con las cotas interiores en el plano SVG/PNG exportado
+(`Saved/PackageChecks/20261013-170233-functional`), y la de inicio a 1920 × 1080
+(`Saved/PackageChecks/20261013-170311-home`). Ejecutable: `Packaged/0.2.1/Windows/Floor101.exe`. ZIP:
+`Packaged/0.2.1/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. La comprobación se realizó en este
+equipo; la prueba en otro equipo sin Unreal sigue pendiente.
