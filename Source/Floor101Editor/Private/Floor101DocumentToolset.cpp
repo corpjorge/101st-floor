@@ -949,6 +949,20 @@ FFloor101ServicesViewInfo UFloor101DocumentToolset::GetServicesView()
 	return Info;
 }
 
+void UFloor101DocumentToolset::SetInteriorDimensionsShown(bool bShown)
+{
+	if (UFloor101DocumentSubsystem* Subsystem = GetSubsystem())
+	{
+		Subsystem->SetInteriorDimensionsShown(bShown);
+	}
+}
+
+bool UFloor101DocumentToolset::GetInteriorDimensionsShown()
+{
+	const UFloor101DocumentSubsystem* Subsystem = GetSubsystem();
+	return Subsystem && Subsystem->GetEditController().showsInteriorDimensions();
+}
+
 namespace
 {
 	FFloor101AssetInfo ToInfo(const f101::cad::Asset& Asset, const UFloor101DocumentSubsystem& Subsystem)

@@ -871,6 +871,17 @@ bool FFloor101PlanViewTest::RunTest(const FString& Parameters)
 		[](const f101::drawing::Fill& Fill) { return Fill.ink == f101::drawing::Ink::Selected; }));
 	TestTrue(TEXT("with its handles"), std::any_of(Plan.fills.begin(), Plan.fills.end(),
 		[](const f101::drawing::Fill& Fill) { return Fill.ink == f101::drawing::Ink::Handle; }));
+	// Interior dimensions (ADR-0034), face to face inside the room; the View menu hides them, in the plan and its export.
+	TestTrue(TEXT("an interior dimension, face to face"), HasLabel("3,88"));
+	Document->SetInteriorDimensionsShown(false); // as the application applies the saved preference
+	TestFalse(TEXT("hidden in the plan"), HasLabel("3,88"));
+	TestTrue(TEXT("the walls keep theirs"), HasLabel("4,00"));
+	const FString HiddenSvgPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101"), TEXT("InteriorHidden.svg")));
+	FString HiddenSvg;
+	TestTrue(TEXT("exported without them"), Document->ExportPlan(HiddenSvgPath, f101::cad::LevelId()).ok() &&
+		FFileHelper::LoadFileToString(HiddenSvg, *HiddenSvgPath) && !HiddenSvg.Contains(TEXT("3,88")) && HiddenSvg.Contains(TEXT("4,00")));
+	TestTrue(TEXT("show them again, as the View menu does"), Document->Edit([](EditController& Editor) { Editor.setShowInteriorDimensions(true); return f101::Status::success(); }).ok());
+	TestTrue(TEXT("back in the plan"), HasLabel("3,88"));
 	Document->SetPlanView(false);
 	TestTrue(TEXT("hidden: nothing drawn"), Document->GetPlanDrawing().empty());
 

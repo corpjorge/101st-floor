@@ -123,6 +123,70 @@ TEST_CASE("a wall sticking into a room is cut out of its floor")
 	CHECK(rooms[0].walls.size() == 5);
 }
 
+TEST_CASE("a room's sides run along its wall faces from face to face, counter-clockwise, with their wall and face")
+{
+	Plan plan;
+	plan.loop({{0, 0}, {0, 3000}, {4000, 3000}, {4000, 0}}); // clockwise: the room is on each wall's right
+	const std::vector<Room> rooms = detectRooms(plan.project);
+	REQUIRE(rooms.size() == 1);
+	const std::vector<RoomSide>& sides = rooms[0].sides;
+	REQUIRE(sides.size() == 4);
+	for (const RoomSide& side : sides)
+	{
+		CHECK_FALSE(side.left);
+		CHECK(side.segment == 0);
+	}
+	// Each one starts where the previous one ends, the floor on its left.
+	const auto at = [](const RoomSide& side, cad::PlanPoint start, cad::PlanPoint end)
+	{
+		return side.start.x_mm == doctest::Approx(start.x_mm) && side.start.y_mm == doctest::Approx(start.y_mm) &&
+			side.end.x_mm == doctest::Approx(end.x_mm) && side.end.y_mm == doctest::Approx(end.y_mm);
+	};
+	const auto west = std::find_if(sides.begin(), sides.end(), [](const RoomSide& side) { return side.wall == cad::WallId{cad::Uuid{0, 1}}; });
+	REQUIRE(west != sides.end());
+	CHECK(at(*west, {60.0, 2940.0}, {60.0, 60.0}));
+	const auto south = std::find_if(sides.begin(), sides.end(), [](const RoomSide& side) { return side.wall == cad::WallId{cad::Uuid{0, 4}}; });
+	REQUIRE(south != sides.end());
+	CHECK(at(*south, {60.0, 60.0}, {3940.0, 60.0}));
+	for (std::size_t i = 0; i < sides.size(); ++i)
+	{
+		const RoomSide& next = sides[(i + 1) % sides.size()];
+		CHECK(sides[i].end.x_mm == doctest::Approx(next.start.x_mm));
+		CHECK(sides[i].end.y_mm == doctest::Approx(next.start.y_mm));
+	}
+}
+
+TEST_CASE("a wall standing into a room adds a side along each of its faces, and the face it stands on splits")
+{
+	Plan plan;
+	plan.loop({{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}});
+	const cad::WallId stub = plan.add({2000, 3000}, {2000, 1500});
+	const std::vector<Room> rooms = detectRooms(plan.project);
+	REQUIRE(rooms.size() == 1);
+	const std::vector<RoomSide>& sides = rooms[0].sides;
+	CHECK(sides.size() == 7); // the north face in two segments, both faces of the stub; its free end is no side
+	std::vector<std::size_t> north;
+	for (const RoomSide& side : sides)
+	{
+		if (side.wall == cad::WallId{cad::Uuid{0, 3}})
+		{
+			north.push_back(side.segment);
+		}
+	}
+	std::sort(north.begin(), north.end());
+	CHECK(north == std::vector<std::size_t>{0, 1});
+	const auto east = std::find_if(sides.begin(), sides.end(), [&stub](const RoomSide& side) { return side.wall == stub && side.left; });
+	REQUIRE(east != sides.end()); // the stub runs south: its left face looks east, and is walked south, the floor on its left
+	CHECK(east->start.x_mm == doctest::Approx(2060.0));
+	CHECK(east->start.y_mm == doctest::Approx(2940.0));
+	CHECK(east->end.y_mm == doctest::Approx(1500.0));
+	const auto westFace = std::find_if(sides.begin(), sides.end(), [&stub](const RoomSide& side) { return side.wall == stub && !side.left; });
+	REQUIRE(westFace != sides.end());
+	CHECK(westFace->start.x_mm == doctest::Approx(1940.0));
+	CHECK(westFace->start.y_mm == doctest::Approx(1500.0));
+	CHECK(westFace->end.y_mm == doctest::Approx(2940.0));
+}
+
 TEST_CASE("each wall insets the floor by its own half-thickness")
 {
 	Plan plan;

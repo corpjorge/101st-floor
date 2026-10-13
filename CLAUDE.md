@@ -67,6 +67,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   el picking y el dibujo. `project.json` esquema 13 (ADR-0031).
 - Arrastrar el cuerpo de una pared la traslada con sus uniones (`TranslateWallCommand`), sin cambio de esquema
   (ADR-0032).
+- Cotas interiores automáticas de cara a cara: una por tramo recto del suelo de cada habitación (`Room::sides`), salvo la
+  cara con la cota de partición y la repetida de dos caras opuestas; el nombre y el área se apartan de sus cifras.
+  Vista → Cotas interiores las oculta (estado del `EditController`, preferencia local). Sin cambio de esquema (ADR-0034).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno
@@ -79,7 +82,7 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, esquinas,
   habitaciones, puertas y ventanas con su carpintería, muebles, pilares, instalaciones y su capa, assets importados,
-  biblioteca, acabados, vista por planta,
+  biblioteca, acabados, vista por planta, cotas interiores visibles u ocultas,
   deshacer/rehacer, guardar/abrir, exportar el plano y el `.glb` para Twinmotion). Con PIE activo actúa sobre el documento de PIE; si no, sobre el del editor.
 - Unreal MCP: descubrir con `list_toolsets`/`describe_toolset`, invocar con `call_tool`, verificar cada resultado.
   Commit antes de sesiones MCP largas o mutativas.

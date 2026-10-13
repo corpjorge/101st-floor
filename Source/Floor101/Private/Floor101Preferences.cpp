@@ -70,6 +70,21 @@ namespace Floor101::Preferences
 	{
 		if (GConfig) { GConfig->SetBool(TEXT("Floor101.Interface"), TEXT("ShowGrid"), bShow, GGameUserSettingsIni); GConfig->Flush(false, GGameUserSettingsIni); }
 	}
+	bool ShowInteriorDimensions()
+	{
+		FString Review;
+		if (FParse::Value(FCommandLine::Get(), TEXT("F101UICapture="), Review))
+		{
+			return true; // reproducible review; never changes the user's saved preference
+		}
+		bool bShow = true;
+		if (GConfig) { GConfig->GetBool(TEXT("Floor101.Interface"), TEXT("ShowInteriorDimensions"), bShow, GGameUserSettingsIni); }
+		return bShow;
+	}
+	void SetShowInteriorDimensions(bool bShow)
+	{
+		if (GConfig) { GConfig->SetBool(TEXT("Floor101.Interface"), TEXT("ShowInteriorDimensions"), bShow, GGameUserSettingsIni); GConfig->Flush(false, GGameUserSettingsIni); }
+	}
 	int32 GraphicsQuality()
 	{
 		int32 Profile = FMath::Clamp(Scalability::GetQualityLevels().TextureQuality - 1, 0, 2);

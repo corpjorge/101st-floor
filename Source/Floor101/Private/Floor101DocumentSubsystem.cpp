@@ -292,15 +292,20 @@ void UFloor101DocumentSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	Super::Initialize(Collection);
 	Document = MakePimpl<f101::cad::Document>(f101::cad::makeRandomUuidSource());
 	Editor = MakePimpl<f101::cad::EditController>(*Document, f101::cad::EditSettings{});
-	Editor->setDimensionProvider([this, CachedChange = ~uint64{0}, CachedLevel = f101::cad::LevelId{},
+	Editor->setDimensionProvider([this, CachedChange = ~uint64{0}, CachedLevel = f101::cad::LevelId{}, bCachedInterior = true,
 		Cached = std::vector<f101::cad::Dimension>{}](const f101::cad::Project& Project, const f101::cad::LevelId& Level) mutable
 	{
-		// Slate reads selection several times per frame; derive once per model revision and level.
-		if (CachedChange != ChangeCount || CachedLevel != Level)
+		// Slate reads selection several times per frame; derive once per model revision, level and interior layer
+		// (hidden interior dimensions cannot be picked, ADR-0034).
+		const bool bInterior = Editor->showsInteriorDimensions();
+		if (CachedChange != ChangeCount || CachedLevel != Level || bCachedInterior != bInterior)
 		{
-			Cached = f101::drawing::buildPlanDrawing(Project, Level).dimensions;
+			f101::drawing::PlanOverlay Layers;
+			Layers.interiorDimensions = bInterior;
+			Cached = f101::drawing::buildPlanDrawing(Project, Level, Layers).dimensions;
 			CachedChange = ChangeCount;
 			CachedLevel = Level;
+			bCachedInterior = bInterior;
 		}
 		return Cached;
 	});
@@ -692,6 +697,12 @@ void UFloor101DocumentSubsystem::SetPlanView(bool bShown)
 	Resync(false);
 }
 
+void UFloor101DocumentSubsystem::SetInteriorDimensionsShown(bool bShown)
+{
+	Editor->setShowInteriorDimensions(bShown);
+	Resync(false);
+}
+
 const f101::drawing::PlanDrawing& UFloor101DocumentSubsystem::GetPlanDrawing() const
 {
 	return *PlanDrawing;
@@ -834,10 +845,12 @@ f101::Status UFloor101DocumentSubsystem::ExportPlan(const FString& Path, const f
 	{
 		return Fail("Cannot create the folder " + std::string(TCHAR_TO_UTF8(*Directory)));
 	}
-	// No editing marks; the runs of the building services when their layer is shown, of the networks it shows (ADR-0021).
+	// No editing marks; the runs of the building services when their layer is shown, of the networks it shows (ADR-0021),
+	// and the interior dimensions when the view shows them (ADR-0034).
 	f101::drawing::PlanOverlay Layers;
 	Layers.services = Editor->showsServices();
 	Layers.serviceKinds = Editor->shownServiceKinds();
+	Layers.interiorDimensions = Editor->showsInteriorDimensions();
 	const f101::drawing::PlanDrawing Drawing = f101::drawing::buildPlanDrawing(Model, Target, Layers, PlanTexts());
 	if (Extension == TEXT("svg"))
 	{
@@ -996,6 +1009,7 @@ void UFloor101DocumentSubsystem::Resync(bool bDocumentChanged)
 		Marks.previewColumns = View.previewColumns;
 		Marks.selectedServiceRun = View.selectedServiceRun;
 		Marks.previewServiceRuns = View.previewServiceRuns;
+		Marks.interiorDimensions = View.showInteriorDimensions;
 		Marks.handles = View.handles;
 		Marks.handleSizeMm = static_cast<double>(Editor->settings().handleSizeMm);
 		*PlanDrawing = f101::drawing::buildPlanDrawing(Document->project(), View.activeLevel, Marks, PlanTexts());

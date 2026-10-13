@@ -971,6 +971,20 @@ public:
 	static FFloor101ServicesViewInfo GetServicesView();
 
 	/**
+	 * Shows or hides the interior dimensions of the 2D plan, like View > Interior dimensions in the UI (ADR-0034): face to
+	 * face inside each room. Hidden, they leave the plan, the exported plans and dimension picking. A view setting: the
+	 * project and its history do not change, and the application's saved preference stays as it was.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static void SetInteriorDimensionsShown(bool bShown);
+
+	/**
+	 * Returns whether the 2D plan shows the interior dimensions.
+	 */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static bool GetInteriorDimensionsShown();
+
+	/**
 	 * Returns the project's imported assets (textures and models) in import order.
 	 */
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
@@ -1054,8 +1068,9 @@ public:
 	static TArray<FFloor101WallInfo> OpenProject(const FString& Path);
 
 	/**
-	 * Exports the floor plan of a level: cut walls and columns, doors and windows, dimensions in metres, room names and
-	 * areas, and the building-services runs while their layer is shown (SetServicesView).
+	 * Exports the floor plan of a level: cut walls and columns, doors and windows, dimensions in metres (the interior ones
+	 * while shown, SetInteriorDimensionsShown), room names and areas, and the building-services runs while their layer is
+	 * shown (SetServicesView).
 	 * @param Path Absolute path ending in .svg or .png (PNG needs a renderer).
 	 * @param LevelId Empty: the level being edited.
 	 */

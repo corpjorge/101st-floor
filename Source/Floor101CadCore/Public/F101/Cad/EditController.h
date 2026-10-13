@@ -109,6 +109,8 @@ namespace f101::cad
 		ServiceRunId selectedServiceRun; // nil: none
 		// The run being drawn (nil id) or the selected one where a drag would leave it (its own id).
 		std::vector<ServiceRun> previewServiceRuns;
+		// The plan's interior dimensions (ADR-0034), in the view and in the exported plan.
+		bool showInteriorDimensions = true;
 	};
 
 	// Interactive editing of a document, independent of any engine (ADR-0008). The engine translates its input into
@@ -196,6 +198,10 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setDimensionText(std::string_view text);
 		FLOOR101CADCORE_API Status setDimensionCoordinate(std::string_view text, int coordinate);
 		FLOOR101CADCORE_API Status restoreAutomaticDimensions();
+		// The plan's interior dimensions (ADR-0034), shown by default; the provider leaves them out while hidden, so they
+		// cannot be picked. Hiding them lets go of a selected one.
+		bool showsInteriorDimensions() const { return interiorDimensionsShown; }
+		FLOOR101CADCORE_API void setShowInteriorDimensions(bool show);
 		std::size_t dimensionPointCount() const { return dimensions.draftPointCount(); }
 		// Property edits of the selected wall, typed like the wall tool input ("355", "3.55 m"...).
 		FLOOR101CADCORE_API Status setSelectionLength(std::string_view text);
@@ -482,6 +488,7 @@ namespace f101::cad
 		std::optional<Column> columnAt; // Column mode placement
 		bool servicesShown = false;
 		ServiceKindSet serviceKindsShown;
+		bool interiorDimensionsShown = true;
 		ServiceRunId selectedRunId;
 		std::optional<RunDrag> runDrag;
 		std::vector<ServicePoint> runDraft;     // Services mode: the run being drawn

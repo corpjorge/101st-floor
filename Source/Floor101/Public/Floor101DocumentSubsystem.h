@@ -116,6 +116,8 @@ public:
 	// 2D plan (ADR-0015). While it is shown, every refresh also draws the edited level's plan with the editing marks
 	// (selection, previews, handles).
 	void SetPlanView(bool bShown);
+	// The plan's interior dimensions (ADR-0034): a view setting, like the plan itself; the project and the status stay.
+	void SetInteriorDimensionsShown(bool bShown);
 	void SetDimensionPickTolerance(double Mm);
 	bool IsPlanView() const { return bPlanView; }
 	const f101::drawing::PlanDrawing& GetPlanDrawing() const;

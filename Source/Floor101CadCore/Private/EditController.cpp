@@ -1921,6 +1921,19 @@ namespace f101::cad
 		}
 	}
 
+	void EditController::setShowInteriorDimensions(bool show)
+	{
+		interiorDimensionsShown = show;
+		if (!show)
+		{
+			dimensions.dropDrag();
+			if (!dimensions.selected(activeLevel()))
+			{
+				dimensions.clearSelection(); // no longer shown, so no longer edited
+			}
+		}
+	}
+
 	void EditController::setServiceKindShown(ServiceKind kind, bool shown)
 	{
 		serviceKindsShown.set(kind, shown);
@@ -2259,6 +2272,7 @@ namespace f101::cad
 		result.selectedRoom = selectedRoom();
 		result.showServices = servicesShown;
 		result.serviceKinds = serviceKindsShown;
+		result.showInteriorDimensions = interiorDimensionsShown;
 		const Project& project = document.project();
 		if (currentMode == EditMode::Column)
 		{

@@ -27,7 +27,8 @@ Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se rege
   suelos.
 - **Habitaciones** (`Rooms.h`): `detectRooms(project)` → caras acotadas del grafo plano de ejes (partidos en T y cruces).
   Cada `Room` trae el contorno del suelo (caras interiores de los muros), el área neta, un punto de etiqueta interior, sus
-  muros y una clave determinista. `buildFloorMesh(room)` → losa de 10 mm (`floor`, `floor_edge`, `floor_bottom`).
+  muros, una clave determinista y sus lados (`RoomSide`: muro, cara, tramo e inicio y fin de cada cara a lo largo del
+  suelo, antihorario; ADR-0034). `buildFloorMesh(room)` → losa de 10 mm (`floor`, `floor_edge`, `floor_bottom`).
   `buildSlabMesh(room, bottomZ, topZ)` → forjado sobre el mismo contorno (`slab_top`, `slab_edge`, `ceiling`; ADR-0011).
   `makeRoomLocator()` da al `EditController` la habitación cuyo suelo contiene un punto (seleccionar y pintar suelos).
 - **Carpintería** (`CarpentryBuilder.h`, ADR-0013, ADR-0014): `buildOpeningMesh(wall, footprint, opening)` → en el hueco

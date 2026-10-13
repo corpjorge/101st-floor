@@ -817,7 +817,7 @@ void FFloor101DocumentToolsetSpec::Define()
 			UFloor101DocumentToolset::RemoveWall(First.Id);
 		});
 
-		It("ExportPlan writes the plan as SVG; raises on another extension and on an unknown level", [this]()
+		It("ExportPlan writes the plan as SVG, with or without the interior dimensions; raises on another extension and on an unknown level", [this]()
 		{
 			TArray<FString> Ids;
 			const int64 Corners[][2] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
@@ -835,6 +835,17 @@ void FFloor101DocumentToolsetSpec::Define()
 			TestTrue(TEXT("written"), FFileHelper::LoadFileToString(Svg, *Path));
 			TestTrue(TEXT("an SVG sheet"), Svg.StartsWith(TEXT("<?xml")) && Svg.Contains(TEXT("<svg xmlns=\"http://www.w3.org/2000/svg\"")));
 			TestTrue(TEXT("with the cut walls and the room's area"), Svg.Contains(TEXT("<polygon")) && Svg.Contains(TEXT("11,17 m²")));
+			// Interior dimensions (ADR-0034): face to face, until the view hides them.
+			TestTrue(TEXT("interior dimensions shown"), UFloor101DocumentToolset::GetInteriorDimensionsShown());
+			TestTrue(TEXT("with the room's clear width"), Svg.Contains(TEXT("3,88")));
+			UFloor101DocumentToolset::SetInteriorDimensionsShown(false);
+			TestFalse(TEXT("interior dimensions hidden"), UFloor101DocumentToolset::GetInteriorDimensionsShown());
+			UFloor101DocumentToolset::ExportPlan(Path, TEXT(""));
+			FString Bare;
+			TestTrue(TEXT("written again"), FFileHelper::LoadFileToString(Bare, *Path));
+			TestTrue(TEXT("without them, with the walls' own"), !Bare.Contains(TEXT("3,88")) && Bare.Contains(TEXT("4,00")));
+			UFloor101DocumentToolset::SetInteriorDimensionsShown(true);
+			TestTrue(TEXT("shown again"), UFloor101DocumentToolset::GetInteriorDimensionsShown());
 			AddExpectedMessagePlain(TEXT("F101: Export the plan as .svg or .png"), ELogVerbosity::Warning); // the status message
 			ExpectRaises(TEXT("Export the plan as .svg or .png"),
 				[&Directory] { UFloor101DocumentToolset::ExportPlan(FPaths::Combine(Directory, TEXT("plan.pdf")), TEXT("")); });
