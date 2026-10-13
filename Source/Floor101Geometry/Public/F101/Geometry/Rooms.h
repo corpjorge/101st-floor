@@ -7,6 +7,7 @@
 #include "F101/Cad/Document.h"
 #include "F101/Geometry/MeshData.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -14,6 +15,17 @@
 // Rooms: the closed regions enclosed by walls (ADR-0009). Derived from the walls on every compile; never stored.
 namespace f101::geometry
 {
+	// A stretch of a room's floor edge along one wall face: from the face (or free end) it meets at one end to the one it
+	// meets at the other, counter-clockwise around the floor, so the room is on its left.
+	struct RoomSide
+	{
+		cad::WallId wall;
+		bool left = true;         // the face is the wall's left one (the room is on the wall's left)
+		std::size_t segment = 0;  // which segment of the wall, as in Room::key
+		cad::PlanPoint start;
+		cad::PlanPoint end;
+	};
+
 	struct Room
 	{
 		// Deterministic identity: the lowest bounding wall id, the side of it the room is on and which segment of that
@@ -23,6 +35,9 @@ namespace f101::geometry
 		double areaMm2 = 0.0;                // net floor area (inside the walls)
 		cad::PlanPoint labelPoint;           // a point inside the floor, for its label
 		std::vector<cad::WallId> walls;      // bounding walls, sorted, unique
+		// The floor edge wall by wall, in outline order. A wall met straight on continues it in a new side; the end cap of
+		// a wall standing into the room is no side. Sides left without length by thick walls are dropped.
+		std::vector<RoomSide> sides;
 	};
 
 	// Wall axes form a planar graph: ends that meet, ends inside another wall's body (T) and crossing axes are joined

@@ -7,6 +7,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <string>
+#include <vector>
 
 using namespace f101;
 using namespace f101::cad;
@@ -301,6 +304,58 @@ TEST_CASE("automatic dimensions can be selected, dragged, hidden and restored wh
 	CHECK(drawing::buildPlanDrawing(doc.project(), level).dimensions.empty());
 	REQUIRE(editor.redo().ok());
 	CHECK(doc.project().dimensions.empty());
+}
+
+TEST_CASE("interior dimensions are picked, dragged, hidden and restored like the others while following the walls")
+{
+	Document doc{makeSequentialUuidSource()};
+	const Point2D corners[] = {{0, 0}, {4000, 0}, {4000, 3000}, {0, 3000}};
+	std::vector<WallId> walls;
+	for (int i = 0; i < 4; ++i) walls.push_back(doc.addWall(corners[i], corners[(i + 1) % 4], 120, 2800).value());
+	EditController editor{doc, {}};
+	dimensions(editor);
+	const LevelId level = editor.activeLevel();
+	const std::string id = "auto/" + toString(walls[0]) + "/interior-left-0";
+	const auto shown = [&](const Project& project) -> std::optional<Dimension>
+	{
+		for (const Dimension& d : drawing::buildPlanDrawing(project, level).dimensions) if (d.id == id) return d;
+		return std::nullopt;
+	};
+	const auto south = shown(doc.project());
+	REQUIRE(south);
+	CHECK(south->level == level);
+	CHECK(south->start == Point2D{60, 60});
+	CHECK(south->end == Point2D{3940, 60});
+	// Picked by its figure and dragged 200 mm further into the room: one stored preference, the walls untouched.
+	const PlanPoint figure = dimensionLabelPoint(*south);
+	REQUIRE(editor.pointerPressed(above(figure.x_mm, figure.y_mm)).ok());
+	REQUIRE(editor.selectedDimension());
+	CHECK(editor.selectedDimension()->id == id);
+	editor.pointerMoved(above(figure.x_mm, figure.y_mm + 200));
+	REQUIRE(editor.pointerReleased(above(figure.x_mm, figure.y_mm + 200)).ok());
+	CHECK(editor.selectedDimension()->offsetMm == 350);
+	REQUIRE(doc.project().findDimension(id) != nullptr);
+	CHECK(doc.project().walls.front().start == Point2D{0, 0});
+	// The east wall moves 1 m east: the same dimension measures the new faces where it was placed.
+	REQUIRE(doc.execute(TranslateWallCommand{walls[1], {1000, 0}}).ok());
+	const auto wider = shown(doc.project());
+	REQUIRE(wider);
+	CHECK(wider->end == Point2D{4940, 60});
+	CHECK(wider->offsetMm == 350);
+	CHECK(hasFigure(drawing::buildPlanDrawing(doc.project(), level), "4.88"));
+	// Hidden, it stays hidden after saving, its opposite face does not stand in for it, and Restore brings it back.
+	REQUIRE(editor.selectDimension(id).ok());
+	REQUIRE(editor.deleteSelection().ok());
+	CHECK_FALSE(shown(doc.project()));
+	CHECK_FALSE(hasFigure(drawing::buildPlanDrawing(doc.project(), level), "4.88"));
+	const auto persisted = readProjectJson(writeProjectJson(doc.project()));
+	REQUIRE(persisted.ok());
+	CHECK_FALSE(shown(persisted.value()));
+	REQUIRE(editor.restoreAutomaticDimensions().ok());
+	REQUIRE(shown(doc.project()));
+	CHECK(shown(doc.project())->offsetMm == 150);
+	REQUIRE(editor.undo().ok());
+	CHECK_FALSE(shown(doc.project()));
 }
 
 TEST_CASE("opening-chain overrides belong to stable boundaries and never hide newly inserted spans")

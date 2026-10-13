@@ -35,6 +35,22 @@ rodapiés. Las manuales conservan puntos fijos; las automáticas siguen la geome
 Los archivos guardados requieren un lector del esquema 13; esta versión abre
 proyectos anteriores. Decisiones: [ADR-0031](adr/ADR-0031-editable-dimensions.md).
 
+## Cotas interiores
+
+Cada habitación muestra sus medidas libres **de cara a cara**, por dentro, a 15 cm de la pared: una cota por cada
+tramo recto del suelo, medida de la cara de una pared a la de la siguiente (una pared que entra en la habitación
+parte el tramo). En una habitación rectangular aparecen dos, el largo y el ancho libres, porque la cara opuesta
+repetiría la misma cifra. La cara de una pared entre dos habitaciones que ya lleva la cota de partición no repite
+otra interior.
+
+Son cotas automáticas: siguen a las paredes, se escriben en metros con dos decimales y se seleccionan, arrastran,
+renombran, ocultan, convierten en manuales y restauran igual que las demás. Las cotas por fuera siguen midiendo los
+ejes. Para la cifra al milímetro, selecciona la cota y mira «distancia real».
+
+En habitaciones estrechas (un baño o un pasillo de 1 m), el nombre y el área se apartan a un lado para no quedar
+debajo de una cifra. Solo se mueven en el plano; las cotas manuales no los desplazan.
+Decisiones: [ADR-0034](adr/ADR-0034-interior-dimensions.md).
+
 ## Verificación
 
 - 303 pruebas C++ / 13.880 aserciones aprobadas, incluidas mediciones libres

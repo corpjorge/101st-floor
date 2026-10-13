@@ -35,6 +35,7 @@
 | [0031](ADR-0031-editable-dimensions.md) | Cotas manuales y preferencias automáticas persistentes, comandos y esquema 13 | aceptado |
 | [0032](ADR-0032-wall-body-drag.md) | Arrastre del cuerpo de una pared con sus uniones (`TranslateWallCommand`) en una transacción; sin cambio de esquema | aceptado |
 | [0033](ADR-0033-cota-cero-design-system.md) | Sistema de diseño Cota Cero: tokens, tipografía de Windows, componentes Slate e islas flotantes; primera pantalla Diseñar | aceptado |
+| [0034](ADR-0034-interior-dimensions.md) | Cotas interiores automáticas de cara a cara por tramo del suelo (`Room::sides`); rótulos de habitación apartados de las cifras; sin cambio de esquema | aceptado |
 
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

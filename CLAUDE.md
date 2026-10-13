@@ -67,6 +67,9 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   el picking y el dibujo. `project.json` esquema 13 (ADR-0031).
 - Arrastrar el cuerpo de una pared la traslada con sus uniones (`TranslateWallCommand`), sin cambio de esquema
   (ADR-0032).
+- Cotas interiores automáticas de cara a cara: una por tramo recto del suelo de cada habitación (`Room::sides`), salvo la
+  cara con la cota de partición y la repetida de dos caras opuestas; el nombre y el área se apartan de sus cifras.
+  Sin cambio de esquema (ADR-0034).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
 
 ## Entorno

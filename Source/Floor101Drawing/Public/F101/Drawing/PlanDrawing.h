@@ -130,6 +130,8 @@ namespace f101::drawing
 	// Dimension lines stand this far out from a wall's face: the chain with its openings, then its overall length.
 	inline constexpr double ChainOffsetMm = 600.0;
 	inline constexpr double OverallOffsetMm = 1100.0;
+	// Interior dimensions stand this far into the room from the face they measure (ADR-0034).
+	inline constexpr double InteriorOffsetMm = 150.0;
 	inline constexpr double FigureHeightMm = cad::DimensionFigureHeightMm;
 	inline constexpr double RoomNameHeightMm = 200.0;
 	inline constexpr double RoomAreaHeightMm = 150.0;
@@ -145,7 +147,10 @@ namespace f101::drawing
 	// - dimensions, measured along the wall axes (the lengths the model is edited in): for each wall, on the side
 	//   without a room (the left one when both or neither have one), a chain through its openings' edges and its overall
 	//   length; walls with rooms on both sides only get their overall length. Figures in metres with two decimals;
-	// - each room's custom name or automatic name ("Room 1"...) and net area at its label point;
+	// - interior dimensions (ADR-0034), face to face: each straight stretch of a room's floor edge, InteriorOffsetMm into
+	//   the room, except along the face that carries a partition's length and the repeated opposite side of a rectangle;
+	// - each room's custom name or automatic name ("Room 1"...) and net area at its label point, or moved straight along
+	//   an axis to the nearest place on its floor where they cover no automatic dimension figure;
 	// - each piece of furniture: its outline and the details of its type (a mattress, a basin, a hob) as thin lines;
 	// - each column: cut, as a solid fill of its outline (ADR-0021);
 	// - with the overlay's services layer, each run on the level of the networks it shows: its plan path (a casing, then

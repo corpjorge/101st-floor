@@ -6,6 +6,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -74,6 +76,26 @@ namespace
 			}
 		}
 		return nullptr;
+	}
+
+	// Walls by id, so a test decides which of two opposite faces is named first (the lower id).
+	Wall wallOf(std::uint64_t id, Point2D start, Point2D end, std::int64_t thickness = 120)
+	{
+		return Wall{WallId{Uuid{0, id}}, start, end, thickness, 2800};
+	}
+
+	std::vector<Dimension> interior(const PlanDrawing& drawing)
+	{
+		std::vector<Dimension> found;
+		std::copy_if(drawing.dimensions.begin(), drawing.dimensions.end(), std::back_inserter(found),
+			[](const Dimension& d) { return d.id.find("/interior-") != std::string::npos; });
+		return found;
+	}
+
+	const Dimension* findDimension(const PlanDrawing& drawing, const std::string& id)
+	{
+		const auto found = std::find_if(drawing.dimensions.begin(), drawing.dimensions.end(), [&id](const Dimension& d) { return d.id == id; });
+		return found == drawing.dimensions.end() ? nullptr : &*found;
 	}
 
 	std::size_t occurrences(const std::string& text, const std::string& what)
@@ -161,6 +183,123 @@ TEST_CASE("dimensions stand outside: a chain through the openings and the overal
 	DrawingTexts spanish;
 	spanish.decimalSeparator = ',';
 	CHECK(findLabel(buildPlanDrawing(room(), LevelId(), {}, spanish), "0,70", {350.0, -835.0}) != nullptr);
+}
+
+TEST_CASE("interior dimensions measure each room face to face, inside it, once per pair of opposite faces")
+{
+	const PlanDrawing drawing = buildPlanDrawing(room(), LevelId());
+	const std::vector<Dimension> inside = interior(drawing);
+	REQUIRE(inside.size() == 2); // the north and west faces repeat the south and east ones
+	// South: from the west face to the east face (200 mm walls), 150 mm into the room; openings do not split it.
+	const Dimension* south = findDimension(drawing, "auto/" + toString(WallId{Uuid{0, 1}}) + "/interior-left-0");
+	REQUIRE(south != nullptr);
+	CHECK(south->automatic);
+	CHECK(south->start == Point2D{100, 100});
+	CHECK(south->end == Point2D{4900, 100});
+	CHECK(south->offsetMm == 150);
+	CHECK(findStroke(drawing, Ink::Dimension, {100.0, 250.0}, {4900.0, 250.0}) != nullptr);
+	CHECK(findStroke(drawing, Ink::Dimension, {100.0, 200.0}, {100.0, 350.0}) != nullptr); // extension line
+	CHECK(findLabel(drawing, "4.80", {2500.0, 385.0}) != nullptr);
+	// East: from the south face to the north one, read upwards.
+	const Dimension* east = findDimension(drawing, "auto/" + toString(WallId{Uuid{0, 2}}) + "/interior-left-0");
+	REQUIRE(east != nullptr);
+	CHECK(east->start == Point2D{4900, 100});
+	CHECK(east->end == Point2D{4900, 3900});
+	const Label* figure = findLabel(drawing, "3.80", {4615.0, 2000.0});
+	REQUIRE(figure != nullptr);
+	CHECK(figure->angleDegrees == doctest::Approx(90.0));
+	// The room keeps its name and area at its label point: no figure covers them.
+	CHECK(findLabel(drawing, "Room 1", {2500.0, 2160.0}) != nullptr);
+	CHECK(findLabel(drawing, "18.24 m2", {2500.0, 1865.0}) != nullptr);
+}
+
+TEST_CASE("interior dimensions follow the room's shape: an L gets every stretch, collinear walls make one")
+{
+	Project l;
+	l.walls = {wallOf(1, {0, 0}, {6000, 0}), wallOf(2, {6000, 0}, {6000, 3000}), wallOf(3, {6000, 3000}, {3000, 3000}),
+		wallOf(4, {3000, 3000}, {3000, 5000}), wallOf(5, {3000, 5000}, {0, 5000}), wallOf(6, {0, 5000}, {0, 0})};
+	std::vector<std::string> figures;
+	for (const Dimension& d : interior(buildPlanDrawing(l, LevelId())))
+	{
+		figures.push_back(dimensionFigure(d, '.'));
+	}
+	std::sort(figures.begin(), figures.end());
+	CHECK(figures == std::vector<std::string>{"2.00", "2.88", "2.88", "3.00", "4.88", "5.88"});
+
+	// The south side in two walls, split where a wall leaves the room southwards: one face, named after the lower wall.
+	Project split;
+	split.walls = {wallOf(1, {0, 0}, {2500, 0}), wallOf(2, {2500, 0}, {5000, 0}), wallOf(3, {5000, 0}, {5000, 3000}),
+		wallOf(4, {5000, 3000}, {0, 3000}), wallOf(5, {0, 3000}, {0, 0}), wallOf(6, {2500, 0}, {2500, -2000})};
+	const PlanDrawing drawing = buildPlanDrawing(split, LevelId());
+	const Dimension* south = findDimension(drawing, "auto/" + toString(WallId{Uuid{0, 1}}) + "/interior-left-0");
+	REQUIRE(south != nullptr);
+	CHECK(south->start == Point2D{60, 60});
+	CHECK(south->end == Point2D{4940, 60});
+	CHECK(findDimension(drawing, "auto/" + toString(WallId{Uuid{0, 2}}) + "/interior-left-0") == nullptr);
+	CHECK(interior(drawing).size() == 2);
+
+	// A thicker wall on the same line steps the face: two stretches, and the short side of each part is measured.
+	Project step;
+	step.walls = {wallOf(1, {0, 0}, {3000, 0}), wallOf(2, {3000, 0}, {6000, 0}, 200), wallOf(3, {6000, 0}, {6000, 3000}),
+		wallOf(4, {6000, 3000}, {0, 3000}), wallOf(5, {0, 3000}, {0, 0})};
+	figures.clear();
+	for (const Dimension& d : interior(buildPlanDrawing(step, LevelId())))
+	{
+		figures.push_back(dimensionFigure(d, '.'));
+	}
+	std::sort(figures.begin(), figures.end());
+	CHECK(figures == std::vector<std::string>{"2.84", "2.88", "2.94", "2.94", "5.88"});
+}
+
+TEST_CASE("between two rooms, the face that carries the partition's length gets no interior dimension")
+{
+	// The partition has the lowest id, so its faces would come first among opposite faces.
+	Project project;
+	project.walls = {wallOf(1, {2500, 0}, {2500, 4000}, 100), wallOf(2, {0, 0}, {2500, 0}), wallOf(3, {2500, 0}, {5000, 0}),
+		wallOf(4, {5000, 0}, {5000, 4000}), wallOf(5, {5000, 4000}, {2500, 4000}), wallOf(6, {2500, 4000}, {0, 4000}),
+		wallOf(7, {0, 4000}, {0, 0})};
+	const PlanDrawing drawing = buildPlanDrawing(project, LevelId());
+	const std::string partition = "auto/" + toString(WallId{Uuid{0, 1}});
+	REQUIRE(findDimension(drawing, partition + "/partition") != nullptr); // along its left (west) face
+	CHECK(findDimension(drawing, partition + "/interior-left-0") == nullptr);
+	// West room: its depth on its own west face instead.
+	const Dimension* west = findDimension(drawing, "auto/" + toString(WallId{Uuid{0, 7}}) + "/interior-left-0");
+	REQUIRE(west != nullptr);
+	CHECK(west->start == Point2D{60, 3940});
+	CHECK(west->end == Point2D{60, 60});
+	// East room: on the partition's east face, which comes before the outer wall's.
+	const Dimension* east = findDimension(drawing, partition + "/interior-right-0");
+	REQUIRE(east != nullptr);
+	CHECK(east->start == Point2D{2550, 3940});
+	CHECK(east->end == Point2D{2550, 60});
+	CHECK(findDimension(drawing, "auto/" + toString(WallId{Uuid{0, 4}}) + "/interior-left-0") == nullptr);
+	CHECK(interior(drawing).size() == 4);
+}
+
+TEST_CASE("in a narrow room, the name and area move sideways off the interior figures and stay on the floor")
+{
+	// 3.05 x 1.07 m on the axes: 2.93 x 0.95 m inside, too shallow for the name, the area and a figure above each other.
+	Project bath;
+	bath.walls = {wallOf(1, {0, 0}, {3050, 0}), wallOf(2, {3050, 0}, {3050, 1070}), wallOf(3, {3050, 1070}, {0, 1070}),
+		wallOf(4, {0, 1070}, {0, 0})};
+	const PlanDrawing drawing = buildPlanDrawing(bath, LevelId());
+	const Label* figure = findLabel(drawing, "2.93", {1525.0, 345.0});
+	REQUIRE(figure != nullptr);
+	REQUIRE(findLabel(drawing, "0.95", {2705.0, 535.0}) != nullptr);
+	const auto name = std::find_if(drawing.labels.begin(), drawing.labels.end(), [](const Label& l) { return l.text == "Room 1"; });
+	const auto area = std::find_if(drawing.labels.begin(), drawing.labels.end(), [](const Label& l) { return l.text == "2.78 m2"; });
+	REQUIRE(name != drawing.labels.end());
+	REQUIRE(area != drawing.labels.end());
+	// Moved sideways (west first), at their usual heights.
+	CHECK(name->at.x_mm == doctest::Approx(725.0));
+	CHECK(name->at.y_mm == doctest::Approx(535.0 + 160.0));
+	CHECK(area->at.x_mm == doctest::Approx(725.0));
+	CHECK(area->at.y_mm == doctest::Approx(535.0 - 135.0));
+	// The area ends before the figure starts, with room to spare; both texts stay inside the walls.
+	const double areaHalf = planTextWidthMm(textCharacters(area->text), area->heightMm) / 2.0;
+	const double nameHalf = planTextWidthMm(textCharacters(name->text), name->heightMm) / 2.0;
+	CHECK(area->at.x_mm + areaHalf <= figure->at.x_mm - planTextWidthMm(4, FigureHeightMm) / 2.0 - 75.0);
+	CHECK(name->at.x_mm - nameHalf >= 60.0);
 }
 
 TEST_CASE("a wall between two rooms only gets its length; rooms get their name and area")

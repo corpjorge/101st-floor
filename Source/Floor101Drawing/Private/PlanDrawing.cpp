@@ -15,6 +15,8 @@
 #include <iterator>
 #include <limits>
 #include <optional>
+#include <string>
+#include <tuple>
 #include <utility>
 
 namespace f101::drawing
@@ -30,6 +32,9 @@ namespace f101::drawing
 		constexpr double TickLengthMm = 150.0;
 		constexpr double ExtensionGapMm = 100.0; // between a face and its extension lines, and past the dimension line
 		constexpr double PartitionOffsetMm = 300.0;
+		constexpr double FigureClearanceMm = 75.0; // room names keep this far from dimension figures...
+		constexpr double LabelStepMm = 25.0;       // ...moving in steps of this when they have to...
+		constexpr double FloorMarginMm = 50.0;     // ...and this far inside the floor
 		constexpr double FurnitureLineMm = 8.0;
 		constexpr double FurnitureDetailMm = 5.0;
 		constexpr int ArcSegments = 16;
@@ -286,6 +291,26 @@ namespace f101::drawing
 			builder.label(cad::dimensionLabelPoint(d), angle, FigureHeightMm, cad::dimensionLabel(d, texts.decimalSeparator), ink);
 		}
 
+		// An automatic dimension as the project and the current gesture leave it: its stored offset, text and visibility,
+		// or the drag's preview. True when it stands apart from a chain (customized, previewed or selected).
+		bool resolveAutomatic(cad::Dimension& d, const cad::Project& project, const PlanOverlay& overlay)
+		{
+			bool apart = d.id == overlay.selectedDimension;
+			if (const cad::Dimension* custom = project.findDimension(d.id))
+			{
+				d.offsetMm = custom->offsetMm;
+				d.text = custom->text;
+				d.hidden = custom->hidden;
+				apart = true;
+			}
+			if (overlay.previewDimension && overlay.previewDimension->id == d.id)
+			{
+				d = *overlay.previewDimension;
+				apart = true;
+			}
+			return apart;
+		}
+
 		// Every segment has a stable key made of its wall and opening-edge identities, never its measured value.
 		void drawDimension(Builder& builder, const Frame& frame, std::vector<double> us, double faceS, double s,
 			const DrawingTexts& texts, const cad::Wall& wall, const cad::Project& project, const PlanOverlay& overlay,
@@ -319,15 +344,7 @@ namespace f101::drawing
 				d.offsetMm = std::llround(s);
 				d.automatic = true;
 				if (d.start == d.end) continue;
-				if (const cad::Dimension* custom = project.findDimension(d.id))
-				{
-					d.offsetMm = custom->offsetMm;
-					d.text = custom->text;
-					d.hidden = custom->hidden;
-					continuous = false;
-				}
-				if (overlay.previewDimension && overlay.previewDimension->id == d.id) { d = *overlay.previewDimension; continuous = false; }
-				if (d.id == overlay.selectedDimension) continuous = false;
+				if (resolveAutomatic(d, project, overlay)) continuous = false;
 				entries.push_back(d);
 			}
 			if (continuous) builder.stroke({frame.at(us.front(), s), frame.at(us.back(), s)}, Ink::Dimension, ThinMm);
@@ -337,6 +354,201 @@ namespace f101::drawing
 				drawing.dimensions.push_back(d);
 				drawAnnotation(builder, d, texts, d.id == overlay.selectedDimension ? Ink::DimensionSelected : Ink::Dimension, faceS, !continuous);
 			}
+		}
+
+		// A straight stretch of a room's floor edge: its consecutive sides on one line, named after the lowest of them
+		// (wall, left face first, segment), like room keys.
+		struct Face
+		{
+			PlanPoint start;
+			PlanPoint end;
+			std::tuple<cad::WallId, bool, std::size_t> name; // (wall, right face, segment)
+			bool partition = false; // runs along a face that already carries a partition's dimension
+		};
+
+		std::tuple<cad::WallId, bool, std::size_t> nameOf(const geometry::RoomSide& side)
+		{
+			return {side.wall, !side.left, side.segment};
+		}
+
+		// The stretch from `start` to `end` goes straight on from where `face` ends, without a step.
+		bool continues(const Face& face, PlanPoint start, PlanPoint end)
+		{
+			const PlanPoint u = sub(face.end, face.start);
+			const PlanPoint v = sub(end, start);
+			const PlanPoint gap = sub(start, face.end);
+			return std::fabs(u.x_mm * v.y_mm - u.y_mm * v.x_mm) <= 1e-9 * std::hypot(u.x_mm, u.y_mm) * std::hypot(v.x_mm, v.y_mm) &&
+				dot(u, v) > 0.0 && std::hypot(gap.x_mm, gap.y_mm) < 0.01;
+		}
+
+		std::vector<Face> roomFaces(const geometry::Room& room, const std::vector<cad::WallId>& partitions)
+		{
+			std::vector<Face> faces;
+			for (const geometry::RoomSide& side : room.sides)
+			{
+				const bool partition = side.left && std::find(partitions.begin(), partitions.end(), side.wall) != partitions.end();
+				if (!faces.empty() && continues(faces.back(), side.start, side.end))
+				{
+					faces.back().end = side.end;
+					faces.back().name = std::min(faces.back().name, nameOf(side));
+					faces.back().partition = faces.back().partition || partition;
+				}
+				else
+				{
+					faces.push_back(Face{side.start, side.end, nameOf(side), partition});
+				}
+			}
+			// The outline starts anywhere: its last face may go on into the first.
+			if (faces.size() > 2 && continues(faces.back(), faces.front().start, faces.front().end))
+			{
+				faces.front().start = faces.back().start;
+				faces.front().name = std::min(faces.front().name, faces.back().name);
+				faces.front().partition = faces.front().partition || faces.back().partition;
+				faces.pop_back();
+			}
+			return faces;
+		}
+
+		// `other` runs back along the same stretch as `face`: the opposite side of a rectangle, whose figure would repeat.
+		bool mirrors(const Face& face, const Face& other)
+		{
+			const PlanPoint u = sub(face.end, face.start);
+			const double length = std::hypot(u.x_mm, u.y_mm);
+			const PlanPoint axis = scale(u, 1.0 / length);
+			const PlanPoint v = sub(other.end, other.start);
+			return dot(axis, v) < 0.0 && std::fabs(axis.x_mm * v.y_mm - axis.y_mm * v.x_mm) <= 1e-9 * std::hypot(v.x_mm, v.y_mm) &&
+				std::fabs(dot(sub(other.end, face.start), axis)) <= 1.0 && std::fabs(dot(sub(other.start, face.start), axis) - length) <= 1.0;
+		}
+
+		// Interior dimensions (ADR-0034): each straight stretch of the floor edge, face to face, InteriorOffsetMm into the
+		// room. Not along a face that carries a partition's dimension, and once per pair of opposite faces of equal span.
+		void drawInteriorDimensions(Builder& builder, const geometry::Room& room, const std::vector<cad::WallId>& partitions,
+			const cad::LevelId& level, const DrawingTexts& texts, const cad::Project& project, const PlanOverlay& overlay,
+			PlanDrawing& drawing)
+		{
+			std::vector<Face> faces = roomFaces(room, partitions);
+			std::sort(faces.begin(), faces.end(), [](const Face& a, const Face& b) { return a.name < b.name; });
+			std::vector<Face> kept;
+			for (const Face& face : faces)
+			{
+				const PlanPoint span = sub(face.end, face.start);
+				if (face.partition || std::hypot(span.x_mm, span.y_mm) < 1.0 ||
+					std::any_of(kept.begin(), kept.end(), [&face](const Face& other) { return mirrors(face, other); }))
+				{
+					continue;
+				}
+				kept.push_back(face);
+				const auto& [wall, right, segment] = face.name;
+				cad::Dimension d;
+				d.id = "auto/" + cad::toString(wall) + (right ? "/interior-right-" : "/interior-left-") + std::to_string(segment);
+				d.level = level;
+				d.start = {std::llround(face.start.x_mm), std::llround(face.start.y_mm)};
+				d.end = {std::llround(face.end.x_mm), std::llround(face.end.y_mm)};
+				d.offsetMm = std::llround(InteriorOffsetMm); // the floor is on the left of its edge
+				d.automatic = true;
+				if (d.start == d.end) continue;
+				resolveAutomatic(d, project, overlay);
+				if (d.hidden) continue;
+				drawing.dimensions.push_back(d);
+				drawAnnotation(builder, d, texts, d.id == overlay.selectedDimension ? Ink::DimensionSelected : Ink::Dimension);
+			}
+		}
+
+		// What a text covers on the plan, as an upright box: centred on `at`, turned `angleDegrees`, `marginMm` around it.
+		struct Box
+		{
+			PlanPoint min;
+			PlanPoint max;
+		};
+
+		Box textBox(PlanPoint at, double angleDegrees, double widthMm, double heightMm, double marginMm)
+		{
+			const double halfWidth = widthMm / 2.0 + marginMm;
+			const double halfHeight = heightMm / 2.0 + marginMm;
+			const double angle = angleDegrees * Pi / 180.0;
+			const double padX = std::fabs(std::cos(angle)) * halfWidth + std::fabs(std::sin(angle)) * halfHeight;
+			const double padY = std::fabs(std::sin(angle)) * halfWidth + std::fabs(std::cos(angle)) * halfHeight;
+			return {{at.x_mm - padX, at.y_mm - padY}, {at.x_mm + padX, at.y_mm + padY}};
+		}
+
+		bool overlaps(const Box& a, const Box& b)
+		{
+			return a.min.x_mm < b.max.x_mm && b.min.x_mm < a.max.x_mm && a.min.y_mm < b.max.y_mm && b.min.y_mm < a.max.y_mm;
+		}
+
+		Box figureBox(const cad::Dimension& d)
+		{
+			const cad::Vector2D axis = d.end - d.start;
+			const double angle = std::atan2(static_cast<double>(axis.dy_mm), static_cast<double>(axis.dx_mm)) * 180.0 / Pi;
+			return textBox(cad::dimensionLabelPoint(d), angle, cad::dimensionLabelWidthMm(d), FigureHeightMm, FigureClearanceMm);
+		}
+
+		// Where a room's name and area stand: at its label point, or else the nearest point sideways from it, then up or
+		// down, where they cover no automatic dimension figure and stay on the floor (ADR-0034); the label point if there
+		// is none. Sideways first: right over or under a figure, they would read as one block with it.
+		PlanPoint roomLabelSpot(const geometry::Room& room, double nameWidthMm, double areaWidthMm, const std::vector<Box>& figures)
+		{
+			Box bounds{room.outline.front(), room.outline.front()};
+			for (const PlanPoint& p : room.outline)
+			{
+				bounds.min = {std::min(bounds.min.x_mm, p.x_mm), std::min(bounds.min.y_mm, p.y_mm)};
+				bounds.max = {std::max(bounds.max.x_mm, p.x_mm), std::max(bounds.max.y_mm, p.y_mm)};
+			}
+			std::vector<Box> nearby; // the figures over this floor
+			std::copy_if(figures.begin(), figures.end(), std::back_inserter(nearby), [&bounds](const Box& figure) { return overlaps(figure, bounds); });
+			const auto boxes = [&](PlanPoint at)
+			{
+				return std::array<Box, 2>{textBox(add(at, {0.0, RoomNameHeightMm * 0.8}), 0.0, nameWidthMm, RoomNameHeightMm, 0.0),
+					textBox(add(at, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, areaWidthMm, RoomAreaHeightMm, 0.0)};
+			};
+			const auto clear = [&](PlanPoint at)
+			{
+				for (const Box& text : boxes(at))
+				{
+					if (std::any_of(nearby.begin(), nearby.end(), [&text](const Box& figure) { return overlaps(text, figure); }))
+					{
+						return false;
+					}
+				}
+				return true;
+			};
+			const auto onFloor = [&](PlanPoint at)
+			{
+				for (const Box& text : boxes(at))
+				{
+					const PlanPoint low = sub(text.min, {FloorMarginMm, FloorMarginMm});
+					const PlanPoint high = add(text.max, {FloorMarginMm, FloorMarginMm});
+					for (const PlanPoint corner : {low, high, PlanPoint{low.x_mm, high.y_mm}, PlanPoint{high.x_mm, low.y_mm}})
+					{
+						if (!geometry::containsPoint(room.outline, corner))
+						{
+							return false;
+						}
+					}
+				}
+				return true;
+			};
+			if (clear(room.labelPoint))
+			{
+				return room.labelPoint;
+			}
+			const double reach = std::max({room.labelPoint.x_mm - bounds.min.x_mm, bounds.max.x_mm - room.labelPoint.x_mm,
+				room.labelPoint.y_mm - bounds.min.y_mm, bounds.max.y_mm - room.labelPoint.y_mm});
+			for (const PlanPoint axis : {PlanPoint{1.0, 0.0}, PlanPoint{0.0, 1.0}})
+			{
+				for (double step = LabelStepMm; step <= reach; step += LabelStepMm)
+				{
+					for (const double sign : {-1.0, 1.0})
+					{
+						const PlanPoint at = add(room.labelPoint, scale(axis, sign * step));
+						if (clear(at) && onFloor(at))
+						{
+							return at;
+						}
+					}
+				}
+			}
+			return room.labelPoint;
 		}
 
 		void includeBounds(PlanDrawing& drawing)
@@ -368,13 +580,10 @@ namespace f101::drawing
 			}
 			for (const Label& label : drawing.labels)
 			{
-				const double halfWidth = cad::planTextWidthMm(cad::textCharacters(label.text), label.heightMm) / 2.0 + 10.0;
-				const double halfHeight = label.heightMm / 2.0 + 10.0;
-				const double angle = label.angleDegrees * Pi / 180.0;
-				const double padX = std::fabs(std::cos(angle)) * halfWidth + std::fabs(std::sin(angle)) * halfHeight;
-				const double padY = std::fabs(std::sin(angle)) * halfWidth + std::fabs(std::cos(angle)) * halfHeight;
-				include({label.at.x_mm - padX, label.at.y_mm - padY}, 0.0);
-				include({label.at.x_mm + padX, label.at.y_mm + padY}, 0.0);
+				const Box box = textBox(label.at, label.angleDegrees, cad::planTextWidthMm(cad::textCharacters(label.text), label.heightMm),
+					label.heightMm, 10.0);
+				include(box.min, 0.0);
+				include(box.max, 0.0);
 			}
 			if (drawing.empty())
 			{
@@ -555,6 +764,7 @@ namespace f101::drawing
 		{
 			return std::any_of(rooms.begin(), rooms.end(), [point](const geometry::Room& room) { return geometry::containsPoint(room.outline, point); });
 		};
+		std::vector<cad::WallId> partitions; // their dimension stands along their left face
 		for (std::size_t index = 0; index < onLevel.size(); ++index)
 		{
 			const cad::Wall& wall = onLevel[index].wall;
@@ -568,6 +778,7 @@ namespace f101::drawing
 			const double faceS = side > 0.0 ? leftS : rightS;
 			if (roomLeft && roomRight)
 			{
+				partitions.push_back(wall.id);
 				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * PartitionOffsetMm, texts, wall, project, overlay, "partition", drawing);
 				continue;
 			}
@@ -583,6 +794,11 @@ namespace f101::drawing
 			{
 				drawDimension(builder, frame, {0.0, frame.length}, faceS, faceS + side * OverallOffsetMm, texts, wall, project, overlay, "overall", drawing);
 			}
+		}
+		// Inside each room, face to face.
+		for (const geometry::Room& room : rooms)
+		{
+			drawInteriorDimensions(builder, room, partitions, project.levels.empty() ? cad::LevelId() : level, texts, project, overlay, drawing);
 		}
 
 		for (const cad::Dimension& d : project.dimensions)
@@ -608,7 +824,15 @@ namespace f101::drawing
 			}
 		}
 
-		// Room names and areas.
+		// Room names and areas, clear of the automatic dimension figures.
+		std::vector<Box> figures;
+		for (const cad::Dimension& d : drawing.dimensions)
+		{
+			if (d.automatic)
+			{
+				figures.push_back(figureBox(d));
+			}
+		}
 		for (std::size_t index = 0; index < rooms.size(); ++index)
 		{
 			const geometry::Room& room = rooms[index];
@@ -618,9 +842,11 @@ namespace f101::drawing
 			{
 				name.replace(token, 3, std::to_string(index + 1));
 			}
-			builder.label(add(room.labelPoint, {0.0, RoomNameHeightMm * 0.8}), 0.0, RoomNameHeightMm, std::move(name), Ink::Label);
-			builder.label(add(room.labelPoint, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, RoomAreaHeightMm,
-				cad::formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit, Ink::Label);
+			std::string area = cad::formatHundredths(std::llround(room.areaMm2 / 1.0e4), texts.decimalSeparator) + texts.areaUnit;
+			const PlanPoint at = roomLabelSpot(room, cad::planTextWidthMm(cad::textCharacters(name), RoomNameHeightMm),
+				cad::planTextWidthMm(cad::textCharacters(area), RoomAreaHeightMm), figures);
+			builder.label(add(at, {0.0, RoomNameHeightMm * 0.8}), 0.0, RoomNameHeightMm, std::move(name), Ink::Label);
+			builder.label(add(at, {0.0, -RoomAreaHeightMm * 0.9}), 0.0, RoomAreaHeightMm, std::move(area), Ink::Label);
 		}
 
 		// Furniture, as the overlay previews it: its outline, then the details of its type.

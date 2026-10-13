@@ -298,6 +298,9 @@ namespace f101::geometry
 					outline.push_back(p);
 				}
 			};
+			// Where each side's face ends, and where the next one starts.
+			std::vector<cad::PlanPoint> faceEnd(cycle.size());
+			std::vector<cad::PlanPoint> faceStart(cycle.size());
 			for (std::size_t i = 0; i < cycle.size(); ++i)
 			{
 				const HalfEdge& a = halves[cycle[i]];
@@ -312,11 +315,15 @@ namespace f101::geometry
 				if (const std::optional<cad::PlanPoint> meet = intersectLines(sideA, da, sideB, db))
 				{
 					push(*meet);
+					faceEnd[i] = *meet;
+					faceStart[(i + 1) % cycle.size()] = *meet;
 				}
 				else
 				{
 					push(sideA); // straight on (possibly a step in thickness) or around the free end of a wall
 					push(sideB);
+					faceEnd[i] = sideA;
+					faceStart[(i + 1) % cycle.size()] = sideB;
 				}
 			}
 			while (outline.size() > 1 && length2(sub(outline.front(), outline.back())) <= 1e-6)
@@ -346,6 +353,17 @@ namespace f101::geometry
 			}
 			std::sort(room.walls.begin(), room.walls.end());
 			room.walls.erase(std::unique(room.walls.begin(), room.walls.end()), room.walls.end());
+			for (std::size_t i = 0; i < cycle.size(); ++i)
+			{
+				const HalfEdge& half = halves[cycle[i]];
+				const cad::PlanPoint along = sub(graph.vertices[half.to], graph.vertices[half.from]);
+				if (dot2(sub(faceEnd[i], faceStart[i]), along) <= 0.0)
+				{
+					continue; // its neighbours' faces meet before it starts
+				}
+				const Edge& edge = edges[half.edge];
+				room.sides.push_back(RoomSide{walls[edge.wall].id, half.forward, edge.segment, faceStart[i], faceEnd[i]});
+			}
 			room.key = cad::toString(std::get<0>(identity)) + (std::get<1>(identity) ? "/room-right-" : "/room-left-") +
 				std::to_string(std::get<2>(identity));
 			room.areaMm2 = area;
