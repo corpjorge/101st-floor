@@ -407,7 +407,11 @@ namespace f101::scene
 					node.sourceId = cad::toString(column.id);
 					node.level = group.level;
 					node.name = "Column " + node.sourceId.substr(0, 8);
-					node.mesh = geometry::buildColumnMesh(column, levelHeight);
+					// Drawn over what it overlaps, never in the same plane as it (no flicker).
+					cad::Column proud = column;
+					proud.widthMm += 2 * ColumnProudMm;
+					proud.depthMm += 2 * ColumnProudMm;
+					node.mesh = geometry::buildColumnMesh(proud, levelHeight + static_cast<double>(ColumnProudMm));
 					if (node.mesh.sections.empty())
 					{
 						continue;

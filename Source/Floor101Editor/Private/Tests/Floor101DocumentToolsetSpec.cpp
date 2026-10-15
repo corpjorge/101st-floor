@@ -3,6 +3,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Floor101DocumentToolset.h"
+#include "F101/Scene/SceneCompiler.h"
 #include "GameFramework/Actor.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
@@ -424,12 +425,15 @@ void FFloor101DocumentToolsetSpec::Define()
 			FVector Origin;
 			FVector Extent;
 			Column.Actor->GetActorBounds(false, Origin, Extent);
-			TestEqual(TEXT("30 x 30 cm, as tall as the level"), Extent * 2.0, FVector(30.0, 30.0, UFloor101DocumentToolset::GetLevels()[0].HeightMm / 10.0), 1e-3f);
+			// The actor stands ColumnProudMm proud of the column's outline and of its level (no flicker against walls).
+			const double ProudCm = static_cast<double>(f101::scene::ColumnProudMm) / 10.0;
+			TestEqual(TEXT("30 x 30 cm, as tall as the level"), Extent * 2.0, FVector(30.0 + 2.0 * ProudCm, 30.0 + 2.0 * ProudCm,
+				UFloor101DocumentToolset::GetLevels()[0].HeightMm / 10.0 + ProudCm), 1e-3f);
 
 			const FFloor101ColumnInfo Turned = UFloor101DocumentToolset::SetColumn(Column.Id, EFloor101ColumnShape::Rectangle, 131000, 0, 600, 200, 9000);
 			TestTrue(TEXT("same actor"), Turned.Actor == Column.Actor);
 			Turned.Actor->GetActorBounds(false, Origin, Extent);
-			TestEqual(TEXT("turned: 20 x 60 cm"), FVector(Extent.X, Extent.Y, 0.0) * 2.0, FVector(20.0, 60.0, 0.0), 1e-3f);
+			TestEqual(TEXT("turned: 20 x 60 cm"), FVector(Extent.X, Extent.Y, 0.0) * 2.0, FVector(20.0 + 2.0 * ProudCm, 60.0 + 2.0 * ProudCm, 0.0), 1e-3f);
 			const FFloor101ColumnInfo Round = UFloor101DocumentToolset::SetColumn(Column.Id, EFloor101ColumnShape::Round, 131000, 0, 400, 200, 9000);
 			TestEqual(TEXT("one diameter"), Round.DepthMm, int64(400));
 			TestEqual(TEXT("not turned"), Round.RotationCentidegrees, 0);

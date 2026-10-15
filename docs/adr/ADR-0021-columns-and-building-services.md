@@ -63,6 +63,11 @@ suelo y por el techo, así que hay que poder verlas a través de la arquitectura
 
 ## Consecuencias
 - Los pilares no cortan habitaciones ni se unen a muros: se dibujan encima; el área de la habitación no los descuenta.
+  *Actualización (2026-10-14):* en 3D, "encima" se cumple con la malla del pilar `scene::ColumnProudMm` (1 mm) más alta
+  que su planta y más ancha por cada lado. Exacto, su cara superior quedaba en el plano de la de un muro tan alto como la
+  planta (y del forjado), y sus lados en el de las caras de un muro igual de grueso: el render alternaba entre ambas
+  (parpadeo). El modelo, el plano y las medidas mantienen el tamaño exacto; el `.glb` exportado lleva la malla de la
+  escena.
 - Las tuberías no se validan contra muros ni entre sí, ni llevan pendiente, accesorios o diámetros normativos.
 - El color de cada red es fijo; un tramo cambia de tipo, no de color.
 - Con la capa, el suelo del mapa también se ve a través: la casa queda sobre un fondo casi vacío.

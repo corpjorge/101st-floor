@@ -1155,8 +1155,10 @@ bool FFloor101ServicesInteractionTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestEqual(TEXT("30 cm wide"), ColumnActor->GetMeshBounds().GetSize().X, 30.0, 1e-6);
-	TestEqual(TEXT("as tall as the level"), ColumnActor->GetMeshBounds().GetSize().Z, 280.0, 1e-6);
+	// Drawn proud of its outline and of the level by ColumnProudMm, so it never flickers against the wall it stands on.
+	const double ProudCm = static_cast<double>(f101::scene::ColumnProudMm) / 10.0;
+	TestEqual(TEXT("30 cm wide"), ColumnActor->GetMeshBounds().GetSize().X, 30.0 + 2.0 * ProudCm, 1e-6);
+	TestEqual(TEXT("as tall as the level"), ColumnActor->GetMeshBounds().GetSize().Z, 280.0 + ProudCm, 1e-6);
 	TestTrue(TEXT("in concrete"), ColumnActor->GetDisplayMaterial() == Library->GetFinishMaterial(TEXT("concrete")));
 
 	// Services mode (I) shows the layer: the walls see-through. A run in three clicks, the last one twice (a double click).

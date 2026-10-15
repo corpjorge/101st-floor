@@ -137,3 +137,15 @@ SHA-256 y dependencias locales (`Saved/PackageChecks/20261013-175030-functional`
 (`Saved/PackageChecks/20261013-175051-home`). Ejecutable: `Packaged/0.2.2/Windows/Floor101.exe`. ZIP:
 `Packaged/0.2.2/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. El panel del rótulo no se probó a mano en
 la ventana. La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue pendiente.
+
+## Entrega 0.2.3 (2026-10-14)
+
+Portable Windows **0.2.3 Shipping**, generado desde `0792aad` con árbol limpio: los pilares ya no parpadean donde se
+superponen a un muro o a un forjado; en 3D sobresalen `ColumnProudMm` (1 mm) de su huella y de su planta (ADR-0021),
+sin cambiar el modelo ni el plano. Antes: 340 unitarios y 90 Unreal Automation aprobados
+(`Saved/Automation/20261014-195459`). El ejecutable aprueba las 93 comprobaciones funcionales, integridad SHA-256 y
+dependencias locales (`Saved/PackageChecks/20261014-201731-functional`) y la de inicio a 1920 × 1080
+(`Saved/PackageChecks/20261014-201749-home`). Ejecutable: `Packaged/0.2.3/Windows/Floor101.exe`. ZIP:
+`Packaged/0.2.3/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. El parpadeo corregido no se comprobó a
+simple vista en la ventana. La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue
+pendiente.

@@ -56,13 +56,19 @@ namespace f101::scene
 	FLOOR101SCENEMODEL_API SceneNodeId columnNodeId(const cad::ColumnId& id);
 	FLOOR101SCENEMODEL_API SceneNodeId serviceRunNodeId(const cad::ServiceRunId& id);
 
+	// A column is drawn over the walls and slabs it overlaps (ADR-0021): its mesh stands this far proud of its outline on
+	// every side and of its level's height, so none of its faces lies in the plane of a wall's or a slab's (as tall as the
+	// level, or flush with a wall face), where the renderer would alternate between the two (z-fighting). The model and
+	// the plan keep its exact size.
+	inline constexpr std::int64_t ColumnProudMm = 1;
+
 	// Compiles the whole project into a scene, deterministically (same project, same ids, geometry and hashes):
 	// one node per wall in model order with its joins resolved ("<wall>/body"), then joint fills
 	// ("<wall>/joint-start|end"), then room floors ("<room key>/floor"), then the slab over each room ("<room key>/slab",
 	// the top band of its level), then the carpentry of each opening ("<wall>/opening/<opening>", ADR-0013), then each
 	// piece of furniture in model order ("furniture/<piece>", ADR-0016; an imported model with one section per material,
 	// finished "asset:<uuid>#<material>" unless the piece has a finish, ADR-0017), then each column ("column/<id>", as tall
-	// as its level) and each run of the building services ("service/<id>", in its kind's colour), ADR-0021. Joins and rooms
+	// as its level, ColumnProudMm proud) and each run of the building services ("service/<id>", in its kind's colour), ADR-0021. Joins and rooms
 	// are solved per level, and each level is lifted to its elevation. Scene::rooms lists the rooms with their levels.
 	FLOOR101SCENEMODEL_API Scene compileScene(const cad::Project& project, const ModelProvider& models = {});
 

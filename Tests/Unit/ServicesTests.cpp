@@ -481,7 +481,7 @@ TEST_CASE_FIXTURE(Building, "the scene shows columns always, and runs with the s
 	CHECK(columnNode->sourceKind == scene::SourceKind::Column);
 	CHECK(columnNode->sourceId == toString(column));
 	CHECK(columnNode->finishes == std::vector<std::string>{"concrete"});
-	CHECK(geometry::computeBounds(columnNode->mesh).max.z == doctest::Approx(2800.0));
+	CHECK(geometry::computeBounds(columnNode->mesh).max.z == doctest::Approx(2800.0 + scene::ColumnProudMm));
 	const scene::SceneNode* runNode = findNode(all, "service/" + toString(run));
 	REQUIRE(runNode != nullptr);
 	CHECK(runNode->id == scene::serviceRunNodeId(run));
@@ -491,7 +491,7 @@ TEST_CASE_FIXTURE(Building, "the scene shows columns always, and runs with the s
 	CHECK(findNode(all, scene::wallBodyNodeId(wall).value)->style == scene::NodeStyle::Normal);
 	const geometry::Bounds3 upstairsBounds = geometry::computeBounds(findNode(all, "column/" + toString(upstairs))->mesh);
 	CHECK(upstairsBounds.min.z == doctest::Approx(2800.0)); // on the level above, as tall as it
-	CHECK(upstairsBounds.max.z == doctest::Approx(5800.0));
+	CHECK(upstairsBounds.max.z == doctest::Approx(5800.0 + scene::ColumnProudMm));
 
 	// Editing without the layer: columns, no runs.
 	scene::ViewOverlay overlay;
@@ -540,6 +540,43 @@ TEST_CASE_FIXTURE(Building, "the scene shows columns always, and runs with the s
 	const scene::Scene fromAbove = scene::compileScene(document.project(), upperView);
 	CHECK(findNode(fromAbove, "column/" + toString(column))->style == scene::NodeStyle::Context);
 	CHECK(findNode(fromAbove, "column/" + toString(upstairs))->style == scene::NodeStyle::Normal);
+}
+
+TEST_CASE_FIXTURE(Building, "a column over a wall stands proud of it, so none of their faces share a plane (no flicker)")
+{
+	// As tall as its level, like the wall, and as wide as the wall is thick: its top and two of its sides would lie in the
+	// wall's own planes, and the renderer would alternate between the two.
+	const WallId wall = document.addWall({0, 0}, {4000, 0}, 200, 2800).value();
+	const ColumnId square = document.addColumn(makeColumn(ColumnShape::Rectangle, {2000, 0}, 200, 200)).value();
+	const ColumnId round = document.addColumn(makeColumn(ColumnShape::Round, {3000, 0}, 200)).value();
+	const scene::Scene scene = scene::compileScene(document.project());
+	const geometry::Bounds3 wallBounds = geometry::computeBounds(findNode(scene, scene::wallBodyNodeId(wall).value)->mesh);
+	CHECK(wallBounds.max.z == doctest::Approx(2800.0));
+	CHECK(wallBounds.min.y == doctest::Approx(-100.0));
+	CHECK(wallBounds.max.y == doctest::Approx(100.0));
+	constexpr double Proud = static_cast<double>(scene::ColumnProudMm);
+	const geometry::Bounds3 box = geometry::computeBounds(findNode(scene, scene::columnNodeId(square).value)->mesh);
+	CHECK(box.max.z == doctest::Approx(2800.0 + Proud));
+	CHECK(box.min.z == doctest::Approx(0.0)); // still standing on its floor
+	CHECK(box.min.y == doctest::Approx(-100.0 - Proud));
+	CHECK(box.max.y == doctest::Approx(100.0 + Proud));
+	CHECK(box.min.x == doctest::Approx(1900.0 - Proud));
+	CHECK(box.max.x == doctest::Approx(2100.0 + Proud));
+	const geometry::Bounds3 cylinder = geometry::computeBounds(findNode(scene, scene::columnNodeId(round).value)->mesh);
+	CHECK(cylinder.max.z == doctest::Approx(2800.0 + Proud));
+	CHECK(cylinder.max.x == doctest::Approx(3100.0 + Proud));
+
+	// The model and the plan keep its exact size.
+	CHECK(document.project().findColumn(square)->widthMm == 200);
+	const drawing::PlanDrawing plan = drawing::buildPlanDrawing(document.project(), ground);
+	CHECK(std::any_of(plan.fills.begin(), plan.fills.end(), [](const drawing::Fill& fill)
+	{
+		const auto corner = [&fill](double x, double y)
+		{
+			return std::any_of(fill.outline.begin(), fill.outline.end(), [x, y](const PlanPoint& p) { return p.x_mm == x && p.y_mm == y; });
+		};
+		return fill.ink == drawing::Ink::Cut && corner(1900.0, -100.0) && corner(2100.0, 100.0);
+	}));
 }
 
 TEST_CASE_FIXTURE(Building, "columns are picked by their solid, runs within their radius plus a tolerance, on the active level")
