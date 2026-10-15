@@ -43,7 +43,7 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
 - Exportación a Twinmotion: el módulo puro `Floor101Exporters` escribe la escena neutral como `.glb` (metros, Y arriba
   `(x, z, −y)/1000`, nombres estables, ids en `extras`, repetición de las texturas horneada en los UV, PNG propio);
   Twinmotion solo recibe copias. Segunda opinión: `Scripts/CheckGltf.ps1` con Blender (ADR-0020).
-- Pilares (`Column`: rectangulares o redondos, tan altos como su planta) e instalaciones (`ServiceRun`: polilínea 3D con z
+- Pilares (`Column`: rectangulares o redondos, tan altos como su planta) — en 3D 1 mm más altos y anchos (`scene::ColumnProudMm`) para quedar encima de muros y forjados sin parpadeo — e instalaciones (`ServiceRun`: polilínea 3D con z
   sobre el suelo de su planta; color y diámetro fijados por la red: electricidad, agua, aguas negras, gas). Los tramos
   solo se ven con la capa de instalaciones (X), que deja la arquitectura en `Ghost`; los exportadores los llevan siempre.
   `project.json` esquema 10 (ADR-0021).

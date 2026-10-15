@@ -8,7 +8,7 @@ Twinmotion (`docs/exporters.md`, ADR-0020).
   (`<room key>/floor`), uno por forjado (`<room key>/slab`, en la franja alta de su planta) y uno por hueco con su
   carpintería (`<wall uuid>/opening/<opening uuid>`, ADR-0013; en la planta y con el estilo de su muro) y uno por mueble en el
   orden del modelo (`furniture/<furniture uuid>`, ADR-0016; `furnitureNodeId`), uno por pilar (`column/<uuid>`,
-  `columnNodeId`, tan alto como su planta, con su acabado o hormigón visto) y uno por tramo de instalación
+  `columnNodeId`, tan alto como su planta y `ColumnProudMm` (1 mm) más alto y más ancho por cada lado para quedar encima de muros y forjados sin parpadeo, con su acabado o hormigón visto) y uno por tramo de instalación
   (`service/<uuid>`, `serviceRunNodeId`, con el acabado de su tipo) (ADR-0021). Uniones y habitaciones se
   resuelven planta a planta y cada planta se sube a su cota (ADR-0011). `Scene::rooms` lista esas habitaciones
   (`SceneRoom`: habitación, planta y cota) para las vistas; cada nodo lleva su `level`. Es
