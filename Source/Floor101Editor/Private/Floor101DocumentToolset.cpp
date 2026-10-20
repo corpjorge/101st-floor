@@ -1,4 +1,5 @@
 #include "Floor101DocumentToolset.h"
+#include "F101/Cad/OpeningCatalogue.h"
 
 #include "Editor.h"
 #include "F101/Assets/Library.h"
@@ -108,6 +109,7 @@ namespace
 		Info.Hinge = Opening.hinge == f101::cad::OpeningEnd::Start ? EFloor101OpeningEnd::Start : EFloor101OpeningEnd::End;
 		Info.OpensTo = Opening.opensTo == f101::cad::WallSide::Left ? EFloor101WallSide::Left : EFloor101WallSide::Right;
 		Info.OpenPercent = Opening.openPercent;
+		Info.Family = ToFString(Opening.family);
 		return Info;
 	}
 
@@ -506,9 +508,41 @@ FFloor101OpeningInfo UFloor101DocumentToolset::SetOpeningOperation(const FString
 	return ChangeOpening(WallId, OpeningId, [&](f101::cad::Opening& Opening)
 	{
 		Opening.operation = static_cast<f101::cad::OpeningOperation>(Operation); // same order
+		const auto* Family = f101::cad::findOpeningFamily(Opening.family);
+		if (Family && Family->operation != Opening.operation) { Opening.family.clear(); }
 		Opening.hinge = Hinge == EFloor101OpeningEnd::Start ? f101::cad::OpeningEnd::Start : f101::cad::OpeningEnd::End;
 		Opening.opensTo = OpensTo == EFloor101WallSide::Left ? f101::cad::WallSide::Left : f101::cad::WallSide::Right;
 		Opening.openPercent = OpenPercent;
+	});
+}
+
+TArray<FFloor101OpeningFamilyInfo> UFloor101DocumentToolset::GetOpeningFamilies()
+{
+	TArray<FFloor101OpeningFamilyInfo> Result;
+	for (const auto& Family : f101::cad::openingCatalogue())
+	{
+		FFloor101OpeningFamilyInfo Info;
+		Info.Id = ToFString(std::string(Family.id));
+		Info.Name = ToFString(std::string(Family.name));
+		Info.Kind = static_cast<EFloor101OpeningKind>(Family.kind);
+		Info.Operation = static_cast<EFloor101OpeningOperation>(Family.operation);
+		Info.WidthMm = Family.widthMm;
+		Info.HeightMm = Family.heightMm;
+		Info.SillMm = Family.sillMm;
+		Result.Add(MoveTemp(Info));
+	}
+	return Result;
+}
+
+FFloor101OpeningInfo UFloor101DocumentToolset::SetOpeningFamily(const FString& WallId, const FString& OpeningId, const FString& FamilyId)
+{
+	const auto* Family = f101::cad::findOpeningFamily(TCHAR_TO_UTF8(*FamilyId));
+	if (!Family) { RaiseError(TEXT("Unknown opening family")); return {}; }
+	return ChangeOpening(WallId, OpeningId, [Family](f101::cad::Opening& Opening)
+	{
+		Opening.family = Family->id;
+		Opening.operation = Family->operation;
+		if (Opening.operation == f101::cad::OpeningOperation::Fixed) { Opening.openPercent = 0; }
 	});
 }
 

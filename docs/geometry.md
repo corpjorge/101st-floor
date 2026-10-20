@@ -2,6 +2,10 @@
 
 Geometría derivada del modelo. C++20 puro. Nunca se edita ni se guarda: se regenera (ADR-0009).
 
+La carpintería admite las 24 familias de `OpeningCatalogue.h` (ADR-0036): paneles en ambas caras de la hoja,
+acristalamiento y retículas con un vidrio independiente por paño. Las divisiones se regeneran a las medidas del hueco
+y se transforman junto con cada hoja al abrirse. Familia vacía conserva la geometría de los proyectos anteriores.
+
 - `MeshData`: posiciones y normales en mm (`double`, escena dextrógira, Z arriba), UV en metros (1,0 = 1000 mm) e
   índices agrupados en `MeshSection` por slot de material. Triángulos en sentido antihorario vistos desde el lado al que
   apunta su normal.

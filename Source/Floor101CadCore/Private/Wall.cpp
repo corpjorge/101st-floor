@@ -1,6 +1,7 @@
 #include "F101/Cad/Wall.h"
 
 #include "F101/Cad/Units.h"
+#include "F101/Cad/OpeningCatalogue.h"
 
 #include <algorithm>
 #include <cmath>
@@ -23,6 +24,14 @@ namespace f101::cad
 		// How it opens suits its kind, and how open it is shown is a percentage (ADR-0014).
 		Status validateOperation(const Opening& opening)
 		{
+			if (!opening.family.empty())
+			{
+				const auto* family = findOpeningFamily(opening.family);
+				if (!family || family->kind != opening.kind || family->operation != opening.operation)
+				{
+					return Error{ErrorCode::InvalidArgument, "Opening family does not match its kind and operation"};
+				}
+			}
 			if (opening.kind == OpeningKind::Door && opening.operation == OpeningOperation::Fixed)
 			{
 				return Error{ErrorCode::InvalidArgument, "A door cannot be fixed"};

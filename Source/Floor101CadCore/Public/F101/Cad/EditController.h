@@ -241,6 +241,12 @@ namespace f101::cad
 		// How the next doors or windows the Door and Window tools place open (settings().door / .window); the preview
 		// follows. A door cannot be fixed.
 		FLOOR101CADCORE_API Status setNewOpeningOperation(OpeningKind kind, OpeningOperation operation);
+		FLOOR101CADCORE_API Status setOpeningFamily(std::string_view family);
+		FLOOR101CADCORE_API Status setNewOpeningFamily(OpeningKind kind, std::string_view family);
+		// Template dimensions in the active Door/Window tool, parsed in the current input unit.
+		FLOOR101CADCORE_API Status setNewOpeningWidth(std::string_view text);
+		FLOOR101CADCORE_API Status setNewOpeningHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setNewOpeningSill(std::string_view text);
 
 		// Furniture (ADR-0016).
 		// A catalogue type for the Furniture mode.

@@ -608,6 +608,50 @@ bool FFloor101OpeningTypesInteractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101OpeningCatalogueInteractionTest, "Floor101.Interaction.OpeningCatalogue", InteractionTestFlags)
+bool FFloor101OpeningCatalogueInteractionTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	auto* D = TestWorld.World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document subsystem"), D)) { return false; }
+	const auto Wall = D->GetMutableDocument().addWall({0, 0}, {6000, 0}, 150, 2800).value();
+	TestTrue(TEXT("choose family"), D->Edit([](EditController& E)
+	{
+		E.setMode(f101::cad::EditMode::Door);
+		return E.setNewOpeningFamily(f101::cad::OpeningKind::Door, "door-glass-grid");
+	}).ok());
+	D->UpdatePointer(Down(3000.0, 30.0));
+	TestTrue(TEXT("place family from preview"), D->Edit([](EditController& E) { return E.pointerPressed(Down(3000.0, 30.0)); }).ok());
+	const auto Placed = D->GetDocument().project().findWall(Wall)->openings.front();
+	TestTrue(TEXT("family placed"), Placed.family == "door-glass-grid");
+	const FString NodeId = UTF8_TO_TCHAR((f101::cad::toString(Wall) + "/opening/" + f101::cad::toString(Placed.id)).c_str());
+	const auto* Actor = FindNode(TestWorld.World, NodeId);
+	if (!TestNotNull(TEXT("family represented by actor"), Actor)) { return false; }
+	TestTrue(TEXT("select"), D->Edit([Wall, Placed](EditController& E)
+	{
+		E.setMode(f101::cad::EditMode::Select);
+		return E.selectOpening(Wall, Placed.id);
+	}).ok());
+	TestTrue(TEXT("open glass leaf with its grid"), D->Edit([](EditController& E) { return E.setOpeningOpenPercent("100"); }).ok());
+	TestTrue(TEXT("same actor on opening"), FindNode(TestWorld.World, NodeId) == Actor);
+	TestTrue(TEXT("leaf projects from wall"), Actor->GetMeshBounds().Max.Y - Actor->GetMeshBounds().Min.Y > 70.0);
+	TestTrue(TEXT("change existing family"), D->Edit([](EditController& E) { return E.setOpeningFamily("door-double-panels"); }).ok());
+	TestTrue(TEXT("same actor after family change"), FindNode(TestWorld.World, NodeId) == Actor);
+	TestTrue(TEXT("undo family"), D->GetMutableDocument().undo().ok());
+	TestTrue(TEXT("restores glass family"), D->GetDocument().project().findWall(Wall)->findOpening(Placed.id)->family == "door-glass-grid");
+	D->SetPlanView(true);
+	TestTrue(TEXT("family plan generated"), !D->GetPlanDrawing().strokes.empty());
+	const FString Folder = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101/OpeningCatalogue")));
+	const FString Path = FPaths::Combine(Folder, TEXT("project.json"));
+	TestTrue(TEXT("save catalogue project"), D->SaveProject(Path).ok());
+	TestTrue(TEXT("new project"), D->NewProject().ok());
+	TestTrue(TEXT("reopen catalogue project"), D->OpenProject(Path).ok());
+	TestTrue(TEXT("family persisted"), D->GetDocument().project().findWall(Wall)->findOpening(Placed.id)->family == "door-glass-grid");
+	TestNotNull(TEXT("family actor rebuilt on reopen"), FindNode(TestWorld.World, NodeId));
+	TestTrue(TEXT("export family plan"), D->ExportPlan(FPaths::Combine(Folder, TEXT("plan.svg")), {}).ok());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PhotoModeTest, "Floor101.Interaction.PhotoMode", InteractionTestFlags)
 bool FFloor101PhotoModeTest::RunTest(const FString& Parameters)
 {

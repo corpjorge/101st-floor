@@ -11,6 +11,7 @@
 #include "F101/Assets/Library.h"
 #include "F101/Cad/Document.h"
 #include "F101/Cad/EditController.h"
+#include "F101/Cad/OpeningCatalogue.h"
 #include "F101/Drawing/PlanDrawing.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
@@ -27,6 +28,8 @@
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
 #include "UnrealClient.h"
+
+#include <algorithm>
 
 namespace Floor101::PackageCheck
 {
@@ -61,6 +64,49 @@ namespace Floor101::PackageCheck
 				if (!Check(Finishes && Finishes->GetBaseMaterial() && Finishes->GetGlassMaterial(), TEXT("cooked_materials")))
 				{ FPlatformMisc::RequestExitWithStatus(false, 1); return false; }
 				Check(Document->NewProject().ok(), TEXT("new_project"));
+				{
+					const auto Families = f101::cad::openingCatalogue();
+					Check(Families.size() == 24 && std::count_if(Families.begin(), Families.end(), [](const auto& Family)
+					{
+						return Family.kind == f101::cad::OpeningKind::Door;
+					}) == 12, TEXT("opening_catalogue_24_families"));
+					const auto Host = Document->GetMutableDocument().addWall({0,0},{6000,0},150,2800);
+					if (!Check(Host.ok(), TEXT("opening_catalogue_wall")))
+					{
+						FPlatformMisc::RequestExitWithStatus(false, 1);
+						return false;
+					}
+					Check(Document->Edit([](f101::cad::EditController& E)
+					{
+						E.setMode(f101::cad::EditMode::Door);
+						return E.setNewOpeningFamily(f101::cad::OpeningKind::Door, "door-glass-grid");
+					}).ok(), TEXT("opening_catalogue_choose_door"));
+					Check(Document->Edit([](f101::cad::EditController& E)
+					{
+						return E.pointerPressed({1500,30,10000,0,0,-1});
+					}).ok(), TEXT("opening_catalogue_place_door"));
+					Check(Document->Edit([](f101::cad::EditController& E)
+					{
+						E.setMode(f101::cad::EditMode::Window);
+						return E.setNewOpeningFamily(f101::cad::OpeningKind::Window, "window-fixed-grid");
+					}).ok(), TEXT("opening_catalogue_choose_window"));
+					Check(Document->Edit([](f101::cad::EditController& E)
+					{
+						return E.pointerPressed({4500,30,10000,0,0,-1});
+					}).ok(), TEXT("opening_catalogue_place_window"));
+					const FString CatalogueFile = FPaths::Combine(Directory, TEXT("opening-catalogue.json"));
+					Check(Document->SaveProject(CatalogueFile).ok(), TEXT("opening_catalogue_save"));
+					Check(Document->NewProject().ok() && Document->OpenProject(CatalogueFile).ok(), TEXT("opening_catalogue_open"));
+					const auto* Restored = Document->GetDocument().project().findWall(Host.value());
+					Check(Restored && Restored->openings.size() == 2 && Restored->openings[0].family == "door-glass-grid" &&
+						Restored->openings[1].family == "window-fixed-grid", TEXT("opening_catalogue_families_persisted"));
+					Check(Document->NewProject().ok(), TEXT("clear_opening_catalogue_fixture"));
+					Check(Document->Edit([](f101::cad::EditController& E)
+					{
+						E.setMode(f101::cad::EditMode::Select);
+						return f101::Status::success();
+					}).ok(), TEXT("opening_catalogue_restore_select"));
+				}
 				{
 					auto Legacy = Document->GetDocument().project();
 					uint64 Id = 310;

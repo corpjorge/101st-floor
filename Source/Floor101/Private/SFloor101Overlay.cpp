@@ -942,6 +942,20 @@ void SFloor101Overlay::PrepareReview(const FString& Screen)
 	}
 	if (Screen == TEXT("options")) { OpenOptions(); }
 	if (Screen == TEXT("controls")) { OpenOptions(); OptionsPage = 2; }
+	if ((Screen.StartsWith(TEXT("doors")) || Screen.StartsWith(TEXT("windows"))) && Document.IsValid())
+	{
+		const bool bDoors = Screen.StartsWith(TEXT("doors"));
+		Run([bDoors](EditController& E)
+		{
+			E.setMode(bDoors ? EditMode::Door : EditMode::Window);
+			return E.setNewOpeningFamily(bDoors ? f101::cad::OpeningKind::Door : f101::cad::OpeningKind::Window,
+				bDoors ? "door-glass-grid" : "window-fixed-grid");
+		});
+		if (Screen.EndsWith(TEXT("search"))) { OpeningQuery = TEXT("retícula"); }
+		if (Screen.EndsWith(TEXT("empty"))) { OpeningQuery = TEXT("zzzz"); }
+		if (Screen.EndsWith(TEXT("filter"))) { OpeningOperationFilter = static_cast<int32>(f101::cad::OpeningOperation::Sliding); }
+		if (!IsInspectorDocked() && PropertiesMenu) { PropertiesMenu->SetIsOpen(true); }
+	}
 	if (Screen == TEXT("levels") && LevelMenu && IsLevelIslandCompact()) { LevelMenu->SetIsOpen(true); }
 	if (Screen == TEXT("document-menu") && DocumentMenu) { DocumentMenu->SetIsOpen(true); }
 	if (Screen == TEXT("view-menu") && ViewMenu) { ViewMenu->SetIsOpen(true); }
@@ -1251,6 +1265,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					},
 					[](EditController& Editor, const std::string& Finish) { return Editor.setOpeningFinish(Finish); })))
 		]
+		+ SVerticalBox::Slot().AutoHeight()[Group(LOCTEXT("SelectedOpeningCatalogue", "Diseño"), MakeOpeningCatalogue(true))]
 		+ SVerticalBox::Slot().AutoHeight().Padding(16.0f, 0.0f, 16.0f, 14.0f)
 		[Ui::Note(LOCTEXT("OffsetHint", "Posición: desde el inicio del muro hasta el borde del hueco"))];
 
@@ -1292,7 +1307,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 			// Wider for two readable catalogue cards per row and the services' height presets.
 			const UFloor101DocumentSubsystem* S = Document.Get();
 			const EditMode Mode = S ? S->GetEditController().mode() : EditMode::Select;
-			const double Width = Mode == EditMode::Furniture || Mode == EditMode::Paint || Mode == EditMode::Services ? 340.0
+			const double Width = Mode == EditMode::Door || Mode == EditMode::Window || GetSelectedOpening() ? static_cast<double>(Floor101::Studio::Size::OpeningCatalogue) : Mode == EditMode::Furniture || Mode == EditMode::Paint || Mode == EditMode::Services ? 340.0
 				: ViewSize.X >= Floor101::Studio::Breakpoint::DockLabels ? Floor101::Studio::Size::Inspector : Floor101::Studio::Size::InspectorNarrow;
 			return FOptionalSize(static_cast<float>(FMath::Min(ViewSize.X - 40.0, Width)));
 		})
@@ -1459,65 +1474,32 @@ const f101::cad::Level* SFloor101Overlay::GetActiveLevel() const
 TSharedRef<SWidget> SFloor101Overlay::MakeOpeningPalette()
 {
 	using f101::cad::OpeningKind;
-	using f101::cad::OpeningOperation;
-	// The door or window the tool places now (its size and type), read every frame.
 	auto Template = [this]() -> std::optional<f101::cad::Opening>
 	{
-		const UFloor101DocumentSubsystem* S = Document.Get();
-		const EditMode Mode = S ? S->GetEditController().mode() : EditMode::Select;
-		if (Mode != EditMode::Door && Mode != EditMode::Window)
-		{
-			return std::nullopt;
-		}
-		return Mode == EditMode::Door ? S->GetEditController().settings().door : S->GetEditController().settings().window;
+		const auto* S = Document.Get();
+		if (!S) { return std::nullopt; }
+		const auto& Editor = S->GetEditController();
+		if (Editor.mode() == EditMode::Door) { return Editor.settings().door; }
+		if (Editor.mode() == EditMode::Window) { return Editor.settings().window; }
+		return std::nullopt;
 	};
-	// A choice per type of one kind; the one the next openings get is highlighted.
-	auto Types = [this, Template](OpeningKind Kind)
-	{
-		const bool bDoor = Kind == OpeningKind::Door;
-		TArray<TPair<OpeningOperation, FText>> Entries;
-		Entries.Add({OpeningOperation::Hinged, LOCTEXT("HingedTip", "Una hoja que gira sobre sus bisagras")});
-		Entries.Add({OpeningOperation::DoubleHinged, LOCTEXT("DoubleHingedTip", "Dos hojas que abren desde el centro")});
-		Entries.Add({OpeningOperation::Sliding, bDoor
-			? LOCTEXT("PocketTip", "La hoja se esconde dentro del muro: necesita a un lado un tramo de muro libre tan largo como la puerta")
-			: LOCTEXT("SlidingWindowTip", "Una hoja se desliza por delante de la otra")});
-		if (!bDoor)
-		{
-			Entries.Add({OpeningOperation::Fixed, LOCTEXT("FixedTip", "No se abre")});
-		}
-		TSharedRef<SVerticalBox> List = SNew(SVerticalBox)
-			.Visibility_Lambda([Template, Kind]()
-			{
-				const std::optional<f101::cad::Opening> Current = Template();
-				return Current && Current->kind == Kind ? EVisibility::Visible : EVisibility::Collapsed;
-			});
-		for (const TPair<OpeningOperation, FText>& Entry : Entries)
-		{
-			const OpeningOperation Operation = Entry.Key;
-			List->AddSlot().AutoHeight().Padding(0.0f, List->NumSlots() > 0 ? 6.0f : 0.0f, 0.0f, 0.0f)
-			[
-				Floor101::Ui::Choice(OperationName(Kind, Operation),
-					TAttribute<bool>::CreateLambda([Template, Operation]() { const std::optional<f101::cad::Opening> Current = Template(); return Current && Current->operation == Operation; }),
-					[this, Kind, Operation]() { Run([Kind, Operation](EditController& Editor) { return Editor.setNewOpeningOperation(Kind, Operation); }); },
-					Entry.Value, nullptr, false)
-			];
-		}
-		return List;
-	};
-
 	return SNew(SVerticalBox)
 		.Visibility_Lambda([Template]() { return Template() ? EVisibility::Visible : EVisibility::Collapsed; })
 		+ SVerticalBox::Slot().AutoHeight()
 		[
-			Group(LOCTEXT("GroupType", "Tipo"), SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()[Types(OpeningKind::Door)]
-				+ SVerticalBox::Slot().AutoHeight()[Types(OpeningKind::Window)])
+			Group(LOCTEXT("OpeningTemplateSize", "Medidas"), Stack({
+				MakePropertyRow(LOCTEXT("OpeningTemplateWidth", "Ancho"), [Template]() -> TOptional<double>
+					{ const auto O = Template(); return O ? TOptional<double>(static_cast<double>(O->widthMm)) : TOptional<double>(); }, &EditController::setNewOpeningWidth),
+				MakePropertyRow(LOCTEXT("OpeningTemplateHeight", "Alto"), [Template]() -> TOptional<double>
+					{ const auto O = Template(); return O ? TOptional<double>(static_cast<double>(O->heightMm)) : TOptional<double>(); }, &EditController::setNewOpeningHeight),
+				SNew(SBox).Visibility_Lambda([Template]() { const auto O = Template(); return O && O->kind == OpeningKind::Window ? EVisibility::Visible : EVisibility::Collapsed; })
+				[MakePropertyRow(LOCTEXT("OpeningTemplateSill", "Antepecho"), [Template]() -> TOptional<double>
+					{ const auto O = Template(); return O ? TOptional<double>(static_cast<double>(O->sillMm)) : TOptional<double>(); }, &EditController::setNewOpeningSill)]
+			}))
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(16.0f, 0.0f, 16.0f, 14.0f)
-		[
-			Floor101::Ui::Note(LOCTEXT("OpeningPaletteHint",
-				"Clic en un muro para colocarla; abre hacia el lado al que apuntas y Espacio pasa las bisagras al otro lado. Después, en Seleccionar: medidas, tipo, apertura y carpintería."))
-		];
+		+ SVerticalBox::Slot().AutoHeight()[Group(LOCTEXT("OpeningCatalogue", "Diseños"), MakeOpeningCatalogue(false))]
+		+ SVerticalBox::Slot().AutoHeight().Padding(Floor101::Studio::Size::Gutter)
+		[Floor101::Ui::Note(LOCTEXT("OpeningPaletteHint", "Elige un diseño y ajusta sus medidas. Clic en un muro para colocarlo; Espacio invierte las bisagras. Las correderas empotradas necesitan muro libre al lado."))];
 }
 
 bool SFloor101Overlay::IsPhotoMode() const

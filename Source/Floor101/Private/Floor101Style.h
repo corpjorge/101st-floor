@@ -53,6 +53,10 @@ namespace Floor101::Studio
 		inline constexpr float RadiusControl = 7.0f;
 		inline constexpr float RadiusIsland = 12.0f;
 		inline constexpr float RadiusDialog = 16.0f;
+		inline constexpr float OpeningCard = 132.0f;
+		inline constexpr float OpeningPicture = 92.0f;
+		inline constexpr float OpeningCardLabel = 56.0f;
+		inline constexpr float OpeningCatalogue = 340.0f;
 	}
 	// Window sizes where the layout rearranges itself instead of shrinking (ADR-0026).
 	namespace Breakpoint
