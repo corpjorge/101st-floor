@@ -5,7 +5,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Package,
-    [ValidateSet('functional', 'home', 'startup', 'diagnostics', 'display', 'hdr')][string]$Check = 'functional',
+    [ValidateSet('functional', 'home', 'startup', 'diagnostics', 'display', 'hdr', 'doors', 'windows')][string]$Check = 'functional',
     [int]$ResX = 1280, [int]$ResY = 720
 )
 . "$PSScriptRoot/Common.ps1"

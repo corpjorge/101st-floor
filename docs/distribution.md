@@ -149,3 +149,28 @@ dependencias locales (`Saved/PackageChecks/20261014-201731-functional`) y la de 
 `Packaged/0.2.3/101st-Floor-portable.zip`. Sin instalador MSI en esta entrega. El parpadeo corregido no se comprobó a
 simple vista en la ventana. La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal sigue
 pendiente.
+
+## Entrega 0.2.4 (2026-10-20)
+
+Portable Windows **0.2.4 Shipping** para validar el catálogo de 24 familias paramétricas de puertas y ventanas
+(ADR-0036, `project.json` esquema 15). Incluye miniaturas, búsqueda, filtro de apertura y medidas antes de colocar.
+Generado con UE 5.8.3 y MSVC 14.50 desde el árbol de trabajo basado en `f970e62`, con los cambios del catálogo sin
+commit (`dirty: true` en `release-manifest.json`).
+
+- Ejecutable para abrir: `Packaged/0.2.4/Windows/Floor101.exe`.
+- Portable completo: `Packaged/0.2.4/101st-Floor-portable.zip` (390.458.613 bytes); conservar completa su carpeta `Windows`.
+- SHA-256 del ZIP: `bf4c99e737687781fba13e60ba5b48e82862631d5e638ddda7f13a5633fe6fbd`, también en `Packaged/0.2.4/sha256.txt`.
+- `Package.ps1 -Output Packaged/0.2.4 -Zip`: compilación, cocinado y archivo correctos. El ZIP contiene los 154 archivos
+  del manifiesto y el propio manifiesto; sus dos ejecutables y el manifiesto coinciden por SHA-256 con la carpeta probada.
+- `CheckPackage.ps1 -Package Packaged/0.2.4/Windows`: **103 comprobaciones funcionales correctas**, resultado final PASS,
+  integridad del manifiesto y dependencias locales verificadas. Incluye el catálogo 12/12, colocación y persistencia de
+  las dos clases de familia, exportación SVG/PNG/GLB, biblioteca, controles y Foto.
+  Informe: `Saved/PackageChecks/20261020-102405-functional`.
+- `CheckPackage.ps1 -Package Packaged/0.2.4/Windows -Check doors -ResX 1920 -ResY 1080`: PASS.
+  Captura revisada: `Saved/PackageChecks/20261020-102502-doors/doors.png`.
+- `CheckPackage.ps1 -Package Packaged/0.2.4/Windows -Check windows -ResX 800 -ResY 600`: PASS.
+  Captura revisada: `Saved/PackageChecks/20261020-102532-windows/windows.png`.
+
+El ejecutable se probó en este equipo sin cargar dependencias desde la instalación de Unreal Editor. El usuario confirmó
+el funcionamiento del catálogo el 2026-10-20; la prueba en otro equipo sigue pendiente. Esta entrega es portable;
+la versión 0.2.3 se conserva.

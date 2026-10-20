@@ -143,6 +143,11 @@ namespace f101::cad
 				opening.finish = finish->get<std::string>();
 			}
 			// Schema 6 (ADR-0014). Older files had closed doors and fixed windows: that is what their openings become.
+			if (const auto family = object.find("family"); family != object.end())
+			{
+				if (!family->is_string()) { return formatError(where + ".family must be a string"); }
+				opening.family = family->get<std::string>();
+			}
 			opening.operation = opening.kind == OpeningKind::Door ? OpeningOperation::Hinged : OpeningOperation::Fixed;
 			if (const auto operation = object.find("operation"); operation != object.end())
 			{
@@ -726,6 +731,7 @@ namespace f101::cad
 					item["hinge"] = opening.hinge == OpeningEnd::Start ? "start" : "end";
 					item["opensTo"] = opening.opensTo == WallSide::Left ? "left" : "right";
 					item["openPercent"] = opening.openPercent;
+					if (!opening.family.empty()) { item["family"] = opening.family; }
 					if (!opening.finish.empty())
 					{
 						item["finish"] = opening.finish;

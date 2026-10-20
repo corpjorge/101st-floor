@@ -74,6 +74,10 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   desplazamiento de cada texto desde `Room::labelPoint`; los movidos no se apartan de las cifras. El `EditController` los
   elige por las cajas que publica el dibujo (`PlanDrawing::roomTexts`). `project.json` esquema 14 (ADR-0035).
 - MCP es herramienta de desarrollo, nunca lógica de producto. Llamadas MCP de Unreal siempre en serie.
+- Catálogo paramétrico de puertas y ventanas: 24 familias en `openingCatalogue()` (12 por clase), id estable en
+  `Opening::family`, vacío para el aspecto anterior. Geometría y miniaturas derivadas del mismo diseño; búsqueda,
+  filtro de apertura y medidas antes de colocar. Cambiar familia conserva medidas y acabado; cambiar mecanismo
+  elimina una familia incompatible. `project.json` esquema 15; MCP `GetOpeningFamilies`/`SetOpeningFamily` (ADR-0036).
 
 ## Entorno
 - Windows 11 + RTX 5070 Ti + UE 5.8.x (Launcher). Scripts en PowerShell 7: `Scripts/*.ps1`.

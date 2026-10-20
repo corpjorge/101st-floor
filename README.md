@@ -7,7 +7,7 @@ modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8
 > [MVP 5](docs/mvp5-report.md), [MVP 4](docs/mvp4-report.md), [MVP 3](docs/mvp3-report.md), [MVP 2](docs/mvp2-report.md),
 > [MVP 1](docs/mvp1-report.md), [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas limpias
 > en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de esquinas compartidas, puertas y
-> ventanas con marco, hojas, manillas y vidrio (abatibles, de dos hojas, correderas, fijas; el tipo se elige antes de
+> ventanas con 24 familias paramétricas, marco, hojas, manillas y vidrio (abatibles, de dos hojas, correderas, fijas; el diseño se elige antes de
 > colocarlas; abiertas en ángulo, con su símbolo de apertura) que se arrastran con el ratón y respetan las uniones de
 > muros, varias plantas con forjados, 80 acabados por categoría (pinturas, baldosas, laminado, parquet en espiga,
 > piedra, moquetas...) más fotografías reales, por cara de muro, suelo (pestaña Suelos en Pintar), techo y carpintería,
@@ -21,6 +21,9 @@ modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8
 > probado sin Unreal. Siguiente MVP: pendiente de decisión.
 
 ## Controles
+
+**Puertas y ventanas:** catálogo de 24 familias paramétricas con miniaturas, búsqueda y filtro de apertura;
+medidas ajustables antes y después de colocar. [Guía del catálogo](docs/opening-catalogue.md).
 B: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de colocarla) · M: pintar (pestañas Paredes / Suelos) · G: amueblar (pestañas por categoría) · C: pilar · I: instalación (clic por punto, doble clic o Enter para terminar; tipo y altura en el panel) · X: rayos X (ver las instalaciones; la fila "Redes" elige electricidad, agua, aguas negras o gas, también en el plano y su exportación) · V: seleccionar · R: Modo Foto (path tracing; "Guardar imagen") · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
 Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+Shift+S / Ctrl+O: guardar / guardar como (eliges carpeta y nombre) / abrir · Esc o clic derecho: cancelar ·
 WASD siempre para moverse, sin activar N, Q/E para bajar/subir, Shift para ir más rápido, derecho para mirar; N/Esc vuelve a editar. **Velocidad** permite elegir niveles 1–10 (inicial: 3 m/s) y guarda la elección. Números superiores 1–9: nivel de velocidad; 0: nivel 10 (excepto al escribir medidas). B: paredes; G: muebles. N solo cambia Diseñar/Recorrer. [Navegación y zoom](docs/camera-navigation.md).

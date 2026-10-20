@@ -174,6 +174,9 @@ private:
 	TSharedRef<SWidget> MakeOpeningTypeSection();
 	// Door and Window modes: the type the next ones are placed with.
 	TSharedRef<SWidget> MakeOpeningPalette();
+	TSharedRef<SWidget> MakeOpeningCatalogue(bool bSelection);
+	FString OpeningQuery;
+	int32 OpeningOperationFilter = -1;
 	// A row with a label, a value and an "Invertir" button running `Flip`.
 	TSharedRef<SWidget> MakeFlipRow(TFunction<FText()> Label, TFunction<FText()> Value, f101::Status (f101::cad::EditController::*Flip)());
 	// Photo mode (ADR-0018): its samples, quality, saving the image and leaving it.

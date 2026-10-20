@@ -173,6 +173,23 @@ struct FFloor101OpeningInfo
 	/** How open it is shown: 100 = hinged at 90 degrees, sliding fully open; always 0 when fixed. */
 	UPROPERTY(meta = (ClampMin = "0", ClampMax = "100"))
 	int32 OpenPercent = 0;
+
+	/** Parametric catalogue family; empty for legacy carpentry. */
+	UPROPERTY()
+	FString Family;
+};
+
+USTRUCT(BlueprintType)
+struct FFloor101OpeningFamilyInfo
+{
+	GENERATED_BODY()
+	UPROPERTY() FString Id;
+	UPROPERTY() FString Name;
+	UPROPERTY() EFloor101OpeningKind Kind = EFloor101OpeningKind::Door;
+	UPROPERTY() EFloor101OpeningOperation Operation = EFloor101OpeningOperation::Hinged;
+	UPROPERTY() int64 WidthMm = 0;
+	UPROPERTY() int64 HeightMm = 0;
+	UPROPERTY() int64 SillMm = 0;
 };
 
 /**
@@ -856,6 +873,14 @@ public:
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static FFloor101OpeningInfo SetOpeningOperation(const FString& WallId, const FString& OpeningId, EFloor101OpeningOperation Operation,
 		EFloor101OpeningEnd Hinge, EFloor101WallSide OpensTo, int32 OpenPercent);
+
+	/** Returns the 24 parametric door and window families, with suggested dimensions. */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static TArray<FFloor101OpeningFamilyInfo> GetOpeningFamilies();
+
+	/** Sets a catalogue family and its mechanism, preserving the opening's size, finish and orientation. */
+	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
+	static FFloor101OpeningInfo SetOpeningFamily(const FString& WallId, const FString& OpeningId, const FString& FamilyId);
 
 	UFUNCTION(meta = (AICallable), Category = "Floor101DocumentToolset")
 	static void RemoveOpening(const FString& WallId, const FString& OpeningId);

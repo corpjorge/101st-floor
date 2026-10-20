@@ -876,6 +876,25 @@ void FFloor101DocumentToolsetSpec::Define()
 			UFloor101DocumentToolset::RemoveWall(First.Id);
 		});
 
+		It("opening catalogue exposes 24 families and changes a family with validation and undo", [this]()
+		{
+			const auto Families = UFloor101DocumentToolset::GetOpeningFamilies();
+			TestEqual(TEXT("24 families"), Families.Num(), 24);
+			const auto Wall = UFloor101DocumentToolset::AddWall(TEXT(""), 100000, 0, 106000, 0, 150, 2800);
+			const auto Door = UFloor101DocumentToolset::AddOpening(Wall.Id, EFloor101OpeningKind::Door, 2500, 900, 2100, 0);
+			const auto Changed = UFloor101DocumentToolset::SetOpeningFamily(Wall.Id, Door.Id, TEXT("door-double-glass"));
+			TestEqual(TEXT("family reported"), Changed.Family, FString(TEXT("door-double-glass")));
+			TestEqual(TEXT("width preserved"), Changed.WidthMm, Door.WidthMm);
+			TestTrue(TEXT("family mechanism"), Changed.Operation == EFloor101OpeningOperation::DoubleHinged);
+			UFloor101DocumentToolset::Undo();
+			const auto Walls = UFloor101DocumentToolset::GetWalls();
+			const auto* Restored = Walls.FindByPredicate([&Wall](const auto& Candidate) { return Candidate.Id == Wall.Id; });
+			TestTrue(TEXT("family change undoable"), Restored && Restored->Openings.Num() == 1 && Restored->Openings[0].Family.IsEmpty());
+			ExpectRaises(TEXT("Opening family does not match"), [&]() { UFloor101DocumentToolset::SetOpeningFamily(Wall.Id, Door.Id, TEXT("window-fixed")); });
+			ExpectRaises(TEXT("Unknown opening family"), [&]() { UFloor101DocumentToolset::SetOpeningFamily(Wall.Id, Door.Id, TEXT("unknown")); });
+			UFloor101DocumentToolset::RemoveWall(Wall.Id);
+		});
+
 		It("ExportPlan writes the plan as SVG, with or without the interior dimensions; raises on another extension and on an unknown level", [this]()
 		{
 			TArray<FString> Ids;

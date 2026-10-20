@@ -192,6 +192,11 @@ material. Caras con sombreado plano: 24 vértices y 12 triángulos por pared sin
   tipo, bisagras, sentido y apertura.
 - **`project.json` esquema 6** (`operation`, `hinge`, `opensTo`, `openPercent`).
 
+El catálogo paramétrico de ADR-0036 amplía la carpintería con 24 familias en CadCore y `Opening::family`
+(`project.json` esquema 15). Geometría y miniaturas derivan del mismo diseño; el inspector permite búsqueda,
+filtro de apertura y cambio de familia deshacible. Los proyectos sin familia conservan su aspecto anterior.
+Detalle: [catálogo de puertas y ventanas](opening-catalogue.md).
+
 ## Planos 2D (MVP 8, ADR-0015)
 
 - **Un dibujo puro:** `Floor101Drawing` convierte la planta en rellenos, trazos y rótulos en mm: muros cortados a 1,20 m,

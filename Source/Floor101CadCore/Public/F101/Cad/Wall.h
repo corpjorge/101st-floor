@@ -7,6 +7,7 @@
 #include "F101/Cad/Result.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -66,6 +67,7 @@ namespace f101::cad
 		WallSide opensTo = WallSide::Left;
 		// 0 closed .. 100 fully open (hinged: 90 degrees; sliding: the leaf moved its whole travel). Always 0 when fixed.
 		int openPercent = 0;
+		std::string family; // catalogue id; empty preserves legacy carpentry (ADR-0036)
 
 		friend bool operator==(const Opening&, const Opening&) = default;
 	};

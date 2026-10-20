@@ -1,4 +1,5 @@
 #include "F101/Drawing/PlanDrawing.h"
+#include "F101/Cad/OpeningCatalogue.h"
 #include "F101/Cad/Units.h"
 
 #include "F101/Geometry/CarpentryBuilder.h"
@@ -206,6 +207,17 @@ namespace f101::drawing
 					{
 						builder.stroke({frame.at(u0, 0.0), frame.at(u1, 0.0)}, Ink::Carpentry, LineMm); // the glass
 					}
+					if (const auto* family = cad::findOpeningFamily(opening.family))
+					{
+						const int leaves = opening.operation == cad::OpeningOperation::DoubleHinged ||
+							opening.operation == cad::OpeningOperation::Sliding ? 2 : 1;
+						const int divisions = leaves * family->columns;
+						for (int c = 1; c < divisions; ++c)
+						{
+							const double u = u0 + frameWidth + (u1 - u0 - 2.0 * frameWidth) * c / divisions;
+							builder.stroke({frame.at(u, -depth), frame.at(u, depth)}, Ink::Carpentry, LineMm);
+						}
+					}
 					continue;
 				}
 				const double leafU0 = u0 + frameWidth;
@@ -236,6 +248,12 @@ namespace f101::drawing
 					builder.stroke({pivot, add(pivot, scale(out, width)), add(add(pivot, scale(out, width)), scale(along, thickness)),
 						add(pivot, scale(along, thickness))}, Ink::Carpentry, LineMm, true);
 					builder.arc(pivot, along, out, width, Ink::Swing, ThinMm);
+					const auto* family = cad::findOpeningFamily(opening.family);
+					if (family && family->design == cad::OpeningDesign::Glazed)
+					{
+						const PlanPoint glassStart = add(add(pivot, scale(out, std::min(60.0, width / 4.0))), scale(along, thickness / 2.0));
+						builder.stroke({glassStart, add(glassStart, scale(out, width - 2.0 * std::min(60.0, width / 4.0)))}, Ink::Carpentry, ThinMm);
+					}
 				};
 				if (opening.operation == cad::OpeningOperation::DoubleHinged)
 				{

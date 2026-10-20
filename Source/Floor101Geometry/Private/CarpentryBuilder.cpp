@@ -1,6 +1,7 @@
 #include "F101/Geometry/CarpentryBuilder.h"
 
 #include "F101/Geometry/Rooms.h"
+#include "F101/Cad/OpeningCatalogue.h"
 #include "MeshBuilding.h"
 
 #include <algorithm>
@@ -44,12 +45,14 @@ namespace f101::geometry
 			double depth = 0.0; // half the frame depth
 			double sigma = 1.0; // +1: it opens towards the left face, -1: the right one
 			double open = 0.0;  // 0 closed .. 1 fully open
+			const cad::OpeningFamily* family = nullptr;
 		};
 
 		// The hole trimmed like the wall's (WallGeometryBuilder); nullopt if nothing is left of it.
 		std::optional<Hole> holeOf(const cad::Wall& wall, const WallFootprint& footprint, const cad::Opening& opening)
 		{
 			Hole hole;
+			hole.family = cad::findOpeningFamily(opening.family);
 			hole.start = toPlan(wall.start);
 			const cad::PlanPoint axisVector = sub(toPlan(wall.end), hole.start);
 			hole.axis = scale(axisVector, 1.0 / length2(axisVector));
@@ -98,12 +101,72 @@ namespace f101::geometry
 			return Local{pivot, rotate(d, angle), rotate(n, angle)};
 		}
 
+		// A divided infill in leaf coordinates. Each pane occupies its own cell; profiles retain their physical size.
+		void dividedLeaf(MeshData& mesh, const Local& at, double width, double s0, double s1, double z0, double z1,
+			const cad::OpeningFamily& family)
+		{
+			const double profile = std::min({60.0, width / (family.columns * 4.0), (z1 - z0) / (family.rows * 4.0)});
+			const double height = z1 - z0;
+			const bool glazed = family.design == cad::OpeningDesign::Glazed;
+			if (!glazed)
+			{
+				box(mesh, carpentry_slots::Leaf, at, 0.0, width, s0, s1, z0, z1);
+			}
+			else
+			{
+				box(mesh, carpentry_slots::Leaf, at, 0.0, profile, s0, s1, z0, z1);
+				box(mesh, carpentry_slots::Leaf, at, width - profile, width, s0, s1, z0, z1);
+				box(mesh, carpentry_slots::Leaf, at, profile, width - profile, s0, s1, z0, z0 + profile);
+				box(mesh, carpentry_slots::Leaf, at, profile, width - profile, s0, s1, z1 - profile, z1);
+				for (int c = 1; c < family.columns; ++c)
+				{
+					const double x = width * c / family.columns;
+					box(mesh, carpentry_slots::Leaf, at, x - profile / 2.0, x + profile / 2.0, s0, s1, z0 + profile, z1 - profile);
+				}
+				for (int r = 1; r < family.rows; ++r)
+				{
+					const double z = z0 + height * r / family.rows;
+					box(mesh, carpentry_slots::Leaf, at, profile, width - profile, s0, s1, z - profile / 2.0, z + profile / 2.0);
+				}
+			}
+			for (int c = 0; c < family.columns; ++c)
+			{
+				for (int r = 0; r < family.rows; ++r)
+				{
+					const double x0 = width * c / family.columns + (c == 0 ? profile : profile / 2.0);
+					const double x1 = width * (c + 1) / family.columns - (c + 1 == family.columns ? profile : profile / 2.0);
+					const double a = z0 + height * r / family.rows + (r == 0 ? profile : profile / 2.0);
+					const double b = z0 + height * (r + 1) / family.rows - (r + 1 == family.rows ? profile : profile / 2.0);
+					if (glazed)
+					{
+						const double middle = (s0 + s1) / 2.0;
+						const double glass = std::min(GlassThicknessMm, s1 - s0) / 2.0;
+						box(mesh, carpentry_slots::Glass, at, x0, x1, middle - glass, middle + glass, a, b);
+					}
+					else
+					{
+						box(mesh, carpentry_slots::Leaf, at, x0, x1, s0 - 4.0, s0, a, b);
+						box(mesh, carpentry_slots::Leaf, at, x0, x1, s1, s1 + 4.0, a, b);
+					}
+				}
+			}
+		}
+
+		void doorLeaf(MeshData& mesh, const Hole& hole, const Local& at, double width, double s0, double s1, double z0, double z1)
+		{
+			if (hole.family && hole.family->design != cad::OpeningDesign::Solid)
+			{
+				dividedLeaf(mesh, at, width, s0, s1, z0, z1, *hole.family);
+			}
+			else { box(mesh, carpentry_slots::Leaf, at, 0.0, width, s0, s1, z0, z1); }
+		}
+
 		// A door leaf over [u0, u1] hinged at one end, with a lever on each face near its free edge at the usual height.
 		void hingedLeaf(MeshData& mesh, const Hole& hole, double u0, double u1, bool hingeAtStart, double half, double z0, double z1)
 		{
 			const double width = u1 - u0;
 			const Local at = hingedFrame(hole, hingeAtStart ? u0 : u1, hingeAtStart, half);
-			box(mesh, carpentry_slots::Leaf, at, 0.0, width, 0.0, 2.0 * half, z0, z1);
+			doorLeaf(mesh, hole, at, width, 0.0, 2.0 * half, z0, z1);
 			if (width >= 300.0)
 			{
 				const double handleZ = std::min(1000.0, (z0 + z1) / 2.0);
@@ -118,8 +181,14 @@ namespace f101::geometry
 		}
 
 		// A window sash: profiles round a pane, `width` along u from 0 and across s0..s1.
-		void sash(MeshData& mesh, const Local& at, double width, double s0, double s1, double z0, double z1)
+		void sash(MeshData& mesh, const Local& at, double width, double s0, double s1, double z0, double z1,
+			const cad::OpeningFamily* family)
 		{
+			if (family)
+			{
+				dividedLeaf(mesh, at, width, s0, s1, z0, z1, *family);
+				return;
+			}
 			const double profile = sashProfile(width, z0, z1);
 			box(mesh, carpentry_slots::Leaf, at, 0.0, profile, s0, s1, z0, z1);
 			box(mesh, carpentry_slots::Leaf, at, width - profile, width, s0, s1, z0, z1);
@@ -163,7 +232,8 @@ namespace f101::geometry
 				// Into its pocket, where the wall hides it; a flush pull on each face near the edge left in the hole.
 				const Local at = wallFrame(hole);
 				const double shift = hole.open * (u1 - u0) * (towardStart ? -1.0 : 1.0);
-				box(mesh, carpentry_slots::Leaf, at, u0 + shift, u1 + shift, -half, half, z0, z1);
+				const Local leafAt{add(hole.start, scale(hole.axis, u0 + shift)), hole.axis, hole.left};
+				doorLeaf(mesh, hole, leafAt, u1 - u0, -half, half, z0, z1);
 				const double pullU = towardStart ? u1 + shift - 60.0 : u0 + shift + 60.0;
 				const double pullZ = std::min(1000.0, (z0 + z1) / 2.0);
 				box(mesh, carpentry_slots::Hardware, at, pullU - 10.0, pullU + 10.0, half, half + 5.0, pullZ - 75.0, pullZ + 75.0);
@@ -194,6 +264,12 @@ namespace f101::geometry
 			{
 			case cad::OpeningOperation::Fixed:
 			{
+				if (hole.family)
+				{
+					const Local fixedAt{add(hole.start, scale(hole.axis, iu0)), hole.axis, hole.left};
+					sash(mesh, fixedAt, iu1 - iu0, -hole.depth / 2.0, hole.depth / 2.0, iz0, iz1, hole.family);
+					break;
+				}
 				if (hole.u1 - hole.u0 > MullionFromWidthMm)
 				{
 					const double middle = (hole.u0 + hole.u1) / 2.0;
@@ -217,9 +293,9 @@ namespace f101::geometry
 				const double fixedS0 = hole.sigma > 0.0 ? -2.0 - thickness : 2.0;
 				const double fixedU0 = towardStart ? iu0 : iu1 - each;
 				const double movingU0 = (towardStart ? iu1 - each : iu0) + hole.open * (each - overlap) * (towardStart ? -1.0 : 1.0);
-				sash(mesh, Local{add(hole.start, scale(hole.axis, fixedU0)), hole.axis, hole.left}, each, fixedS0, fixedS0 + thickness, z0, z1);
+				sash(mesh, Local{add(hole.start, scale(hole.axis, fixedU0)), hole.axis, hole.left}, each, fixedS0, fixedS0 + thickness, z0, z1, hole.family);
 				const Local moving{add(hole.start, scale(hole.axis, movingU0)), hole.axis, hole.left};
-				sash(mesh, moving, each, movingS0, movingS0 + thickness, z0, z1);
+				sash(mesh, moving, each, movingS0, movingS0 + thickness, z0, z1, hole.family);
 				// Its pull, at the edge away from the fixed sash, on its face.
 				const double profile = sashProfile(each, z0, z1);
 				const double pullS0 = hole.sigma > 0.0 ? movingS0 + thickness : movingS0 - 20.0;
@@ -238,7 +314,7 @@ namespace f101::geometry
 				{
 					const double width = b - a;
 					const Local sashAt = hingedFrame(hole, fromStart ? a : b, fromStart, half);
-					sash(mesh, sashAt, width, 0.0, 2.0 * half, z0, z1);
+					sash(mesh, sashAt, width, 0.0, 2.0 * half, z0, z1, hole.family);
 					if (withHandle && width > 0.0)
 					{
 						windowHandle(mesh, sashAt, width - sashProfile(width, z0, z1) / 2.0, -25.0, 0.0, z0, z1);

@@ -37,6 +37,7 @@
 | [0033](ADR-0033-cota-cero-design-system.md) | Sistema de diseño Cota Cero: tokens, tipografía de Windows, componentes Slate e islas flotantes; primera pantalla Diseñar | aceptado |
 | [0034](ADR-0034-interior-dimensions.md) | Cotas interiores automáticas de cara a cara por tramo del suelo (`Room::sides`); rótulos de habitación apartados de las cifras; interruptor en Vista recordado como preferencia local; sin cambio de esquema | aceptado |
 | [0035](ADR-0035-room-label-layout.md) | Tamaño del nombre y del área de cada habitación y cada texto arrastrable en el plano (`Project::roomLabels`, desplazamiento desde su punto de rótulo); esquema 14 | aceptado |
+| [0036](ADR-0036-opening-catalogue.md) | Catálogo paramétrico de 24 familias de puertas y ventanas, miniaturas de su geometría, búsqueda y filtros; esquema 15 | aceptado y verificado |
 
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

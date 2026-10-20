@@ -1,4 +1,5 @@
 #include "F101/Cad/EditController.h"
+#include "F101/Cad/OpeningCatalogue.h"
 
 #include <algorithm>
 #include <array>
@@ -1585,6 +1586,8 @@ namespace f101::cad
 		return editSelectedOpening([operation](Opening& opening)
 		{
 			opening.operation = operation;
+			const auto* family = findOpeningFamily(opening.family);
+			if (family && family->operation != operation) { opening.family.clear(); }
 			if (operation == OpeningOperation::Fixed)
 			{
 				opening.openPercent = 0;
@@ -1599,7 +1602,74 @@ namespace f101::cad
 			return Error{ErrorCode::InvalidArgument, "A door cannot be fixed"};
 		}
 		// Placing it later also checks that everything it takes (a sliding door's pocket) fits the wall.
-		(kind == OpeningKind::Door ? editSettings.door : editSettings.window).operation = operation;
+		Opening& defaults = kind == OpeningKind::Door ? editSettings.door : editSettings.window;
+		defaults.operation = operation;
+		const auto* family = findOpeningFamily(defaults.family);
+		if (family && family->operation != operation) { defaults.family.clear(); }
+		if (operation == OpeningOperation::Fixed) { defaults.openPercent = 0; }
+		updatePlacement();
+		return Status::success();
+	}
+
+	Status EditController::setOpeningFamily(std::string_view family)
+	{
+		const auto current = selectedOpening();
+		if (!current) { return nothingSelected(); }
+		Opening changed = current->opening;
+		if (Status applied = applyOpeningFamily(changed, family); !applied) { return applied; }
+		return toStatus(document.execute(ChangeOpeningCommand{current->wall, changed}));
+	}
+
+	Status EditController::setNewOpeningFamily(OpeningKind kind, std::string_view family)
+	{
+		Opening& defaults = kind == OpeningKind::Door ? editSettings.door : editSettings.window;
+		if (Status applied = applyOpeningFamily(defaults, family); !applied) { return applied; }
+		const auto* chosen = findOpeningFamily(family);
+		defaults.widthMm = chosen->widthMm;
+		defaults.heightMm = chosen->heightMm;
+		defaults.sillMm = chosen->sillMm;
+		updatePlacement();
+		return Status::success();
+	}
+
+	Status EditController::setNewOpeningWidth(std::string_view text)
+	{
+		if (!isOpeningMode()) { return Error{ErrorCode::InvalidArgument, "Choose the Door or Window tool first"}; }
+		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value) { return value.error(); }
+		if (value.value() < 300 || value.value() > MaxAbsMillimeters)
+		{
+			return Error{ErrorCode::OutOfRange, "An opening must be at least 300 mm wide and within the model range"};
+		}
+		(currentMode == EditMode::Door ? editSettings.door : editSettings.window).widthMm = value.value();
+		updatePlacement();
+		return Status::success();
+	}
+
+	Status EditController::setNewOpeningHeight(std::string_view text)
+	{
+		if (!isOpeningMode()) { return Error{ErrorCode::InvalidArgument, "Choose the Door or Window tool first"}; }
+		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value) { return value.error(); }
+		if (value.value() <= 0 || value.value() > MaxAbsMillimeters)
+		{
+			return Error{ErrorCode::OutOfRange, "An opening needs a positive height within the model range"};
+		}
+		(currentMode == EditMode::Door ? editSettings.door : editSettings.window).heightMm = value.value();
+		updatePlacement();
+		return Status::success();
+	}
+
+	Status EditController::setNewOpeningSill(std::string_view text)
+	{
+		if (!isOpeningMode()) { return Error{ErrorCode::InvalidArgument, "Choose the Door or Window tool first"}; }
+		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value) { return value.error(); }
+		if (value.value() < 0 || value.value() > MaxAbsMillimeters || (currentMode == EditMode::Door && value.value() != 0))
+		{
+			return Error{ErrorCode::OutOfRange, "A door starts at the floor; a window needs a nonnegative sill within the model range"};
+		}
+		(currentMode == EditMode::Door ? editSettings.door : editSettings.window).sillMm = value.value();
 		updatePlacement();
 		return Status::success();
 	}
