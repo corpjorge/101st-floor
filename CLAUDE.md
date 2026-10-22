@@ -78,14 +78,20 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   `Opening::family`, vacío para el aspecto anterior. Geometría y miniaturas derivadas del mismo diseño; búsqueda,
   filtro de apertura y medidas antes de colocar. Cambiar familia conserva medidas y acabado; cambiar mecanismo
   elimina una familia incompatible. `project.json` esquema 15; MCP `GetOpeningFamilies`/`SetOpeningFamily` (ADR-0036).
+- Público con licencia MIT (`LICENSE`, `THIRD-PARTY-NOTICES.md` con el aviso de Unreal Engine). Actualizaciones desde
+  GitHub Releases (`Floor101::Update`): manifiesto firmado ECDSA P-256 verificado con CNG contra `UpdatePublicKey`,
+  solo versiones mayores, `Setup.exe` comprobado por tamaño y SHA-256 y ejecutado en modo pasivo tras el aviso de
+  cambios sin guardar; solo la copia instalada se actualiza sola. La clave privada nunca entra en el repositorio
+  (ADR-0039, `docs/releasing.md`).
 
 ## Entorno
 - Windows 11 + RTX 5070 Ti + UE 5.8.x (Launcher). Scripts en PowerShell 7: `Scripts/*.ps1`.
 - Nunca invocar `bash` desde `.ps1` (en PowerShell resuelve a WSL). Localizar el motor con `Scripts/Common.ps1`.
 - Compilar: `.\Scripts\Build.ps1` (con el editor cerrado; abierto → Live Coding vía MCP). Validar render: `.\Scripts\CheckRendering.ps1`.
 - Tests: `.\Scripts\Test.ps1` (arquitectura + unitarios CMake, segundos); `-Integration` añade Unreal Automation.
-- Distribución: `.\Scripts\Package.ps1`, `.\Scripts\CheckPackage.ps1` (ejecutable Shipping real) e `.\Scripts\Installer.ps1`;
-  detalle en `docs/distribution.md`.
+- Distribución: `.\Scripts\Package.ps1`, `.\Scripts\CheckPackage.ps1` (ejecutable Shipping real; `-Check update`),
+  `.\Scripts\Installer.ps1` y `.\Scripts\Release.ps1` (firma y publica con `gh`); detalle en `docs/distribution.md` y
+  `docs/releasing.md`.
 - Editor + MCP: `.\Scripts\RunEditorMcp.ps1`; comprobar: `.\Scripts\CheckMcp.ps1`. Detalle en `docs/unreal-mcp.md`.
 - Para editar el documento por MCP: toolset `Floor101Editor.Floor101DocumentToolset` (plantas, paredes en mm, esquinas,
   habitaciones, puertas y ventanas con su carpintería, muebles, pilares, instalaciones y su capa, assets importados,

@@ -21,12 +21,16 @@ public class Floor101 : ModuleRules
 			"RHI", "RenderCore", "Renderer",
 			// Json: the integration tests read an exported glTF back (ADR-0020).
 			"Json",
+			// HTTP: updates from the project's GitHub releases (ADR-0039).
+			"HTTP",
 		});
 
 		// Importing assets (ADR-0017): the system's open-file dialog.
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			PublicSystemLibraries.Add("comdlg32.lib");
+			// Windows CNG: SHA-256 and the ECDSA signature of updates (ADR-0039).
+			PublicSystemLibraries.Add("bcrypt.lib");
 		}
 	}
 }

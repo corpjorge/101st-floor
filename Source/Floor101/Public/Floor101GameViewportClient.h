@@ -86,6 +86,8 @@ public:
 	// The overlay owns an asynchronous prompt inside the viewport, never a separate native window.
 	FFloor101UnsavedPrompt UnsavedPrompt;
 	bool RequestUnsavedAction(bool bExit, FSimpleDelegate Proceed);
+	// Installs the downloaded update (ADR-0039): after protecting unsaved work like Salir, runs its installer and closes.
+	bool RequestUpdateInstall();
 	// A dedicated options/start screen owns input while open; CAD and held movement keys stay inactive.
 	void SetInterfaceOpen(bool bOpen, FSimpleDelegate Close = FSimpleDelegate());
 	bool IsInterfaceOpen() const { return bInterfaceOpen; }

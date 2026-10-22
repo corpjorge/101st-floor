@@ -42,6 +42,9 @@ foreach ($packageCategory in 'furniture', 'textures') {
 }
 (Get-Content -LiteralPath (Join-Path $RepoRoot 'Resources/Distribution/LEEME.txt') -Raw).Replace('{VERSION}', $packageVersion) |
     Set-Content -LiteralPath (Join-Path $packageWindows 'LEEME.txt') -Encoding utf8 -NoNewline
+# The project's license and the third-party notices (ADR-0039), next to Floor101.exe: Options > Acerca de opens them.
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'LICENSE') -Destination (Join-Path $packageWindows 'LICENSE.txt')
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'THIRD-PARTY-NOTICES.md') -Destination (Join-Path $packageWindows 'THIRD-PARTY-NOTICES.txt')
 $packageLicenses = Join-Path $packageWindows 'Licenses'
 New-Item -ItemType Directory -Path $packageLicenses | Out-Null
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'ThirdParty/nlohmann/LICENSE.MIT') -Destination (Join-Path $packageLicenses 'nlohmann-json-MIT.txt')

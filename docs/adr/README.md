@@ -38,6 +38,9 @@
 | [0034](ADR-0034-interior-dimensions.md) | Cotas interiores automáticas de cara a cara por tramo del suelo (`Room::sides`); rótulos de habitación apartados de las cifras; interruptor en Vista recordado como preferencia local; sin cambio de esquema | aceptado |
 | [0035](ADR-0035-room-label-layout.md) | Tamaño del nombre y del área de cada habitación y cada texto arrastrable en el plano (`Project::roomLabels`, desplazamiento desde su punto de rótulo); esquema 14 | aceptado |
 | [0036](ADR-0036-opening-catalogue.md) | Catálogo paramétrico de 24 familias de puertas y ventanas, miniaturas de su geometría, búsqueda y filtros; esquema 15 | aceptado y verificado |
+| [0037](ADR-0037-fixture-lighting.md) | Luminarias con emisión real y elevación de mobiliario | aceptado |
+| [0038](ADR-0038-translucent-roofs-glazing.md) | Cubiertas translúcidas por habitación y acabado independiente del vidrio | aceptado |
+| [0039](ADR-0039-public-release-and-updates.md) | Publicación con licencia MIT y actualizaciones desde GitHub Releases: manifiesto firmado (ECDSA P-256), descarga comprobada e instalación pasiva | aceptado |
 
 Solo se crea un ADR para decisiones difíciles de revertir o que afectan a varios módulos. Formato: contexto,
 alternativas con ventajas y riesgos, decisión, consecuencias, verificación.

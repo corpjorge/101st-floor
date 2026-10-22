@@ -15,6 +15,7 @@ namespace
 	const TCHAR* PathsSection = TEXT("Floor101.Paths");
 	const TCHAR* LastProjectKey = TEXT("LastProject");
 	const TCHAR* LastTwinmotionKey = TEXT("LastTwinmotionFolder");
+	const TCHAR* LastPhotoKey = TEXT("LastPhotoFolder");
 	const TCHAR* NewProjectName = TEXT("casa.json");
 
 	FString ReadSetting(const TCHAR* Key)
@@ -212,6 +213,31 @@ void FFloor101FileActions::ExportTwinmotion(UFloor101DocumentSubsystem& Document
 		RememberTwinmotionFolder(FPaths::GetPath(Path));
 	}
 	GiveFocusBack();
+}
+
+void FFloor101FileActions::SavePhoto(UFloor101DocumentSubsystem& Document)
+{
+	(void)SavePhotoToChosenPath(Document, [](const FString& Proposed, FString& Path)
+	{
+		// The format follows what the viewport shows: the proposal already carries it.
+		const bool bExr = FPaths::GetExtension(Proposed).Equals(TEXT("exr"), ESearchCase::IgnoreCase);
+		return FFloor101FileDialog::SaveFile(LOCTEXT("PhotoSaveTitle", "Guardar foto"),
+			(bExr ? LOCTEXT("ExrFiles", "Imagen HDR OpenEXR (*.exr)") : LOCTEXT("PngFiles", "Imagen PNG (*.png)")).ToString(),
+			bExr ? TEXT("*.exr") : TEXT("*.png"), bExr ? TEXT("exr") : TEXT("png"), Proposed, Path);
+	});
+	GiveFocusBack();
+}
+
+bool FFloor101FileActions::SavePhotoToChosenPath(UFloor101DocumentSubsystem& Document,
+	TFunctionRef<bool(const FString&, FString&)> ChoosePath)
+{
+	const FString Default = Document.GetDefaultPhotoPath();
+	const FString Folder = ReadSetting(LastPhotoKey);
+	const FString Proposed = Folder.IsEmpty() ? Default : FPaths::Combine(Folder, FPaths::GetCleanFilename(Default));
+	FString Path;
+	if (!ChoosePath(Proposed, Path) || Path.IsEmpty() || !Document.SavePhoto(Path)) { return false; }
+	WriteSetting(LastPhotoKey, FPaths::GetPath(FPaths::ConvertRelativePathToFull(Path)));
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

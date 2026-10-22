@@ -35,6 +35,9 @@ sin lógica de producto en Blueprints ni pasos manuales en el Editor.
   acumulación para que la imagen no conserve materiales provisionales.
 - **Guardar**: "Guardar imagen" escribe con `FScreenshotRequest` (sin la UI) un PNG junto al proyecto,
   `<nombre>-foto-<fecha>-<hora>.png`; otra extensión se rechaza.
+  *Actualización (2026-10-22):* "Guardar imagen…" abre el diálogo de Windows para elegir carpeta y nombre; propone ese
+  nombre en la última carpeta usada para fotos (`[Floor101.Paths] LastPhotoFolder`), si no junto al proyecto. Cancelar
+  no guarda nada. PNG, o EXR mientras la pantalla está en HDR (ADR-0022).
 - **UI**: en Modo Foto se ocultan la barra, el panel de propiedades, las etiquetas de habitaciones y el rótulo del cursor;
   el panel "Foto (path tracing)" muestra muestras y barra de progreso, calidad, "Guardar imagen", "Encuadrar (F)",
   "Cenital (T)" y "Volver a editar (R)".

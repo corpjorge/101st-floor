@@ -335,6 +335,65 @@ bool FFloor101PlanDestinationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101PhotoDestinationTest, "Floor101.Interface.PhotoDestination",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFloor101PhotoDestinationTest::RunTest(const FString& Parameters)
+{
+	// "Guardar imagen…" asks where (ADR-0018): it proposes the dated name next to the project, saves only to the place
+	// chosen, and the next photo starts in that folder.
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, TEXT("Floor101PhotoDestinationWorld"));
+	GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+	const FString Folder = FPaths::ConvertRelativePathToFull(
+		FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("Floor101PhotoDestination"), FGuid::NewGuid().ToString()));
+	FString OriginalFolder;
+	const bool bHadFolder = GConfig->GetString(TEXT("Floor101.Paths"), TEXT("LastPhotoFolder"), OriginalFolder, GGameUserSettingsIni);
+	ON_SCOPE_EXIT
+	{
+		FScreenshotRequest::Reset(); // nothing renders here: no capture is left pending for later
+		IFileManager::Get().DeleteDirectory(*Folder, false, true);
+		if (bHadFolder) { GConfig->SetString(TEXT("Floor101.Paths"), TEXT("LastPhotoFolder"), *OriginalFolder, GGameUserSettingsIni); }
+		else { GConfig->RemoveKey(TEXT("Floor101.Paths"), TEXT("LastPhotoFolder"), GGameUserSettingsIni); }
+		GConfig->Flush(false, GGameUserSettingsIni);
+		GEngine->DestroyWorldContext(World); World->DestroyWorld(false);
+	};
+	auto* D = World->GetSubsystem<UFloor101DocumentSubsystem>();
+	if (!TestNotNull(TEXT("document"), D)) { return false; }
+	GConfig->RemoveKey(TEXT("Floor101.Paths"), TEXT("LastPhotoFolder"), GGameUserSettingsIni);
+
+	TestFalse(TEXT("cancel saves nothing"), FFloor101FileActions::SavePhotoToChosenPath(*D, [this, D](const FString& Proposed, FString& Path)
+	{
+		TestEqual(TEXT("proposed next to the project"), FPaths::GetPath(Proposed), FPaths::GetPath(D->GetDefaultPhotoPath()));
+		TestTrue(TEXT("as a dated PNG"), FPaths::GetCleanFilename(Proposed).Contains(TEXT("-foto-")) && Proposed.EndsWith(TEXT(".png")));
+		return false;
+	}));
+	TestFalse(TEXT("no capture requested"), FScreenshotRequest::IsScreenshotRequested());
+	FString Remembered;
+	TestFalse(TEXT("no folder remembered"), GConfig->GetString(TEXT("Floor101.Paths"), TEXT("LastPhotoFolder"), Remembered, GGameUserSettingsIni));
+
+	AddExpectedMessagePlain(TEXT("F101: Save the photo as .png"), ELogVerbosity::Warning);
+	TestFalse(TEXT("another format refused"), FFloor101FileActions::SavePhotoToChosenPath(*D, [&Folder](const FString&, FString& Path)
+	{
+		Path = FPaths::Combine(Folder, TEXT("foto.jpg"));
+		return true;
+	}));
+	TestFalse(TEXT("nor remembered"), GConfig->GetString(TEXT("Floor101.Paths"), TEXT("LastPhotoFolder"), Remembered, GGameUserSettingsIni));
+
+	const FString Chosen = FPaths::Combine(Folder, TEXT("Salón de noche.png"));
+	TestTrue(TEXT("saved where and as chosen"), FFloor101FileActions::SavePhotoToChosenPath(*D, [&Chosen](const FString&, FString& Path)
+	{
+		Path = Chosen;
+		return true;
+	}));
+	TestTrue(TEXT("the capture goes to that file"), FScreenshotRequest::IsScreenshotRequested() && FScreenshotRequest::GetFilename() == Chosen);
+	FScreenshotRequest::Reset();
+	TestFalse(TEXT("cancel the next one"), FFloor101FileActions::SavePhotoToChosenPath(*D, [this, &Folder](const FString& Proposed, FString& Path)
+	{
+		TestEqual(TEXT("the next photo starts in the folder chosen"), FPaths::GetPath(Proposed), Folder);
+		return false;
+	}));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FloorGridTest, "Floor101.Interface.FloorGrid",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FFloor101FloorGridTest::RunTest(const FString& Parameters)

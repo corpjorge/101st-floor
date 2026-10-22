@@ -27,6 +27,8 @@
           <Shortcut Id="StartMenuLaunch" Name="101st Floor" Target="[INSTALLFOLDER]Floor101.exe" WorkingDirectory="INSTALLFOLDER" Icon="FloorIcon" />
           <RemoveFolder Id="RemoveStartMenu" On="uninstall" />
           <RegistryValue Root="HKCU" Key="Software\101st Floor\Installer" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+          <!-- Where the application is: only this copy installs its own updates (ADR-0039). -->
+          <RegistryValue Root="HKCU" Key="Software\101st Floor\Installer" Name="InstallFolder" Type="string" Value="[INSTALLFOLDER]" />
         </Component>
       </Directory>
       </Directory>
