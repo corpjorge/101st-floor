@@ -26,6 +26,10 @@ struct FFloor101FileActions
 		TFunctionRef<bool(const FString&, FString&)> ChoosePath);
 	// Asks where to write the .glb for Twinmotion (the last folder used for it, else next to the project).
 	static void ExportTwinmotion(UFloor101DocumentSubsystem& Document);
+	// "Guardar imagen…" in Photo mode: asks where to save the photo, proposing its dated name in the last folder a photo
+	// went to, else next to the project; a PNG, or an EXR while the viewport shows HDR. Cancelling saves nothing.
+	static void SavePhoto(UFloor101DocumentSubsystem& Document);
+	static bool SavePhotoToChosenPath(UFloor101DocumentSubsystem& Document, TFunctionRef<bool(const FString&, FString&)> ChoosePath);
 
 	// The remembered places; empty while there is none.
 	static FString GetLastProjectPath();

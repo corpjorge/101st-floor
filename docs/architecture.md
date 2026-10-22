@@ -262,7 +262,7 @@ Detalle: [catálogo de puertas y ventanas](opening-catalogue.md).
   la biblioteca. Amueblar agrupa por categoría los tipos paramétricos y los modelos con su imagen.
 - **Modo Foto:** R cambia el viewport del juego al path tracer de Unreal (`VMI_PathTracing`) y la escena se compila sin
   marcas de edición; el panel muestra las muestras acumuladas (leídas de la vista por una extensión), la calidad
-  (64/256/1024 muestras) y guarda el PNG junto al proyecto sin la UI.
+  (64/256/1024 muestras) y "Guardar imagen…" pide con el diálogo de Windows dónde y con qué nombre guardar el PNG sin la UI (propone la última carpeta de fotos, si no junto al proyecto).
 
 ## Exportación para Twinmotion (MVP 12, ADR-0020)
 

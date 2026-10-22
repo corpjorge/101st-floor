@@ -104,7 +104,7 @@ binario del editor con `-game`).
   `r.PathTracing.SamplesPerPixel` según la calidad (Borrador 64, Media 256, Alta 1024), `r.PathTracing.ProgressDisplay 0`
   (la barra del motor nunca sale en la imagen), denoiser del motor (NNEDenoiser). Los shaders del path tracer se
   compilan la primera vez: al terminar, `InvalidatePathTracedOutput` reinicia la acumulación. La foto está lista cuando
-  la acumulación lleva 3 fotogramas en el objetivo; "Guardar imagen" escribe un PNG sin la UI junto al proyecto.
+  la acumulación lleva 3 fotogramas en el objetivo; "Guardar imagen…" escribe un PNG sin la UI donde se elija en el diálogo (por defecto, junto al proyecto).
 - `CheckRendering.ps1` comprueba el Modo Foto ("Path tracing (photo mode)", `-PathTraceSamples`, 64 por defecto): las
   muestras llegan al objetivo y la imagen no es negra. Medido el 2026-09-30: 64/64 muestras en 1,5 s a 853 × 640 con la
   pared de referencia, brillo medio 0,62; `PathTrace-<fecha>.png` en `Saved/RenderCheck`.

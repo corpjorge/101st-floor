@@ -5,6 +5,7 @@
 #include "Floor101SceneNodeActor.h"
 #include "EngineUtils.h"
 #include "Floor101FinishLibrary.h"
+#include "Floor101FileActions.h"
 #include "Floor101GameViewportClient.h"
 #include "Floor101PathTracing.h"
 #include "Floor101Preferences.h"
@@ -376,7 +377,21 @@ namespace Floor101::PackageCheck
 			if (Phase == 3 && PathTracing::IsComplete())
 			{
 				Check(!Document->AreConstructionAidsVisible(), TEXT("photo_hides_guides"));
-				Check(Document->SavePhoto(FPaths::Combine(Directory, TEXT("photo.png"))).ok(), TEXT("photo_request"));
+				// "Guardar imagen…", the dialog answered here: a dated PNG proposed next to the project, saved where chosen,
+				// and the next photo proposed in that folder.
+				FString Proposed;
+				Check(FFloor101FileActions::SavePhotoToChosenPath(*Document, [&Proposed, &Directory](const FString& Suggested, FString& Path)
+				{
+					Proposed = Suggested;
+					Path = FPaths::Combine(Directory, TEXT("photo.png"));
+					return true;
+				}), TEXT("photo_request"));
+				Check(Proposed.EndsWith(TEXT(".png")) && FPaths::GetCleanFilename(Proposed).Contains(TEXT("-foto-")), TEXT("photo_dialog_proposal"));
+				Check(!FFloor101FileActions::SavePhotoToChosenPath(*Document, [&Proposed](const FString& Suggested, FString&)
+				{
+					Proposed = Suggested;
+					return false;
+				}) && FPaths::GetPath(Proposed) == Directory, TEXT("photo_dialog_folder"));
 				Phase = 4;
 			}
 			if (Phase == 4 && FPaths::FileExists(FPaths::Combine(Directory, TEXT("photo.png"))))

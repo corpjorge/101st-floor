@@ -1687,16 +1687,15 @@ TSharedRef<SWidget> SFloor101Overlay::MakePhotoPanel()
 			+ SVerticalBox::Slot().AutoHeight().Padding(16.0f, 0.0f, 16.0f, 12.0f)[Ui::Segmented(Qualities, true, true, true)]
 			+ SVerticalBox::Slot().AutoHeight().Padding(16.0f, 0.0f, 16.0f, 8.0f)
 			[
-				Ui::Button(Studio::EButton::Primary, LOCTEXT("PhotoSave", "Guardar imagen"),
+				Ui::Button(Studio::EButton::Primary, LOCTEXT("PhotoSave", "Guardar imagen…"),
 					[this]()
 					{
 						if (UFloor101DocumentSubsystem* Subsystem = Document.Get())
 						{
-							(void)Subsystem->SavePhoto(Subsystem->GetDefaultPhotoPath());
+							FFloor101FileActions::SavePhoto(*Subsystem);
 						}
-						FSlateApplication::Get().SetAllUserFocusToGameViewport();
 					},
-					EFloor101Icon::Save, LOCTEXT("PhotoSaveTip", "Guarda la imagen junto al proyecto: PNG con HDR desactivado; EXR para conservar HDR"))
+					EFloor101Icon::Save, LOCTEXT("PhotoSaveTip", "Elige dónde guardar la imagen y con qué nombre: PNG con HDR desactivado; EXR para conservar HDR"))
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(16.0f, 0.0f, 16.0f, 12.0f)
 			[
