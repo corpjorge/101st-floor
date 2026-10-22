@@ -34,8 +34,8 @@ namespace Floor101::Update
 		// Scripts/UpdateSigningKey.ps1: the public half of the key that signs every release (ADR-0039). Release.ps1 refuses
 		// to sign with any other key.
 		const TCHAR* UpdatePublicKey = TEXT("xwlRKEkzjgsD1t9Wk+t0EYiagaLRGLfw6ufXyF+Wcd7wLKmcHl3QvXi+hpceRxMX/7jvwzx77K78jZdtNSN7+Q==");
-		const TCHAR* Section = TEXT("Floor101.Update");
-		const TCHAR* Product = TEXT("101st Floor");
+		const TCHAR* UpdateSection = TEXT("Floor101.Update");
+		const TCHAR* UpdateProduct = TEXT("101st Floor");
 		constexpr int64 MaxSetupBytes = 8ll * 1024 * 1024 * 1024;
 
 		bool IsRemote(const FString& Address)
@@ -144,7 +144,7 @@ namespace Floor101::Update
 		const TSharedPtr<FJsonObject>* Setup = nullptr;
 		FManifest Manifest;
 		double Size = 0.0;
-		if (!Root || !Root->TryGetStringField(TEXT("product"), Name) || Name != Product)
+		if (!Root || !Root->TryGetStringField(TEXT("product"), Name) || Name != UpdateProduct)
 		{
 			OutError = TEXT("not a 101st Floor update manifest");
 			return {};
@@ -281,7 +281,7 @@ namespace Floor101::Update
 	FString RepositoryPage()
 	{
 		FString Repository = TEXT("corpjorge/101st-floor");
-		GConfig->GetString(Section, TEXT("Repository"), Repository, GGameIni);
+		GConfig->GetString(UpdateSection, TEXT("Repository"), Repository, GGameIni);
 		return TEXT("https://github.com/") + Repository;
 	}
 
@@ -308,13 +308,13 @@ namespace Floor101::Update
 	bool CheckOnStartup()
 	{
 		bool bCheck = true;
-		GConfig->GetBool(Section, TEXT("CheckOnStartup"), bCheck, GGameUserSettingsIni);
+		GConfig->GetBool(UpdateSection, TEXT("CheckOnStartup"), bCheck, GGameUserSettingsIni);
 		return bCheck;
 	}
 
 	void SetCheckOnStartup(bool bCheck)
 	{
-		GConfig->SetBool(Section, TEXT("CheckOnStartup"), bCheck, GGameUserSettingsIni);
+		GConfig->SetBool(UpdateSection, TEXT("CheckOnStartup"), bCheck, GGameUserSettingsIni);
 		GConfig->Flush(false, GGameUserSettingsIni);
 	}
 
@@ -345,7 +345,7 @@ namespace Floor101::Update
 		if (!FParse::Value(FCommandLine::Get(), TEXT("F101UpdateFeed="), Feed))
 		{
 			FString Repository = TEXT("corpjorge/101st-floor");
-			GConfig->GetString(Section, TEXT("Repository"), Repository, GGameIni);
+			GConfig->GetString(UpdateSection, TEXT("Repository"), Repository, GGameIni);
 			Feed = FString::Printf(TEXT("https://api.github.com/repos/%s/releases/latest"), *Repository);
 		}
 	}

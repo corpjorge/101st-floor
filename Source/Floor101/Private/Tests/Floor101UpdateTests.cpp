@@ -31,15 +31,15 @@ namespace
 
 	TArray<uint8> Bytes(const FString& Text)
 	{
-		const FTCHARToUTF8 Utf8(*Text);
-		return TArray<uint8>(reinterpret_cast<const uint8*>(Utf8.Get()), Utf8.Length());
+		const FTCHARToUTF8 Encoded(*Text);
+		return TArray<uint8>(reinterpret_cast<const uint8*>(Encoded.Get()), Encoded.Length());
 	}
 
-	FString Manifest(const FString& Name, const FString& Size, const FString& Sha256, const FString& Product = TEXT("101st Floor"),
-		const FString& Version = TEXT("9.8.7"))
+	FString Manifest(const FString& Name, const FString& Size, const FString& Sha256, const FString& ProductName = TEXT("101st Floor"),
+		const FString& VersionText = TEXT("9.8.7"))
 	{
 		return FString::Printf(TEXT("{\"product\":\"%s\",\"version\":\"%s\",\"setup\":{\"name\":\"%s\",\"size\":%s,\"sha256\":\"%s\"}}"),
-			*Product, *Version, *Name, *Size, *Sha256);
+			*ProductName, *VersionText, *Name, *Size, *Sha256);
 	}
 
 	bool Save(const FString& Text, const FString& Path)
