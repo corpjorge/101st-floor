@@ -13,6 +13,10 @@ States of America and elsewhere.
 
 Unreal® Engine, Copyright 1998 – 2026, Epic Games, Inc. All rights reserved.
 
+El motor incluye a su vez componentes de terceros; Unreal añade sus avisos al paquete en `NOTICES.txt` (por ejemplo,
+FreeType: "Portions of this software are copyright © The FreeType Project (http://www.freetype.org). All rights
+reserved.").
+
 El motor (sus bibliotecas y el contenido cocinado del motor que acompañan a la aplicación) se distribuye bajo el
 Acuerdo de Licencia de Usuario Final de Unreal Engine: <https://www.unrealengine.com/eula>. La licencia MIT de este
 proyecto no se aplica al motor. Compilar 101st Floor desde el código requiere aceptar ese acuerdo con una cuenta de

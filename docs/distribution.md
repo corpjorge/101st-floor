@@ -198,3 +198,18 @@ Ejecutable: `Packaged/0.2.6/Windows/Floor101.exe`; ZIP: `Packaged/0.2.6/101st-Fl
 (`Saved/PackageChecks/20261020-231049-functional`), incluida persistencia de cubiertas y material reflectivo cocinado.
 El proyecto de vivienda real conserva su ruta de trabajo y se reabre con este ejecutable. El paquete registra cambios
 sin commit; no se genera MSI. Materiales regenerados con `Scripts/GenerateAssets.ps1`. Validación en este equipo.
+
+## Entrega 0.3.0 (2026-10-22), primera versión pública
+
+Windows **0.3.0 Shipping** generado desde `e540505` con árbol limpio: licencia MIT con avisos de terceros en el paquete,
+actualizaciones firmadas desde GitHub Releases (ADR-0039), "Guardar imagen…" con diálogo en Foto y README público.
+Antes: 355 unitarios y 100 Unreal Automation aprobados (`Saved/Automation/20261022-141355`). El ejecutable aprueba las
+119 comprobaciones funcionales, integridad SHA-256 y dependencias locales
+(`Saved/PackageChecks/20261022-140915-functional`) y la de inicio a 1920 × 1080
+(`Saved/PackageChecks/20261022-140948-home`). Instalador: el `Setup.exe` contiene el MSI exacto y el runtime de Visual
+C++; instalación aislada, accesos directos, arranque y desinstalación conservando un proyecto del usuario
+(`Packaged/InstallerChecks/20261022-141203`). Actualizador: el ejecutable real, haciéndose pasar por 0.0.1 con el
+release local firmado, verifica la firma con la clave del proyecto, descarga el `Setup.exe` real (368 MB) y comprueba
+tamaño y SHA-256 antes de detenerse sin instalar (`Saved/PackageChecks/20261022-141313-update`). Archivos del release
+en `Packaged/0.3.0/Release` con `SHA256SUMS.txt`. Sin firma Authenticode: SmartScreen avisa en el primer arranque del
+instalador. La prueba en otro equipo sin Unreal sigue pendiente.

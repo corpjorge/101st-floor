@@ -1,6 +1,6 @@
 # ADR-0039: distribución pública y actualizaciones firmadas
 
-Estado: aceptado (2026-10-22).
+Estado: aceptado y verificado localmente con el ejecutable Shipping 0.3.0 (2026-10-22).
 
 ## Contexto
 101st Floor se entregaba como carpeta portable y como instalador (ADR-0028), generados y probados en este equipo, desde
