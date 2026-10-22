@@ -210,6 +210,9 @@ Antes: 355 unitarios y 100 Unreal Automation aprobados (`Saved/Automation/202610
 C++; instalación aislada, accesos directos, arranque y desinstalación conservando un proyecto del usuario
 (`Packaged/InstallerChecks/20261022-141203`). Actualizador: el ejecutable real, haciéndose pasar por 0.0.1 con el
 release local firmado, verifica la firma con la clave del proyecto, descarga el `Setup.exe` real (368 MB) y comprueba
-tamaño y SHA-256 antes de detenerse sin instalar (`Saved/PackageChecks/20261022-141313-update`). Archivos del release
+tamaño y SHA-256 antes de detenerse sin instalar (`Saved/PackageChecks/20261022-141313-update`). Publicado como
+[v0.3.0](https://github.com/corpjorge/101st-floor/releases/tag/v0.3.0) (etiqueta en `c216a57`); el mismo ejecutable,
+consultando el GitHub real, encuentra la versión, sigue la redirección de descarga y verifica firma, tamaño y SHA-256
+(`Saved/PackageChecks/20261022-142549-update`). Archivos del release
 en `Packaged/0.3.0/Release` con `SHA256SUMS.txt`. Sin firma Authenticode: SmartScreen avisa en el primer arranque del
 instalador. La prueba en otro equipo sin Unreal sigue pendiente.
