@@ -82,18 +82,18 @@ dividir una habitación con una pared, las dos nuevas heredan su rótulo. En 3D 
 
 - Interfaz real revisada a 1280×720 y 800×600; cifras con mínimo legible
   en pantalla y propiedades desplazables.
-- Portable Windows **0.1.5 Shipping**, generado desde la fusión `77290b7` con
+- Portable Windows **0.1.5 Shipping**, generado desde la fusión `ec492c1` con
   el árbol limpio. Integridad y ejecución independiente aprobadas: extremos
   arrastrables sin snapping, conversión de automáticas a manuales, reversión
   atómica, guardado/reapertura, exportaciones y funciones anteriores.
   Reporte: `Saved/PackageChecks/20261005-151937-functional`.
-- Entrega anterior **0.1.4 Shipping**, generada desde `93cb3df` con el árbol
+- Entrega anterior **0.1.4 Shipping**, generada desde `ffcf4ad` con el árbol
   limpio. Integridad, dependencias y ejecución independiente aprobadas;
   `dimension_exact_points` verifica puntos fuera de rejilla. También pasan
   selección y nombre de habitaciones con solapamientos, guardado, reapertura,
   exportaciones y deshacer/rehacer.
   Reporte: `Saved/PackageChecks/20261005-130105-functional`.
-- Entrega anterior **0.1.3 Shipping**, generada desde `6bca576` con el árbol
+- Entrega anterior **0.1.3 Shipping**, generada desde `b8dc0a0` con el árbol
   limpio. `Scripts/CheckPackage.ps1` aprobó las comprobaciones de integridad,
   dependencias y ejecución del paquete, incluida creación de cotas, edición y
   ocultación de automáticas, deshacer/rehacer, reapertura y exportación SVG.
@@ -128,6 +128,6 @@ precisión persistida y separación de una cota corta en cadenas de huecos. Repo
 ![Cota de 8 cm junto a la unión, con cifra separada](images/short-dimensions.png)
 ![Cota corta y propiedades en ventana pequeña](images/short-dimensions-small.png)
 
-Portable Windows **0.1.7 Shipping** generado desde `4e30d1f` con árbol limpio. Integridad, dependencias y comprobación
+Portable Windows **0.1.7 Shipping** generado desde `9c5fec3` con árbol limpio. Integridad, dependencias y comprobación
 funcional aprobadas en el ejecutable real; guardado, reapertura, cotas, SVG/PNG, arrastre de paredes y deshacer/rehacer
 siguen pasando. Reporte: `Saved/PackageChecks/20261005-193542-functional`.

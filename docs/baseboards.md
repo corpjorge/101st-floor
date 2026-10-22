@@ -46,7 +46,7 @@ requieren compatibilidad con el esquema 12. Ver [ADR-0030](adr/ADR-0030-room-bas
 - Portable: `Packaged/0.1.2/101st-Floor-portable.zip`.
 - Instalador: `Packaged/0.1.2/Installer/101st-Floor-0.1.2-Setup.exe`.
 
-Generados desde el commit `13f0742`, sin cambios pendientes de código.
+Generados desde el commit `e704897`, sin cambios pendientes de código.
 
 ![Rodapiés y propiedades](images/baseboards.png)
 ![Propiedades en ventana pequeña](images/baseboards-small.png)

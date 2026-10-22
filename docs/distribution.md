@@ -98,7 +98,7 @@ esa prueba. Los resultados concretos de esta entrega se registran al terminar su
 
 ## Entrega 0.1.9 (2026-10-09)
 
-Portable Windows **0.1.9 Shipping** aprobado, generado desde `ba98025` con árbol limpio: editor de cotas propio
+Portable Windows **0.1.9 Shipping** aprobado, generado desde `1cbc374` con árbol limpio: editor de cotas propio
 (`DimensionEditor`), cortes de muro que conservan los huecos, divisiones que no desconectan ramas, traspaso conjunto de
 acabados, nombres y rodapiés de habitación, medida real junto a cotas con texto propio y log de producto acotado.
 Antes: 320 unitarios y 88 Unreal Automation aprobados (`Saved/Automation/20261009-201104`). El ejecutable aprueba las
@@ -108,7 +108,7 @@ La comprobación se realizó en este equipo; la prueba en otro equipo sin Unreal
 
 ## Entrega 0.2.0 (2026-10-10)
 
-Portable Windows **0.2.0 Shipping**, generado desde `0f87f1a` con árbol limpio: interfaz Cota Cero en todo el estudio
+Portable Windows **0.2.0 Shipping**, generado desde `d39a033` con árbol limpio: interfaz Cota Cero en todo el estudio
 (ADR-0033, `docs/ui-cota-cero.md`) sin cambios de funciones. Antes: 320 unitarios y 88 Unreal Automation aprobados
 (`Saved/Automation/20261010-124543`). El ejecutable aprueba las 86 comprobaciones funcionales, integridad SHA-256 y
 dependencias locales (`Saved/PackageChecks/20261010-131358-functional`) y la de inicio a 1920 × 1080
@@ -118,7 +118,7 @@ equipo; la prueba en otro equipo sin Unreal sigue pendiente.
 
 ## Entrega 0.2.1 (2026-10-13)
 
-Portable Windows **0.2.1 Shipping**, generado desde `fe48585` con árbol limpio: cotas interiores automáticas de cara a
+Portable Windows **0.2.1 Shipping**, generado desde `f9a925b` con árbol limpio: cotas interiores automáticas de cara a
 cara, con su interruptor en Vista → Cotas interiores y en el toolset MCP (ADR-0034). Antes: 329 unitarios y 88 Unreal
 Automation aprobados (`Saved/Automation/20261013-162629`). El ejecutable aprueba las 86 comprobaciones funcionales,
 integridad SHA-256 y dependencias locales, con las cotas interiores en el plano SVG/PNG exportado
@@ -129,7 +129,7 @@ equipo; la prueba en otro equipo sin Unreal sigue pendiente.
 
 ## Entrega 0.2.2 (2026-10-13)
 
-Portable Windows **0.2.2 Shipping**, generado desde `bc41615` con árbol limpio: tamaño del nombre y del área de cada
+Portable Windows **0.2.2 Shipping**, generado desde `21c65aa` con árbol limpio: tamaño del nombre y del área de cada
 habitación y cada texto arrastrable en el plano 2D (ADR-0035, `project.json` esquema 14). Antes: 339 unitarios y 90
 Unreal Automation aprobados (`Saved/Automation/20261013-175148`). El ejecutable aprueba las 93 comprobaciones
 funcionales, entre ellas arrastrar el nombre de la habitación estrecha, reducir sus textos y reabrirlos, con integridad
@@ -140,7 +140,7 @@ la ventana. La comprobación se realizó en este equipo; la prueba en otro equip
 
 ## Entrega 0.2.3 (2026-10-14)
 
-Portable Windows **0.2.3 Shipping**, generado desde `0792aad` con árbol limpio: los pilares ya no parpadean donde se
+Portable Windows **0.2.3 Shipping**, generado desde `3a1d979` con árbol limpio: los pilares ya no parpadean donde se
 superponen a un muro o a un forjado; en 3D sobresalen `ColumnProudMm` (1 mm) de su huella y de su planta (ADR-0021),
 sin cambiar el modelo ni el plano. Antes: 340 unitarios y 90 Unreal Automation aprobados
 (`Saved/Automation/20261014-195459`). El ejecutable aprueba las 93 comprobaciones funcionales, integridad SHA-256 y
@@ -154,7 +154,7 @@ pendiente.
 
 Portable Windows **0.2.4 Shipping** para validar el catálogo de 24 familias paramétricas de puertas y ventanas
 (ADR-0036, `project.json` esquema 15). Incluye miniaturas, búsqueda, filtro de apertura y medidas antes de colocar.
-Generado con UE 5.8.3 y MSVC 14.50 desde el árbol de trabajo basado en `f970e62`, con los cambios del catálogo sin
+Generado con UE 5.8.3 y MSVC 14.50 desde el árbol de trabajo basado en `252b26a`, con los cambios del catálogo sin
 commit (`dirty: true` en `release-manifest.json`).
 
 - Ejecutable para abrir: `Packaged/0.2.4/Windows/Floor101.exe`.
@@ -184,7 +184,7 @@ esta versión. Ejecutable: `Packaged/0.2.5/Windows/Floor101.exe`; ZIP completo: 
 351 unitarios y 93 Unreal Automation aprobados (`Saved/Automation/20261020-165449`). El ejecutable real pasó
 110 comprobaciones funcionales, integridad del manifiesto y dependencias locales
 (`Saved/PackageChecks/20261020-170109-functional`), incluidas luces puntuales, unidades físicas y persistencia.
-El paquete registra el árbol de trabajo basado en `05a837d` con cambios sin commit (`dirty: true`).
+El paquete registra el árbol de trabajo basado en `4aaef8b` con cambios sin commit (`dirty: true`).
 No se genera instalador MSI ni se sustituye la entrega 0.2.4. La validación se realizó en este equipo.
 
 ## Entrega 0.2.6 (2026-10-20)
@@ -201,7 +201,7 @@ sin commit; no se genera MSI. Materiales regenerados con `Scripts/GenerateAssets
 
 ## Entrega 0.3.0 (2026-10-22), primera versión pública
 
-Windows **0.3.0 Shipping** generado desde `e540505` con árbol limpio: licencia MIT con avisos de terceros en el paquete,
+Windows **0.3.0 Shipping** generado desde `c216a57` con árbol limpio: licencia MIT con avisos de terceros en el paquete,
 actualizaciones firmadas desde GitHub Releases (ADR-0039), "Guardar imagen…" con diálogo en Foto y README público.
 Antes: 355 unitarios y 100 Unreal Automation aprobados (`Saved/Automation/20261022-141355`). El ejecutable aprueba las
 119 comprobaciones funcionales, integridad SHA-256 y dependencias locales

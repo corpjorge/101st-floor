@@ -1,6 +1,6 @@
 # Informe MVP 0 (Fase G) — 2026-09-28
 
-**Estado:** MVP 0 completo (Fases A–F). Código en `main` (Fase E: commit `5e4d372`). La arquitectura crítica está
+**Estado:** MVP 0 completo (Fases A–F). Código en `main` (Fase E: commit `07d05ed`). La arquitectura crítica está
 demostrada de principio a fin: modelo CAD en milímetros → geometría → escena neutral → Unreal con Lumen por hardware,
 con tests sin Unreal, tests de integración, validación por MCP y validación de la ruta RTX. No se ha empezado MVP 1.
 

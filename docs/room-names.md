@@ -55,7 +55,7 @@ Validación de la entrega inicial 0.1.1:
 
 El ejecutable está en `Packaged/0.1.1/Windows/Floor101.exe`; conserva completa esa
 carpeta. El ZIP portable y el instalador están en `Packaged/0.1.1/`. Ambos se
-generaron desde el commit `7034928`, sin cambios pendientes de código.
+generaron desde el commit `1f87b73`, sin cambios pendientes de código.
 
 ![Propiedades de una habitación](images/room-properties.png)
 ![Propiedades en ventana pequeña](images/room-properties-small.png)

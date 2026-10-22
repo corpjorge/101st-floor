@@ -23,7 +23,7 @@ Implementación: [ADR-0032](adr/ADR-0032-wall-body-drag.md). Versión Windows: *
 - 86 pruebas Unreal Automation aprobadas, incluida `Floor101.Interaction.WallBodyDrag`.
   Reporte: `Saved/Automation/20261005-154826`.
 - Captura real a 1280×720 y 800×600 sobre una copia del plano, sin modificar el documento del usuario.
-- Portable **0.1.6 Shipping** generado desde `8b56af9` con árbol limpio. Integridad, dependencias y comprobación
+- Portable **0.1.6 Shipping** generado desde `783e419` con árbol limpio. Integridad, dependencias y comprobación
   funcional aprobadas; incluye agarre del cuerpo, traslación exacta y deshacer en el ejecutable real.
   Reporte: `Saved/PackageChecks/20261005-155428-functional`.
 

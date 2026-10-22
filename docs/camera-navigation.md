@@ -65,7 +65,7 @@ encuadre explícito, cambio de altura y reinicio. La comprobación portable puls
 Validación 0.1.7: compilación Win64 Development sin advertencias nuevas, 315 casos C++ / 14.064 aserciones y 87
 pruebas Unreal aprobadas. Reporte: `Saved/Automation/20261005-192519`.
 
-Portable Windows **0.1.7 Shipping** aprobado, generado desde `4e30d1f` con árbol limpio. El test pulsa Tab y verifica
+Portable Windows **0.1.7 Shipping** aprobado, generado desde `9c5fec3` con árbol limpio. El test pulsa Tab y verifica
 `tab_restores_3d_view=PASS` y `tab_restores_2d_view=PASS` con encuadres y zoom distintos. Reporte:
 `Saved/PackageChecks/20261005-193542-functional`. Ejecutable: `Packaged/0.1.7/Windows/Floor101.exe`.
 La validación corresponde a este equipo; sigue pendiente probar en otro equipo sin Unreal instalado.
@@ -87,7 +87,7 @@ La ayuda se revisó en capturas reales a 1280×720 y 800×600.
 ![Controles: mirar desde la posición actual](images/camera-look-controls.png)
 ![Controles en ventana pequeña](images/camera-look-controls-small.png)
 
-Portable Windows **0.1.8 Shipping** aprobado, generado desde `ef54060` con árbol limpio. El ejecutable comprueba
+Portable Windows **0.1.8 Shipping** aprobado, generado desde `ebca015` con árbol limpio. El ejecutable comprueba
 `look_in_place_without_n=PASS` y `look_latches_until_release=PASS`; integridad SHA-256, dependencias locales y
 regresiones funcionales aprobadas. Reporte: `Saved/PackageChecks/20261006-180006-functional`.
 Ejecutable: `Packaged/0.1.8/Windows/Floor101.exe`. ZIP: `Packaged/0.1.8/101st-Floor-portable.zip`.
