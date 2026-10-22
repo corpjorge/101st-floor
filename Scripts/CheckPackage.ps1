@@ -5,8 +5,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$Package,
-    [ValidateSet('functional', 'home', 'startup', 'diagnostics', 'display', 'hdr', 'doors', 'windows')][string]$Check = 'functional',
-    [int]$ResX = 1280, [int]$ResY = 720
+    [ValidateSet('functional', 'home', 'startup', 'diagnostics', 'display', 'hdr', 'doors', 'windows', 'update')][string]$Check = 'functional',
+    [int]$ResX = 1280, [int]$ResY = 720,
+    # -Check update (ADR-0039): the release to read (GitHub when empty, or the local-release.json Release.ps1 writes) and
+    # the version this executable pretends to be, so that release is newer. It downloads and verifies; it never installs.
+    [string]$UpdateFeed = '', [string]$UpdateFrom = '0.0.1'
 )
 . "$PSScriptRoot/Common.ps1"
 $checkPackage = [IO.Path]::GetFullPath((Join-Path $RepoRoot $Package))
@@ -27,6 +30,10 @@ $checkArguments = @('-DX12', '-windowed', "-ResX=$ResX", "-ResY=$ResY", '-ForceR
 if ($Check -eq 'functional') { $checkArguments += '-F101PackageCheck', "-F101PackageOutput=`"$checkDirectory`"" }
 elseif ($Check -eq 'display') { $checkArguments += '-F101DisplayCheck', '-F101Demo' }
 elseif ($Check -eq 'hdr') { $checkArguments += '-F101HDRCheck', '-F101Demo' }
+elseif ($Check -eq 'update') {
+    $checkArguments += '-F101UpdateCheck', '-F101UpdateDryRun', "-F101UpdateVersion=$UpdateFrom"
+    if ($UpdateFeed) { $checkArguments += "-F101UpdateFeed=`"$([IO.Path]::GetFullPath((Join-Path $RepoRoot $UpdateFeed)))`"" }
+}
 else { $checkArguments += "-F101UICapture=`"$(Join-Path $checkDirectory "$Check.png")`"", "-F101UIScreen=$Check" }
 # Test the same bootstrap executable that the user opens, not UnrealEditor -game.
 $checkLaunch = Start-Process -FilePath (Join-Path $checkPackage 'Floor101.exe') -ArgumentList $checkArguments -WorkingDirectory $checkPackage -WindowStyle Hidden -PassThru
@@ -43,7 +50,7 @@ try {
     $checkModules = @($checkProcess.Modules | ForEach-Object FileName)
     $checkModules | Set-Content -LiteralPath (Join-Path $checkDirectory 'loaded-modules.txt') -Encoding utf8
     if ($checkModules | Where-Object { $_ -match 'Epic Games[/\\]UE_|UnrealEditor' }) { throw 'The running game loaded a development engine dependency.' }
-    if (-not $checkProcess.WaitForExit(300000)) { throw 'Packaged application check timed out.' }
+    if (-not $checkProcess.WaitForExit($(if ($Check -eq 'update') { 1200000 } else { 300000 }))) { throw 'Packaged application check timed out.' }
     if ($checkProcess.ExitCode -ne 0) { throw "Packaged application exited with $($checkProcess.ExitCode)." }
 }
 finally { if (-not $checkProcess.HasExited) { Stop-Process -Id $checkProcess.Id } }
@@ -57,6 +64,9 @@ if ($Check -eq 'functional') {
 }
 elseif ($Check -in 'display','hdr') {
     if ($checkText -notmatch 'F101HDRCheck: result=PASS') { throw "Display/HDR check failed: $checkLog" }
+}
+elseif ($Check -eq 'update') {
+    if ($checkText -notmatch 'F101UpdateCheck: ready result=PASS' -or $checkText -notmatch 'F101Update: dry run, would run cmd\.exe') { throw "Update check failed: $checkLog" }
 }
 elseif (-not (Test-Path -LiteralPath (Join-Path $checkDirectory "$Check.png"))) { throw 'Shipping UI capture failed.' }
 if ($checkText -notmatch 'branded loading screen shown' -or $checkText -notmatch 'branded loading screen finished') { throw 'The actual branded loading phase was not observed.' }

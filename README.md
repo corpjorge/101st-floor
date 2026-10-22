@@ -1,88 +1,129 @@
 # 101st Floor
 
-Aplicación de diseño arquitectónico: construcción visual tipo "videojuego CAD" con precisión dimensional,
-modelo paramétrico propio y visualización en tiempo real con Unreal Engine 5.8 (Lumen + ray tracing por hardware).
+**Estudio de diseño arquitectónico para Windows:** dibuja la casa con medidas exactas, recórrela en tiempo real con
+Unreal Engine 5 (Lumen y trazado de rayos), saca fotos con path tracing, genera los planos acotados y envíala a
+Twinmotion.
 
-> Estado: **MVP 13 completo** ([informe](docs/mvp13-report.md); [MVP 12](docs/mvp12-report.md), [MVP 11](docs/mvp11-report.md), [MVP 10](docs/mvp10-report.md), [MVP 9](docs/mvp9-report.md), [MVP 8](docs/mvp8-report.md), [MVP 7](docs/mvp7-report.md), [MVP 6](docs/mvp6-report.md),
-> [MVP 5](docs/mvp5-report.md), [MVP 4](docs/mvp4-report.md), [MVP 3](docs/mvp3-report.md), [MVP 2](docs/mvp2-report.md),
-> [MVP 1](docs/mvp1-report.md), [MVP 0](docs/mvp0-report.md)). Muros con medidas exactas (clic, vista previa, longitud escrita, Enter), esquinas limpias
-> en L/T/X, habitaciones con suelo y área neta que se actualizan en vivo, arrastre de esquinas compartidas, puertas y
-> ventanas con 24 familias paramétricas, marco, hojas, manillas y vidrio (abatibles, de dos hojas, correderas, fijas; el diseño se elige antes de
-> colocarlas; abiertas en ángulo, con su símbolo de apertura) que se arrastran con el ratón y respetan las uniones de
-> muros, varias plantas con forjados, 80 acabados por categoría (pinturas, baldosas, laminado, parquet en espiga,
-> piedra, moquetas...) más fotografías reales, por cara de muro, suelo (pestaña Suelos en Pintar), techo y carpintería,
-> selección, propiedades, deshacer/rehacer y `project.json`, planos 2D editables con cotas y habitaciones exportables
-> a SVG y PNG, mobiliario paramétrico y una biblioteca integrada de 53 muebles con imagen por categoría (camas, sillas,
-> sofás, mesas, almacenaje, cocina, baño, luces, decoración), importación de assets propios (texturas PNG/JPEG y
-> modelos glTF/GLB/OBJ, copiados junto al proyecto), pilares rectangulares y redondos, instalaciones de electricidad
-> (verde), agua (blanco), aguas negras (amarillo) y gas (dorado) dibujadas por tramos y vistas con rayos X, Modo Foto
-> con path tracing y exportación de la casa entera a
-> Twinmotion (`.glb` con materiales y texturas), sobre Unreal con Lumen HWRT. La lógica vive en un núcleo C++ puro
-> probado sin Unreal. Siguiente MVP: pendiente de decisión.
+*An architectural design studio for Windows: precise CAD modelling, real-time walkthroughs with Unreal Engine 5,
+path-traced photos, dimensioned plans and Twinmotion export. Free and open source (MIT).*
 
-## Controles
+[![Última versión](https://img.shields.io/github/v/release/corpjorge/101st-floor?label=versi%C3%B3n)](https://github.com/corpjorge/101st-floor/releases/latest)
+[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
+![Windows 11 x64](https://img.shields.io/badge/Windows%2011-x64-0078d6)
 
-**Puertas y ventanas:** catálogo de 24 familias paramétricas con miniaturas, búsqueda y filtro de apertura;
-medidas ajustables antes y después de colocar. [Guía del catálogo](docs/opening-catalogue.md).
-B: muro · P: puerta · O: ventana (el tipo se elige en el panel antes de colocarla) · M: pintar (pestañas Paredes / Suelos) · G: amueblar (pestañas por categoría) · C: pilar · I: instalación (clic por punto, doble clic o Enter para terminar; tipo y altura en el panel) · X: rayos X (ver las instalaciones; la fila "Redes" elige electricidad, agua, aguas negras o gas, también en el plano y su exportación) · V: seleccionar · R: Modo Foto (path tracing; "Guardar imagen") · escribir `355` / `3.55 m` / `3550 mm` + Enter: muro exacto (sin unidad = cm) · Supr: eliminar ·
-Ctrl+Z / Ctrl+Y: deshacer / rehacer · Ctrl+S / Ctrl+Shift+S / Ctrl+O: guardar / guardar como (eliges carpeta y nombre) / abrir · Esc o clic derecho: cancelar ·
-WASD siempre para moverse, sin activar N, Q/E para bajar/subir, Shift para ir más rápido, derecho para mirar; N/Esc vuelve a editar. **Velocidad** permite elegir niveles 1–10 (inicial: 3 m/s) y guarda la elección. Números superiores 1–9: nivel de velocidad; 0: nivel 10 (excepto al escribir medidas). B: paredes; G: muebles. N solo cambia Diseñar/Recorrer. [Navegación y zoom](docs/camera-navigation.md).
-**Sincronización vertical**: activar/desactivar desde Opciones → Pantalla; la elección se guarda. [Pantalla](docs/display.md).
-**Salir**, arriba a la derecha: cierra la aplicación; con cambios sin guardar permite guardar y salir, salir sin guardar o cancelar. Disponible también en Modo Foto y pantalla completa.
-**Nombre de habitación**: selecciona su suelo, escribe Nombre en Propiedades y pulsa Enter. Se guarda y aparece en rótulos y exportaciones SVG/PNG. [Nombres de habitaciones](docs/room-names.md).
+![Una casa en Modo Foto](docs/images/ui-cota-cero/photo-1920.jpg)
 
-**Cotas**: pulsa H, elige dos puntos y coloca la línea. Selecciona cotas manuales o automáticas para editarlas o eliminarlas; se guardan y se exportan. [Guía](docs/dimensions.md).
+## Qué puedes hacer
 
-**Rodapiés**: selecciona el suelo y activa Rodapiés en Propiedades; ajusta altura, espesor y acabado. Se guardan y respetan los huecos de puertas. [Guía](docs/baseboards.md).
-arrastrar el cuerpo naranja de una pared: trasladarla con sus uniones · arrastrar un asa amarilla: mover la esquina · con un hueco seleccionado, arrastrarlo: moverlo; arrastrar sus asas:
-cambiar el ancho · Espacio: bisagras al otro lado (al colocar, la puerta abre hacia donde apuntas) o girar 90° el mueble o el pilar · con un mueble, un pilar o una tubería seleccionados, arrastrarlo: moverlo (las asas de una tubería mueven un codo) · derecho arrastrando: orbitar · central: desplazar · rueda: zoom ·
-F: encuadrar · T: vista cenital · Tab: plano 2D (Tab otra vez: 3D) · F11 / "Pantalla completa": resolución nativa y vuelta a ventana · "Resolución": elegir modo y comprobar pantalla/imagen/render · "Plano: SVG / PNG": exportar el plano ·
-"Twinmotion (.glb)…": exportar la casa entera donde elijas (se recuerdan las últimas carpetas) (en Twinmotion: Importar → el `.glb`) ·
-"Importar textura…" (en Pintar) / "Importar modelo…" (en Amueblar): traer una imagen o un modelo 3D al proyecto ·
-RePág / AvPág: planta de arriba / de abajo · L: ver todas las plantas. Detalle en
-[docs/unreal-integration.md](docs/unreal-integration.md#controles).
+- **Muros con medidas exactas**: clic, vista previa y longitud escrita (`355`, `3.55 m`, `3550 mm`); esquinas limpias
+  en L, T y X; habitaciones con su área neta que se recalculan al momento.
+- **Puertas y ventanas** de un catálogo de 24 diseños paramétricos (abatibles, de dos hojas, correderas empotradas,
+  fijas), con marco, hojas, manillas y vidrio.
+- **Varias plantas** con forjados, **pilares** e **instalaciones** de electricidad, agua, aguas negras y gas vistas
+  con rayos X.
+- **Materiales**: 80 acabados por categoría y 14 texturas fotográficas, por cara de muro, suelo, techo y carpintería;
+  rodapiés por habitación.
+- **Muebles**: una biblioteca de 53 muebles con imagen, muebles paramétricos e importación de tus propios modelos
+  (glTF, GLB, OBJ) y texturas (PNG, JPEG).
+- **Planos 2D** editables con cotas automáticas y manuales, cotas interiores y nombres de habitación, exportables a
+  SVG y PNG.
+- **Recorrer** la casa con WASD y **Modo Foto** con path tracing (PNG, o EXR en pantallas HDR).
+- **Exportar a Twinmotion** la casa entera como `.glb` con sus materiales y texturas.
+- Deshacer y rehacer todo, y proyectos en un `project.json` legible.
 
-## Requisitos
-Windows 11 x64, GPU con DXR 1.1 + SM6.6 (referencia: RTX 5070 Ti), Unreal Engine 5.8.x (Epic Games Launcher),
-Visual Studio 2026 con MSVC 14.50 y Windows SDK 10.0.26100. Detalle: [docs/build.md](docs/build.md).
+| | |
+|---|---|
+| ![Pantalla de inicio](docs/images/ui-cota-cero/home-1920.jpg) | ![Diseñar: un muro seleccionado con sus medidas](docs/images/ui-cota-cero/selection-1920.jpg) |
+| ![Materiales por cara de muro](docs/images/ui-cota-cero/materials-1920.jpg) | ![Biblioteca de muebles](docs/images/ui-cota-cero/furniture-1920.jpg) |
+| ![Catálogo de puertas](docs/images/opening-catalogue/doors-1920.png) | ![Recorrer la casa](docs/images/ui-cota-cero/walk-1920.jpg) |
 
-Para ejecutar una entrega empaquetada basta Windows y la GPU compatible; Unreal/Visual
-Studio solo son herramientas de desarrollo. Ver [distribución Windows](docs/distribution.md).
+## Descargar e instalar
 
-## Uso
+Descarga la última versión desde **[Releases](https://github.com/corpjorge/101st-floor/releases/latest)**. No hace falta
+instalar Unreal Engine, Visual Studio ni nada más.
+
+- **Instalador (recomendado):** `101st-Floor-<versión>-Setup.exe`. Instala la aplicación para tu usuario, con accesos
+  directos en el Escritorio y en Inicio, y se actualiza sola. La primera vez puede pedir permiso de administrador para
+  el runtime de Visual C++ de Microsoft, si tu equipo no lo tiene.
+- **Portable:** `101st-Floor-<versión>-portable.zip`. Extráelo entero y abre `Windows\Floor101.exe`. No se actualiza
+  solo: descarga la versión nueva cuando quieras.
+
+Windows SmartScreen puede mostrar *"Windows protegió tu PC"* porque el instalador no está firmado con un certificado
+comercial: pulsa **Más información → Ejecutar de todas formas**. Puedes comprobar cualquier descarga con
+`SHA256SUMS.txt`, que acompaña a cada versión.
+
+**Requisitos:** Windows 11 x64; GPU con DirectX 12 (Shader Model 6) y trazado de rayos por hardware (DXR) para Lumen y
+el Modo Foto, con drivers actualizados. HDR es opcional y necesita una pantalla compatible.
+
+**Desinstalar:** desde Configuración de Windows → Aplicaciones. Tus proyectos y preferencias no se borran.
+
+## Actualizaciones
+
+La copia instalada pregunta a GitHub al arrancar si hay una versión nueva (puedes desactivarlo en
+**Opciones → Acerca de**). Si la hay, aparece en la pantalla de inicio y en la barra: **Descargar** la baja en segundo
+plano y **Instalar y reiniciar** guarda tu trabajo si quieres, instala la versión nueva y vuelve a abrir la aplicación.
+
+Cada versión trae una descripción firmada con la clave del proyecto; la aplicación solo instala un instalador cuyo
+tamaño y huella SHA-256 coinciden con esa descripción firmada, y nunca una versión anterior. No se envía nada tuyo ni de
+tus proyectos. Detalle: [ADR-0039](docs/adr/ADR-0039-public-release-and-updates.md).
+
+## Primeros pasos
+
+1. **Nuevo proyecto** en la pantalla de inicio.
+2. **B** (Pared): clic donde empieza el muro, escribe la longitud (`400` son 400 cm) y pulsa Enter; sigue con el
+   siguiente. Al cerrar el contorno aparece la habitación con su área.
+3. **P** / **O**: elige un diseño de puerta o ventana en el panel y haz clic sobre un muro.
+4. **M** (Materiales) y **G** (Muebles): pinta caras y suelos, coloca muebles.
+5. **Tab**: plano 2D con cotas; **H** añade cotas; exporta el plano en SVG o PNG desde Documento.
+6. **N** (Recorrer): muévete con WASD. **R** (Foto): espera a que se afine y pulsa **Guardar imagen…**.
+7. **Ctrl+S** guarda el proyecto.
+
+Todas las teclas y gestos: **[controles](docs/controls.md)**.
+
+## Guías
+
+[Controles](docs/controls.md) · [Catálogo de puertas y ventanas](docs/opening-catalogue.md) ·
+[Cotas](docs/dimensions.md) · [Nombres de habitaciones](docs/room-names.md) · [Rodapiés](docs/baseboards.md) ·
+[Navegación y cámara](docs/camera-navigation.md) · [Pantalla](docs/display.md) · [HDR](docs/hdr.md) ·
+[División de paredes](docs/wall-splitting.md) · [Inicio y diagnóstico](docs/startup.md)
+
+## Para desarrolladores
+
+101st Floor separa un núcleo CAD en C++ estándar (modelo paramétrico en milímetros enteros, geometría, planos,
+exportadores), probado sin Unreal, de la aplicación en Unreal Engine 5.8, que solo representa y traduce la entrada.
+Empieza por la [arquitectura](docs/architecture.md) y las [decisiones (ADR)](docs/adr/README.md).
+
+**Compilar** necesita Windows 11 x64, Unreal Engine 5.8.x (Epic Games Launcher, con su EULA aceptado), Visual Studio
+2026 con MSVC 14.50 y Windows SDK 10.0.26100, PowerShell 7 y Git LFS ([detalle](docs/build.md)):
+
 ```powershell
+git lfs install
 git clone https://github.com/corpjorge/101st-floor.git; cd 101st-floor
 .\Scripts\Setup.ps1            # comprueba el entorno
 .\Scripts\Build.ps1            # compila Floor101Editor (Win64 Development)
-.\Scripts\Test.ps1             # arquitectura + tests unitarios sin Unreal (-Integration: + Unreal Automation)
-.\Scripts\Run.ps1              # abre 101st Floor con la pared de referencia (-Demo:$false: documento vacío)
-.\Scripts\CreateDesktopShortcut.ps1  # acceso directo "101st Floor" en el escritorio que ejecuta Run.ps1
-.\Scripts\CheckRendering.ps1   # valida DX12, SM6, GPU, ray tracing, Lumen HWRT, VSM, Nanite y el path tracing del Modo Foto
-.\Scripts\CheckHdr.ps1         # consulta HDR10/EDID, señal y luminancia declarada del monitor
-.\Scripts\CheckHdrOutput.ps1   # valida HDR/SDR real (-EnableWindowsHdrForTest: activa Windows HDR temporalmente)
-.\Scripts\CheckHdrOutput.ps1 -Display # comprueba pantalla completa nativa, resolución elegida y vuelta a ventana
-.\Scripts\RunEditorMcp.ps1     # abre Unreal Editor con el servidor MCP (desarrollo con Claude Code)
-.\Scripts\CheckMcp.ps1         # prueba de humo del MCP (handshake, toolsets, operación read-only)
+.\Scripts\Test.ps1             # arquitectura + pruebas unitarias sin Unreal (-Integration: + Unreal Automation)
+.\Scripts\Run.ps1              # abre 101st Floor (-Demo:$false: documento vacío)
+.\Scripts\CheckRendering.ps1   # valida DX12, SM6, ray tracing, Lumen HWRT, VSM, Nanite y el path tracing de Foto
 .\Scripts\GenerateAssets.ps1   # regenera los materiales de acabados y vidrio (Content/Floor101) desde código
 .\Scripts\GenerateLibrary.ps1  # regenera los muebles de la biblioteca (Library/furniture) con Blender
 .\Scripts\CheckGltf.ps1 -Path casa.glb  # segunda opinión de una exportación: la importa y renderiza en Blender
 ```
 
-La biblioteca integrada vive en [Library/](Library/README.md): muebles modelados por código y texturas CC0 de
-Poly Haven. Sus binarios van por Git LFS (`git lfs install` antes de clonar).
+**Distribuir:** `Package.ps1`, `CheckPackage.ps1`, `Installer.ps1` y `Release.ps1`; el proceso completo, con la clave
+de firma de las actualizaciones, está en [publicar una versión](docs/releasing.md) y
+[distribución Windows](docs/distribution.md).
 
-## Documentación
-- [docs/distribution.md](docs/distribution.md) — versión portable, instalador y validación de Shipping
-- [docs/architecture.md](docs/architecture.md) — módulos, dependencias, unidades, flujo de datos, tests ([ADRs](docs/adr/README.md))
-- [docs/cad-core.md](docs/cad-core.md) · [docs/geometry.md](docs/geometry.md) · [docs/scene-model.md](docs/scene-model.md) · [docs/drawing.md](docs/drawing.md) · [docs/exporters.md](docs/exporters.md) · [docs/unreal-integration.md](docs/unreal-integration.md) — cada capa
-- [docs/build.md](docs/build.md) — toolchain, compilación y localización del motor
-- [docs/rendering-rtx.md](docs/rendering-rtx.md) — configuración de render y cómo se verifica
-- [docs/hdr.md](docs/hdr.md) — botón HDR, monitor comprobado y fotos EXR/PNG
-- [docs/display.md](docs/display.md) — pantalla completa, resolución nativa y tamaño real de render
-- [docs/camera-navigation.md](docs/camera-navigation.md) — WASD, mirada y acercamiento continuo con la rueda
-- [docs/wall-splitting.md](docs/wall-splitting.md) — tramos independientes al unir o cruzar paredes
-- [docs/room-names.md](docs/room-names.md) — nombres personalizados, guardado, deshacer/rehacer y planos
-- [docs/baseboards.md](docs/baseboards.md) — rodapiés por habitación, dimensiones, acabados y exportación 3D
-- [docs/unreal-mcp.md](docs/unreal-mcp.md) — Unreal MCP: plugins, arranque, seguridad, serialización
+Más: [núcleo CAD](docs/cad-core.md) · [geometría](docs/geometry.md) · [escena](docs/scene-model.md) ·
+[planos](docs/drawing.md) · [exportadores](docs/exporters.md) · [integración con Unreal](docs/unreal-integration.md) ·
+[render](docs/rendering-rtx.md) · [Unreal MCP](docs/unreal-mcp.md) · [biblioteca](Library/README.md)
 
-Inicio con marca propia y registro opcional: [Inicio y diagnóstico](docs/startup.md).
+## Licencia
+
+101st Floor es software libre con licencia **[MIT](LICENSE)**.
+
+101st Floor uses the Unreal® Engine. Unreal® is a trademark or registered trademark of Epic Games, Inc. in the United
+States of America and elsewhere. Unreal® Engine, Copyright 1998 – 2026, Epic Games, Inc. All rights reserved. El motor
+se rige por el [EULA de Unreal Engine](https://www.unrealengine.com/eula); la licencia MIT no se aplica a él.
+
+Componentes y recursos de terceros (nlohmann/json, WiX, runtime de Visual C++, texturas CC0 de Poly Haven):
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
