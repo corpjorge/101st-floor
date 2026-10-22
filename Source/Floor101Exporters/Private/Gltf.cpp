@@ -440,6 +440,20 @@ namespace f101::exporters
 			return index == 0 ? texts.groundFloor : replaceAll(texts.levelNumber, "{n}", std::to_string(index));
 		};
 		Json rootChildren = Json::array();
+		Json punctualLights = Json::array();
+		for (const auto& light : scene.lights)
+		{
+			const int lightIndex = static_cast<int>(punctualLights.size());
+			punctualLights.push_back(Json{{"name", light.id.value}, {"type", "point"},
+				{"color", Json::array({srgbToLinear(light.color.r), srgbToLinear(light.color.g), srgbToLinear(light.color.b)})},
+				{"intensity", static_cast<double>(light.lumens) / (4.0 * 3.14159265358979323846)},
+				{"range", static_cast<double>(light.radiusMm) / 1000.0}});
+			nodes.push_back(Json{{"name", light.id.value},
+				{"translation", Json::array({light.position.x / 1000.0, light.position.z / 1000.0, -light.position.y / 1000.0})},
+				{"extensions", Json{{"KHR_lights_punctual", Json{{"light", lightIndex}}}}},
+				{"extras", Json{{"f101NodeId", light.id.value}, {"f101LevelId", cad::toString(light.level)}}}});
+			rootChildren.push_back(static_cast<int>(nodes.size()) - 1);
+		}
 		for (int level = -1; level < static_cast<int>(project.levels.size()); ++level)
 		{
 			Json groups = Json::array();
@@ -474,7 +488,7 @@ namespace f101::exporters
 		nodes.push_back(Json{{"name", uniqueName(texts.root)}, {"children", std::move(rootChildren)}});
 		const int root = static_cast<int>(nodes.size()) - 1;
 
-		// Materials: colour (linear) times the image, roughness, never metallic; glass blended.
+		// Materials: colour (linear) times the image, roughness and coating; glass blended.
 		Json materialJson = Json::array();
 		Json textures = Json::array();
 		std::vector<std::string> finishOf(materialList.size());
@@ -489,7 +503,7 @@ namespace f101::exporters
 			const GltfMaterialLook& look = material.look;
 			Json pbr{{"baseColorFactor", Json::array({srgbToLinear(look.color.r), srgbToLinear(look.color.g), srgbToLinear(look.color.b),
 						std::clamp(look.opacity, 0.0, 1.0)})},
-				{"metallicFactor", 0.0}, {"roughnessFactor", std::clamp(look.roughness, 0.0, 1.0)}};
+				{"metallicFactor", std::clamp(look.metallic, 0.0, 1.0)}, {"roughnessFactor", std::clamp(look.roughness, 0.0, 1.0)}};
 			if (material.image >= 0)
 			{
 				textures.push_back(Json{{"sampler", 0}, {"source", material.image}});
@@ -520,6 +534,11 @@ namespace f101::exporters
 			{"accessors", std::move(writer.accessors)},
 			{"bufferViews", std::move(writer.views)},
 		};
+		if (!punctualLights.empty())
+		{
+			gltf["extensionsUsed"] = Json::array({"KHR_lights_punctual"});
+			gltf["extensions"]["KHR_lights_punctual"]["lights"] = std::move(punctualLights);
+		}
 		if (!images.empty())
 		{
 			gltf["images"] = std::move(images);
@@ -614,6 +633,7 @@ namespace f101::exporters
 			}
 			look.roughness = synthesised.roughness;
 			look.opacity = synthesised.opacity;
+			look.metallic = synthesised.metallic;
 			look.repeatWidthMm = synthesised.texture.repeatWidthMm;
 			look.repeatHeightMm = synthesised.texture.repeatHeightMm;
 			const scene::TextureImage& top = synthesised.texture.mips.front();

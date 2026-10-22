@@ -1,6 +1,7 @@
 #include "F101/Cad/Wall.h"
 
 #include "F101/Cad/Units.h"
+#include "F101/Cad/Asset.h"
 #include "F101/Cad/OpeningCatalogue.h"
 
 #include <algorithm>
@@ -24,6 +25,8 @@ namespace f101::cad
 		// How it opens suits its kind, and how open it is shown is a percentage (ADR-0014).
 		Status validateOperation(const Opening& opening)
 		{
+			if (Status valid = validateFinish(opening.glazing, Surface::Glazing); !valid) return valid;
+			if (isAssetRef(opening.glazing)) return Error{ErrorCode::InvalidArgument, "Glazing needs a catalogue glass finish"};
 			if (!opening.family.empty())
 			{
 				const auto* family = findOpeningFamily(opening.family);

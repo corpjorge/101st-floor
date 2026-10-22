@@ -108,6 +108,12 @@ Otros: build `docs/build.md`, render `docs/rendering-rtx.md`, MCP `docs/unreal-m
   `Opening::family`, vacío para el aspecto anterior. Geometría y miniaturas derivadas del mismo diseño; búsqueda,
   filtro de apertura y medidas antes de colocar. Cambiar familia conserva medidas y acabado; cambiar mecanismo
   elimina una familia incompatible. `project.json` esquema 15; MCP `GetOpeningFamilies`/`SetOpeningFamily` (ADR-0036).
+- Luminarias: `Furniture::elevationMm` y emisión puntual opcional en coordenadas locales (`FurnitureLight`, lúmenes,
+  radio, color y encendido). La luz sigue las transacciones del mueble; SceneModel la deriva y Unreal reconcilia
+  `APointLight` transitorios. El GLB lleva `KHR_lights_punctual`. `project.json` esquema 16 (ADR-0037).
+- Cubiertas translúcidas por clave de habitación (`roomRoofs`): sustituyen la losa solo en la última planta, con
+  tejas onduladas y perfilería derivadas por Geometry. Vidrio independiente en `Opening::glazing`; recubrimiento
+  reflectivo PBR compartido por Unreal y GLB. `project.json` esquema 17 (ADR-0038).
 
 ## Entorno
 - Windows 11 + RTX 5070 Ti + UE 5.8.x (Launcher). Scripts en PowerShell 7: `Scripts/*.ps1`.

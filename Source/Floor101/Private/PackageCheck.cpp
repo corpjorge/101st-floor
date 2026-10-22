@@ -13,8 +13,11 @@
 #include "F101/Cad/EditController.h"
 #include "F101/Cad/OpeningCatalogue.h"
 #include "F101/Drawing/PlanDrawing.h"
+#include "F101/Scene/SceneCompiler.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "Engine/PointLight.h"
+#include "Components/PointLightComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Containers/Ticker.h"
 #include "Framework/Application/SlateApplication.h"
@@ -64,6 +67,57 @@ namespace Floor101::PackageCheck
 				if (!Check(Finishes && Finishes->GetBaseMaterial() && Finishes->GetGlassMaterial(), TEXT("cooked_materials")))
 				{ FPlatformMisc::RequestExitWithStatus(false, 1); return false; }
 				Check(Document->NewProject().ok(), TEXT("new_project"));
+				{
+					auto Fixture = f101::cad::makeFurniture("table", {1000,2000});
+					Fixture.level = Document->GetDocument().project().levels.front().id;
+					Fixture.elevationMm = 1700;
+					Fixture.light = f101::cad::FurnitureLight{0,0,-20,800,4000,{255,224,185},true};
+					const auto Added = Document->GetMutableDocument().addFurniture(Fixture);
+					Check(Added.ok(), TEXT("fixture_light_add"));
+					APointLight* LightActor = nullptr;
+					for (TActorIterator<APointLight> It(Document->GetWorld()); It; ++It)
+					{
+						if (std::any_of(It->Tags.begin(), It->Tags.end(), [](const FName& Tag) { return Tag.ToString().StartsWith(TEXT("f101.light:")); }))
+							LightActor = *It;
+					}
+					Check(LightActor != nullptr, TEXT("fixture_real_point_light"));
+					if (LightActor)
+					{
+						const auto* Component = CastChecked<UPointLightComponent>(LightActor->GetLightComponent());
+						Check(Component->IntensityUnits == ELightUnits::Lumens && Component->Intensity == 800.0f &&
+							FMath::IsNearlyEqual(LightActor->GetActorLocation().Z,169.0), TEXT("fixture_physical_flux_and_elevation"));
+					}
+					const FString LitFile = FPaths::Combine(Directory,TEXT("fixture-light.json"));
+					Check(Document->SaveProject(LitFile).ok() && Document->NewProject().ok() && Document->OpenProject(LitFile).ok(), TEXT("fixture_light_roundtrip"));
+					Check(Document->GetDocument().project().furniture.size() == 1 &&
+						Document->GetDocument().project().furniture.front().light.has_value(), TEXT("fixture_light_persisted"));
+					Check(Document->NewProject().ok(), TEXT("fixture_light_clear"));
+				}
+				{
+					auto& Model = Document->GetMutableDocument();
+					Check(Model.addWall({0,0},{4000,0},120,2800).ok() && Model.addWall({4000,0},{4000,5000},120,2800).ok() &&
+						Model.addWall({4000,5000},{0,5000},120,2800).ok() && Model.addWall({0,5000},{0,0},120,2800).ok(), TEXT("roof_room_add"));
+					const auto Full = f101::scene::compileScene(Model.project());
+					if (Check(Full.rooms.size() == 1, TEXT("roof_room_derived")))
+					{
+						const auto Key = Full.rooms.front().room.key;
+						Check(Document->Edit([Key](f101::cad::EditController& E)
+						{
+							if (const auto Selected = E.selectRoom(Key); !Selected) return Selected;
+							return E.setSelectedRoomRoof(true);
+						}).ok(), TEXT("roof_enable"));
+						const FString RoofFile = FPaths::Combine(Directory,TEXT("translucent-roof.json"));
+						Check(Document->SaveProject(RoofFile).ok() && Document->NewProject().ok() && Document->OpenProject(RoofFile).ok() &&
+							Document->GetDocument().project().roomRoofs.size() == 1, TEXT("roof_roundtrip"));
+					}
+					UMaterialInterface* Roof = Finishes->GetFinishMaterial(TEXT("polycarbonate-opal"));
+					UMaterialInterface* Film = Finishes->GetFinishMaterial(TEXT("glass-reflective"));
+					float Metallic = 0;
+					Check(Roof && Roof->GetBlendMode() == BLEND_Translucent, TEXT("roof_cooked_translucency"));
+					Check(Film && Film->GetBlendMode() == BLEND_Translucent && Film->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("Metallic")), Metallic) &&
+						FMath::IsNearlyEqual(Metallic,.65f), TEXT("glazing_cooked_reflective_coating"));
+					Check(Document->NewProject().ok(), TEXT("roof_clear"));
+				}
 				{
 					const auto Families = f101::cad::openingCatalogue();
 					Check(Families.size() == 24 && std::count_if(Families.begin(), Families.end(), [](const auto& Family)

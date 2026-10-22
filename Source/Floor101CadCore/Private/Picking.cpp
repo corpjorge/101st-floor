@@ -91,7 +91,8 @@ namespace f101::cad
 			double tMax = std::numeric_limits<double>::infinity();
 			if (clipSlab(origin.x_mm, directionX, -halfWidth, halfWidth, tMin, tMax) &&
 				clipSlab(origin.y_mm, directionY, -halfDepth, halfDepth, tMin, tMax) &&
-				clipSlab(ray.originZ, ray.directionZ, 0.0, static_cast<double>(piece.heightMm), tMin, tMax) &&
+				clipSlab(ray.originZ, ray.directionZ, static_cast<double>(piece.elevationMm),
+					static_cast<double>(piece.elevationMm) + static_cast<double>(piece.heightMm), tMin, tMax) &&
 				(!nearest || tMin < nearest->distance))
 			{
 				nearest = FurnitureHit{piece.id, tMin};

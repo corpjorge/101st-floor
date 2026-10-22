@@ -11,6 +11,8 @@
 #include "F101/Cad/Project.h"
 #include "F101/Scene/SceneCompiler.h"
 #include "Engine/Texture2D.h"
+#include "Engine/PointLight.h"
+#include "Components/PointLightComponent.h"
 #include "Floor101FinishLibrary.h"
 #include "Floor101SceneNodeActor.h"
 #include "Floor101SceneReconciler.h"
@@ -405,6 +407,60 @@ bool FFloor101OpeningTypesTest::RunTest(const FString& Parameters)
 		Symbols += Node.style == f101::scene::NodeStyle::Symbol ? 1 : 0;
 	}
 	TestEqual(TEXT("no symbols for exporters"), Symbols, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101FixtureLightingTest, "Floor101.Adapter.FixtureLighting", TestFlags)
+bool FFloor101FixtureLightingTest::RunTest(const FString& Parameters)
+{
+	FTestWorld TestWorld;
+	FFloor101SceneReconciler Reconciler(TestWorld.World);
+	f101::scene::Scene Scene;
+	const f101::scene::SceneNodeId Id{"fixture-test/body/light"};
+	Scene.lights.push_back({Id, {}, {1000, 2000, 2400}, 800, 4000, {255, 224, 185}});
+	TestEqual(TEXT("one light spawned"), Reconciler.Reconcile(Scene).Created, 1);
+	APointLight* Actor = Reconciler.FindLight(Id);
+	if (!TestNotNull(TEXT("real point light actor"), Actor)) return false;
+	auto* Component = CastChecked<UPointLightComponent>(Actor->GetLightComponent());
+	TestTrue(TEXT("transient, derived from CAD"), Actor->HasAnyFlags(RF_Transient));
+	TestEqual(TEXT("scene mm converted once and Y mirrored"), Actor->GetActorLocation(), FVector(100, -200, 240), VectorTolerance);
+	TestEqual(TEXT("physical light units"), Component->IntensityUnits, ELightUnits::Lumens);
+	TestEqual(TEXT("flux"), Component->Intensity, 800.0f);
+	TestEqual(TEXT("range in centimetres"), Component->AttenuationRadius, 400.0f);
+	TestTrue(TEXT("casts shadows"), Component->CastShadows != 0);
+	TestEqual(TEXT("unchanged scene reuses light"), Reconciler.Reconcile(Scene).Unchanged, 1);
+	Scene.lights[0].lumens = 1200;
+	Scene.lights[0].position.z = 2300;
+	TestEqual(TEXT("light updates without respawning"), Reconciler.Reconcile(Scene).Updated, 1);
+	TestTrue(TEXT("same light actor"), Reconciler.FindLight(Id) == Actor);
+	TestEqual(TEXT("updated flux"), Component->Intensity, 1200.0f);
+	TestEqual(TEXT("updated height"), Actor->GetActorLocation().Z, 230.0, Tolerance);
+	Scene.lights.clear();
+	TestEqual(TEXT("removed fixture removes light"), Reconciler.Reconcile(Scene).Removed, 1);
+	TestEqual(TEXT("no stale point lights"), Reconciler.NumLights(), 0);
+	Scene.lights.push_back({Id, {}, {0, 0, 2400}, 800, 4000, {255, 224, 185}});
+	Reconciler.Reconcile(Scene);
+	Reconciler.DestroyAll();
+	TestEqual(TEXT("world cleanup removes all light actors"), Reconciler.NumLights(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFloor101RoofMaterialsTest, "Floor101.Adapter.TranslucentRoofMaterials", TestFlags)
+bool FFloor101RoofMaterialsTest::RunTest(const FString& Parameters)
+{
+	UFloor101FinishLibrary* Library = UFloor101FinishLibrary::Get();
+	if (!TestNotNull(TEXT("finish library"), Library)) return false;
+	UMaterialInterface* Roof = Library->GetFinishMaterial(TEXT("polycarbonate-opal"));
+	UMaterialInterface* Film = Library->GetFinishMaterial(TEXT("glass-reflective"));
+	if (!TestNotNull(TEXT("roof material"), Roof) || !TestNotNull(TEXT("reflective film"), Film)) return false;
+	TestEqual(TEXT("roof transmits daylight"), Roof->GetBlendMode(), BLEND_Translucent);
+	TestEqual(TEXT("film remains see-through"), Film->GetBlendMode(), BLEND_Translucent);
+	float Opacity = 1, Metallic = 0;
+	TestTrue(TEXT("roof opacity parameter"), Roof->GetScalarParameterValue(FHashedMaterialParameterInfo(UFloor101FinishLibrary::OpacityParameter), Opacity));
+	TestEqual(TEXT("opal opacity"), Opacity, .28f, 1e-5f);
+	TestTrue(TEXT("coating has a metallic parameter in the generated material"), Film->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("Metallic")), Metallic));
+	TestEqual(TEXT("reflective coating"), Metallic, .65f, 1e-5f);
+	TestEqual(TEXT("white profiles are opaque"), Library->GetFinishMaterial(TEXT("lacquer-white"))->GetBlendMode(), BLEND_Opaque);
 	return true;
 }
 

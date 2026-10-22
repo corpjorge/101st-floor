@@ -174,3 +174,27 @@ commit (`dirty: true` en `release-manifest.json`).
 El ejecutable se probó en este equipo sin cargar dependencias desde la instalación de Unreal Editor. El usuario confirmó
 el funcionamiento del catálogo el 2026-10-20; la prueba en otro equipo sigue pendiente. Esta entrega es portable;
 la versión 0.2.3 se conserva.
+
+## Entrega 0.2.5 (2026-10-20)
+
+Portable Shipping con iluminación puntual real vinculada a luminarias, elevación de mobiliario y controles de
+encendido y lúmenes (ADR-0037, esquema 16). Los proyectos anteriores se abren; el nuevo proyecto iluminado requiere
+esta versión. Ejecutable: `Packaged/0.2.5/Windows/Floor101.exe`; ZIP completo: `Packaged/0.2.5/101st-Floor-portable.zip`.
+
+351 unitarios y 93 Unreal Automation aprobados (`Saved/Automation/20261020-165449`). El ejecutable real pasó
+110 comprobaciones funcionales, integridad del manifiesto y dependencias locales
+(`Saved/PackageChecks/20261020-170109-functional`), incluidas luces puntuales, unidades físicas y persistencia.
+El paquete registra el árbol de trabajo basado en `05a837d` con cambios sin commit (`dirty: true`).
+No se genera instalador MSI ni se sustituye la entrega 0.2.4. La validación se realizó en este equipo.
+
+## Entrega 0.2.6 (2026-10-20)
+
+Portable Shipping con cubiertas translúcidas por habitación y acabados independientes del vidrio de los huecos
+(ADR-0038, esquema 17). Incluye teja opal ondulada, perfiles blancos, vidrio reflectivo y baldosa gris mate de garaje.
+Ejecutable: `Packaged/0.2.6/Windows/Floor101.exe`; ZIP: `Packaged/0.2.6/101st-Floor-portable.zip`.
+
+355 unitarios (987.971 aserciones) y 94 Unreal Automation aprobados (`Saved/Automation/20261020-230508`).
+117 comprobaciones del ejecutable real, manifiesto y dependencias locales: PASS
+(`Saved/PackageChecks/20261020-231049-functional`), incluida persistencia de cubiertas y material reflectivo cocinado.
+El proyecto de vivienda real conserva su ruta de trabajo y se reabre con este ejecutable. El paquete registra cambios
+sin commit; no se genera MSI. Materiales regenerados con `Scripts/GenerateAssets.ps1`. Validación en este equipo.

@@ -47,6 +47,7 @@ namespace f101::scene
 		double roughness = 0.85;
 		double opacity = 1.0; // less than 1: see-through (glass), for a translucent material
 		FinishTexture texture;
+		double metallic = 0.0;
 	};
 
 	FLOOR101SCENEMODEL_API FinishLook buildFinishLook(std::string_view finishId, int size = 512);

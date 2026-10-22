@@ -6,6 +6,7 @@
 
 class AFloor101SceneNodeActor;
 class UWorld;
+class APointLight;
 
 struct FFloor101ReconcileStats
 {
@@ -28,6 +29,8 @@ public:
 
 	AFloor101SceneNodeActor* FindActor(const f101::scene::SceneNodeId& Id) const;
 	int32 Num() const { return Actors.Num(); }
+	int32 NumLights() const { return Lights.Num(); }
+	APointLight* FindLight(const f101::scene::SceneNodeId& Id) const;
 
 private:
 	// What an actor currently shows: its node's mesh hash and style.
@@ -40,4 +43,6 @@ private:
 	TWeakObjectPtr<UWorld> World;
 	TMap<FString, TWeakObjectPtr<AFloor101SceneNodeActor>> Actors;
 	TMap<FString, FApplied> AppliedState;
+	TMap<FString, TWeakObjectPtr<APointLight>> Lights;
+	TMap<FString, f101::scene::SceneLight> AppliedLights;
 };

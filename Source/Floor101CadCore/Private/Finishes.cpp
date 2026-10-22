@@ -78,10 +78,11 @@ namespace f101::cad
 			return finish;
 		}
 
-		FinishInfo glass(std::string_view id, std::uint8_t surfaces, Rgb8 color, double roughness, double opacity)
+		FinishInfo glass(std::string_view id, std::uint8_t surfaces, Rgb8 color, double roughness, double opacity, double metallic = 0.0)
 		{
 			FinishInfo finish = plain(id, Category::Glass, surfaces, color, roughness);
 			finish.opacity = opacity;
+			finish.metallic = metallic;
 			return finish;
 		}
 	}
@@ -151,6 +152,7 @@ namespace f101::cad
 			paint("paint-chocolate", {96, 66, 50}),
 			// Tiles.
 			units("tile-white", Category::Tiles, W | F, P::Tiles, {236, 238, 236}, {188, 188, 184}, 0.25, 200, 200, 3),
+			units("tile-garage-grey", Category::Tiles, F, P::Tiles, {118, 121, 120}, {74, 77, 76}, 0.85, 300, 300, 4),
 			units("tile-grey", Category::Tiles, F, P::Tiles, {148, 148, 144}, {104, 104, 100}, 0.5, 600, 600, 3),
 			units("tile-metro-white", Category::Tiles, W, P::Bricks, {242, 242, 238}, {206, 206, 202}, 0.15, 150, 75, 2),
 			units("tile-metro-green", Category::Tiles, W, P::Bricks, {98, 138, 118}, {220, 220, 214}, 0.15, 150, 75, 2),
@@ -209,6 +211,8 @@ namespace f101::cad
 			plain("linen-white", Category::Fabric, U, {234, 230, 220}, 0.9),
 			// Glass.
 			glass("glass-clear", G, {214, 228, 230}, 0.03, 0.18),
+			glass("glass-reflective", G, {172, 184, 190}, 0.06, 0.35, 0.65),
+			glass("polycarbonate-opal", C | G, {236, 241, 239}, 0.42, 0.28),
 			glass("glass-black", U, {22, 22, 24}, 0.08, 1.0),
 			// Building services (ADR-0021): each kind of run in its colour.
 			plain("service-electrical", Category::Services, S, {46, 156, 72}, 0.5),

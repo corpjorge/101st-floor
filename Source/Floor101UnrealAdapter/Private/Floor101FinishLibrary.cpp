@@ -280,6 +280,7 @@ UMaterialInterface* UFloor101FinishLibrary::GetFinishMaterial(const FString& Fin
 		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Glass, this, FName(*(TEXT("MI_Finish_") + FinishId)));
 		Material->SetVectorParameterValue(TintParameter, FLinearColor::FromSRGBColor(FColor(Pixel[0], Pixel[1], Pixel[2])));
 		Material->SetScalarParameterValue(OpacityParameter, static_cast<float>(Look.opacity));
+		Material->SetScalarParameterValue(TEXT("Metallic"), static_cast<float>(Look.metallic));
 		Material->SetScalarParameterValue(RoughnessParameter, static_cast<float>(Look.roughness));
 		FinishMaterials.Add(FinishId, Material);
 		return Material;

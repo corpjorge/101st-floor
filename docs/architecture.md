@@ -26,7 +26,20 @@ sentido contrario: Unreal no escribe en el modelo, y un nivel de Unreal nunca se
   Unreal Runtime (DX12 · Lumen HWRT)
 ```
 
+## Luminarias (ADR-0037)
+
+Desde el esquema 16, un mueble puede elevarse sobre el suelo y llevar una fuente puntual con posición local,
+lúmenes, radio, color y encendido. La posición y la vida de la fuente siguen al mueble, incluidas las transacciones
+de deshacer y rehacer. SceneModel deriva `Scene::lights`; Unreal crea luces puntuales móviles y transitorias.
+La exportación GLB conserva su fotometría mediante `KHR_lights_punctual`. El inspector permite cambiar la altura,
+el encendido y los lúmenes de una luminaria. Los proyectos anteriores permanecen sin fuentes nuevas.
+
 ## Módulos
+
+Las cubiertas translúcidas (`roomRoofs`, esquema 17, ADR-0038) sustituyen la losa superior de una habitación por
+teja ondulada y perfiles blancos, derivados en Geometry y limitados a la última planta. Se guardan desnivel y
+sentido de caída; se editan con transacciones y se heredan al dividir muros. `Opening::glazing` separa el material
+del vidrio del marco. El recubrimiento metálico de los acabados reflectivos se conserva en Unreal y GLB.
 
 Diez módulos de producto y uno de desarrollo, solo para el editor. CadCore, Geometry, SceneModel, Drawing, Assets y Exporters son
 **C++20 estándar**: no incluyen cabeceras de Unreal, no usan tipos de Unreal y compilan igual con UnrealBuildTool y con
@@ -38,7 +51,7 @@ CMake (tests sin Unreal). Ver ADR-0002.
 | `Floor101Startup` | Unreal temprano | `Floor101::Startup` | Core, Slate, PreLoadScreen, Diagnostics | splash propio, barra de actividad y transición al juego; carga en PreLoadingScreen (ADR-0027) |
 | `Floor101CadCore` | C++ puro | `f101::cad` | — (nlohmann/json interno) | unidades, `Point2D`/`Vector2D`/`Segment2D`/`Bounds`, IDs, `Project`/`Level`/`Wall`, validación, `Document` (comandos, deshacer/rehacer, notificación de cambios), snapping, picking, `WallTool`, `EditController` (con `DimensionEditor` para las cotas del plano), mobiliario (`Furniture`, catálogo), pilares e instalaciones (`Column`, `ServiceRun`, ADR-0021), `project.json` |
 | `Floor101Geometry` | C++ puro | `f101::geometry` | CadCore | `MeshData` propio, uniones de muros (`solveWallJoins`) y tramos que ocupan en cada muro (`wallObstructions`), `WallGeometryBuilder` sobre huellas (con huecos), carpintería de huecos (`buildOpeningMesh`), polígonos y prismas, habitaciones (`detectRooms`), suelos, forjados y rodapiés (`buildBaseboardMesh`, ADR-0030), muebles (`furnitureShape`, `buildFurnitureMesh`), pilares y tuberías (`buildColumnMesh`, `buildServiceRunMesh`) |
-| `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos y habitaciones), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos, rodapiés, carpintería, muebles, pilares, tuberías; con `ViewOverlay` que compila el proyecto como quedaría y la capa de instalaciones con la arquitectura en `Ghost`); más adelante materiales portables, luces, cámaras, `SceneDiff` |
+| `Floor101SceneModel` | C++ puro | `f101::scene` | CadCore, Geometry | `Scene` (nodos, habitaciones y luces puntuales), `SceneNode` (con `NodeStyle`), `SceneCompiler` (Project → muros unidos, uniones, suelos, rodapiés, carpintería, muebles, pilares, tuberías y luces; con `ViewOverlay` que compila el proyecto como quedaría y la capa de instalaciones con la arquitectura en `Ghost`); más adelante materiales portables, cámaras, `SceneDiff` |
 | `Floor101Drawing` | C++ puro | `f101::drawing` | CadCore, Geometry | planos 2D de una planta (`buildPlanDrawing`: muros y pilares cortados, carpintería, muebles, cotas, habitaciones, tuberías con la capa, marcas de edición) y su SVG (`writeSvg`); cotas manuales y preferencias automáticas compartidas con CAD (ADR-0031), cotas interiores de cara a cara (ADR-0034), rótulos de habitación con tamaño y posición propios y sus cajas para el picking (ADR-0035); paleta común (ADR-0015) |
 | `Floor101Assets` | C++ puro | `f101::assets` | CadCore, Geometry (nlohmann/json interno) | assets importados (ADR-0017): cabeceras PNG/JPEG, lectores glTF 2.0 (`.gltf`, `.glb`) y OBJ/MTL, normalización de un modelo al marco del mueble (`normalizeModel`), importación con sus dependencias a `assets/<uuid>/` (`importAsset`), medida con otros ajustes, copia al guardar en otra carpeta y `ModelCache`; biblioteca integrada (ADR-0019): manifiestos de `Library/`, `loadLibrary`, `importLibraryFurniture`/`importLibraryTexture` |
 | `Floor101Exporters` | C++ puro | `f101::exporters` | CadCore, Geometry, SceneModel, Assets (nlohmann/json interno) | exportación de la escena a formatos de intercambio (ADR-0020): glTF 2.0 binario para Twinmotion (`writeGlb`, `exportProjectGlb`: plantas, grupos por clase (con Pilares e Instalaciones), materiales con sus imágenes, metros con Y arriba) y codificador PNG propio (`encodePng`, `zlibCompress`) |

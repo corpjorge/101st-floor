@@ -74,11 +74,27 @@ namespace f101::scene
 		std::int64_t elevationMm = 0;
 	};
 
+	struct SceneLight
+	{
+		SceneNodeId id; // fixture UUID + /light; stable across edits
+		cad::LevelId level;
+		geometry::Vec3 position; // absolute scene mm, including level elevation
+		std::int64_t lumens = 0;
+		std::int64_t radiusMm = 0;
+		cad::Rgb8 color;
+		friend bool operator==(const SceneLight& a, const SceneLight& b)
+		{
+			return a.id == b.id && a.level == b.level && a.position.x == b.position.x && a.position.y == b.position.y &&
+				a.position.z == b.position.z && a.lumens == b.lumens && a.radiusMm == b.radiusMm && a.color == b.color;
+		}
+	};
+
 	struct Scene
 	{
 		std::vector<SceneNode> nodes;
 		// The rooms whose floors are among the nodes ("<room key>/floor"): areas and label points for views.
 		std::vector<SceneRoom> rooms;
+		std::vector<SceneLight> lights;
 
 		const SceneNode* findNode(const SceneNodeId& id) const
 		{

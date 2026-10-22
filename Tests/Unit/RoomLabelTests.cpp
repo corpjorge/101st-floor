@@ -119,7 +119,7 @@ TEST_CASE("room label layouts round trip in schema 14; older projects have none"
 	REQUIRE(document.execute(SetRoomLabelCommand{RoomLabel{"room-a", 120, 100, Vector2D{-300, 160}, std::nullopt}}).ok());
 	REQUIRE(document.execute(SetRoomLabelCommand{RoomLabel{"room-b", 200, 150, std::nullopt, Vector2D{0, -900}}}).ok());
 	const std::string encoded = writeProjectJson(document.project());
-	CHECK(encoded.find("\"schemaVersion\": 15") != std::string::npos);
+	CHECK(encoded.find("\"schemaVersion\": " + std::to_string(ProjectSchemaVersion)) != std::string::npos);
 	CHECK(encoded.find("\"roomLabels\"") != std::string::npos);
 	const auto decoded = readProjectJson(encoded);
 	REQUIRE(decoded.ok());

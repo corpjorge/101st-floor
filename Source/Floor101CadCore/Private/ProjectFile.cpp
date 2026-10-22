@@ -142,6 +142,11 @@ namespace f101::cad
 				}
 				opening.finish = finish->get<std::string>();
 			}
+			if (const auto glazing = object.find("glazing"); glazing != object.end())
+			{
+				if (!glazing->is_string()) return formatError(where + ".glazing must be a string");
+				opening.glazing = glazing->get<std::string>();
+			}
 			// Schema 6 (ADR-0014). Older files had closed doors and fixed windows: that is what their openings become.
 			if (const auto family = object.find("family"); family != object.end())
 			{
@@ -334,6 +339,50 @@ namespace f101::cad
 			if (Status read = readOptionalString(object, "finish", where, furniture.finish); !read)
 			{
 				return read.error();
+			}
+			if (object.contains("elevationMm"))
+			{
+				const auto value = readMillimetersField(object, "elevationMm", where);
+				if (!value) return value.error();
+				furniture.elevationMm = value.value();
+			}
+			if (const auto field = object.find("light"); field != object.end())
+			{
+				if (!field->is_object()) return formatError(where + ".light must be an object");
+				FurnitureLight light;
+				const auto positionField = field->find("position");
+				if (positionField == field->end() || !positionField->is_array() || positionField->size() != 3)
+					return formatError(where + ".light.position must be [x_mm, y_mm, z_mm]");
+				std::int64_t* offsets[] = {&light.xMm, &light.yMm, &light.zMm};
+				for (std::size_t axis = 0; axis < 3; ++axis)
+				{
+					const auto value = readMillimeters((*positionField)[axis], where + ".light.position");
+					if (!value) return value.error();
+					*offsets[axis] = value.value();
+				}
+				for (const auto& [key, target] : {std::pair{"lumens", &light.lumens}, std::pair{"radiusMm", &light.radiusMm}})
+				{
+					const auto value = readMillimetersField(*field, key, where + ".light");
+					if (!value) return value.error();
+					*target = value.value();
+				}
+				const auto color = field->find("color");
+				if (color == field->end() || !color->is_array() || color->size() != 3)
+					return formatError(where + ".light.color must be [r, g, b]");
+				std::uint8_t* channels[] = {&light.color.r, &light.color.g, &light.color.b};
+				for (std::size_t axis = 0; axis < 3; ++axis)
+				{
+					const auto value = readMillimeters((*color)[axis], where + ".light.color");
+					if (!value) return value.error();
+					if (value.value() < 0 || value.value() > 255) return formatError(where + ".light.color must use bytes 0 to 255");
+					*channels[axis] = static_cast<std::uint8_t>(value.value());
+				}
+				if (const auto enabled = field->find("enabled"); enabled != field->end())
+				{
+					if (!enabled->is_boolean()) return formatError(where + ".light.enabled must be boolean");
+					light.enabled = enabled->get<bool>();
+				}
+				furniture.light = light;
 			}
 			return furniture;
 		}
@@ -732,6 +781,7 @@ namespace f101::cad
 					item["opensTo"] = opening.opensTo == WallSide::Left ? "left" : "right";
 					item["openPercent"] = opening.openPercent;
 					if (!opening.family.empty()) { item["family"] = opening.family; }
+					if (!opening.glazing.empty()) item["glazing"] = opening.glazing;
 					if (!opening.finish.empty())
 					{
 						item["finish"] = opening.finish;
@@ -797,6 +847,13 @@ namespace f101::cad
 			}
 			root["roomLabels"] = std::move(labels);
 		}
+		if (!project.roomRoofs.empty())
+		{
+			Json entries = Json::array();
+			for (const RoomRoof& roof : project.roomRoofs)
+				entries.push_back({{"room", roof.room}, {"riseMm", roof.riseMm}, {"fallQuarterTurns", roof.fallQuarterTurns}});
+			root["roomRoofs"] = std::move(entries);
+		}
 		if (!project.roomFinishes.empty())
 		{
 			Json rooms = Json::array();
@@ -830,6 +887,14 @@ namespace f101::cad
 				item["widthMm"] = piece.widthMm;
 				item["depthMm"] = piece.depthMm;
 				item["heightMm"] = piece.heightMm;
+				if (piece.elevationMm != 0) item["elevationMm"] = piece.elevationMm;
+				if (piece.light)
+				{
+					const auto& light = *piece.light;
+					item["light"] = Json{{"position", Json::array({light.xMm, light.yMm, light.zMm})},
+						{"lumens", light.lumens}, {"radiusMm", light.radiusMm},
+						{"color", Json::array({light.color.r, light.color.g, light.color.b})}, {"enabled", light.enabled}};
+				}
 				if (!piece.finish.empty())
 				{
 					item["finish"] = piece.finish;
@@ -1007,6 +1072,23 @@ namespace f101::cad
 				return wall.error();
 			}
 			project.walls.push_back(std::move(wall).value());
+		}
+		if (const auto entries = root.find("roomRoofs"); entries != root.end())
+		{
+			if (!entries->is_array()) return formatError("roomRoofs must be an array");
+			for (const auto& item : *entries)
+			{
+				if (!item.is_object()) return formatError("roomRoofs entry must be an object");
+				RoomRoof roof;
+				if (Status read = readOptionalString(item, "room", "roomRoofs", roof.room); !read) return read.error();
+				const auto rise = readMillimetersField(item, "riseMm", "roomRoofs");
+				const auto direction = readMillimetersField(item, "fallQuarterTurns", "roomRoofs");
+				if (!rise) return rise.error();
+				if (!direction) return direction.error();
+				if (direction.value() < 0 || direction.value() > 3) return formatError("Invalid roof fall direction");
+				roof.riseMm = rise.value(); roof.fallQuarterTurns = static_cast<int>(direction.value());
+				project.roomRoofs.push_back(roof);
+			}
 		}
 		if (const auto rooms = root.find("roomFinishes"); rooms != root.end()) // schema 4
 		{

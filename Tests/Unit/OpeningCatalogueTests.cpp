@@ -126,9 +126,10 @@ TEST_CASE("opening families persist in schema fifteen and older openings retain 
 	Opening legacy{OpeningId{Uuid{0, 10}}, OpeningKind::Door, 1000, 900, 2100, 0};
 	project.walls.front().openings = {legacy};
 	std::string old = writeProjectJson(project);
-	const auto at = old.find("\"schemaVersion\": 15");
+	const std::string currentVersion = "\"schemaVersion\": " + std::to_string(ProjectSchemaVersion);
+	const auto at = old.find(currentVersion);
 	REQUIRE(at != std::string::npos);
-	old.replace(at, std::string("\"schemaVersion\": 15").size(), "\"schemaVersion\": 14");
+	old.replace(at, currentVersion.size(), "\"schemaVersion\": 14");
 	const auto restored = readProjectJson(old);
 	REQUIRE(restored.ok());
 	CHECK(restored.value().walls.front().openings.front() == legacy);

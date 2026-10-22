@@ -120,6 +120,23 @@ namespace f101::cad
 
 	Status validateFurniture(const Furniture& furniture)
 	{
+		if (furniture.elevationMm < 0 || furniture.elevationMm > 50'000)
+		{
+			return Error{ErrorCode::OutOfRange, "Furniture elevation must be from 0 to 50000 mm"};
+		}
+		if (furniture.light)
+		{
+			const auto& light = *furniture.light;
+			if (light.lumens < 0 || light.lumens > 100'000 || light.radiusMm < 1 || light.radiusMm > 50'000)
+			{
+				return Error{ErrorCode::OutOfRange, "Light flux must be 0 to 100000 lumens and radius 1 to 50000 mm"};
+			}
+			for (const auto offset : {light.xMm, light.yMm, light.zMm})
+			{
+				if (offset < -50'000 || offset > 50'000)
+					return Error{ErrorCode::OutOfRange, "Light local position must be within 50000 mm"};
+			}
+		}
 		// An imported model can take any size in the model range; the project checks the asset exists.
 		const FurnitureType model{furniture.type, 0, 0, 0, MinModelSizeMm, MaxModelSizeMm, MinModelSizeMm, MaxModelSizeMm,
 			MinModelSizeMm, MaxModelSizeMm, false, {}};

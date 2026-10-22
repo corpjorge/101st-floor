@@ -1,4 +1,5 @@
 #include "F101/Scene/SceneCompiler.h"
+#include "F101/Geometry/RoofBuilder.h"
 
 #include "F101/Geometry/CarpentryBuilder.h"
 #include "F101/Geometry/FurnitureBuilder.h"
@@ -262,7 +263,7 @@ namespace f101::scene
 						translateZ(carpentry.mesh, dz);
 						const std::string_view frame = cad::resolveFinish(opening.finish, cad::Surface::Carpentry);
 						carpentry.finishes = sectionFinishes(carpentry.mesh,
-							{{geometry::carpentry_slots::Hardware, cad::HardwareFinish}, {geometry::carpentry_slots::Glass, cad::DefaultGlazingFinish}},
+							{{geometry::carpentry_slots::Hardware, cad::HardwareFinish}, {geometry::carpentry_slots::Glass, cad::resolveFinish(opening.glazing, cad::Surface::Glazing)}},
 							frame);
 						carpentry.contentHash = hashNode(carpentry.mesh, carpentry.finishes);
 						carpentry.style = node.style; // with its wall: selected, previewed, dimmed
@@ -329,9 +330,17 @@ namespace f101::scene
 						slab.sourceId = room.key;
 						slab.level = group.level;
 						slab.name = "Slab " + areaText(room.areaMm2);
-						slab.mesh = geometry::buildSlabMesh(room, top - static_cast<double>(group.info->slabThicknessMm), top);
+						const cad::RoomRoof* roof = project.findRoomRoof(room.key);
+						// Lightweight roofing is only for the top storey: never replace a floor supporting another level.
+						if (roof && (project.levels.empty() || group.level == project.levels.back().id))
+						{
+							slab.name = "Translucent roof " + areaText(room.areaMm2);
+							slab.mesh = geometry::buildRoofMesh(room, top, *roof);
+						}
+						else slab.mesh = geometry::buildSlabMesh(room, top - static_cast<double>(group.info->slabThicknessMm), top);
 						slab.finishes = sectionFinishes(slab.mesh,
-							{{geometry::slab_slots::Ceiling, cad::resolveFinish(ceilingFinish, cad::Surface::Ceiling)}},
+							{{geometry::slab_slots::Ceiling, cad::resolveFinish(ceilingFinish, cad::Surface::Ceiling)},
+							 {geometry::roof_slots::Sheet, "polycarbonate-opal"}, {geometry::roof_slots::Frame, "lacquer-white"}},
 							cad::DefaultWallFinish);
 						slab.contentHash = hashNode(slab.mesh, slab.finishes);
 						slab.style = context ? NodeStyle::Context : NodeStyle::Normal;
@@ -392,6 +401,14 @@ namespace f101::scene
 					node.style = context && shown.furnitureStyles[index] == NodeStyle::Normal ? NodeStyle::Context
 						: shown.furnitureStyles[index];
 					furnitureNodes[index] = std::move(node);
+					if (piece.light && piece.light->enabled && piece.light->lumens > 0)
+					{
+						const auto& light = *piece.light;
+						const auto at = cad::furnitureToPlan(piece, static_cast<double>(light.xMm), static_cast<double>(light.yMm));
+						scene.lights.push_back(SceneLight{SceneNodeId{shown.furnitureIds[index].value + "/light"}, group.level,
+							{at.x_mm, at.y_mm, dz + geometry::FloorThicknessMm + static_cast<double>(piece.elevationMm) + static_cast<double>(light.zMm)},
+							light.lumens, light.radiusMm, light.color});
+					}
 				}
 				const double levelHeight = static_cast<double>(group.info ? group.info->heightMm : cad::DefaultLevelHeightMm);
 				for (std::size_t index = 0; index < project.columns.size(); ++index)

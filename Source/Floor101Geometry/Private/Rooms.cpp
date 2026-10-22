@@ -446,6 +446,13 @@ namespace f101::geometry
 							inherited.baseboards.push_back(entry);
 						}
 					}
+					if (!after.findRoomRoof(room.key))
+					{
+						if (const cad::RoomRoof* setting = inheritedBy(room, [&before](const std::string& key) { return before.findRoomRoof(key); }))
+						{
+							cad::RoomRoof entry = *setting; entry.room = room.key; inherited.roofs.push_back(entry);
+						}
+					}
 					if (!after.findRoomLabel(room.key))
 					{
 						// Moved texts keep their offsets, now from the new room's label point (ADR-0035).

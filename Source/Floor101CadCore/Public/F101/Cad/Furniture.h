@@ -59,6 +59,19 @@ namespace f101::cad
 	FLOOR101CADCORE_API const FurnitureType* findFurnitureType(std::string_view id);
 
 	inline constexpr std::int64_t FullTurnCentidegrees = 36000;
+	// Point emission attached to a fixture. Local offsets are mm from its footprint centre and bottom;
+	// they rotate with the furniture. Photometric flux is integer lumens (ADR-0037).
+	struct FurnitureLight
+	{
+		std::int64_t xMm = 0;
+		std::int64_t yMm = 0;
+		std::int64_t zMm = 0;
+		std::int64_t lumens = 800;
+		std::int64_t radiusMm = 4000;
+		Rgb8 color{255, 224, 185};
+		bool enabled = true;
+		friend bool operator==(const FurnitureLight&, const FurnitureLight&) = default;
+	};
 
 	// A piece of furniture on a level. Its footprint is a width x depth rectangle centred on `position`; in its own frame
 	// the width runs along x, the depth along y with the back at +y (so it faces -y), turned counter-clockwise by
@@ -74,6 +87,8 @@ namespace f101::cad
 		std::int64_t depthMm = 0;
 		std::int64_t heightMm = 0;
 		FinishId finish; // its main parts; empty: the type's body finish
+		std::int64_t elevationMm = 0; // bottom above the finished floor; 0 in existing projects
+		std::optional<FurnitureLight> light;
 
 		friend bool operator==(const Furniture&, const Furniture&) = default;
 	};

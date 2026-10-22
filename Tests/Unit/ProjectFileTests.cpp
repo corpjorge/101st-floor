@@ -59,7 +59,7 @@ TEST_CASE("writes the documented, deterministic format")
 	CHECK(writeProjectJson(project) ==
 		"{\n"
 		"  \"format\": \"101st-floor-project\",\n"
-		"  \"schemaVersion\": 15,\n"
+		"  \"schemaVersion\": 17,\n"
 		"  \"units\": \"mm\",\n"
 		"  \"levels\": [\n"
 		"    {\n"

@@ -116,6 +116,7 @@ UMaterial* UFloor101GenerateAssetsCommandlet::BuildGlassMaterial(UPackage* Packa
 	UMaterialEditorOnlyData* Inputs = Material->GetEditorOnlyData();
 	Inputs->BaseColor.Expression = Tint;
 	Inputs->Opacity.Expression = Opacity;
+	Inputs->Metallic.Expression = AddScalar(Material, TEXT("Metallic"), 0.0f, -400, 360);
 	Inputs->Roughness.Expression = Roughness;
 
 	Material->PreEditChange(nullptr);

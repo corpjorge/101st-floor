@@ -71,6 +71,8 @@ add_executable(Floor101UnitTests
 	OpeningCatalogueTests.cpp
 	PlanDrawingTests.cpp
 	FurnitureTests.cpp
+	LightingTests.cpp
+	RoofTests.cpp
 	ServicesTests.cpp
 	AssetTests.cpp
 	AssetImportTests.cpp

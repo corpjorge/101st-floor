@@ -225,6 +225,7 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setOpeningOffset(std::string_view text);
 		// Its carpentry (frame and leaf, ADR-0013); empty restores the default.
 		FLOOR101CADCORE_API Status setOpeningFinish(std::string_view finish);
+		FLOOR101CADCORE_API Status setOpeningGlazing(std::string_view finish);
 		// How it opens (ADR-0014). Fixed closes it. A sliding door needs room for its pocket beside it.
 		FLOOR101CADCORE_API Status setOpeningOperation(OpeningOperation operation);
 		// Hinges (or where a sliding leaf goes) to the other end; leaves swinging towards the other face.
@@ -260,6 +261,9 @@ namespace f101::cad
 		FLOOR101CADCORE_API Status setFurnitureWidth(std::string_view text);
 		FLOOR101CADCORE_API Status setFurnitureDepth(std::string_view text);
 		FLOOR101CADCORE_API Status setFurnitureHeight(std::string_view text);
+		FLOOR101CADCORE_API Status setFurnitureElevation(std::string_view text);
+		FLOOR101CADCORE_API Status setFurnitureLightEnabled(bool enabled);
+		FLOOR101CADCORE_API Status setFurnitureLightLumens(std::int64_t lumens);
 		FLOOR101CADCORE_API Status setFurnitureRotation(std::string_view text);
 		// Its main finish; empty restores its type's.
 		FLOOR101CADCORE_API Status setFurnitureFinish(std::string_view finish);
@@ -331,6 +335,9 @@ namespace f101::cad
 		// Selected room key (Select mode); empty if none. Whether the room still exists is up to the rooms of the scene.
 		FLOOR101CADCORE_API const std::string& selectedRoom() const;
 		FLOOR101CADCORE_API Status selectRoom(const std::string& room);
+		FLOOR101CADCORE_API Status setSelectedRoomRoof(bool translucent);
+		FLOOR101CADCORE_API Status setSelectedRoofRise(std::string_view text);
+		FLOOR101CADCORE_API Status rotateSelectedRoof();
 		FLOOR101CADCORE_API Status setSelectedRoomBaseboard(bool enabled);
 		FLOOR101CADCORE_API Status setSelectedBaseboardHeight(std::string_view text);
 		FLOOR101CADCORE_API Status setSelectedBaseboardThickness(std::string_view text);

@@ -97,6 +97,7 @@ namespace f101::cad
 		const std::string& keyOf(const RoomName& entry) { return entry.room; }
 		const std::string& keyOf(const RoomBaseboard& entry) { return entry.room; }
 		const std::string& keyOf(const RoomLabel& entry) { return entry.room; }
+		const std::string& keyOf(const RoomRoof& entry) { return entry.room; }
 		const FurnitureId& keyOf(const Furniture& furniture) { return furniture.id; }
 		const AssetId& keyOf(const Asset& asset) { return asset.id; }
 		const ColumnId& keyOf(const Column& column) { return column.id; }
@@ -183,6 +184,7 @@ namespace f101::cad
 			for (const RoomBaseboardChange& change : transaction.roomBaseboards) changes.changedRoomBaseboards.push_back(change.id);
 			for (const RoomNameChange& change : transaction.roomNames) changes.changedRoomNames.push_back(change.id);
 			for (const RoomLabelChange& change : transaction.roomLabels) changes.changedRoomLabels.push_back(change.id);
+			for (const RoomRoofChange& change : transaction.roomRoofs) changes.changedRoomRoofs.push_back(change.id);
 			sortChanges(transaction.furniture, forward, changes.addedFurniture, changes.modifiedFurniture,
 				changes.removedFurniture);
 			sortChanges(transaction.assets, forward, changes.addedAssets, changes.modifiedAssets, changes.removedAssets);
@@ -265,6 +267,7 @@ namespace f101::cad
 			std::string_view operator()(const DeleteLevelCommand&) const { return "Delete level"; }
 			std::string_view operator()(const SetWallFinishCommand&) const { return "Change finish"; }
 			std::string_view operator()(const SetRoomFinishCommand&) const { return "Change room finish"; }
+			std::string_view operator()(const SetRoomRoofCommand&) const { return "Change room roof"; }
 			std::string_view operator()(const SetRoomNameCommand&) const { return "Rename room"; }
 			std::string_view operator()(const SetDimensionCommand&) const { return "Edit dimension"; }
 			std::string_view operator()(const MakeDimensionManualCommand&) const { return "Resize automatic dimension"; }
@@ -372,6 +375,12 @@ namespace f101::cad
 			{
 				return valid;
 			}
+		}
+		std::set<std::string> roofRooms;
+		for (const RoomRoof& roof : project.roomRoofs)
+		{
+			if (!roofRooms.insert(roof.room).second) return Error{ErrorCode::InvalidArgument, "Duplicate room roof key"};
+			if (Status valid = validateRoomRoof(roof); !valid) return valid;
 		}
 		std::set<std::string> dimensionIds;
 		for (const Dimension& entry : project.dimensions)
@@ -1038,6 +1047,17 @@ namespace f101::cad
 			}
 			return transaction;
 		}
+		if (const auto* setting = std::get_if<SetRoomRoofCommand>(&command))
+		{
+			const RoomRoof& entry = setting->roof;
+			if (Status valid = validateRoomRoof(entry); !valid) return valid.error();
+			const auto index = findIndex(model.roomRoofs, entry.room);
+			const std::optional<RoomRoof> before = index ? std::optional<RoomRoof>(model.roomRoofs[*index]) : std::nullopt;
+			const std::optional<RoomRoof> after = setting->enabled ? std::optional<RoomRoof>(entry) : std::nullopt;
+			Transaction transaction{label, {}, {}};
+			if (before != after) transaction.roomRoofs.push_back({entry.room, index.value_or(model.roomRoofs.size()), before, after});
+			return transaction;
+		}
 		if (const auto* setting = std::get_if<SetRoomBaseboardCommand>(&command))
 		{
 			const RoomBaseboard& entry = setting->baseboard;
@@ -1144,7 +1164,7 @@ namespace f101::cad
 			const std::size_t unsplitCount = prospective.walls.size();
 			if (Status valid = splitJoinedWalls(prospective, edited, newUuid); !valid) return valid.error();
 			const bool roomSettings = !model.roomFinishes.empty() || !model.roomBaseboards.empty() || !model.roomNames.empty() ||
-				!model.roomLabels.empty();
+				!model.roomLabels.empty() || !model.roomRoofs.empty();
 			if (roomTransfer && prospective.walls.size() > unsplitCount && roomSettings)
 			{
 				const RoomInheritance inherited = roomTransfer(model, prospective);
@@ -1152,6 +1172,7 @@ namespace f101::cad
 				inheritRoomEntries(prospective.roomBaseboards, transaction.roomBaseboards, inherited.baseboards);
 				inheritRoomEntries(prospective.roomNames, transaction.roomNames, inherited.names);
 				inheritRoomEntries(prospective.roomLabels, transaction.roomLabels, inherited.labels);
+				inheritRoomEntries(prospective.roomRoofs, transaction.roomRoofs, inherited.roofs);
 			}
 			if (Status valid = validateProject(prospective); !valid) return valid.error();
 			// Keep the initiating change first: addWall and WallTool return that wall's retained identity.
@@ -1246,6 +1267,7 @@ namespace f101::cad
 			for (const RoomBaseboard& entry : side->roomBaseboards) changes.changedRoomBaseboards.push_back(entry.room);
 			for (const RoomName& entry : side->roomNames) changes.changedRoomNames.push_back(entry.room);
 			for (const RoomLabel& entry : side->roomLabels) changes.changedRoomLabels.push_back(entry.room);
+			for (const RoomRoof& entry : side->roomRoofs) changes.changedRoomRoofs.push_back(entry.room);
 			for (const RoomFinish& finish : side->roomFinishes)
 			{
 				changes.changedRoomFinishes.push_back(finish.room);
@@ -1383,6 +1405,7 @@ namespace f101::cad
 		applyChanges(model.roomNames, transaction.roomNames, forward);
 		applyChanges(model.roomBaseboards, transaction.roomBaseboards, forward);
 		applyChanges(model.roomLabels, transaction.roomLabels, forward);
+		applyChanges(model.roomRoofs, transaction.roomRoofs, forward);
 		applyChanges(model.dimensions, transaction.dimensions, forward);
 		applyChanges(model.furniture, transaction.furniture, forward);
 		applyChanges(model.columns, transaction.columns, forward);

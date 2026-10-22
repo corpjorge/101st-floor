@@ -32,6 +32,18 @@ namespace f101::cad
 		friend bool operator==(const RoomFinish&, const RoomFinish&) = default;
 	};
 
+	// A lightweight translucent sheet roof replacing the room's upper slab (ADR-0038).
+	// Absent: the ordinary slab. Low eave at the level's top, rise above it; 0 falls south,
+	// 1 east, 2 north, 3 west. Geometry remains derived from the room outline.
+	struct RoomRoof
+	{
+		std::string room;
+		std::int64_t riseMm = 200;
+		int fallQuarterTurns = 0;
+		friend bool operator==(const RoomRoof&, const RoomRoof&) = default;
+	};
+	FLOOR101CADCORE_API Status validateRoomRoof(const RoomRoof& roof);
+
 	// Optional UTF-8 display name, independent of finishes and derived geometry (ADR-0029).
 	struct RoomName
 	{
@@ -152,11 +164,18 @@ namespace f101::cad
 		std::vector<RoomName> roomNames; // only rooms with a custom name
 		std::vector<RoomBaseboard> roomBaseboards;
 		std::vector<Dimension> dimensions;
+		std::vector<RoomRoof> roomRoofs; // only rooms with a translucent roof
 		std::vector<RoomLabel> roomLabels; // only rooms whose texts are not all automatic (ADR-0035)
 
 		const Dimension* findDimension(std::string_view id) const
 		{
 			for (const Dimension& entry : dimensions) if (entry.id == id) return &entry;
+			return nullptr;
+		}
+
+		const RoomRoof* findRoomRoof(std::string_view room) const
+		{
+			for (const RoomRoof& entry : roomRoofs) if (entry.room == room) return &entry;
 			return nullptr;
 		}
 

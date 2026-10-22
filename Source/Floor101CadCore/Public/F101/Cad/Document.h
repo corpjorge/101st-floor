@@ -124,6 +124,8 @@ namespace f101::cad
 		std::string name;
 	};
 
+	struct SetRoomRoofCommand { RoomRoof roof; bool enabled = true; };
+
 	struct SetRoomBaseboardCommand
 	{
 		RoomBaseboard baseboard;
@@ -240,7 +242,7 @@ namespace f101::cad
 	using Command = std::variant<CreateWallCommand, DeleteWallCommand, MoveWallEndpointCommand, MoveJointCommand, TranslateWallCommand,
 		ChangeWallLengthCommand, ChangeWallThicknessCommand, ChangeWallHeightCommand, AddOpeningCommand,
 		ChangeOpeningCommand, DeleteOpeningCommand, AddLevelCommand, ChangeLevelCommand, DeleteLevelCommand, SetWallFinishCommand,
-		SetRoomFinishCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetRoomLabelCommand, SetDimensionCommand, MakeDimensionManualCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
+		SetRoomFinishCommand, SetRoomRoofCommand, SetRoomNameCommand, SetRoomBaseboardCommand, SetRoomLabelCommand, SetDimensionCommand, MakeDimensionManualCommand, DeleteDimensionCommand, ResetDimensionsCommand, AddFurnitureCommand, ChangeFurnitureCommand, DeleteFurnitureCommand, AddAssetCommand,
 		ChangeAssetCommand, DeleteAssetCommand, AddColumnCommand, ChangeColumnCommand, DeleteColumnCommand,
 		AddServiceRunCommand, ChangeServiceRunCommand, DeleteServiceRunCommand>;
 
@@ -273,6 +275,14 @@ namespace f101::cad
 		std::size_t index = 0;
 		std::optional<RoomFinish> before;
 		std::optional<RoomFinish> after;
+	};
+
+	struct RoomRoofChange
+	{
+		std::string id;
+		std::size_t index = 0;
+		std::optional<RoomRoof> before;
+		std::optional<RoomRoof> after;
 	};
 
 	struct RoomBaseboardChange
@@ -358,11 +368,12 @@ namespace f101::cad
 		std::vector<RoomBaseboardChange> roomBaseboards;
 		std::vector<DimensionChange> dimensions;
 		std::vector<RoomLabelChange> roomLabels;
+		std::vector<RoomRoofChange> roomRoofs;
 
 		bool empty() const
 		{
 			return walls.empty() && levels.empty() && roomFinishes.empty() && furniture.empty() && assets.empty() && columns.empty() &&
-				services.empty() && roomNames.empty() && roomBaseboards.empty() && dimensions.empty() && roomLabels.empty();
+				services.empty() && roomNames.empty() && roomBaseboards.empty() && dimensions.empty() && roomLabels.empty() && roomRoofs.empty();
 		}
 	};
 
@@ -392,6 +403,7 @@ namespace f101::cad
 		std::vector<std::string> changedRoomBaseboards;
 		std::vector<std::string> changedDimensions;
 		std::vector<std::string> changedRoomLabels;
+		std::vector<std::string> changedRoomRoofs;
 	};
 
 	using ChangeListener = std::function<void(const ChangeSet&)>;
@@ -447,6 +459,7 @@ namespace f101::cad
 			std::vector<RoomName> names;
 			std::vector<RoomBaseboard> baseboards;
 			std::vector<RoomLabel> labels;
+			std::vector<RoomRoof> roofs;
 		};
 		using RoomTransfer = std::function<RoomInheritance(const Project& before, const Project& after)>;
 		void setRoomTransfer(RoomTransfer provider) { roomTransfer = std::move(provider); }

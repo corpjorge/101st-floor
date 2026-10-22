@@ -1265,6 +1265,17 @@ TSharedRef<SWidget> SFloor101Overlay::MakePropertiesPanel()
 					},
 					[](EditController& Editor, const std::string& Finish) { return Editor.setOpeningFinish(Finish); })))
 		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			Group(LOCTEXT("GroupGlazing", "Vidrio"), Stack({
+				Ui::Row(LOCTEXT("OpeningGlazing", "Acabado"), MakeFinishCombo(f101::cad::Surface::Glazing,
+					[this]() -> FString
+					{
+						const auto Selected = GetSelectedOpening();
+						return UTF8_TO_TCHAR(std::string(f101::cad::resolveFinish(Selected ? std::string_view(Selected->opening.glazing) : std::string_view(), f101::cad::Surface::Glazing)).c_str());
+					}, [](EditController& E, const std::string& Finish) { return E.setOpeningGlazing(Finish); })),
+				Ui::Note(LOCTEXT("ReflectivePrivacyHint", "El vidrio reflectivo ofrece privacidad cuando hay más luz fuera. De noche puede verse el interior iluminado."))}))
+		]
 		+ SVerticalBox::Slot().AutoHeight()[Group(LOCTEXT("SelectedOpeningCatalogue", "Diseño"), MakeOpeningCatalogue(true))]
 		+ SVerticalBox::Slot().AutoHeight().Padding(16.0f, 0.0f, 16.0f, 14.0f)
 		[Ui::Note(LOCTEXT("OffsetHint", "Posición: desde el inicio del muro hasta el borde del hueco"))];
@@ -1754,7 +1765,35 @@ TSharedRef<SWidget> SFloor101Overlay::MakeFurnitureSection()
 			Group(LOCTEXT("GroupSize", "Medidas"), Stack({
 				MakePropertyRow(LOCTEXT("FurnitureWidth", "Ancho"), Size(&f101::cad::Furniture::widthMm), &EditController::setFurnitureWidth),
 				MakePropertyRow(LOCTEXT("FurnitureDepth", "Fondo"), Size(&f101::cad::Furniture::depthMm), &EditController::setFurnitureDepth),
-				MakePropertyRow(LOCTEXT("FurnitureHeight", "Alto"), Size(&f101::cad::Furniture::heightMm), &EditController::setFurnitureHeight)}))
+				MakePropertyRow(LOCTEXT("FurnitureHeight", "Alto"), Size(&f101::cad::Furniture::heightMm), &EditController::setFurnitureHeight),
+				MakePropertyRow(LOCTEXT("FurnitureElevation", "Sobre el suelo"), Size(&f101::cad::Furniture::elevationMm), &EditController::setFurnitureElevation)}))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SNew(SBox).Visibility_Lambda([this]()
+			{
+				const auto Selected = GetSelectedFurniture();
+				return Selected && Selected->light ? EVisibility::Visible : EVisibility::Collapsed;
+			})
+			[Group(LOCTEXT("FixtureLighting", "Iluminación"), Stack({
+				Ui::Row(LOCTEXT("FixtureOn", "Encendida"), Ui::Switch(TAttribute<bool>::CreateLambda([this]()
+				{
+					const auto Selected = GetSelectedFurniture();
+					return Selected && Selected->light && Selected->light->enabled;
+				}), [this](bool Enabled) { Run([Enabled](EditController& Editor) { return Editor.setFurnitureLightEnabled(Enabled); }); })),
+				Ui::Row(LOCTEXT("FixtureLumens", "Flujo (lm)"), Ui::Field(TAttribute<FText>::CreateLambda([this]()
+				{
+					const auto Selected = GetSelectedFurniture();
+					return Selected && Selected->light ? FText::AsNumber(Selected->light->lumens, &FNumberFormattingOptions::DefaultNoGrouping()) : FText::GetEmpty();
+				}), [this](const FString& Text)
+				{
+					Run([Text](EditController& Editor)
+					{
+						int64 Lumens = 0;
+						if (!LexTryParseString(Lumens, *Text)) return f101::Status(f101::Error{f101::ErrorCode::InvalidArgument, "Escribe un número entero de lúmenes"});
+						return Editor.setFurnitureLightLumens(Lumens);
+					});
+				}))}))]
 		]
 		+ SVerticalBox::Slot().AutoHeight()
 		[
@@ -2618,6 +2657,11 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 		};
 	};
 
+	auto Roof = [this]() -> const f101::cad::RoomRoof*
+	{
+		const auto* S = Document.Get();
+		return S ? S->GetDocument().project().findRoomRoof(S->GetEditController().selectedRoom()) : nullptr;
+	};
 	auto Baseboard = [this]() -> const f101::cad::RoomBaseboard*
 	{
 		const auto* S = Document.Get();
@@ -2668,6 +2712,18 @@ TSharedRef<SWidget> SFloor101Overlay::MakeRoomSection()
 					[](EditController& Editor, const std::string& Finish) { return Editor.setSelectedRoomFloor(Finish); })),
 				Ui::Row(LOCTEXT("RoomCeiling", "Techo"), MakeFinishCombo(f101::cad::Surface::Ceiling, RoomFinish(false),
 					[](EditController& Editor, const std::string& Finish) { return Editor.setSelectedRoomCeiling(Finish); })),
+				Ui::Row(LOCTEXT("RoomTranslucentRoof", "Teja translúcida"),
+					SNew(SBox).HAlign(HAlign_Left)
+					[Ui::Switch(TAttribute<bool>::CreateLambda([Roof]() { return Roof() != nullptr; }),
+						[this](bool bOn) { Run([bOn](EditController& E) { return E.setSelectedRoomRoof(bOn); }); })],
+					LOCTEXT("TranslucentRoofTip", "Sustituye la losa por teja translúcida en la última planta. Se muestra con Ver todas, Recorrer y Foto.")),
+				SNew(SVerticalBox)
+				.Visibility_Lambda([Roof]() { return Roof() ? EVisibility::Visible : EVisibility::Collapsed; })
+				+ SVerticalBox::Slot().AutoHeight()
+				[MakePropertyRow(LOCTEXT("RoofRise", "Desnivel"), [Roof]() -> TOptional<double>
+				{ const auto* R = Roof(); return R ? TOptional<double>(static_cast<double>(R->riseMm)) : TOptional<double>(); }, &EditController::setSelectedRoofRise)]
+				+ SVerticalBox::Slot().AutoHeight()
+				[Ui::Button(Floor101::Studio::EButton::Secondary, LOCTEXT("RotateRoofFall", "Girar caída 90°"), [this]() { Run([](EditController& E) { return E.rotateSelectedRoof(); }); })],
 				Ui::Row(LOCTEXT("RoomBaseboards", "Rodapiés"),
 					SNew(SBox).HAlign(HAlign_Left)
 					[

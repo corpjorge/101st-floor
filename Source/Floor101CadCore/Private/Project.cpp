@@ -94,6 +94,14 @@ namespace f101::cad
 			(a.y_mm + b.y_mm) / 2.0 + static_cast<double>(axis.dy_mm) / length * along + static_cast<double>(axis.dx_mm) / length * across};
 	}
 
+	Status validateRoomRoof(const RoomRoof& roof)
+	{
+		if (roof.room.empty()) return Error{ErrorCode::InvalidArgument, "A roof needs a room key"};
+		if (roof.riseMm < 0 || roof.riseMm > 1500 || roof.fallQuarterTurns < 0 || roof.fallQuarterTurns > 3)
+			return Error{ErrorCode::OutOfRange, "Roof rise must be 0..1500 mm and fall direction 0..3"};
+		return Status::success();
+	}
+
 	Status validateRoomBaseboard(const Project& project, const RoomBaseboard& baseboard)
 	{
 		if (baseboard.room.empty() || baseboard.heightMm < 1 || baseboard.heightMm > 1000 ||

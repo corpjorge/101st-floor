@@ -1576,6 +1576,11 @@ namespace f101::cad
 		return toStatus(document.execute(ChangeOpeningCommand{current->wall, changed}));
 	}
 
+	Status EditController::setOpeningGlazing(std::string_view finish)
+	{
+		return editSelectedOpening([finish](Opening& opening) { opening.glazing = std::string(finish); });
+	}
+
 	Status EditController::setOpeningFinish(std::string_view finish)
 	{
 		return editSelectedOpening([finish](Opening& opening) { opening.finish = std::string(finish); });
@@ -1830,6 +1835,31 @@ namespace f101::cad
 	Status EditController::setFurnitureHeight(std::string_view text)
 	{
 		return changeFurnitureSize(text, &Furniture::heightMm);
+	}
+
+	Status EditController::setFurnitureElevation(std::string_view text)
+	{
+		return changeFurnitureSize(text, &Furniture::elevationMm);
+	}
+
+	Status EditController::setFurnitureLightEnabled(bool enabled)
+	{
+		return editSelectedFurniture([enabled](Furniture& piece)
+		{
+			if (!piece.light) return Status(Error{ErrorCode::InvalidArgument, "This furniture has no light"});
+			piece.light->enabled = enabled;
+			return Status::success();
+		});
+	}
+
+	Status EditController::setFurnitureLightLumens(std::int64_t lumens)
+	{
+		return editSelectedFurniture([lumens](Furniture& piece)
+		{
+			if (!piece.light) return Status(Error{ErrorCode::InvalidArgument, "This furniture has no light"});
+			piece.light->lumens = lumens;
+			return Status::success();
+		});
 	}
 
 	Status EditController::setFurnitureRotation(std::string_view text)
@@ -2182,6 +2212,33 @@ namespace f101::cad
 			return nothingSelected();
 		}
 		return toStatus(document.execute(SetRoomFinishCommand{selectedRoomKey, std::string(floor), std::string(ceiling)}));
+	}
+
+	Status EditController::setSelectedRoomRoof(bool translucent)
+	{
+		if (selectedRoom().empty()) return nothingSelected();
+		const auto* existing = document.project().findRoomRoof(selectedRoomKey);
+		return toStatus(document.execute(SetRoomRoofCommand{existing ? *existing : RoomRoof{selectedRoomKey}, translucent}));
+	}
+
+	Status EditController::setSelectedRoofRise(std::string_view text)
+	{
+		if (selectedRoom().empty()) return nothingSelected();
+		const auto* current = document.project().findRoomRoof(selectedRoomKey);
+		if (!current) return Error{ErrorCode::InvalidArgument, "Select a translucent roof first"};
+		const auto value = parseLength(text, editSettings.wallTool.inputUnit);
+		if (!value) return value.error();
+		RoomRoof roof = *current; roof.riseMm = value.value();
+		return toStatus(document.execute(SetRoomRoofCommand{roof}));
+	}
+
+	Status EditController::rotateSelectedRoof()
+	{
+		if (selectedRoom().empty()) return nothingSelected();
+		const auto* current = document.project().findRoomRoof(selectedRoomKey);
+		if (!current) return Error{ErrorCode::InvalidArgument, "Select a translucent roof first"};
+		RoomRoof roof = *current; roof.fallQuarterTurns = (roof.fallQuarterTurns + 1) % 4;
+		return toStatus(document.execute(SetRoomRoofCommand{roof}));
 	}
 
 	Status EditController::editRoomBaseboard(const std::function<void(RoomBaseboard&)>& change)

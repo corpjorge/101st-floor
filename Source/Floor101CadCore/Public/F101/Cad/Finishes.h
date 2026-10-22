@@ -76,6 +76,7 @@ namespace f101::cad
 		std::int64_t unitHeightMm = 0;
 		std::int64_t jointMm = 0;
 		double opacity = 1.0; // 1: opaque; less: see-through (glass)
+		double metallic = 0.0; // reflective coatings, portable PBR approximation
 		Rgb8 accentColor;     // Checker: every other unit's colour
 
 		bool allows(Surface surface) const { return (surfaces & static_cast<std::uint8_t>(surface)) != 0; }

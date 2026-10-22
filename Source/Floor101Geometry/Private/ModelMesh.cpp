@@ -50,7 +50,8 @@ namespace f101::geometry
 		{
 			const double x = p.x * sx;
 			const double y = p.y * sy;
-			p = Vec3{cx + axes.x.x_mm * x + axes.y.x_mm * y, cy + axes.x.y_mm * x + axes.y.y_mm * y, FloorThicknessMm + p.z * sz};
+			p = Vec3{cx + axes.x.x_mm * x + axes.y.x_mm * y, cy + axes.x.y_mm * x + axes.y.y_mm * y,
+				FloorThicknessMm + static_cast<double>(furniture.elevationMm) + p.z * sz};
 		}
 		for (Vec3& n : mesh.normals)
 		{
@@ -72,8 +73,9 @@ namespace f101::geometry
 		const cad::FurnitureAxes axes = cad::furnitureAxes(furniture);
 		const double w = static_cast<double>(furniture.widthMm) / 2.0;
 		const double d = static_cast<double>(furniture.depthMm) / 2.0;
-		addWallBox(mesh, "body", toPlan(furniture.position), axes.x, axes.y, -w, w, -d, d, FloorThicknessMm,
-			FloorThicknessMm + static_cast<double>(furniture.heightMm));
+		addWallBox(mesh, "body", toPlan(furniture.position), axes.x, axes.y, -w, w, -d, d,
+			FloorThicknessMm + static_cast<double>(furniture.elevationMm),
+			FloorThicknessMm + static_cast<double>(furniture.elevationMm) + static_cast<double>(furniture.heightMm));
 		return mesh;
 	}
 }

@@ -349,7 +349,8 @@ namespace f101::geometry
 		for (const FurnitureBox& part : furnitureShape(furniture).boxes)
 		{
 			addWallBox(mesh, part.slot, centre, axes.x, axes.y, part.x0, part.x1, part.y0, part.y1,
-				FloorThicknessMm + part.z0, FloorThicknessMm + part.z1);
+				FloorThicknessMm + static_cast<double>(furniture.elevationMm) + part.z0,
+				FloorThicknessMm + static_cast<double>(furniture.elevationMm) + part.z1);
 		}
 		return mesh;
 	}

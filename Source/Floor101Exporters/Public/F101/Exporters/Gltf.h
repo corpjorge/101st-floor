@@ -58,12 +58,13 @@ namespace f101::exporters
 
 	// How a finish looks in a file that knows nothing of the catalogue: base colour times an image that covers
 	// repeatWidthMm x repeatHeightMm of the surface (the mesh UVs are in metres, so the writer scales them by
-	// 1000 / repeat), roughness and opacity. Metallic is always 0, like the application's material.
+	// 1000 / repeat), roughness, opacity and metallic coating, like the application's material.
 	struct GltfMaterialLook
 	{
 		std::string name;
 		cad::Rgb8 color{255, 255, 255}; // sRGB; multiplies the image
 		double roughness = 0.85;
+		double metallic = 0.0;
 		double opacity = 1.0; // less than 1: blended (glass)
 		// The image, if any: pixels to encode as PNG, or a PNG or JPEG file as it is.
 		scene::TextureImage pixels;
