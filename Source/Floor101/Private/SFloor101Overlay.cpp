@@ -21,6 +21,7 @@
 #include "Floor101PathTracing.h"
 #include "Floor101Preferences.h"
 #include "Floor101Startup.h"
+#include "Floor101Update.h"
 #include "Floor101.h"
 #include "CoreGlobals.h"
 #include "HAL/PlatformOutputDevices.h"
@@ -579,8 +580,9 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 	namespace Studio = Floor101::Studio;
 	namespace Ui = Floor101::Ui;
 	const Studio::FPalette& P = Studio::Palette();
-	const FText Pages[] = {LOCTEXT("StudioDisplayPage", "Pantalla"), LOCTEXT("StudioGraphicsPage", "Gráficos"), LOCTEXT("StudioControlsPage", "Controles"), LOCTEXT("StudioDiagnosticsPage", "Diagnóstico")};
-	const EFloor101Icon PageIcons[] = {EFloor101Icon::Monitor, EFloor101Icon::Sliders, EFloor101Icon::Keys, EFloor101Icon::Pulse};
+	const FText Pages[] = {LOCTEXT("StudioDisplayPage", "Pantalla"), LOCTEXT("StudioGraphicsPage", "Gráficos"), LOCTEXT("StudioControlsPage", "Controles"),
+		LOCTEXT("StudioDiagnosticsPage", "Diagnóstico"), LOCTEXT("StudioAboutPage", "Acerca de")};
+	const EFloor101Icon PageIcons[] = {EFloor101Icon::Monitor, EFloor101Icon::Sliders, EFloor101Icon::Keys, EFloor101Icon::Pulse, EFloor101Icon::Info};
 	auto Wide = [this]() { return ViewSize.X >= 640.0; };
 
 	// Pages: a column on the left, or a segmented control above the content in narrow windows.
@@ -790,6 +792,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 			+ SVerticalBox::Slot().AutoHeight()[Page(1, GraphicsPage)]
 			+ SVerticalBox::Slot().AutoHeight()[Page(2, ControlsPage)]
 			+ SVerticalBox::Slot().AutoHeight()[Page(3, DiagnosticsPage)]
+			+ SVerticalBox::Slot().AutoHeight()[Page(4, MakeAboutPage())]
 		];
 
 	const TSharedRef<SWidget> Dialog = SNew(SVerticalBox)
@@ -833,6 +836,157 @@ TSharedRef<SWidget> SFloor101Overlay::MakeOptionsPanel()
 			SNew(SBox).WidthOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Min(760.0, ViewSize.X - 32.0))); })
 			.HeightOverride_Lambda([this]() { return FOptionalSize(static_cast<float>(FMath::Min(600.0, ViewSize.Y - 32.0))); })
 			[Ui::Island(Dialog, FMargin(0.0f), EVisibility::SelfHitTestInvisible, Studio::Size::RadiusDialog)]
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeUpdateButton()
+{
+	namespace Studio = Floor101::Studio;
+	using Floor101::Update::EState;
+	using Floor101::Update::FUpdater;
+	// One button that does the next step: look, download (the installed copy) or open the page (a portable one), install.
+	return Floor101::Ui::Button(Studio::EButton::Secondary,
+		TAttribute<FText>::CreateLambda([]()
+		{
+			switch (FUpdater::Get().GetState())
+			{
+			case EState::Checking: return LOCTEXT("UpdateChecking", "Buscando…");
+			case EState::Available: return Floor101::Update::IsInstalledCopy() ? LOCTEXT("UpdateDownload", "Descargar") : LOCTEXT("UpdatePage", "Descargar en GitHub");
+			case EState::Downloading: return LOCTEXT("UpdateDownloading", "Descargando…");
+			case EState::Ready: return LOCTEXT("UpdateInstall", "Instalar y reiniciar");
+			default: return LOCTEXT("UpdateCheck", "Buscar ahora");
+			}
+		}),
+		[this]()
+		{
+			FUpdater& Updater = FUpdater::Get();
+			switch (Updater.GetState())
+			{
+			case EState::Available:
+				if (Floor101::Update::IsInstalledCopy()) { Updater.Download(); }
+				else { Updater.OpenReleasePage(); }
+				break;
+			case EState::Ready:
+				if (UFloor101GameViewportClient* Client = ViewportClient.Get())
+				{
+					CloseOptions();
+					Client->RequestUpdateInstall();
+				}
+				break;
+			default:
+				Updater.Check();
+				break;
+			}
+		},
+		EFloor101Icon::Down, LOCTEXT("UpdateButtonTip", "Las versiones nuevas llegan firmadas desde GitHub y se comprueban antes de instalarse."), FText::GetEmpty(),
+		TAttribute<bool>::CreateLambda([]()
+		{
+			const EState State = FUpdater::Get().GetState();
+			return State != EState::Checking && State != EState::Downloading;
+		}));
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeAboutPage()
+{
+	namespace Studio = Floor101::Studio;
+	namespace Ui = Floor101::Ui;
+	using Floor101::Update::FUpdater;
+	// Notices shipped with the application, else the ones next to the project (the editor), else the repository's.
+	auto OpenNotices = []()
+	{
+		for (const FString& Path : {FPaths::Combine(FPaths::RootDir(), TEXT("THIRD-PARTY-NOTICES.txt")),
+			FPaths::Combine(FPaths::ProjectDir(), TEXT("THIRD-PARTY-NOTICES.md"))})
+		{
+			if (FPaths::FileExists(Path))
+			{
+				FPlatformProcess::LaunchFileInDefaultExternalApplication(*FPaths::ConvertRelativePathToFull(Path));
+				return;
+			}
+		}
+		FPlatformProcess::LaunchURL(*(Floor101::Update::RepositoryPage() + TEXT("/blob/main/THIRD-PARTY-NOTICES.md")), nullptr, nullptr);
+	};
+	return SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SettingRow(LOCTEXT("AboutVersion", "Versión"), LOCTEXT("AboutVersionHelp", "101st Floor, estudio arquitectónico."),
+				Ui::Label(FText::FromString(Floor101::Update::CurrentVersion()), Studio::EText::Numeric))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SettingRow(LOCTEXT("AboutUpdates", "Actualizaciones"), TAttribute<FText>::CreateLambda([]() { return FUpdater::Get().GetStatus(); }),
+				MakeUpdateButton())
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SettingRow(LOCTEXT("AboutCheckOnStartup", "Buscar al iniciar"),
+				LOCTEXT("AboutCheckOnStartupHelp", "Al abrir 101st Floor pregunta a GitHub si hay una versión nueva. No envía nada tuyo ni de tus proyectos."),
+				Ui::Switch(TAttribute<bool>::CreateLambda([]() { return Floor101::Update::CheckOnStartup(); }),
+					[](bool bOn) { Floor101::Update::SetCheckOnStartup(bOn); }))
+		]
+		+ SVerticalBox::Slot().AutoHeight()
+		[
+			SettingRow(LOCTEXT("AboutLicense", "Licencia"),
+				LOCTEXT("AboutLicenseHelp", "Código abierto con licencia MIT. Usa Unreal® Engine; Unreal es una marca comercial o registrada de Epic Games, Inc."),
+				Ui::Button(Studio::EButton::Secondary, LOCTEXT("AboutNotices", "Avisos de terceros"), OpenNotices, EFloor101Icon::Doc))
+		]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 6.0f, 0.0f, 0.0f).HAlign(HAlign_Left)
+		[
+			Ui::Button(Studio::EButton::Ghost, LOCTEXT("AboutRepository", "Proyecto en GitHub"),
+				[]() { FPlatformProcess::LaunchURL(*Floor101::Update::RepositoryPage(), nullptr, nullptr); }, EFloor101Icon::Export)
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeUpdateNotice()
+{
+	namespace Studio = Floor101::Studio;
+	namespace Ui = Floor101::Ui;
+	using Floor101::Update::EState;
+	using Floor101::Update::FUpdater;
+	const Studio::FPalette& P = Studio::Palette();
+	// On the home screen while a new version is available, downloading or ready.
+	return SNew(SBox)
+		.Visibility_Lambda([]()
+		{
+			const EState State = FUpdater::Get().GetState();
+			return State == EState::Available || State == EState::Downloading || State == EState::Ready ? EVisibility::Visible : EVisibility::Collapsed;
+		})
+		[
+			Ui::Island(
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(4.0f, 0.0f, 12.0f, 0.0f)[Ui::Dot(FSlateColor(P.Brass), 9.0f)]
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Font(Studio::Text(Studio::EText::Body)).ColorAndOpacity(P.Text1).AutoWrapText(true)
+					.Text_Lambda([]() { return FUpdater::Get().GetStatus(); })
+				]
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(12.0f, 0.0f, 0.0f, 0.0f)[MakeUpdateButton()],
+				FMargin(12.0f, 10.0f))
+		];
+}
+
+TSharedRef<SWidget> SFloor101Overlay::MakeUpdateChip()
+{
+	using Floor101::Update::EState;
+	using Floor101::Update::FUpdater;
+	// In the bar while there is something to install: opens Options → Acerca de.
+	return SNew(SBox)
+		.Visibility_Lambda([]()
+		{
+			const EState State = FUpdater::Get().GetState();
+			return State == EState::Available || State == EState::Downloading || State == EState::Ready ? EVisibility::Visible : EVisibility::Collapsed;
+		})
+		[
+			Floor101::Ui::Button(Floor101::Studio::EButton::Ghost,
+				TAttribute<FText>::CreateLambda([]()
+				{
+					return FText::Format(LOCTEXT("UpdateChip", "Versión {0}"), FText::FromString(FUpdater::Get().GetAvailable().Version));
+				}),
+				[this]()
+				{
+					OptionsPage = 4;
+					OpenOptions();
+				},
+				EFloor101Icon::Down, TAttribute<FText>::CreateLambda([]() { return FUpdater::Get().GetStatus(); }), FText::GetEmpty(), true, 30.0f)
 		];
 }
 

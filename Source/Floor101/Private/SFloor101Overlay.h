@@ -75,6 +75,12 @@ private:
 	TSharedRef<SWidget> MakeOptionsPanel();
 	TSharedRef<SWidget> MakeHomePanel();
 	TSharedRef<SWidget> MakeUnsavedPanel();
+	// Updates (ADR-0039): Options → Acerca de, the notice on the home screen and the button in the bar while a new version
+	// is available, downloading or ready to install.
+	TSharedRef<SWidget> MakeAboutPage();
+	TSharedRef<SWidget> MakeUpdateButton();
+	TSharedRef<SWidget> MakeUpdateNotice();
+	TSharedRef<SWidget> MakeUpdateChip();
 	bool bUnsavedPromptOpen = false;
 	bool bUnsavedExit = false;
 	bool bResolvingUnsaved = false;

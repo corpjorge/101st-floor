@@ -2,7 +2,7 @@
   <Bundle Name="101st Floor" Manufacturer="101st Floor" Version="$(var.Version)"
           UpgradeCode="A5798C15-7C6E-4298-B74C-1CCF45E50D15" IconSourceFile="$(var.Icon)">
     <BootstrapperApplication>
-      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="" LogoFile="$(var.Logo)" SuppressOptionsUI="yes" />
+      <bal:WixStandardBootstrapperApplication Theme="hyperlinkLicense" LicenseUrl="https://github.com/corpjorge/101st-floor/blob/main/LICENSE" LogoFile="$(var.Logo)" SuppressOptionsUI="yes" />
     </BootstrapperApplication>
     <util:RegistrySearch Id="RuntimeInstalled" Variable="VCRuntimeInstalled" Root="HKLM" Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" Value="Installed" Result="value" Bitness="always64" />
     <util:RegistrySearch Id="RuntimeMajor" Variable="VCRuntimeMajor" Root="HKLM" Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" Value="Major" Result="value" Bitness="always64" />

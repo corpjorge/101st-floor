@@ -9,6 +9,7 @@
 #include "UiReviewCheck.h"
 #include "Floor101Preferences.h"
 #include "PackageCheck.h"
+#include "Floor101Update.h"
 
 AFloor101PlayerController::AFloor101PlayerController()
 {
@@ -46,6 +47,7 @@ void AFloor101PlayerController::BeginPlay()
 		Floor101::UIReview::Start(StaticCastSharedRef<SFloor101Overlay>(Overlay.ToSharedRef()), Cast<UFloor101GameViewportClient>(Viewport));
 		StaticCastSharedRef<SFloor101Overlay>(Overlay.ToSharedRef())->ShowStartup();
 		Floor101::PackageCheck::Start(Cast<UFloor101GameViewportClient>(Viewport));
+		Floor101::Update::Startup(Cast<UFloor101GameViewportClient>(Viewport)); // a newer release, if allowed (ADR-0039)
 	}
 }
 

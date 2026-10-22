@@ -298,6 +298,8 @@ TSharedRef<SWidget> SFloor101Overlay::MakeHomePanel()
 						]
 					]
 				]
+				// A new version (ADR-0039), while there is one.
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.0f, 16.0f, 0.0f, 0.0f)[MakeUpdateNotice()]
 			];
 	};
 

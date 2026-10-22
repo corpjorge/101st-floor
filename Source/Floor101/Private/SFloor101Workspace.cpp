@@ -174,6 +174,7 @@ TSharedRef<SWidget> SFloor101Overlay::MakeToolbar()
 
 	auto Save = [this]() { if (auto* S = Document.Get()) { FFloor101FileActions::Save(*S); } };
 	const TSharedRef<SWidget> Right = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.0f, 0.0f, 8.0f, 0.0f)[MakeUpdateChip()]
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 		[
 			Ui::IconButton(EFloor101Icon::Undo, [this]() { Run([](EditController& E) { return E.undo(); }); }, LOCTEXT("StudioUndo", "Deshacer"),

@@ -13,6 +13,7 @@
 #include "Floor101FileActions.h"
 #include "Floor101PathTracing.h"
 #include "Floor101SceneSpace.h"
+#include "Floor101Update.h"
 #include "Framework/Application/SlateApplication.h"
 #include "GameFramework/PlayerController.h"
 #include "InputCoreTypes.h"
@@ -86,6 +87,25 @@ bool UFloor101GameViewportClient::RequestExit()
 		return RequestUnsavedAction(true, FSimpleDelegate::CreateWeakLambda(this, [this]() { CompleteExit(); }));
 	}
 	return CompleteExit();
+}
+
+bool UFloor101GameViewportClient::RequestUpdateInstall()
+{
+	auto Install = [this]()
+	{
+		if (Floor101::Update::FUpdater::Get().LaunchInstaller())
+		{
+			CompleteExit();
+		}
+	};
+	UWorld* CurrentWorld = GetWorld();
+	UFloor101DocumentSubsystem* Document = CurrentWorld ? CurrentWorld->GetSubsystem<UFloor101DocumentSubsystem>() : nullptr;
+	if (Document && Document->HasUnsavedChanges())
+	{
+		return RequestUnsavedAction(true, FSimpleDelegate::CreateWeakLambda(this, Install));
+	}
+	Install();
+	return true;
 }
 
 bool UFloor101GameViewportClient::RequestUnsavedAction(bool bExit, FSimpleDelegate Proceed)
