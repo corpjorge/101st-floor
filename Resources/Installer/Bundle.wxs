@@ -9,7 +9,7 @@
     <util:RegistrySearch Id="RuntimeMinor" Variable="VCRuntimeMinor" Root="HKLM" Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" Value="Minor" Result="value" Bitness="always64" />
     <Chain>
       <ExePackage SourceFile="$(var.Prerequisites)" InstallArguments="/quiet /norestart"
-                  RepairArguments="/repair /quiet /norestart" PerMachine="yes" Permanent="yes" Vital="yes"
+                  RepairArguments="/repair /quiet /norestart" PerMachine="yes" Permanent="yes" Vital="yes" Cache="remove"
                   DetectCondition="VCRuntimeInstalled AND (VCRuntimeMajor &gt; 14 OR (VCRuntimeMajor = 14 AND VCRuntimeMinor &gt;= 50))" />
       <MsiPackage SourceFile="$(var.Msi)" Vital="yes" />
     </Chain>
