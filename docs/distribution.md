@@ -216,3 +216,11 @@ consultando el GitHub real, encuentra la versión, sigue la redirección de desc
 (`Saved/PackageChecks/20261022-142549-update`). Archivos del release
 en `Packaged/0.3.0/Release` con `SHA256SUMS.txt`. Sin firma Authenticode: SmartScreen avisa en el primer arranque del
 instalador. La prueba en otro equipo sin Unreal sigue pendiente.
+
+**Corrección del instalador 0.3.0 (2026-10-24).** El `Setup.exe` publicado fallaba con `0x80070005` en equipos que ya
+tenían el runtime de Visual C++: Burn guardaba igualmente una copia por máquina en `C:\ProgramData\Package Cache`, lo
+que pedía elevación y no podía asegurar esa carpeta. `Cache="remove"` en el `ExePackage` (Bundle.wxs) la guarda solo si
+lo ejecuta: con el runtime presente, la instalación es solo por usuario y sin administrador. Probado ejecutando el
+`Setup.exe` real en este equipo (instalación correcta). Se reemplazaron en el release v0.3.0 el `Setup.exe`, el `.msi`,
+el manifiesto firmado y `SHA256SUMS.txt`; la aplicación no cambia. Comprobación del actualizador contra GitHub:
+`Saved/PackageChecks/20261024-140919-update`. `CheckInstaller.ps1` prueba el MSI, no el `Setup.exe` de principio a fin.
